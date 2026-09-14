@@ -13,6 +13,7 @@ public sealed class AiCommandSummary
     public Vector2I TargetCoord { get; set; } = Vector2I.Zero;
     public List<Vector2I> TargetCoords { get; } = new();
     public Vector2I SourceRetreatDirection { get; set; } = Vector2I.Zero;
+    public Vector2I ForcedMoveDestinationCoord { get; set; } = new(-1, -1);
 
     public AiCommandSummary() { }
 
@@ -25,7 +26,8 @@ public sealed class AiCommandSummary
         IEnumerable<StringName> p_target_unit_ids,
         Vector2I p_target_coord,
         IEnumerable<Vector2I> p_target_coords,
-        Vector2I p_source_retreat_direction = default
+        Vector2I p_source_retreat_direction = default,
+        Vector2I p_forced_move_destination_coord = default
     )
     {
         CommandType = p_command_type ?? "";
@@ -37,6 +39,7 @@ public sealed class AiCommandSummary
         TargetCoord = p_target_coord;
         AddCoords(TargetCoords, p_target_coords);
         SourceRetreatDirection = p_source_retreat_direction;
+        ForcedMoveDestinationCoord = p_forced_move_destination_coord;
     }
 
     public static AiCommandSummary FromCommand(BattleCommand command)
@@ -61,7 +64,8 @@ public sealed class AiCommandSummary
             targetUnitIds,
             command.target_coord,
             targetCoords,
-            command.source_retreat_direction
+            command.source_retreat_direction,
+            command.forced_move_destination_coord
         );
     }
 
@@ -76,7 +80,8 @@ public sealed class AiCommandSummary
             TargetUnitIds,
             TargetCoord,
             TargetCoords,
-            SourceRetreatDirection
+            SourceRetreatDirection,
+            ForcedMoveDestinationCoord
         );
     }
 
@@ -93,6 +98,7 @@ public sealed class AiCommandSummary
             ["target_coord"] = TargetCoord,
             ["target_coords"] = new List<Vector2I>(TargetCoords),
             ["source_retreat_direction"] = SourceRetreatDirection,
+            ["forced_move_destination_coord"] = ForcedMoveDestinationCoord,
         };
     }
 

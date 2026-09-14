@@ -101,17 +101,20 @@ public static class ItemTraitContentValidator
         List<string> errors
     )
     {
+        HashSet<StringName> groupIds = new();
         for (int groupIndex = 0; groupIndex < rollGroups.Count; groupIndex++)
         {
             TraitRollGroupDefinition group = rollGroups[groupIndex];
             string groupLabel = $"{itemLabel}.trait_roll_groups[{groupIndex}]";
             if (group == null)
             {
-                errors.Add($"{groupLabel} must be a TraitRollGroupDef.");
+                errors.Add($"{groupLabel} must be a TraitRollGroupDefinition.");
                 continue;
             }
             if (group.GroupId == "")
                 errors.Add($"{groupLabel}.group_id must be non-empty.");
+            else if (!groupIds.Add(group.GroupId))
+                errors.Add($"{groupLabel}.group_id duplicates {group.GroupId}.");
             if (group.RollCount < 1)
                 errors.Add($"{groupLabel}.roll_count must be >= 1.");
 
@@ -129,7 +132,7 @@ public static class ItemTraitContentValidator
                 string entryLabel = $"{groupLabel}.entries[{entryIndex}]";
                 if (entry == null)
                 {
-                    errors.Add($"{entryLabel} must be a TraitRollGroupEntryDef.");
+                    errors.Add($"{entryLabel} must be a TraitRollGroupEntryDefinition.");
                     continue;
                 }
                 if (entry.TraitId == "")

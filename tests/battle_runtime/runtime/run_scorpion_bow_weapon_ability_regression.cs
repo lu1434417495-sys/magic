@@ -69,25 +69,18 @@ public partial class run_scorpion_bow_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(ScorpionItemId))
             return;
 
-        ItemDef rawScorpion = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_shortbow_scorpion.tres"
-        );
+        ItemDefinition rawScorpion = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_scorpion_339");
         _test.True(rawScorpion != null, "蝎子之弓原始资源应能加载。");
         if (rawScorpion != null)
         {
-            _test.Eq(rawScorpion.display_name, "蝎子之弓", "蝎子之弓显示名应来自设计源。");
-            _test.Eq(
-                rawScorpion.base_item_id,
-                new StringName("weapon_type_shortbow_base"),
-                "蝎子之弓应继承 shortbow 模板。"
-            );
-            _test.Eq(rawScorpion.base_price, 38000, "蝎子之弓基础价格应为 38000。");
-            WeaponProfileDef rawProfile = rawScorpion.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawScorpion.DisplayName, "蝎子之弓", "蝎子之弓显示名应来自设计源。");
+            _test.Eq(rawScorpion.BasePrice, 38000, "蝎子之弓基础价格应为 38000。");
+            WeaponProfileDefinition rawProfile = rawScorpion.WeaponProfile;
             _test.True(rawProfile != null, "蝎子之弓应声明武器 profile 覆写。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.training_group, new StringName("martial"), "蝎子之弓训练组应为 martial。");
-                _test.Eq(rawProfile.attack_range, 6, "蝎子之弓攻击距离应为 6。");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("martial"), "蝎子之弓训练组应为 martial。");
+                _test.Eq(rawProfile.AttackRange, 6, "蝎子之弓攻击距离应为 6。");
             }
         }
 

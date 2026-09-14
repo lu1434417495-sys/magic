@@ -432,7 +432,7 @@ public partial class run_magic_backlash_regression : LifecycleTestSceneTree
     private static BattleRuntimeModule BuildRuntimeWithSpellControlRoll(int roll)
     {
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_fireball.tres",
+            "mage_fireball",
             "magic_backlash:mage_fireball"
         );
         var runtime = new BattleRuntimeModule();

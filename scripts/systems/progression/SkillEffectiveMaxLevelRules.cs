@@ -17,23 +17,17 @@ public static class SkillEffectiveMaxLevelRules
         return ApplyNonCoreLimit(
             absoluteMax,
             skillDefinition.NonCoreMaxLevel,
-            skillProgress
+            unitProgress?.HasUsedGrowthTrigger(skillProgress?.skill_id ?? "") == true
         );
     }
 
     private static int ApplyNonCoreLimit(
         int absoluteMax,
         int configuredNonCoreMax,
-        UnitSkillProgress skillProgress
+        bool hasCompletedGrowth
     )
     {
-        if (
-            configuredNonCoreMax > 0
-            && (
-                skillProgress == null
-                || !skillProgress.is_level_trigger_locked
-            )
-        )
+        if (configuredNonCoreMax > 0 && !hasCompletedGrowth)
             return Mathf.Min(absoluteMax, configuredNonCoreMax);
 
         return absoluteMax;

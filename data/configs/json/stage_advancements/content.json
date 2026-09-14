@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "domain": "stage_advancements",
+  "family": "canonical",
+  "templates": {},
+  "entries": [
+    {
+      "modifier_id": "empty_stage_advancement",
+      "display_name": "Empty Stage Advancement",
+      "target_axis": "full",
+      "stage_offset": 1,
+      "max_stage_id": "",
+      "applies_to_race_ids": [],
+      "applies_to_subrace_ids": [],
+      "applies_to_bloodline_ids": [],
+      "applies_to_ascension_ids": [],
+      "grants_attributes": true,
+      "grants_traits": false,
+      "grants_body_size_change": false
+    }
+  ]
+}

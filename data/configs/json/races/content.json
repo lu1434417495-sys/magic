@@ -1,0 +1,487 @@
+{
+  "schema": 1,
+  "domain": "races",
+  "family": "canonical",
+  "templates": {},
+  "entries": [
+    {
+      "race_id": "dragonborn",
+      "display_name": "龙裔",
+      "description": "继承龙族血脉的类人族群，以龙息武器和元素抗性为标志。",
+      "age_profile_id": "dragonborn_age_profile",
+      "default_subrace_id": "black_dragonborn",
+      "subrace_ids": [
+        "black_dragonborn",
+        "blue_dragonborn",
+        "brass_dragonborn",
+        "bronze_dragonborn",
+        "copper_dragonborn",
+        "gold_dragonborn",
+        "green_dragonborn",
+        "red_dragonborn",
+        "silver_dragonborn",
+        "white_dragonborn"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "draconic_ancestry"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "normal_vision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "dragonborn"
+      ],
+      "racial_trait_summary": [
+        "龙族血脉。",
+        "龙裔亚种会授予对应吐息武器和元素抗性。"
+      ]
+    },
+    {
+      "race_id": "drow",
+      "display_name": "卓尔",
+      "description": "来自幽暗地域的精灵，拥有高级黑暗视觉和妖精血统。",
+      "age_profile_id": "drow_age_profile",
+      "default_subrace_id": "lolth_sworn_drow",
+      "subrace_ids": [
+        "lolth_sworn_drow",
+        "seldarine_drow"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "fey_ancestry",
+        "superior_darkvision",
+        "trance",
+        "drow_weapon_training",
+        "drow_magic"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "weapon_type_rapier",
+        "weapon_type_shortsword",
+        "weapon_type_hand_crossbow"
+      ],
+      "vision_tags": [
+        "superior_darkvision"
+      ],
+      "save_advantage_tags": [
+        "charm",
+        "sleep"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "drow",
+        "elf"
+      ],
+      "racial_trait_summary": [
+        "妖精血统。",
+        "高级黑暗视觉。",
+        "入定。",
+        "卓尔武器训练。",
+        "卓尔魔法。"
+      ]
+    },
+    {
+      "race_id": "dwarf",
+      "display_name": "矮人",
+      "description": "坚韧的族群，拥有黑暗视觉并能抵抗毒素。",
+      "age_profile_id": "dwarf_age_profile",
+      "default_subrace_id": "gold_dwarf",
+      "subrace_ids": [
+        "gold_dwarf",
+        "shield_dwarf",
+        "duergar"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 5,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "darkvision",
+        "dwarven_resilience",
+        "dwarven_combat_training",
+        "stonecunning"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "weapon_type_battleaxe",
+        "weapon_type_handaxe",
+        "weapon_type_light_hammer",
+        "weapon_type_warhammer",
+        "stone_lore"
+      ],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [
+        "poison"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "poison": "half"
+      },
+      "dialogue_tags": [
+        "dwarf"
+      ],
+      "racial_trait_summary": [
+        "黑暗视觉。",
+        "矮人韧性。",
+        "矮人战斗训练。",
+        "岩石智识。"
+      ]
+    },
+    {
+      "race_id": "elf",
+      "display_name": "精灵",
+      "description": "长寿的妖精血脉族群，拥有黑暗视觉并能抵御魅惑。",
+      "age_profile_id": "elf_age_profile",
+      "default_subrace_id": "high_elf",
+      "subrace_ids": [
+        "high_elf",
+        "wood_elf"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "fey_ancestry",
+        "darkvision",
+        "keen_senses",
+        "trance",
+        "elven_weapon_training"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "perception",
+        "weapon_type_longsword",
+        "weapon_type_shortsword",
+        "weapon_type_shortbow",
+        "weapon_type_longbow"
+      ],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [
+        "charm",
+        "sleep"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "elf"
+      ],
+      "racial_trait_summary": [
+        "妖精血统。",
+        "黑暗视觉。",
+        "敏锐感官。",
+        "入定。",
+        "精灵武器训练。"
+      ]
+    },
+    {
+      "race_id": "githyanki",
+      "display_name": "吉斯洋基",
+      "description": "来自星界的战士，擅长武艺、星界知识和灵能。",
+      "age_profile_id": "githyanki_age_profile",
+      "default_subrace_id": "standard_githyanki",
+      "subrace_ids": [
+        "standard_githyanki"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "githyanki_martial_prodigy",
+        "astral_knowledge",
+        "githyanki_psionics"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "weapon_type_longsword",
+        "weapon_type_greatsword",
+        "weapon_type_shortsword",
+        "light_armor",
+        "medium_armor",
+        "astral_knowledge"
+      ],
+      "vision_tags": [
+        "normal_vision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "githyanki"
+      ],
+      "racial_trait_summary": [
+        "武艺奇才。",
+        "星界知识。",
+        "吉斯洋基灵能。"
+      ]
+    },
+    {
+      "race_id": "gnome",
+      "display_name": "侏儒",
+      "description": "小巧而机敏的族群，擅长抵御精神类魔法。",
+      "age_profile_id": "gnome_age_profile",
+      "default_subrace_id": "forest_gnome",
+      "subrace_ids": [
+        "forest_gnome",
+        "deep_gnome",
+        "rock_gnome"
+      ],
+      "body_size_category": "small",
+      "base_speed": 5,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "darkvision",
+        "gnome_cunning",
+        "small_body"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [
+        "magic",
+        "intelligence",
+        "willpower"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "gnome"
+      ],
+      "racial_trait_summary": [
+        "黑暗视觉。",
+        "侏儒狡黠。",
+        "小型体型。"
+      ]
+    },
+    {
+      "race_id": "half_elf",
+      "display_name": "半精灵",
+      "description": "兼具人类与精灵血脉，拥有妖精血统和黑暗视觉。",
+      "age_profile_id": "half_elf_age_profile",
+      "default_subrace_id": "high_half_elf",
+      "subrace_ids": [
+        "high_half_elf",
+        "wood_half_elf",
+        "drow_half_elf"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "fey_ancestry",
+        "darkvision",
+        "civil_militia"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "weapon_type_spear",
+        "weapon_type_pike",
+        "weapon_type_halberd",
+        "weapon_type_glaive",
+        "light_armor",
+        "shield"
+      ],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [
+        "charm",
+        "sleep"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_elf",
+        "elf",
+        "human"
+      ],
+      "racial_trait_summary": [
+        "妖精血统。",
+        "黑暗视觉。",
+        "公民民兵训练。"
+      ]
+    },
+    {
+      "race_id": "half_orc",
+      "display_name": "半兽人",
+      "description": "强韧的战士，拥有黑暗视觉、威吓气势和顽强求生能力。",
+      "age_profile_id": "half_orc_age_profile",
+      "default_subrace_id": "standard_half_orc",
+      "subrace_ids": [
+        "standard_half_orc"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "darkvision",
+        "menacing",
+        "savage_attacks",
+        "relentless_endurance"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "intimidation"
+      ],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_orc",
+        "orc"
+      ],
+      "racial_trait_summary": [
+        "黑暗视觉。",
+        "威吓。",
+        "野蛮攻击。",
+        "顽强耐力。"
+      ]
+    },
+    {
+      "race_id": "halfling",
+      "display_name": "半身人",
+      "description": "以幸运、勇气和灵巧步伐闻名的小型族群。",
+      "age_profile_id": "halfling_age_profile",
+      "default_subrace_id": "lightfoot_halfling",
+      "subrace_ids": [
+        "lightfoot_halfling",
+        "strongheart_halfling"
+      ],
+      "body_size_category": "small",
+      "base_speed": 5,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "halfling_luck",
+        "brave",
+        "halfling_nimbleness",
+        "small_body"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "normal_vision"
+      ],
+      "save_advantage_tags": [
+        "frightened"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "halfling"
+      ],
+      "racial_trait_summary": [
+        "半身人幸运。",
+        "勇敢。",
+        "半身人灵巧。",
+        "小型体型。"
+      ]
+    },
+    {
+      "race_id": "human",
+      "display_name": "人类",
+      "description": "适应力强、训练面广，没有天生黑暗视觉。",
+      "age_profile_id": "human_age_profile",
+      "default_subrace_id": "common_human",
+      "subrace_ids": [
+        "common_human"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "human_versatility",
+        "civil_militia"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "civilian",
+        "weapon_type_spear",
+        "weapon_type_pike",
+        "weapon_type_halberd",
+        "weapon_type_glaive",
+        "light_armor",
+        "shield"
+      ],
+      "vision_tags": [
+        "normal_vision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "human"
+      ],
+      "racial_trait_summary": [
+        "人类多才。",
+        "公民民兵训练。"
+      ]
+    },
+    {
+      "race_id": "tiefling",
+      "display_name": "提夫林",
+      "description": "带有炼狱血脉的族群，拥有黑暗视觉和火焰抗性。",
+      "age_profile_id": "tiefling_age_profile",
+      "default_subrace_id": "asmodeus_tiefling",
+      "subrace_ids": [
+        "asmodeus_tiefling",
+        "mephistopheles_tiefling",
+        "zariel_tiefling"
+      ],
+      "body_size_category": "medium",
+      "base_speed": 6,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "darkvision",
+        "damage_resistance",
+        "infernal_legacy"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "fire": "half"
+      },
+      "dialogue_tags": [
+        "tiefling"
+      ],
+      "racial_trait_summary": [
+        "黑暗视觉。",
+        "火焰抗性。",
+        "炼狱传承。"
+      ]
+    }
+  ]
+}

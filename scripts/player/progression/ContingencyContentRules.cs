@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Godot;
@@ -10,12 +11,53 @@ public readonly record struct ContingencyTemplateStoredSpellInfo(
 
 public static class ContingencyContentRules
 {
-    public static readonly StringName ChargeMaterialItemId = "special_contingency_gem";
-    public const int ChargeMaterialQuantity = 1;
-    public const int ReservedMpPerMatrixLoad = 2;
+    public static int ResolveReservedMpMax(ContingencySetupTemplateDefinition template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (template.MatrixLoad <= 0 || template.ReservedMpPerMatrixLoad <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Contingency template '{template.TemplateId}' must define positive matrix load and reserved MP per matrix load."
+            );
+        }
+        return checked(template.MatrixLoad * template.ReservedMpPerMatrixLoad);
+    }
 
-    public static int ResolveReservedMpMax(int matrixLoad) =>
-        Mathf.Max(matrixLoad * ReservedMpPerMatrixLoad, 1);
+    public static IReadOnlyList<ContingencyMaterialCostState> BuildChargeCosts(
+        ContingencySetupTemplateDefinition template
+    )
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        if (template.ChargeMaterialCosts == null || template.ChargeMaterialCosts.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Contingency template '{template.TemplateId}' must define at least one charge material cost."
+            );
+        }
+        var result = new List<ContingencyMaterialCostState>(template.ChargeMaterialCosts.Count);
+        for (int index = 0; index < template.ChargeMaterialCosts.Count; index++)
+        {
+            ContingencyMaterialCostDefinition definition = template.ChargeMaterialCosts[index];
+            if (definition == null || definition.ItemId == "" || definition.Quantity <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Contingency template '{template.TemplateId}' has an invalid charge material cost at index {index}."
+                );
+            }
+            ContingencyMaterialCostState state = ContingencyMaterialCostState.Create(
+                definition.ItemId,
+                definition.Quantity
+            );
+            if (state == null)
+            {
+                throw new InvalidOperationException(
+                    $"Contingency template '{template.TemplateId}' charge material cost at index {index} could not be projected."
+                );
+            }
+            result.Add(state);
+        }
+        return new ReadOnlyCollection<ContingencyMaterialCostState>(result);
+    }
 
     public static IReadOnlyList<ContingencyTemplateStoredSpellInfo> GetTemplateStoredSpellsTyped(
         ContingencySetupTemplateDefinition template
@@ -24,15 +66,16 @@ public static class ContingencyContentRules
         if (template?.StoredSpells == null)
             return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
 
+        // StoredSkillId 非空由 ContingencyStoredSpellTemplateDefinition 构造器保证。原先这里
+        // 遇到坏条目会整体返回空数组，让"条目损坏"和"模板没有 stored spell"变成同一个结果，
+        // 注册表据此报出的错误文案是错的。
         var result = new List<ContingencyTemplateStoredSpellInfo>(template.StoredSpells.Count);
         foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            if (storedSpell == null || storedSpell.StoredSkillId == "")
-                return System.Array.Empty<ContingencyTemplateStoredSpellInfo>();
             result.Add(
                 new ContingencyTemplateStoredSpellInfo(
                     storedSpell.StoredSkillId,
-                    Mathf.Max(storedSpell.MaxCastLevel, 1)
+                    storedSpell.MaxCastLevel
                 )
             );
         }
@@ -75,9 +118,6 @@ public static class ContingencyContentRules
         var storedSpells = new List<object>(template.StoredSpells.Count);
         foreach (ContingencyStoredSpellTemplateDefinition storedSpell in template.StoredSpells)
         {
-            if (storedSpell == null || storedSpell.StoredSkillId == "")
-                return null;
-
             int castLevel = 1;
             if (
                 castLevelsByStoredSkillId != null
@@ -87,11 +127,8 @@ public static class ContingencyContentRules
                 )
             )
             {
-                castLevel = Mathf.Clamp(
-                    resolvedLevel,
-                    1,
-                    Mathf.Max(storedSpell.MaxCastLevel, 1)
-                );
+                // MaxCastLevel 已在内容期保证 >= 1，这里不再重复钳位。
+                castLevel = Mathf.Clamp(resolvedLevel, 1, storedSpell.MaxCastLevel);
             }
 
             storedSpells.Add(

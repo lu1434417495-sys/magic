@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Globalization;
 using Godot;
 
 public partial class run_battle_shield_service_typed_context_regression : LifecycleTestSceneTree
@@ -10,11 +8,9 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
     public override void _Initialize()
     {
         TestTypedRollContextCachesShieldHp();
-        TestGodotBoundaryRollContextRoundTrips();
         TestTypedApplyPathUsesSharedContext();
+        TestPerTargetRollAndWillpowerModifier();
         TestShieldReplacementPolicyPreservesAtomicOwnerState();
-        TestApplyResultPublicApiStaysTyped();
-        TestApplyResultProjectsInternalBoundary();
         RequestTestExit(_test.Finish("Battle shield service typed context regression"));
     }
 
@@ -23,13 +19,13 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
         var service = new BattleShieldService();
         BattleUnitState source = BuildUnit("typed_context_source");
         CombatEffectDefinition effect = BuildAttributeScaledShieldEffect();
-        long cacheKey = service._get_shield_roll_cache_key(effect);
         var rollContext = new Dictionary<long, int>();
 
         int shieldHp = service.ResolveShieldHp(source, effect, rollContext);
 
         _test.Eq(shieldHp, 7, "typed context 首次 roll 应使用属性缩放骰和 dice_bonus。");
-        _test.True(rollContext.ContainsKey(cacheKey), "typed context 应写入 shield roll cache。");
+        _test.Eq(rollContext.Count, 1, "typed context 首次解析应写入唯一 shield roll cache。");
+        long cacheKey = GetOnlyCacheKey(rollContext);
         _test.Eq(rollContext[cacheKey], 7, "typed context cache 值应等于已解析护盾。");
 
         rollContext[cacheKey] = 19;
@@ -37,56 +33,6 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             service.ResolveShieldHp(source, effect, rollContext),
             19,
             "typed context 命中 cache 时不应重新 roll。"
-        );
-    }
-
-    private void TestGodotBoundaryRollContextRoundTrips()
-    {
-        var service = new BattleShieldService();
-        BattleUnitState source = BuildUnit("godot_context_source");
-        CombatEffectDefinition effect = BuildAttributeScaledShieldEffect();
-        long cacheKey = service._get_shield_roll_cache_key(effect);
-        var godotContext = new Godot.Collections.Dictionary();
-
-        int shieldHp = service._resolve_shield_hp(source, effect, godotContext);
-
-        _test.Eq(shieldHp, 7, "Godot 边界首次 roll 应保持现有行为。");
-        _test.True(HasKey(godotContext, cacheKey), "Godot 边界应写回 roll context。");
-        _test.Eq(ReadInt(godotContext, cacheKey), 7, "Godot 边界 context 值应写回已解析护盾。");
-
-        godotContext[cacheKey.ToString(CultureInfo.InvariantCulture)] = 23;
-        _test.Eq(
-            service._resolve_shield_hp(source, effect, godotContext),
-            23,
-            "Godot 边界传入已有 cache 时应桥接到 typed context。"
-        );
-    }
-
-    private void TestApplyResultPublicApiStaysTyped()
-    {
-        Type type = typeof(BattleShieldApplyResult);
-    }
-
-    private void TestApplyResultProjectsInternalBoundary()
-    {
-        var result = new BattleShieldApplyResult(
-            true,
-            9,
-            12,
-            60,
-            new StringName("test_shield_family")
-        );
-
-        Godot.Collections.Dictionary payload = BattleShieldApplyResultProjection.Project(result);
-
-        _test.True(payload["applied"].AsBool(), "shield apply result 应投影 applied。");
-        _test.Eq(payload["current_shield_hp"].AsInt32(), 9, "shield apply result 应投影当前护盾。");
-        _test.Eq(payload["shield_max_hp"].AsInt32(), 12, "shield apply result 应投影最大护盾。");
-        _test.Eq(payload["shield_duration"].AsInt32(), 60, "shield apply result 应投影持续时间。");
-        _test.Eq(
-            payload["shield_family"].AsStringName(),
-            new StringName("test_shield_family"),
-            "shield apply result 应投影护盾族。"
         );
     }
 
@@ -128,9 +74,23 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             "typed apply path 应写入 source skill。"
         );
         _test.Eq(result.CurrentShieldHp, 7, "typed apply result 应返回当前 shield hp。");
-        _test.True(
-            rollContext.ContainsKey(service._get_shield_roll_cache_key(effectDefinition)),
-            "typed apply path 应复用传入的 roll context。"
+        _test.Eq(rollContext.Count, 1, "typed apply path 应把首次解析结果写入共享 context。");
+        long cacheKey = GetOnlyCacheKey(rollContext);
+        rollContext[cacheKey] = 13;
+
+        BattleUnitState cachedTarget = BuildUnit("typed_apply_cached_target");
+        BattleShieldApplyResult cachedResult = service.ApplyUnitShieldEffectsResult(
+            source,
+            cachedTarget,
+            skillDefinition,
+            new[] { effectDefinition },
+            rollContext
+        );
+        _test.True(cachedResult.Applied, "共享 context 的缓存值仍应能应用护盾。");
+        _test.Eq(
+            cachedTarget.GetShieldStateTyped().CurrentHp,
+            13,
+            "第二次正式 apply 应复用共享 context 中已观察到的 cache，而非重新 roll。"
         );
     }
 
@@ -138,9 +98,14 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
     {
         var service = new BattleShieldService();
         CombatEffectDefinition effect = BuildAttributeScaledShieldEffect();
-        long cacheKey = service._get_shield_roll_cache_key(effect);
 
         BattleUnitState refreshSource = BuildUnit("refresh_source");
+        Dictionary<long, int> rollContext = BuildObservedRollContext(
+            service,
+            refreshSource,
+            effect,
+            7
+        );
         BattleUnitState refreshTarget = BuildUnit("refresh_target");
         refreshTarget.ReplaceShieldStateTyped(
             5,
@@ -155,7 +120,7 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             refreshTarget,
             TestSkillDefinitionProjection.BuildSkill("same_family"),
             effect,
-            new Dictionary<long, int> { [cacheKey] = 7 }
+            rollContext
         );
         _test.True(refreshResult.Applied, "同 family 有数值提升时应应用刷新。");
         _test.Eq(
@@ -194,7 +159,7 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             noOpTarget,
             TestSkillDefinitionProjection.BuildSkill("same_family"),
             effect,
-            new Dictionary<long, int> { [cacheKey] = 7 }
+            rollContext
         );
         _test.False(noOpResult.Applied, "同 family 无任何数值提升时应保持 no-op。");
         _test.Eq(
@@ -225,7 +190,7 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             rejectedTarget,
             TestSkillDefinitionProjection.BuildSkill("new_family"),
             effect,
-            new Dictionary<long, int> { [cacheKey] = 7 }
+            rollContext
         );
         _test.False(rejectedResult.Applied, "异 family 较弱护盾不应替换当前护盾。");
         _test.Eq(
@@ -249,7 +214,7 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             replacementTarget,
             TestSkillDefinitionProjection.BuildSkill("new_family"),
             effect,
-            new Dictionary<long, int> { [cacheKey] = 7 }
+            rollContext
         );
         _test.True(
             replacementResult.Applied,
@@ -266,6 +231,64 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
                 "new_family"
             ),
             "异 family 替换应一次性写入完整新 owner 状态。"
+        );
+    }
+
+    private void TestPerTargetRollAndWillpowerModifier()
+    {
+        var service = new BattleShieldService();
+        BattleUnitState source = BuildUnit("per_target_source");
+        source.attribute_snapshot.SetValue(
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
+            16
+        );
+        BattleUnitState firstTarget = BuildUnit("per_target_first");
+        BattleUnitState secondTarget = BuildUnit("per_target_second");
+        SkillDefinition skill = TestSkillDefinitionProjection.BuildSkill("typed_holy_barrier");
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "shield",
+            diceCount: 1,
+            diceSides: 8,
+            diceBonus: 3,
+            durationTu: 40,
+            shieldFamily: "holy_barrier",
+            shieldAttributeModifierId: "willpower_modifier",
+            shieldRollPerTarget: true
+        );
+        var rollContext = new Dictionary<long, int>();
+
+        BattleShieldApplyResult firstResult = service.ApplyShieldEffectToTargetResult(
+            source,
+            firstTarget,
+            skill,
+            effect,
+            rollContext
+        );
+        BattleShieldApplyResult secondResult = service.ApplyShieldEffectToTargetResult(
+            source,
+            secondTarget,
+            skill,
+            effect,
+            rollContext
+        );
+
+        _test.True(firstResult.Applied && secondResult.Applied, "逐目标护盾应分别应用到两个目标。");
+        _test.Eq(firstResult.CurrentShieldHp, 7, "无 runtime RNG 时应结算 1+3+意志调整值3。");
+        _test.Eq(secondResult.CurrentShieldHp, 7, "第二目标也应使用施法者意志调整值。");
+        _test.Eq(rollContext.Count, 2, "逐目标投骰必须为两个不同单位写入两个 cache 项。");
+        _test.True(
+            rollContext.ContainsKey(service._get_shield_roll_cache_key(effect, firstTarget.unit_id)),
+            "第一个目标应有独立投骰 cache key。"
+        );
+        _test.True(
+            rollContext.ContainsKey(service._get_shield_roll_cache_key(effect, secondTarget.unit_id)),
+            "第二个目标应有独立投骰 cache key。"
+        );
+        _test.Eq(effect.ShieldFamily, new StringName("holy_barrier"), "typed family 应进入 immutable definition。");
+        _test.Eq(
+            effect.ShieldAttributeModifierId,
+            new StringName("willpower_modifier"),
+            "typed 属性调整值 id 应进入 immutable definition。"
         );
     }
 
@@ -295,23 +318,24 @@ public partial class run_battle_shield_service_typed_context_regression : Lifecy
             durationTu: 60
         );
 
-    private static int ReadInt(Godot.Collections.Dictionary source, long key)
+    private static Dictionary<long, int> BuildObservedRollContext(
+        BattleShieldService service,
+        BattleUnitState source,
+        CombatEffectDefinition effect,
+        int cachedHp
+    )
     {
-        return source[key.ToString(CultureInfo.InvariantCulture)].AsInt32();
+        var rollContext = new Dictionary<long, int>();
+        service.ResolveShieldHp(source, effect, rollContext);
+        rollContext[GetOnlyCacheKey(rollContext)] = cachedHp;
+        return rollContext;
     }
 
-    private static bool HasKey(Godot.Collections.Dictionary source, long key)
+    private static long GetOnlyCacheKey(IReadOnlyDictionary<long, int> rollContext)
     {
-        return source.ContainsKey(key.ToString(CultureInfo.InvariantCulture));
+        foreach (long key in rollContext.Keys)
+            return key;
+        throw new System.InvalidOperationException("Expected one observed shield roll cache entry.");
     }
 
-    private static bool IsGodotCollectionOrVariant(Type type)
-    {
-        if (type == typeof(Variant))
-            return true;
-        Type genericDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        return genericDefinition == typeof(Godot.Collections.Dictionary)
-            || genericDefinition == typeof(Godot.Collections.Array)
-            || type.Namespace == "Godot.Collections";
-    }
 }

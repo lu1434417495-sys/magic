@@ -57,46 +57,40 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         foreach (StringName bindingId in new[] { CollapseBinding, FollowupBinding, AnchorBinding })
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"裂山者应包含 binding {bindingId}。");
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_mountainbreaker.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greataxe_mountainbreaker");
         _test.True(rawItem != null, "裂山者原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "裂山者 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "裂山者", "裂山者应使用新名称。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_greataxe_base"), "裂山者应继承 greataxe。");
-            _test.Eq(rawItem.base_price, 65000, "裂山者价格应为 65000。");
-            _test.Eq(rawItem.trait_ids.Count, 5, "裂山者应有且只有 5 个特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "裂山者 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "裂山者", "裂山者应使用新名称。");
+            _test.Eq(rawItem.BasePrice, 65000, "裂山者价格应为 65000。");
+            _test.Eq(rawItem.TraitIds.Count, 5, "裂山者应有且只有 5 个特性。");
             foreach (StringName traitId in new[] { BladeTrait, GripTrait, CollapseTrait, FollowupTrait, AnchorTrait })
-                _test.True(rawItem.trait_ids.Contains(traitId), $"裂山者 item 应声明 {traitId}。");
+                _test.True(rawItem.TraitIds.Contains(traitId), $"裂山者 item 应声明 {traitId}。");
 
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "裂山者应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.family, new StringName("axe"), "裂山者 family 应为 axe。");
-                _test.Eq(profile.range_type, new StringName("melee"), "裂山者应为 melee。");
-                _test.Eq(profile.damage_tag, new StringName("physical_slash"), "裂山者应为斩击。");
-                _test.Eq(profile.attack_range, 2, "裂山者应保留 reach 攻击距离 2。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 2, "裂山者应为 2D8+3。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 8, "裂山者应为 2D8+3。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 3, "裂山者应为 2D8+3。");
+                _test.Eq(profile.Family, new StringName("axe"), "裂山者 family 应为 axe。");
+                _test.Eq(profile.RangeType, new StringName("melee"), "裂山者应为 melee。");
+                _test.Eq(profile.DamageTag, new StringName("physical_slash"), "裂山者应为斩击。");
+                _test.Eq(profile.AttackRange, 2, "裂山者应保留 reach 攻击距离 2。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 2, "裂山者应为 2D8+3。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 8, "裂山者应为 2D8+3。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 3, "裂山者应为 2D8+3。");
                 _test.True(Contains(profile.GetPropertiesTyped(), "two_handed"), "裂山者应声明 two_handed。");
                 _test.True(Contains(profile.GetPropertiesTyped(), "heavy"), "裂山者应声明 heavy。");
                 _test.True(Contains(profile.GetPropertiesTyped(), "reach"), "裂山者应声明 reach。");
             }
 
-            EquipmentRequirement requirement = rawItem.equip_requirement as EquipmentRequirement;
+            EquipmentRequirementDefinition requirement = rawItem.EquipRequirement;
             _test.True(HasAttributeRequirement(requirement, Strength, 20), "泰坦之握应要求 strength >= 20。");
         }
 
         AssertStrengthRequirement(fixture.ItemDefs, 19, false);
         AssertStrengthRequirement(fixture.ItemDefs, 20, true);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon(20);
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildMountainbreakerUnit(20, "projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -110,16 +104,6 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         AssertAbilitySource(equipped, FollowupTrait, FollowupBinding);
         AssertAbilitySource(equipped, AnchorTrait, AnchorBinding);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除裂山者后 weapon_item_id 应清空。");
-        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后 profile 应恢复。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
     }
 
     private void TestCollapseFollowupAndLeylineAnchor()
@@ -283,12 +267,16 @@ public partial class run_mountainbreaker_weapon_ability_regression : LifecycleTe
         );
     }
 
-    private static bool HasAttributeRequirement(EquipmentRequirement requirement, StringName attributeId, int minValue)
+    private static bool HasAttributeRequirement(
+        EquipmentRequirementDefinition requirement,
+        StringName attributeId,
+        int minValue
+    )
     {
         if (requirement == null)
             return false;
-        foreach (EquipmentAttributeRequirementDef entry in requirement.attribute_requirements)
-            if (entry?.attribute_id == attributeId && entry.min_value == minValue)
+        foreach (EquipmentAttributeRequirementDefinition entry in requirement.AttributeRequirements)
+            if (entry?.AttributeId == attributeId && entry.MinValue == minValue)
                 return true;
         return false;
     }

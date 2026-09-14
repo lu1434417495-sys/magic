@@ -14,6 +14,10 @@ internal sealed class BattleEquipmentAbilityAfterHitContext
     public int WeaponHpDamage { get; init; }
     public BattleEventBatch Batch { get; init; }
     public BattleSaveContext SaveContext { get; init; } = BattleSaveContext.Empty;
+    // on_attack_hit 携带的 skill/effect origin provenance；旧 on_hit 调用方保持默认空值。
+    public StringName SkillId { get; init; } = "";
+    public BattleDamageOriginKind DamageOriginKind { get; init; } =
+        BattleDamageOriginKind.Unknown;
 }
 
 internal sealed class BattleEquipmentAbilityAttackCheckContext
@@ -33,6 +37,7 @@ internal sealed class BattleEquipmentAbilityBonusDamageDiceContext
     public BattleState BattleState { get; init; }
     public bool AttackSucceeded { get; init; }
     public bool CriticalHit { get; init; }
+    public bool IncludesWeaponDamage { get; init; } = true;
 }
 
 internal sealed class BattleEquipmentAbilityDamageRollModeContext
@@ -55,12 +60,65 @@ internal sealed class BattleEquipmentAbilityDamageReductionContext
     public bool CriticalHit { get; init; }
 }
 
+internal sealed class BattleEquipmentAbilityMitigationAuraContext
+{
+    public BattleUnitState TargetUnit { get; init; }
+    public BattleState BattleState { get; init; }
+    public StringName DamageTag { get; init; } = "";
+}
+
+internal sealed class BattleEquipmentAbilityMitigationTierContext
+{
+    public BattleUnitState SourceUnit { get; init; }
+    public BattleUnitState TargetUnit { get; init; }
+    public BattleState BattleState { get; init; }
+    public StringName SkillId { get; init; } = "";
+    public StringName SaveTag { get; init; } = "";
+    public IReadOnlyList<StringName> EffectCategories { get; init; } =
+        Array.Empty<StringName>();
+    public StringName DamageTag { get; init; } = "";
+    public BattleDamageOriginKind DamageOriginKind { get; init; } =
+        BattleDamageOriginKind.Unknown;
+}
+
+// 每次主直接伤害结算的 bonus dice 只读查询 context（§8.4）。canonical resolver 在
+// 每次准备结算一个主 Damage effect 时构造一次；SourceEffectOrdinal 只保留
+// provenance，不作为跨段去重键。
+internal sealed class BattleEquipmentAbilityDirectDamageContext
+{
+    public BattleUnitState SourceUnit { get; init; }
+    public BattleUnitState TargetUnit { get; init; }
+    public BattleState BattleState { get; init; }
+    public StringName SkillId { get; init; } = "";
+    public StringName SaveTag { get; init; } = "";
+    public IReadOnlyList<StringName> EffectCategories { get; init; } =
+        Array.Empty<StringName>();
+    public StringName PrimaryDamageTag { get; init; } = "";
+    public BattleDamageOriginKind DamageOriginKind { get; init; } =
+        BattleDamageOriginKind.Unknown;
+    public int SourceEffectOrdinal { get; init; }
+    public bool IsMainDirectEffect { get; init; }
+    public bool IncludesWeaponDamage { get; init; }
+    public bool HasAttackCheck { get; init; }
+    public bool AttackSucceeded { get; init; }
+    public bool CriticalHit { get; init; }
+}
+
 internal sealed class BattleEquipmentAbilityDamageAppliedContext
 {
     public BattleUnitState SourceUnit { get; init; }
     public BattleUnitState TargetUnit { get; init; }
     public BattleState BattleState { get; init; }
+    public BattleEventBatch Batch { get; init; }
+    public int RawDamage { get; init; }
     public int HpDamage { get; init; }
+    public int HpBefore { get; init; }
+    public StringName DamageTag { get; init; } = "";
+    public bool IsEquipmentGenerated { get; init; }
+    public bool IsSelfDamage { get; init; }
+    public bool IsPreview { get; init; }
+    internal bool IsBranchLocalProjection { get; init; }
+    public Action<BattleEquipmentAbilityActionPreviewResult> PreviewActionSink { get; init; }
     public BattleSaveContext SaveContext { get; init; } = BattleSaveContext.Empty;
 }
 
@@ -86,6 +144,8 @@ internal sealed class BattleEquipmentAbilityBonusDamageDiceResult
 {
     public StringName BindingId { get; init; } = "";
     public StringName ActionId { get; init; } = "";
+    public StringName ReplacementGroupId { get; init; } = "";
+    public int ReplacementPriority { get; init; }
     public int DiceCount { get; init; }
     public int DiceSides { get; init; }
     public int FlatBonus { get; init; }
@@ -113,6 +173,23 @@ internal sealed class BattleEquipmentAbilityDamageReductionResult
     public StringName BindingId { get; init; } = "";
     public StringName ActionId { get; init; } = "";
     public int Amount { get; init; }
+    public string Label { get; init; } = "";
+}
+
+internal sealed class BattleEquipmentAbilityMitigationAuraResult
+{
+    public StringName BindingId { get; init; } = "";
+    public StringName AuraId { get; init; } = "";
+    public StringName SourceUnitId { get; init; } = "";
+    public StringName MitigationTier { get; init; } = "";
+    public string Label { get; init; } = "";
+}
+
+internal sealed class BattleEquipmentAbilityMitigationTierResult
+{
+    public StringName BindingId { get; init; } = "";
+    public StringName ActionId { get; init; } = "";
+    public StringName MitigationTier { get; init; } = "";
     public string Label { get; init; } = "";
 }
 
@@ -165,8 +242,22 @@ internal sealed class BattleEquipmentAbilityAfterHitResult
 
     internal void AddBonusDamageDice(BattleEquipmentAbilityBonusDamageDiceResult result)
     {
-        if (result != null)
-            _bonusDamageDice.Add(result);
+        BattleEquipmentAbilityBonusDamageReplacementRules.AddCandidateBundle(
+            _bonusDamageDice,
+            result == null
+                ? Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>()
+                : new[] { result }
+        );
+    }
+
+    internal void AddBonusDamageDiceBundle(
+        IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> results
+    )
+    {
+        BattleEquipmentAbilityBonusDamageReplacementRules.AddCandidateBundle(
+            _bonusDamageDice,
+            results
+        );
     }
 
     internal void AddStatusResult(BattleEquipmentAbilityStatusActionResult result)

@@ -16,9 +16,6 @@ internal sealed class BattleShieldService
 {
     private static readonly StringName Empty = "";
     private static readonly StringName ShieldEffect = "shield";
-    private static readonly StringName ShieldFallbackFamily = "shield";
-    private static readonly StringName Constitution = "constitution";
-    private static readonly StringName Willpower = "willpower";
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
 
@@ -94,7 +91,15 @@ internal sealed class BattleShieldService
         }
 
         Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
-        int shieldHp = ResolveShieldHp(source_unit, effect_definition, rollContext);
+        StringName rollTargetId = effect_definition.ShieldRollPerTarget
+            ? target_unit.unit_id
+            : Empty;
+        int shieldHp = ResolveShieldHp(
+            source_unit,
+            effect_definition,
+            rollContext,
+            rollTargetId
+        );
         shieldHp = BattleStatusModifierRules.ApplyShieldGainMultiplier(target_unit, shieldHp);
         if (shieldHp <= 0)
         {
@@ -226,7 +231,8 @@ internal sealed class BattleShieldService
     internal int ResolveShieldHp(
         BattleUnitState source_unit,
         CombatEffectDefinition effect_definition,
-        Dictionary<long, int> shield_roll_context = null
+        Dictionary<long, int> shield_roll_context = null,
+        StringName roll_target_unit_id = default
     )
     {
         if (effect_definition == null)
@@ -234,14 +240,20 @@ internal sealed class BattleShieldService
             return 0;
         }
 
-        int fallbackShieldHp = Math.Max(effect_definition.Power, 0);
+        int attributeModifier = ResolveShieldAttributeModifier(
+            source_unit,
+            effect_definition
+        );
+        int fallbackShieldHp = Math.Max(effect_definition.Power + attributeModifier, 0);
         Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
         if (_has_shield_attribute_scaled_dice_config(effect_definition))
         {
             return RollShieldHpWithAttributeScaledDice(
                 source_unit,
                 effect_definition,
-                rollContext
+                rollContext,
+                roll_target_unit_id,
+                attributeModifier
             );
         }
         if (!_has_shield_dice_config(effect_definition))
@@ -249,13 +261,16 @@ internal sealed class BattleShieldService
             return fallbackShieldHp;
         }
 
-        long cacheKey = _get_shield_roll_cache_key(effect_definition);
+        long cacheKey = _get_shield_roll_cache_key(effect_definition, roll_target_unit_id);
         if (rollContext.TryGetValue(cacheKey, out int cachedShieldHp))
         {
             return Math.Max(cachedShieldHp, 0);
         }
 
-        int rolledShieldHp = _roll_shield_hp(effect_definition);
+        int rolledShieldHp = Math.Max(
+            _roll_shield_hp(effect_definition) + attributeModifier,
+            1
+        );
         rollContext[cacheKey] = rolledShieldHp;
         return Math.Max(rolledShieldHp, 0);
     }
@@ -307,7 +322,9 @@ internal sealed class BattleShieldService
     private int RollShieldHpWithAttributeScaledDice(
         BattleUnitState source_unit,
         CombatEffectDefinition effect_definition,
-        Dictionary<long, int> shield_roll_context = null
+        Dictionary<long, int> shield_roll_context,
+        StringName roll_target_unit_id,
+        int attribute_modifier
     )
     {
         if (effect_definition == null)
@@ -315,30 +332,22 @@ internal sealed class BattleShieldService
             return 0;
         }
         Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
-        long cacheKey = _get_shield_roll_cache_key(effect_definition);
+        long cacheKey = _get_shield_roll_cache_key(effect_definition, roll_target_unit_id);
         if (rollContext.TryGetValue(cacheKey, out int cachedShieldHp))
         {
             return Math.Max(cachedShieldHp, 0);
         }
 
         int diceCount = Math.Max(effect_definition.DiceCount, 1);
-        int baseSides = Math.Max(effect_definition.DiceSidesBase, 0);
-        int conModSides = Math.Max(effect_definition.DiceSidesPerConstitutionMod, 0);
-        int willModSides = Math.Max(effect_definition.DiceSidesPerWillpowerMod, 0);
-        int diceSides = Math.Max(baseSides, 4);
-        AttributeSnapshot attributeSnapshot = source_unit?.attribute_snapshot;
-        if (attributeSnapshot != null)
-        {
-            int conScore = attributeSnapshot.GetValue(Constitution);
-            int conMod = (int)Math.Floor((conScore - 10) / 2.0);
-            int willScore = attributeSnapshot.GetValue(Willpower);
-            int willMod = (int)Math.Floor((willScore - 10) / 2.0);
-            long diceSidesRaw =
-                (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
-            diceSides = (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
-        }
+        int diceSides = BattleShieldPreviewRules.ResolveDiceSides(
+            source_unit,
+            effect_definition
+        );
 
-        int shieldHp = Math.Max(effect_definition.Power, 0) + effect_definition.DiceBonus;
+        int shieldHp =
+            Math.Max(effect_definition.Power, 0)
+            + effect_definition.DiceBonus
+            + attribute_modifier;
         for (int rollIndex = 0; rollIndex < diceCount; rollIndex++)
         {
             shieldHp += _roll_battle_effect_die(diceSides);
@@ -347,11 +356,33 @@ internal sealed class BattleShieldService
         return Math.Max(shieldHp, 1);
     }
 
-    internal long _get_shield_roll_cache_key(CombatEffectDefinition effect_definition)
+    internal long _get_shield_roll_cache_key(
+        CombatEffectDefinition effect_definition,
+        StringName target_unit_id = default
+    )
     {
-        return effect_definition != null
-            ? unchecked((long)RuntimeHelpers.GetHashCode(effect_definition))
-            : 0L;
+        if (effect_definition == null)
+        {
+            return 0L;
+        }
+        long effectKey = unchecked((uint)RuntimeHelpers.GetHashCode(effect_definition));
+        if (IsEmpty(target_unit_id))
+        {
+            return effectKey;
+        }
+        long targetKey = unchecked((uint)target_unit_id.GetHashCode());
+        return unchecked((effectKey << 32) ^ targetKey);
+    }
+
+    internal static int ResolveShieldAttributeModifier(
+        BattleUnitState source_unit,
+        CombatEffectDefinition effect_definition
+    )
+    {
+        return BattleShieldPreviewRules.ResolveAttributeModifier(
+            source_unit,
+            effect_definition
+        );
     }
 
     internal int _roll_battle_effect_die(int dice_sides)
@@ -375,12 +406,7 @@ internal sealed class BattleShieldService
         {
             return 0;
         }
-        int durationTu = effect_definition.DurationTu;
-        if (durationTu > 0)
-        {
-            return durationTu;
-        }
-        return Math.Max(effect_definition.GetIntParamTyped("duration_tu", 0), 0);
+        return Math.Max(effect_definition.DurationTu, 0);
     }
 
     internal StringName _resolve_shield_family(
@@ -388,26 +414,7 @@ internal sealed class BattleShieldService
         CombatEffectDefinition effect_definition
     )
     {
-        if (effect_definition != null)
-        {
-            StringName explicitFamily = effect_definition.GetStringNameParamTyped(
-                "shield_family",
-                Empty
-            );
-            if (!IsEmpty(explicitFamily))
-            {
-                return explicitFamily;
-            }
-        }
-        if (skill_definition != null)
-        {
-            StringName skillId = skill_definition.SkillId;
-            if (!IsEmpty(skillId))
-            {
-                return skillId;
-            }
-        }
-        return ShieldFallbackFamily;
+        return BattleShieldPreviewRules.ResolveFamily(skill_definition, effect_definition);
     }
 
     private static BattleShieldApplyResult DefaultShieldResult(

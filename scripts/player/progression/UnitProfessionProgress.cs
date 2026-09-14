@@ -27,7 +27,11 @@ public class UnitProfessionProgress
 
     public StringNameList granted_skill_ids = new();
 
-    public List<ProfessionPromotionRecord> promotion_history = new();
+    private readonly List<ProfessionPromotionRecord> _promotionHistory = new();
+    public IReadOnlyList<ProfessionPromotionRecord> promotion_history =>
+        _promotionHistory.ConvertAll(record => record.DuplicateState()).AsReadOnly();
+    internal IReadOnlyList<ProfessionPromotionRecord> PromotionHistoryTyped => _promotionHistory;
+    internal void ClearPromotionHistoryForDispose() => _promotionHistory.Clear();
 
     public StringName inactive_reason = "";
 
@@ -45,10 +49,10 @@ public class UnitProfessionProgress
             granted_skill_ids.Add(skillId);
     }
 
-    public void AddPromotionRecord(ProfessionPromotionRecord record)
+    internal void AddPromotionRecord(ProfessionPromotionRecord record)
     {
         if (record != null)
-            promotion_history.Add(record);
+            _promotionHistory.Add(record.DuplicateState());
     }
 
     public UnitProfessionProgress DuplicateState()
@@ -63,9 +67,9 @@ public class UnitProfessionProgress
             granted_skill_ids = granted_skill_ids?.Duplicate() ?? new StringNameList(),
             inactive_reason = inactive_reason,
         };
-        foreach (var record in promotion_history)
+        foreach (var record in _promotionHistory)
             if (record != null)
-                copy.promotion_history.Add(record.DuplicateState());
+                copy.AddPromotionRecord(record);
         return copy;
     }
 
@@ -73,7 +77,7 @@ public class UnitProfessionProgress
     {
         var promoData = new Godot.Collections.Array<Godot.Collections.Dictionary>();
 
-        foreach (var r in promotion_history)
+        foreach (var r in _promotionHistory)
         {
             if (r != null)
                 promoData.Add(r.ToDictionary());
@@ -119,7 +123,8 @@ public class UnitProfessionProgress
 
         var rankVar = data["rank"];
 
-        if (rankVar.VariantType != Variant.Type.Int || rankVar.AsInt32() < 0)
+        if (rankVar.VariantType != Variant.Type.Int || rankVar.AsInt64() < 0
+            || rankVar.AsInt64() > int.MaxValue)
             return null;
 
         if (
@@ -163,7 +168,7 @@ public class UnitProfessionProgress
             if (promoRecord == null)
                 return null;
 
-            progress.promotion_history.Add(promoRecord);
+            progress.AddPromotionRecord(promoRecord);
         }
 
         return progress;

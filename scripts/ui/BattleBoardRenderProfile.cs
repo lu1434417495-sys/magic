@@ -37,6 +37,8 @@ public sealed class BattleBoardTileSourceSpec
 
 public class BattleBoardRenderProfile
 {
+    internal const int MinimumHeight = BattleCellState.MinRuntimeHeight;
+    internal const int MaximumHeight = BattleCellState.MaxRuntimeHeight;
     private static readonly StringName TerrainProfileDefault = "default";
     private static readonly StringName TerrainProfileCanyon = "canyon";
     private static readonly StringName TerrainProfileNarrowAssault = "narrow_assault";
@@ -57,6 +59,11 @@ public class BattleBoardRenderProfile
     private static readonly StringName SourceMeteorCrater = "meteor_crater_core";
     private static readonly StringName SourceMeteorRubble = "meteor_rubble";
     private static readonly StringName SourceMeteorDust = "meteor_dust_cloud";
+    private static readonly StringName SourcePhoenixFireStep =
+        "phoenix_rebirth_fire_step";
+    private static readonly StringName SourcePhoenixFlameChargeTrail =
+        "phoenix_rebirth_flame_charge_trail";
+    private static readonly StringName SourceTripwireLine = "tripwire_line";
     private static readonly StringName SourceSelected = "selected";
     private static readonly StringName SourceActiveSelected = "active_selected";
     private static readonly StringName SourceMoveReachable = "move_reachable";
@@ -152,6 +159,7 @@ public class BattleBoardRenderProfile
     public StringName terrain_profile_id = TerrainProfileDefault;
     public StringName render_profile_id = RenderProfileCanyonIso64;
     public string asset_dir = DefaultAssetDir;
+    public string PaintedAssetDirectory => "res://assets/main/battle/terrain/canyon_painted";
     public float visual_height_step = DefaultVisualHeightStep;
     public Vector2I board_tile_size = DefaultBoardTileSize;
     public Vector2 tile_half_size = DefaultTileHalfSize;
@@ -204,6 +212,14 @@ public class BattleBoardRenderProfile
     }
 
     public IReadOnlyList<BattleBoardTileSourceSpec> GetSourceSpecs() => _sourceSpecs;
+
+    public string GetMarkerMaterialPath(StringName sourceKey)
+    {
+        string style = sourceKey == SourcePreview ? "preview"
+            : sourceKey == SourceMoveReachable ? "reachable"
+            : sourceKey == "objective_exit" ? "objective" : "selected";
+        return $"res://scenes/ui/styles/battle_marker_{style}_material.tres";
+    }
 
     public void SetSourceSpecs(IEnumerable<BattleBoardTileSourceSpec> sourceSpecs)
     {
@@ -377,6 +393,24 @@ public class BattleBoardRenderProfile
             BuildSourceSpec(
                 SourceMeteorDust,
                 new[] { "overlay_scrub_03.png" },
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourcePhoenixFireStep,
+                Array.Empty<string>(),
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourcePhoenixFlameChargeTrail,
+                Array.Empty<string>(),
+                LayerRoleOverlay,
+                profile
+            ),
+            BuildSourceSpec(
+                SourceTripwireLine,
+                Array.Empty<string>(),
                 LayerRoleOverlay,
                 profile
             ),

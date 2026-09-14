@@ -5,35 +5,30 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public static class SelectionCardBuilder
 {
-    private static readonly Color CardBgNormal = new(0.10f, 0.13f, 0.20f, 0.94f);
-    private static readonly Color CardBgSelected = new(0.18f, 0.16f, 0.10f, 0.98f);
-    private static readonly Color CardBorderNormal = new(0.40f, 0.50f, 0.66f, 0.7f);
-    private static readonly Color CardBorderSelected = new(0.95f, 0.78f, 0.32f, 1.0f);
-    private static readonly Color ColorTitle = new(0.98f, 0.86f, 0.46f, 1.0f);
-    private static readonly Color ColorSummary = new(0.85f, 0.92f, 1.0f, 0.92f);
-    private static readonly Color ColorChipHeader = new(0.756f, 0.835f, 0.957f, 0.85f);
-    private static readonly Color ColorChip = new(0.95f, 0.95f, 0.95f, 1.0f);
+    private static readonly Color CardBgNormal = new(0.04f, 0.05f, 0.06f, 0.3f);
+    private static readonly Color CardBgSelected = new(0.22f, 0.17f, 0.09f, 0.42f);
+    private static readonly Color CardBorderNormal = new(0.56f, 0.46f, 0.31f, 0.3f);
+    private static readonly Color CardBorderSelected = new(0.77f, 0.63f, 0.40f, 1.0f);
+    private static readonly Color ColorTitle = new(0.86f, 0.74f, 0.52f, 1.0f);
+    private static readonly Color ColorSummary = new(0.91f, 0.88f, 0.81f, 0.92f);
+    private static readonly Color ColorChipHeader = new(0.69f, 0.68f, 0.62f, 0.85f);
+    private static readonly Color ColorChip = new(0.87f, 0.84f, 0.77f, 1.0f);
 
     public static StyleBoxFlat MakeStyle(bool selected)
     {
         var style = new StyleBoxFlat
         {
             BgColor = selected ? CardBgSelected : CardBgNormal,
-            BorderWidthLeft = 2,
-            BorderWidthTop = 2,
-            BorderWidthRight = 2,
-            BorderWidthBottom = 2,
+            BorderWidthLeft = selected ? 2 : 0,
+            BorderWidthTop = 0,
+            BorderWidthRight = 0,
+            BorderWidthBottom = 1,
             BorderColor = selected ? CardBorderSelected : CardBorderNormal,
-            CornerRadiusTopLeft = 14,
-            CornerRadiusTopRight = 14,
-            CornerRadiusBottomRight = 14,
-            CornerRadiusBottomLeft = 14,
+            CornerRadiusTopLeft = 2,
+            CornerRadiusTopRight = 2,
+            CornerRadiusBottomRight = 2,
+            CornerRadiusBottomLeft = 2,
         };
-        if (selected)
-        {
-            style.ShadowColor = new Color(0.95f, 0.78f, 0.32f, 0.35f);
-            style.ShadowSize = 8;
-        }
         return style;
     }
 

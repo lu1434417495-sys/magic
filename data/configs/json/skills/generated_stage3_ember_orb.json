@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_generated_ember_orb",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_ember_orb",
+      "icon_id": "mage_generated_ember_orb",
+      "display_name": "灼星火球",
+      "description": "阶段 3 生成闭环的内置试制法术。向指定地面投出高温魔法火球，以标准豁免规则造成范围火焰伤害。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "output",
+        "generated_stage3"
+      ],
+      "level_description_template": "射程{range}，造成{damage}火焰伤害；成功豁免减半。消耗{ap}AP/{mp}法力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "30",
+          "damage": "4D6",
+          "mp": "100",
+          "range": "3"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_generated_ember_orb",
+        "target_mode": "ground",
+        "target_team_filter": "enemy",
+        "range_pattern": "single",
+        "range_value": 3,
+        "area_pattern": "single",
+        "ap_cost": 1,
+        "mp_cost": 100,
+        "cooldown_tu": 30,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "fireball"
+          }
+        ],
+        "level_overrides": {},
+        "requires_los": true,
+        "spell_fate_mode": "control_roll",
+        "spell_critical_mode": "mp_refund",
+        "spell_critical_mp_refund_percent": 50,
+        "fumble_protection_curve": [
+          0
+        ],
+        "backlash_mode": "ground_anchor_drift",
+        "backlash_offset_radius": 1,
+        "ai_tags": [
+          "area_damage"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "intelligence": 50,
+        "perception": 10
+      }
+    }
+  ]
+}

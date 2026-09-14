@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "domain": "skill_special_profile_manifests",
+  "family": "core",
+  "templates": {},
+  "entries": [
+    {
+      "profile_id": "meteor_swarm",
+      "schema_version": 1,
+      "owning_skill_ids": ["mage_meteor_swarm"],
+      "runtime_resolver_id": "meteor_swarm",
+      "runtime_read_policy": "forbidden",
+      "presentation_metadata": {
+        "display_name": "陨星雨",
+        "coverage_shape_id": "square_7x7",
+        "radius": 3
+      },
+      "deferred_capabilities": [],
+      "sunset_warning_date": "",
+      "sunset_hard_block_date": ""
+    }
+  ]
+}

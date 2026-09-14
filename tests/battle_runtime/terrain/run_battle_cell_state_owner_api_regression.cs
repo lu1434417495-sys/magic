@@ -7,6 +7,7 @@ public partial class run_battle_cell_state_owner_api_regression : LifecycleTestS
     public override void _Initialize()
     {
         TestCoordAndOccupantApiOwnCellIdentity();
+        TestTerrainAndHeightApiNormalizeRuntimeValues();
         TestPassableAndMoveCostApiNormalizeRuntimeValues();
 
         RequestTestExit(_test.Finish("Battle cell state owner API regression"));
@@ -42,5 +43,22 @@ public partial class run_battle_cell_state_owner_api_regression : LifecycleTestS
 
         cell.SetMoveCost(4);
         _test.Eq(cell.move_cost, 4, "SetMoveCost 应保留合法移动成本。");
+    }
+
+    private void TestTerrainAndHeightApiNormalizeRuntimeValues()
+    {
+        BattleCellState cell = new();
+
+        cell.SetTerrain(BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater));
+        _test.Eq(
+            cell.base_terrain,
+            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
+            "SetTerrain 应规范化 terrain id。"
+        );
+
+        cell.SetBaseHeight(3);
+        cell.SetHeightOffset(2);
+        _test.Eq(cell.current_height, 5, "SetBaseHeight/SetHeightOffset 应刷新 current_height。");
+        _test.Eq(cell.stack_layer, 5, "SetBaseHeight/SetHeightOffset 应同步 stack_layer。");
     }
 }

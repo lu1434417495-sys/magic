@@ -45,47 +45,6 @@ public sealed class RecipeDefinition
     public IReadOnlyList<StringName> RequiredFacilityTags { get; }
     public string FailureReason { get; }
 
-    internal static RecipeDefinition FromResource(RecipeDef source)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        string path = $"recipe.{WarehouseDefinitionProjection.PathId(source.recipe_id)}";
-        IReadOnlyList<StringName> inputItemIds = new List<StringName>(
-            WarehouseDefinitionProjection.RequireCollection(
-                source.InputItemIdsProjectionBorrowed,
-                path + ".input_item_ids"
-            )
-        );
-        IReadOnlyList<int> inputItemQuantities = new List<int>(
-            WarehouseDefinitionProjection.RequireCollection(
-                source.InputItemQuantitiesProjectionBorrowed,
-                path + ".input_item_quantities"
-            )
-        );
-        if (inputItemIds.Count != inputItemQuantities.Count)
-        {
-            throw WarehouseDefinitionProjection.Invalid(
-                path + ".input_item_quantities",
-                $"count {inputItemQuantities.Count} does not match input_item_ids count {inputItemIds.Count}"
-            );
-        }
-        return new RecipeDefinition(
-            source.recipe_id,
-            source.display_name,
-            source.description,
-            inputItemIds,
-            inputItemQuantities,
-            source.output_item_id,
-            source.output_quantity,
-            new List<StringName>(
-                WarehouseDefinitionProjection.RequireCollection(
-                    source.RequiredFacilityTagsProjectionBorrowed,
-                    path + ".required_facility_tags"
-                )
-            ),
-            source.failure_reason
-        );
-    }
-
     private static IReadOnlyList<T> FreezeValues<T>(IReadOnlyList<T> values, string parameterName)
     {
         ArgumentNullException.ThrowIfNull(values, parameterName);

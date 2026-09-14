@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -16,8 +15,7 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
 
     private TestResult Run()
     {
-        TestRuntimeCommandHandlersNoLongerRequireGodotRegistration();
-        TestWorldPresetHelpersNoLongerRequireGodotRegistration();
+        TestWorldJsonRegistryListsAndFindsTypedPresets();
         TestGridFootprintStateUsesPublicBehavior();
         TestVisibilityRebuildIgnoresForeignFactionSources();
         TestFogPersistentRevisionOnlyTracksPersistentChanges();
@@ -26,29 +24,21 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
         return _test.Finish("World map low-level defensive regression");
     }
 
-    private void TestRuntimeCommandHandlersNoLongerRequireGodotRegistration()
+    private void TestWorldJsonRegistryListsAndFindsTypedPresets()
     {
-    }
-
-    private void TestWorldPresetHelpersNoLongerRequireGodotRegistration()
-    {
-        IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> presets =
-            WorldPresetRegistry.ListPresetsTyped();
-        _test.True(presets.Count > 0, "WorldPresetRegistry typed 目录应继续暴露预设列表。");
+        var registry = new WorldContentRegistry();
+        registry.Rebuild();
+        IReadOnlyDictionary<StringName, WorldPresetDefinition> presets = registry.GetPresets();
+        _test.Eq(registry.GetValidationErrors().Count, 0, "world JSON registry 不应包含导入错误。");
+        _test.True(presets.Count > 0, "world JSON registry 应暴露 typed 预设列表。");
         _test.True(
-            WorldPresetRegistry.TryGetPresetTyped("test", out var testPreset),
-            "WorldPresetRegistry typed 查询应继续找到 test 预设。"
+            presets.TryGetValue("test", out WorldPresetDefinition testPreset),
+            "world JSON registry typed 查询应找到 test 预设。"
         );
         _test.Eq(
             testPreset?.DisplayName,
             "测试",
-            "WorldPresetRegistry typed 查询应保留 test 预设名称。"
-        );
-        GDictionary projectedTestPreset = WorldPresetRegistry.GetPreset("test");
-        _test.Eq(
-            projectedTestPreset["display_name"].AsString(),
-            testPreset?.DisplayName,
-            "WorldPresetRegistry Dictionary 投影应只反映 typed 预设数据。"
+            "world JSON registry typed 查询应保留 test 预设名称。"
         );
     }
 
@@ -74,19 +64,43 @@ public partial class run_world_map_low_level_defensive_regression : LifecycleTes
             gridSystem.CanPlaceFootprint(new Vector2I(2, 2), Vector2I.One),
             "已有 footprint 的格子不应允许再次占用。"
         );
+        _test.True(
+            gridSystem.RegisterFootprint("camp", new Vector2I(4, 4), new Vector2I(2, 2)),
+            "同一 entity 成功重注册时应移动 footprint。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(1, 1)),
+            "",
+            "成功重注册后旧 origin 应清空。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(2, 2)),
+            "",
+            "成功重注册后旧 footprint 覆盖格应清空。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(4, 4)),
+            "camp",
+            "成功重注册后新 origin 应暴露占位根。"
+        );
+        _test.Eq(
+            gridSystem.GetOccupantRoot(new Vector2I(5, 5)),
+            "camp",
+            "成功重注册后新 footprint 覆盖格应暴露占位根。"
+        );
         _test.False(
             gridSystem.RegisterFootprint("camp", new Vector2I(7, 7), new Vector2I(2, 2)),
             "同一 entity 移动到越界 footprint 应失败。"
         );
         _test.Eq(
-            gridSystem.GetOccupantRoot(new Vector2I(1, 1)),
+            gridSystem.GetOccupantRoot(new Vector2I(4, 4)),
             "camp",
             "同一 entity 移动失败后应恢复原 footprint。"
         );
 
         gridSystem.ClearFootprint("camp");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "", "清理 footprint 后 origin 不应继续占格。");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(2, 2)), "", "清理 footprint 后覆盖格不应继续占格。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(4, 4)), "", "清理 footprint 后 origin 不应继续占格。");
+        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(5, 5)), "", "清理 footprint 后覆盖格不应继续占格。");
     }
 
     private void TestVisibilityRebuildIgnoresForeignFactionSources()

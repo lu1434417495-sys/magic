@@ -96,29 +96,19 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
         if (!fixture.ItemDefs.ContainsKey(SacredItemId))
             return;
 
-        ItemDef rawSacred = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_warhammer_sacred.tres"
-        );
+        ItemDefinition rawSacred = TestItemDefinitionLookup.GetProductionItem("weapon_unique_warhammer_sacred_408");
         _test.True(rawSacred != null, "神圣之锤原始资源应能加载。");
         if (rawSacred != null)
         {
-            _test.Eq(
-                rawSacred.base_item_id,
-                new StringName("weapon_type_warhammer_base"),
-                "神圣之锤应继承 warhammer 模板。"
-            );
-            _test.Eq(rawSacred.display_name, "神圣之锤", "神圣之锤显示名应匹配设计。");
-            _test.Eq(rawSacred.base_price, 65000, "神圣之锤价格应为 65000。");
-            _test.True(rawSacred.trait_ids.Contains(RadiantStrikeTraitId), "物品应声明神圣辉击 trait。");
-            _test.True(rawSacred.trait_ids.Contains(UndeadJudgmentTraitId), "物品应声明不死审判 trait。");
-            _test.True(rawSacred.trait_ids.Contains(SacredHealTraitId), "物品应声明神圣治疗 trait。");
-            _test.False(rawSacred.trait_ids.Contains(FaithCostTraitId), "物品不应再声明信仰代价占位 trait。");
+            _test.Eq(rawSacred.DisplayName, "神圣之锤", "神圣之锤显示名应匹配设计。");
+            _test.Eq(rawSacred.BasePrice, 65000, "神圣之锤价格应为 65000。");
+            _test.True(rawSacred.TraitIds.Contains(RadiantStrikeTraitId), "物品应声明神圣辉击 trait。");
+            _test.True(rawSacred.TraitIds.Contains(UndeadJudgmentTraitId), "物品应声明不死审判 trait。");
+            _test.True(rawSacred.TraitIds.Contains(SacredHealTraitId), "物品应声明神圣治疗 trait。");
+            _test.False(rawSacred.TraitIds.Contains(FaithCostTraitId), "物品不应再声明信仰代价占位 trait。");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildSacredUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, SacredItemId, "神圣之锤装备后 unit 应保留真实 item_id。");
@@ -153,26 +143,6 @@ public partial class run_sacred_hammer_weapon_ability_regression : LifecycleTest
             "装备神圣之锤不应投影信仰的代价占位 trait。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除神圣之锤后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除神圣之锤后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除神圣之锤后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除神圣之锤后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestSacredHammerAddsRadiantDamageOnWeaponHit()

@@ -367,7 +367,19 @@ public sealed partial class BattleAiScoreService : IDisposable
                 context,
                 skillDefinition
             );
+        effectiveEffectDefinitions = FilterRangedWeaponReactionReadinessEffects(
+            effectiveEffectDefinitions,
+            skillDefinition
+        );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
+        PopulateHealingSuppressionMetrics(scoreInput, context);
+        PopulateForcedMovePositionMetrics(scoreInput, context);
+        PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
+        PopulateRangedWeaponReactionThreatMetrics(
+            scoreInput,
+            context,
+            skillDefinition
+        );
         PopulateTauntAllyDamageRelief(
             scoreInput,
             context,
@@ -379,7 +391,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             effectiveEffectDefinitions
         );
         using (new BattleAiTraceSpan("score_input:ground_control"))
-            PopulateGroundControlMetrics(scoreInput, effectiveEffectDefinitions);
+            PopulateGroundControlMetrics(scoreInput, context, effectiveEffectDefinitions);
         PopulateRandomChainMetrics(
             scoreInput,
             context,
@@ -418,6 +430,13 @@ public sealed partial class BattleAiScoreService : IDisposable
                 scoreMetadata.Position,
                 effectiveEffectDefinitions
             );
+        // Must run after PopulateHitMetrics: that rewrites target_unit_ids/target_count to the
+        // planned targets, so anything the command still occupies beyond them is a dead slot.
+        // Ground/AoE commands carry coords rather than unit ids, hence the clamp at zero.
+        scoreInput.wasted_target_slot_count = Math.Max(
+            (command?.TargetUnitIdsTyped.Count ?? 0) - scoreInput.target_count,
+            0
+        );
         scoreInput.total_score =
             ResolveActionBaseScore(scoreInput.action_kind, scoreMetadata)
             + scoreInput.hit_payoff_score
@@ -607,7 +626,15 @@ public sealed partial class BattleAiScoreService : IDisposable
         total += scoreInput.estimated_post_save_damage
             * _scoreProfile.SaveReliableDamageWeight;
         total += scoreInput.estimated_control_count * _scoreProfile.ControlWeight;
+        total += (int)Math.Clamp(
+            (long)scoreInput.estimated_control_probability_basis_points
+                * _scoreProfile.ControlWeight
+                / 10000L,
+            int.MinValue,
+            int.MaxValue
+        );
         total += scoreInput.ground_control_score * _scoreProfile.GroundControlWeight;
+        total += scoreInput.position_swap_utility_score;
         total += RoundToInt(
             (double)(scoreInput.estimated_hit_rate_percent - 100)
                 * _scoreProfile.HitRateReliabilityWeight
@@ -860,27 +887,6 @@ public sealed partial class BattleAiScoreService : IDisposable
         return result;
     }
 
-    private static StringName ReadStringNameParameter(
-        CombatEffectDefinition effectDefinition,
-        string key
-    )
-    {
-        return effectDefinition == null || string.IsNullOrEmpty(key)
-            ? ""
-            : effectDefinition.GetStringNameParamTyped(key, "");
-    }
-
-    private static int ReadIntParameter(
-        CombatEffectDefinition effectDefinition,
-        string key,
-        int fallback = 0
-    )
-    {
-        return effectDefinition == null || string.IsNullOrEmpty(key)
-            ? fallback
-            : effectDefinition.GetIntParamTyped(key, fallback);
-    }
-
     private static void AddStatusId(
         List<StringName> result,
         HashSet<StringName> seen,
@@ -923,6 +929,7 @@ public sealed partial class BattleAiScoreService : IDisposable
 
     private void PopulateGroundControlMetrics(
         BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
     {
@@ -942,7 +949,99 @@ public sealed partial class BattleAiScoreService : IDisposable
         }
         scoreInput.estimated_ground_control_cell_count = cellCount;
         scoreInput.ground_control_score = cellCount * perCellScore;
+        PopulateTerrainInterruptRouteMetrics(scoreInput, context, effectDefinitions);
         scoreInput.hit_payoff_score += scoreInput.ground_control_score;
+    }
+
+    private void PopulateTerrainInterruptRouteMetrics(
+        BattleAiScoreInput scoreInput,
+        IBattleAiScoreContext context,
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        CombatEffectDefinition interruptEffect = null;
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions
+            ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (
+                effectDefinition?.TerrainContactModeKind
+                == CombatTerrainContactMode.InterruptMovementOnFailedSave
+            )
+            {
+                interruptEffect = effectDefinition;
+                break;
+            }
+        }
+        if (
+            interruptEffect == null
+            || context?.state == null
+            || context.unit_state == null
+            || context.grid_service == null
+        )
+        {
+            return;
+        }
+
+        int terrainWeight = Math.Max(_scoreProfile?.TerrainWeight ?? 0, 0);
+        int triggerCount = Math.Max(interruptEffect.TerrainEffectiveTriggerCount, 1);
+        int actorDistanceReference = int.MaxValue;
+        foreach (BattleUnitState candidate in context.state.GetUnitsTyped())
+        {
+            if (
+                candidate == null
+                || !candidate.IsAlive()
+                || (
+                    interruptEffect.TerrainRequiresGroundContact
+                    && candidate.HasMovementTag(new StringName("fly"))
+                )
+                || !BattleTargetTeamRules.IsUnitValidForFilter(
+                    context.unit_state,
+                    candidate,
+                    interruptEffect.EffectTargetTeamFilter != ""
+                        ? interruptEffect.EffectTargetTeamFilter
+                        : new StringName("enemy")
+                )
+            )
+            {
+                continue;
+            }
+            actorDistanceReference = context.grid_service.GetDistanceFromUnitToCoord(
+                candidate,
+                context.unit_state.GetAnchorCoord()
+            );
+            int bestDistanceToField = int.MaxValue;
+            bool liesOnApproach = false;
+            foreach (Vector2I fieldCoord in scoreInput.target_coords)
+            {
+                int distanceToField = context.grid_service.GetDistanceFromUnitToCoord(
+                    candidate,
+                    fieldCoord
+                );
+                bestDistanceToField = Math.Min(bestDistanceToField, distanceToField);
+                int fieldToActor = context.grid_service.GetDistance(
+                    fieldCoord,
+                    context.unit_state.GetAnchorCoord()
+                );
+                if (distanceToField + fieldToActor <= actorDistanceReference + 1)
+                {
+                    liesOnApproach = true;
+                }
+            }
+            if (!liesOnApproach)
+            {
+                continue;
+            }
+            scoreInput.estimated_terrain_interrupt_threat_count += 1;
+            if (bestDistanceToField <= Math.Max(candidate.GetCurrentMovePoints(), 1))
+            {
+                scoreInput.estimated_terrain_interrupt_reachable_count += 1;
+            }
+        }
+        scoreInput.ground_control_score +=
+            scoreInput.estimated_terrain_interrupt_threat_count
+                * terrainWeight
+                * triggerCount
+            + scoreInput.estimated_terrain_interrupt_reachable_count * terrainWeight;
     }
 
     private static int CountUniqueTargetCoords(IEnumerable<Vector2I> targetCoords)
@@ -1114,32 +1213,192 @@ public sealed partial class BattleAiScoreService : IDisposable
         {
             return;
         }
+        var candidateUnits = new List<BattleUnitState>();
         foreach (StringName targetUnitId in scoreInput.target_unit_ids)
         {
-            BattleUnitState targetUnit = GetUnit(state, targetUnitId);
-            if (targetUnit == null)
+            BattleUnitState candidateUnit = GetUnit(state, targetUnitId);
+            if (candidateUnit != null)
+            {
+                candidateUnits.Add(candidateUnit);
+            }
+        }
+        CombatDirectionalPiercingDefinition directionalPiercing =
+            skillDefinition?.CombatProfile?.DirectionalPiercing;
+        CombatLineThroughAttackDefinition lineThroughAttack =
+            skillDefinition?.CombatProfile?.LineThroughAttack;
+        CombatSequentialLineHitDefinition sequentialLineHit =
+            skillDefinition?.CombatProfile?.SequentialLineHit;
+        bool usesOrderedTargetSlots =
+            BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition);
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan =
+                directionalPiercing == null
+                    && lineThroughAttack == null
+                    && sequentialLineHit == null
+                    ? BuildAiEffectTargetPlan(
+                        actor,
+                        skillDefinition,
+                        effectDefinitions,
+                        candidateUnits
+                    )
+                    : null;
+        IReadOnlyList<BattleUnitState> plannedTargets =
+            usesOrderedTargetSlots
+                ? candidateUnits
+                : directionalPiercing == null
+                && lineThroughAttack == null
+                && sequentialLineHit == null
+                ? CollectAiPlannedTargets(effectDefinitions, effectTargetPlan)
+                : candidateUnits;
+        scoreInput.target_unit_ids.Clear();
+        foreach (BattleUnitState plannedTarget in plannedTargets)
+        {
+            scoreInput.target_unit_ids.Add(plannedTarget.unit_id);
+        }
+        scoreInput.target_count = plannedTargets.Count;
+        int directionalTargetIndex = 0;
+        int directionalBaseDamagePercent =
+            directionalPiercing != null
+                ? directionalPiercing.GetBaseDamagePercent(
+                    GetContextSkillLevel(context, skillDefinition.SkillId)
+                )
+                : 100;
+        CombatEffectDefinition repeatAttackEffect = FindRepeatAttackEffect(
+            effectDefinitions
+        );
+        int repeatAttackStageCount =
+            repeatAttackEffect != null
+                ? Math.Max(scoreInput.preview?.hit_preview?.StageCount ?? 0, 1)
+                : 0;
+        foreach (BattleUnitState targetUnit in plannedTargets)
+        {
+            IReadOnlyList<CombatEffectDefinition> targetEffects;
+            if (sequentialLineHit != null)
+            {
+                targetEffects = BuildSequentialLineHitExpectedEffects(
+                    effectDefinitions,
+                    directionalTargetIndex,
+                    scoreInput.preview?.hit_preview
+                );
+            }
+            else if (lineThroughAttack != null)
+            {
+                targetEffects = BuildLineThroughAttackExpectedEffects(
+                        effectDefinitions,
+                        lineThroughAttack,
+                        GetContextSkillLevel(context, skillDefinition.SkillId),
+                        directionalTargetIndex,
+                        plannedTargets.Count,
+                        scoreInput.preview?.hit_preview
+                    );
+            }
+            else if (directionalPiercing == null)
+            {
+                targetEffects = CollectAiEffectsForTarget(
+                        effectDefinitions,
+                        effectTargetPlan,
+                        targetUnit.unit_id
+                    );
+            }
+            else
+            {
+                targetEffects = BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
+                        effectDefinitions,
+                        directionalBaseDamagePercent / 100.0
+                            * BattleDirectionalPiercingRules.GetExpectedDecayMultiplier(
+                                directionalPiercing,
+                                directionalTargetIndex,
+                                scoreInput.estimated_hit_rate_percent
+                            )
+                    );
+            }
+            if (targetEffects.Count == 0)
             {
                 continue;
+            }
+            if (repeatAttackEffect != null)
+            {
+                targetEffects = BattleRepeatAttackResolver.BuildRepeatAttackPreviewEffects(
+                    targetEffects,
+                    repeatAttackEffect,
+                    repeatAttackStageCount
+                );
             }
             PopulateTargetEffectMetrics(
                 scoreInput,
                 context,
                 targetUnit,
-                effectDefinitions,
+                targetEffects,
                 skillDefinition: skillDefinition
             );
+            directionalTargetIndex++;
         }
+        PopulatePositionSwapMetrics(
+            scoreInput,
+            context,
+            skillDefinition,
+            effectDefinitions
+        );
         PopulateChainDamageMetrics(scoreInput, context, skillDefinition, effectDefinitions);
         int healingPayoff =
             (scoreInput.estimated_ally_healing - scoreInput.estimated_enemy_healing)
             * _scoreProfile.HealWeight;
         int damagePayoff = scoreInput.hit_payoff_score - healingPayoff;
+        int hitPayoffProbabilityBasisPoints = ResolveHitPayoffProbabilityBasisPoints(
+            scoreInput.preview?.hit_preview,
+            scoreInput.estimated_hit_rate_percent
+        );
+        if (lineThroughAttack != null || sequentialLineHit != null)
+            hitPayoffProbabilityBasisPoints = 10000;
         scoreInput.hit_payoff_score = RoundToInt(
-            (double)damagePayoff * scoreInput.estimated_hit_rate_percent / 100.0
+            (double)damagePayoff * hitPayoffProbabilityBasisPoints / 10000.0
         ) + healingPayoff;
         scoreInput.target_priority_score = RoundToInt(
-            (double)scoreInput.target_priority_score * scoreInput.estimated_hit_rate_percent / 100.0
+            (double)scoreInput.target_priority_score
+                * hitPayoffProbabilityBasisPoints
+                / 10000.0
         );
+    }
+
+    private static CombatEffectDefinition FindRepeatAttackEffect(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition?.EffectKind
+                is BattleEffectKind.RepeatAttackUntilFail
+                    or BattleEffectKind.FixedRepeatAttack
+            )
+            {
+                return effectDefinition;
+            }
+        }
+        return null;
+    }
+
+    private static int ResolveHitPayoffProbabilityBasisPoints(
+        AttackPreviewData hitPreview,
+        int fallbackHitRatePercent
+    )
+    {
+        if (
+            hitPreview?.RepeatAttackPotentialDamageBasisPoints > 0
+            && hitPreview.RepeatAttackExpectedDamageBasisPoints >= 0
+        )
+        {
+            return (int)Math.Clamp(
+                (long)hitPreview.RepeatAttackExpectedDamageBasisPoints * 10000L
+                    / hitPreview.RepeatAttackPotentialDamageBasisPoints,
+                0L,
+                10000L
+            );
+        }
+        return Mathf.Clamp(fallbackHitRatePercent, 0, 100) * 100;
     }
 
     private void PopulateSpecialProfileMetrics(BattleAiScoreInput scoreInput, IBattleAiScoreContext context)

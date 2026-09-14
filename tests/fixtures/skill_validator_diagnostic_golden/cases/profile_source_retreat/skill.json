@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_source_retreat",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_source_retreat_profile",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_source_retreat_profile",
+        "target_mode": "ground",
+        "effect_defs": [
+          {
+            "effect_type": "source_retreat",
+            "payload": {}
+          },
+          {
+            "effect_type": "source_retreat",
+            "payload": {}
+          }
+        ],
+        "casting_time_tu": 5,
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "single_coord",
+        "random_chain_attack_count": 1,
+        "cast_variants": [
+          {
+            "variant_id": "retreat_variant",
+            "effect_defs": [
+              {
+                "effect_type": "source_retreat",
+                "payload": {}
+              }
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_source_retreat_profile",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

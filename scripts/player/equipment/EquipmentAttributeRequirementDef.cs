@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class EquipmentAttributeRequirementDef : Resource
+public partial class EquipmentAttributeRequirementDef : RefCounted
 {
     [Export]
     public StringName attribute_id = "";
@@ -10,5 +10,5 @@ public partial class EquipmentAttributeRequirementDef : Resource
     public int min_value;
 
     internal EquipmentAttributeRequirementDefinition ToDefinition() =>
-        EquipmentAttributeRequirementDefinition.FromResource(this);
+        EquipmentAttributeRequirementDefinition.FromDiagnosticFixture(this);
 }

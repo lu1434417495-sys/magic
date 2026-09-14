@@ -1,34 +1,61 @@
 using System.Collections.Generic;
+using System;
 using Godot;
+using GStringArray = Godot.Collections.Array<string>;
 
 internal static class TestSkillDefinitionProjection
 {
+    private static readonly Lazy<IReadOnlyDictionary<StringName, SkillDefinition>> Definitions =
+        new(LoadDefinitions);
+
     internal static SkillDefinition LoadSkillDefinition(
-        string resourcePath,
+        string skillId,
         string ownershipReason = ""
     )
     {
-        // Load outside the engine's global cache (same pattern as
-        // ProcessContentHost.LoadCanonical / TestContentResourceLoader): the
-        // projected SkillDefinition is plain data, so the SkillDef wrapper is
-        // unrooted after this call. With the default Reuse cache mode the
-        // native resource stays cached while its wrapper can be GC-finalized,
-        // and the next load of the same path races the finalizer thread in
-        // SwapGCHandleForType (FATAL gchandle.is_released).
-        SkillDef skillDef = ResourceLoader.Load<SkillDef>(
-            resourcePath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        if (skillDef != null)
+        StringName id = skillId ?? "";
+        if (!Definitions.Value.TryGetValue(id, out SkillDefinition definition))
+            throw new KeyNotFoundException($"Skill JSON catalog does not contain '{skillId}'.");
+        return definition;
+    }
+
+    internal static GStringArray ValidateSyntheticSkillFixture(
+        SkillDef skill,
+        string sourceLabel = "<synthetic-skill>"
+    )
+    {
+        var errors = new GStringArray();
+        var context = new JsonContentEntryContext("skill", "", sourceLabel, "");
+        ContentImportStageResult<SkillImportModel> result =
+            SkillDiagnosticFixtureProjection.TryProject(context, skill);
+        foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
+            errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
+        if (!result.HasValue)
+            return errors;
+        var validator = new SkillImportModelValidator();
+        foreach (string message in validator.ValidateMessages(result.Value))
+            errors.Add(message);
+        return errors;
+    }
+
+    private static IReadOnlyDictionary<StringName, SkillDefinition> LoadDefinitions()
+    {
+        ContentImportBatch<SkillImportModel> batch =
+            SkillContentJsonAuthoringDomain.CreateImportDescriptor(
+                "res://data/configs/json/skills",
+                new GodotContentJsonSourceReader()
+            ).Import();
+        if (batch.HasErrors)
         {
-            GodotContentOwnership.RegisterBorrowedContent(
-                skillDef,
-                string.IsNullOrEmpty(ownershipReason)
-                    ? $"test_skill_definition_projection:{resourcePath}"
-                    : ownershipReason
+            throw new InvalidOperationException(
+                "Skill JSON test catalog failed to import: "
+                    + string.Join(" | ", batch.Diagnostics)
             );
         }
-        return SkillDefinition.FromResource(skillDef);
+        var result = new Dictionary<StringName, SkillDefinition>();
+        foreach (ContentImportEntry<SkillImportModel> entry in batch.Entries)
+            result.Add(entry.Import.SkillId.Value, SkillDefinitionProjector.Project(entry.Import));
+        return result;
     }
 
     internal static SkillDefinition BuildSkill(
@@ -49,8 +76,9 @@ internal static class TestSkillDefinitionProjection
         StringName practiceTier = default,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers = null,
         string levelDescriptionTemplate = "",
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
-        ContingencyAutomationDefinition contingencyAutomationProfile = null
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs = null,
+        ContingencyAutomationDefinition contingencyAutomationProfile = null,
+        SkillRuntimeBehaviorKind runtimeBehaviorKind = SkillRuntimeBehaviorKind.None
     )
     {
         return new SkillDefinition(
@@ -84,9 +112,10 @@ internal static class TestSkillDefinitionProjection
                 ?? System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate ?? "",
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+                ?? new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: combatProfile,
-            contingencyAutomationProfile: contingencyAutomationProfile
+            contingencyAutomationProfile: contingencyAutomationProfile,
+            runtimeBehaviorKind: runtimeBehaviorKind
         );
     }
 
@@ -141,10 +170,16 @@ internal static class TestSkillDefinitionProjection
         IReadOnlyList<CombatCastVariantDefinition> castVariants = null,
         IReadOnlyList<StringName> requiredWeaponFamilies = null,
         IReadOnlyList<StringName> deliveryCategories = null,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null,
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides = null,
         StringName masteryTriggerMode = default,
         StringName masteryAmountMode = default,
-        StringName projectileKind = default
+        StringName projectileKind = default,
+        StringName attackDefenseMode = default,
+        bool randomChainContinueOnMiss = false,
+        IReadOnlyList<StringName> requiredWeaponTypeIds = null,
+        IReadOnlyList<StringName> excludedWeaponFamilies = null,
+        IReadOnlyList<StringName> excludedWeaponTypeIds = null,
+        bool requiresEquippedShield = false
     )
     {
         return new CombatSkillDefinition(
@@ -167,7 +202,8 @@ internal static class TestSkillDefinitionProjection
             attackRollBonus: attackRollBonus,
             attackResolutionMode: DefaultName(attackResolutionMode, ""),
             auraCost: auraCost,
-            levelOverrides: levelOverrides ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelOverrides: levelOverrides
+                ?? new Dictionary<int, CombatSkillLevelOverrideImportModel>(),
             masteryTriggerMode: masteryTriggerMode,
             masteryAmountMode: masteryAmountMode,
             spellFateMode: default,
@@ -191,17 +227,20 @@ internal static class TestSkillDefinitionProjection
             maxTargetCount: maxTargetCount,
             allowRepeatTarget: allowRepeatTarget,
             maxHitsPerTarget: maxHitsPerTarget,
+            randomChainContinueOnMiss: randomChainContinueOnMiss,
             selectionOrderMode: default,
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
             passiveEffectDefinitions: System.Array.Empty<CombatEffectDefinition>(),
             castVariants: castVariants ?? System.Array.Empty<CombatCastVariantDefinition>(),
             requiredWeaponFamilies: requiredWeaponFamilies ?? System.Array.Empty<StringName>(),
-            excludedWeaponFamilies: System.Array.Empty<StringName>(),
-            excludedWeaponTypeIds: System.Array.Empty<StringName>(),
-            requiresEquippedShield: false,
+            excludedWeaponFamilies: excludedWeaponFamilies ?? System.Array.Empty<StringName>(),
+            excludedWeaponTypeIds: excludedWeaponTypeIds ?? System.Array.Empty<StringName>(),
+            requiresEquippedShield: requiresEquippedShield,
             masteryLowHpBonusMultiplier: 0,
             masteryLowHpThresholdPercent: 0,
-            projectileKind: DefaultName(projectileKind, "none")
+            projectileKind: DefaultName(projectileKind, "none"),
+            attackDefenseMode: DefaultName(attackDefenseMode, "normal"),
+            requiredWeaponTypeIds: requiredWeaponTypeIds ?? System.Array.Empty<StringName>()
         );
     }
 
@@ -215,7 +254,7 @@ internal static class TestSkillDefinitionProjection
         bool preventRepeatTarget = true,
         StringName forcedMoveMode = default,
         int forcedMoveDistance = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        ICombatEffectPayloadDefinition payload = null,
         StringName bonusCondition = default,
         StringName triggerEvent = default,
         StringName triggerCondition = default,
@@ -286,7 +325,18 @@ internal static class TestSkillDefinitionProjection
         int repeatHitStatusDurationTu = 0,
         string repeatHitStatusLogTemplate = "",
         BattleCognitionKind requiredTargetMinCognition =
-            BattleCognitionKind.Unknown
+            BattleCognitionKind.Unknown,
+        StringName shieldFamily = default,
+        StringName shieldAttributeModifierId = default,
+        bool shieldRollPerTarget = false,
+        int followUpDamageMultiplierPercent = 100,
+        IReadOnlyList<int> followUpAttackRollBonusCurve = null,
+        int fixedAttackCount = 0,
+        bool stopOnMiss = true,
+        int forcedMoveMaxTargetBodySize = 0,
+        CombatChainDamageDefinition chainDamage = null,
+        int saveDcBonus = 0,
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
     )
     {
         return new CombatEffectDefinition(
@@ -340,7 +390,7 @@ internal static class TestSkillDefinitionProjection
             triggerEvent: DefaultName(triggerEvent, ""),
             triggerCondition: DefaultName(triggerCondition, ""),
             power: power,
-            parameters: parameters,
+            payload: payload,
             forcedMoveDistance: forcedMoveDistance,
             jumpBaseBudget: jumpBaseBudget,
             jumpStrScale: jumpStrScale,
@@ -378,7 +428,18 @@ internal static class TestSkillDefinitionProjection
             repeatHitStatusPower: repeatHitStatusPower,
             repeatHitStatusDurationTu: repeatHitStatusDurationTu,
             repeatHitStatusLogTemplate: repeatHitStatusLogTemplate,
-            requiredTargetMinCognition: requiredTargetMinCognition
+            requiredTargetMinCognition: requiredTargetMinCognition,
+            shieldFamily: shieldFamily,
+            shieldAttributeModifierId: shieldAttributeModifierId,
+            shieldRollPerTarget: shieldRollPerTarget,
+            followUpDamageMultiplierPercent: followUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: followUpAttackRollBonusCurve,
+            fixedAttackCount: fixedAttackCount,
+            stopOnMiss: stopOnMiss,
+            forcedMoveMaxTargetBodySize: forcedMoveMaxTargetBodySize,
+            chainDamage: chainDamage,
+            saveDcBonus: saveDcBonus,
+            sourceStatusGrantOnHit: sourceStatusGrantOnHit
         );
     }
 
@@ -389,7 +450,7 @@ internal static class TestSkillDefinitionProjection
         StringName targetMode = default,
         StringName footprintPattern = default,
         int requiredCoordCount = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        CombatCastSquare2CornerKind? square2Corner = null,
         StringName projectileKindOverride = default
     )
     {
@@ -403,7 +464,7 @@ internal static class TestSkillDefinitionProjection
             requiredCoordCount: requiredCoordCount,
             allowedBaseTerrains: System.Array.Empty<StringName>(),
             effectDefinitions: effects ?? System.Array.Empty<CombatEffectDefinition>(),
-            parameters: parameters ?? new Dictionary<string, object>(),
+            square2Corner: square2Corner,
             projectileKindOverride: projectileKindOverride
         );
     }

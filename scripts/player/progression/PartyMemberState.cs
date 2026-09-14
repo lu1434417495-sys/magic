@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public partial class PartyMemberState
@@ -456,154 +456,186 @@ public partial class PartyMemberState
         }
     }
 
-    public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data)
+    public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪个字段让解码失败（成功时为空）。
+    /// 上层只拿得到 "member_states[hero_01] has invalid member payload"，没有这一层就止步于此。
+    public static PartyMemberState FromDictionary(
+        Godot.Collections.Dictionary data,
+        out string failureReason
+    )
     {
+        failureReason = DecodeInto(data, out PartyMemberState result);
+        return result;
+    }
+
+    /// 返回空字符串表示解码成功；否则返回失败字段的说明。
+    private static string DecodeInto(
+        Godot.Collections.Dictionary data,
+        out PartyMemberState result
+    )
+    {
+        result = null;
         if (data.Count == 0)
-            return null;
+            return "member: payload dictionary is empty";
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
-            return null;
+            return "member: field set does not match the current schema";
         if (!TryGetDictionary(data, "progression", out Godot.Collections.Dictionary progData))
-            return null;
+            return "progression: expected a dictionary";
         if (!TryGetDictionary(data, "equipment_state", out Godot.Collections.Dictionary esData))
-            return null;
+            return "equipment_state: expected a dictionary";
         var memberId = _parse_string_name_field(data["member_id"], false, out bool o1);
         if (!o1)
-            return null;
+            return "member_id: not a usable string name";
         if (!TryGetStrictString(data, "display_name", out string displayName))
-            return null;
+            return "display_name: expected a string";
         if (displayName.StripEdges().Length == 0)
-            return null;
+            return "display_name: must not be blank";
         var factionId = _parse_string_name_field(data["faction_id"], false, out bool o2);
         if (!o2)
-            return null;
+            return "faction_id: not a usable string name";
         var portraitId = _parse_string_name_field(data["portrait_id"], true, out bool o3);
         if (!o3)
-            return null;
+            return "portrait_id: not a usable string name";
         var ctrl = _parse_string_name_field(data["control_mode"], false, out bool o4);
-        if (!o4 || BattleTypedNames.ToControlMode(ctrl) == BattleUnitControlMode.Unknown)
-            return null;
-        if (!TryGetStrictInt(data, "current_hp", out int currentHp) || currentHp < 0)
-            return null;
-        if (!TryGetStrictInt(data, "current_mp", out int currentMp) || currentMp < 0)
-            return null;
-        if (!TryGetStrictInt(data, "current_aura", out int currentAura) || currentAura < 0)
-            return null;
+        if (!o4)
+            return "control_mode: not a usable string name";
+        if (BattleTypedNames.ToControlMode(ctrl) == BattleUnitControlMode.Unknown)
+            return $"control_mode: '{ctrl}' is not a known control mode";
+        if (!TryGetStrictInt(data, "current_hp", out int currentHp))
+            return "current_hp: expected an int";
+        if (currentHp < 0)
+            return $"current_hp: {currentHp} is out of range";
+        if (!TryGetStrictInt(data, "current_mp", out int currentMp))
+            return "current_mp: expected an int";
+        if (currentMp < 0)
+            return $"current_mp: {currentMp} is out of range";
+        if (!TryGetStrictInt(data, "current_aura", out int currentAura))
+            return "current_aura: expected an int";
+        if (currentAura < 0)
+            return $"current_aura: {currentAura} is out of range";
         if (!TryReadBoolField(data, "is_dead", out bool isDeadValue))
-            return null;
+            return "is_dead: expected a bool";
         if (isDeadValue != (currentHp <= 0))
-            return null;
+            return $"is_dead: {isDeadValue} contradicts current_hp={currentHp}";
         var raceId = _parse_string_name_field(data["race_id"], false, out bool o5);
         if (!o5)
-            return null;
+            return "race_id: not a usable string name";
         var subraceId = _parse_string_name_field(data["subrace_id"], false, out bool o6);
         if (!o6)
-            return null;
-        if (!TryGetStrictInt(data, "age_years", out int ageYears) || ageYears < 0)
-            return null;
-        if (!TryGetStrictInt(data, "birth_at_world_step", out int birthAtWorldStep)
-            || birthAtWorldStep < 0)
-            return null;
+            return "subrace_id: not a usable string name";
+        if (!TryGetStrictInt(data, "age_years", out int ageYears))
+            return "age_years: expected an int";
+        if (ageYears < 0)
+            return $"age_years: {ageYears} is out of range";
+        if (!TryGetStrictInt(data, "birth_at_world_step", out int birthAtWorldStep))
+            return "birth_at_world_step: expected an int";
+        if (birthAtWorldStep < 0)
+            return $"birth_at_world_step: {birthAtWorldStep} is out of range";
         var ageProfId = _parse_string_name_field(data["age_profile_id"], false, out bool o7);
         if (!o7)
-            return null;
+            return "age_profile_id: not a usable string name";
         var natAgeStage = _parse_string_name_field(
             data["natural_age_stage_id"],
             false,
             out bool o8
         );
         if (!o8)
-            return null;
+            return "natural_age_stage_id: not a usable string name";
         var effAgeStage = _parse_string_name_field(
             data["effective_age_stage_id"],
             false,
             out bool o9
         );
         if (!o9)
-            return null;
+            return "effective_age_stage_id: not a usable string name";
         var effAgeSrcType = _parse_string_name_field(
             data["effective_age_stage_source_type"],
             true,
             out bool o10
         );
         if (!o10)
-            return null;
+            return "effective_age_stage_source_type: not a usable string name";
         var effAgeSrcId = _parse_string_name_field(
             data["effective_age_stage_source_id"],
             true,
             out bool o11
         );
         if (!o11)
-            return null;
+            return "effective_age_stage_source_id: not a usable string name";
         if (!TryGetStrictInt(data, "body_size", out int bsVal))
-            return null;
+            return "body_size: expected an int";
         if (bsVal < 1)
-            return null;
+            return $"body_size: {bsVal} must be >= 1";
         var bsCat = _parse_string_name_field(data["body_size_category"], false, out bool o12);
         if (!o12)
-            return null;
-        if (
-            !BodySizeContentRules.IsValidBodySizeCategory(bsCat)
-            || !BodySizeContentRules.BodySizeMatchesCategory(bsCat, bsVal)
-        )
-            return null;
+            return "body_size_category: not a usable string name";
+        if (!BodySizeContentRules.IsValidBodySizeCategory(bsCat))
+            return $"body_size_category: '{bsCat}' is not a known category";
+        if (!BodySizeContentRules.BodySizeMatchesCategory(bsCat, bsVal))
+            return $"body_size_category: '{bsCat}' does not match body_size={bsVal}";
         var versPick = _parse_string_name_field(data["versatility_pick"], true, out bool o13);
         if (!o13)
-            return null;
+            return "versatility_pick: not a usable string name";
         if (!TryGetArray(
                 data,
                 "active_stage_advancement_modifier_ids",
                 out Godot.Collections.Array activeStageModifierIdValues
             ))
-            return null;
+            return "active_stage_advancement_modifier_ids: expected an array";
         var asami = _parse_unique_string_name_array(activeStageModifierIdValues);
         if (asami == null)
-            return null;
+            return "active_stage_advancement_modifier_ids: not a unique string-name array";
         var blId = _parse_string_name_field(data["bloodline_id"], true, out bool o14);
         if (!o14)
-            return null;
+            return "bloodline_id: not a usable string name";
         var blStId = _parse_string_name_field(data["bloodline_stage_id"], true, out bool o15);
         if (!o15)
-            return null;
+            return "bloodline_stage_id: not a usable string name";
         var ascId = _parse_string_name_field(data["ascension_id"], true, out bool o16);
         if (!o16)
-            return null;
+            return "ascension_id: not a usable string name";
         var ascStId = _parse_string_name_field(data["ascension_stage_id"], true, out bool o17);
         if (!o17)
-            return null;
+            return "ascension_stage_id: not a usable string name";
         if (
             !TryGetStrictInt(
                 data,
                 "ascension_started_at_world_step",
                 out int ascensionStartedAtWorldStep
             )
-            || ascensionStartedAtWorldStep < -1
         )
-            return null;
+            return "ascension_started_at_world_step: expected an int";
+        if (ascensionStartedAtWorldStep < -1)
+            return $"ascension_started_at_world_step: {ascensionStartedAtWorldStep} must be >= -1";
         var origRace = _parse_string_name_field(
             data["original_race_id_before_ascension"],
             true,
             out bool o18
         );
         if (!o18)
-            return null;
-        if (!TryGetStrictInt(data, "biological_age_years", out int biologicalAgeYears)
-            || biologicalAgeYears < 0)
-            return null;
-        if (!TryGetStrictInt(data, "astral_memory_years", out int astralMemoryYears)
-            || astralMemoryYears < 0)
-            return null;
+            return "original_race_id_before_ascension: not a usable string name";
+        if (!TryGetStrictInt(data, "biological_age_years", out int biologicalAgeYears))
+            return "biological_age_years: expected an int";
+        if (biologicalAgeYears < 0)
+            return $"biological_age_years: {biologicalAgeYears} is out of range";
+        if (!TryGetStrictInt(data, "astral_memory_years", out int astralMemoryYears))
+            return "astral_memory_years: expected an int";
+        if (astralMemoryYears < 0)
+            return $"astral_memory_years: {astralMemoryYears} is out of range";
         var traitInstances = TraitInstanceCollection.FromPayloadArray(
             data["trait_instances"],
             TraitSourceKind.Character
         );
         if (traitInstances == null)
-            return null;
+            return "trait_instances: decode failed";
         if (!TryGetArray(data, "contingency_matrix_setups", out Godot.Collections.Array setupPayloads))
-            return null;
+            return "contingency_matrix_setups: expected an array";
         List<ContingencyMatrixSetupState> contingencySetups =
             ParseContingencySetups(setupPayloads);
         if (contingencySetups == null)
-            return null;
+            return "contingency_matrix_setups: decode failed";
 
         var ms = new PartyMemberState
         {
@@ -639,15 +671,20 @@ public partial class PartyMemberState
             trait_instances = traitInstances,
             _contingencyMatrixSetups = contingencySetups,
         };
-        ms.progression = UnitProgress.FromDictionary(progData);
+        ms.progression = UnitProgress.FromDictionary(progData, out string progressionFailure);
         ms.equipment_state = EquipmentState.FromDictionary(esData);
-        if (ms.progression == null || ms.equipment_state == null)
-            return null;
-        if (ms.progression.unit_id == "" || ms.progression.unit_id != ms.member_id)
-            return null;
+        if (ms.progression == null)
+            return $"progression: {progressionFailure}";
+        if (ms.equipment_state == null)
+            return "equipment_state: decode failed";
+        if (ms.progression.unit_id == "")
+            return "progression.unit_id: must not be empty";
+        if (ms.progression.unit_id != ms.member_id)
+            return $"progression.unit_id: '{ms.progression.unit_id}' != member_id '{ms.member_id}'";
         if (ms.progression.display_name.StripEdges().Length == 0)
-            return null;
-        return ms;
+            return "progression.display_name: must not be blank";
+        result = ms;
+        return "";
     }
 
     private UnitBaseAttributes _get_unit_base_attributes() => progression?.unit_base_attributes;

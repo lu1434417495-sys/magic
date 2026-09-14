@@ -34,6 +34,21 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
         RequestTestExit(_test.Finish("World map system surface regression"));
     }
 
+    private static SettlementStagecoachActionRequest BuildStagecoachRequest(
+        string targetSettlementId
+    ) =>
+        new(
+            new SettlementActionRequest(
+                new StringName("spring_village_01"),
+                new StringName("service:stagecoach"),
+                new StringName("service:stagecoach"),
+                new StringName(""),
+                0,
+                SettlementSubmissionSource.Stagecoach
+            ),
+            new StringName(targetSettlementId)
+        );
+
     private void TestStagecoachModalAcceptsOnlyFormalTargetPayload()
     {
         GameRuntimeFacade runtime = BuildRuntime();
@@ -48,25 +63,21 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
         {
             runtime.UpdateStatus("unchanged");
             system._on_stagecoach_service_modal_action_requested(
-                "spring_village_01",
-                "service:stagecoach",
-                new GDictionary { ["settlement_id"] = "legacy_destination" }
+                BuildStagecoachRequest("")
             );
             _test.Eq(
-                runtime._current_status_message,
+                runtime.GetStatusText(),
                 "unchanged",
-                "Stagecoach modal payload 只有 settlement_id 时不应触发旅行命令。"
+                "Stagecoach 请求缺少目标据点 id 时不应触发旅行命令。"
             );
 
             system._on_stagecoach_service_modal_action_requested(
-                "spring_village_01",
-                "service:stagecoach",
-                new GDictionary { ["target_settlement_id"] = "north_outpost" }
+                BuildStagecoachRequest("north_outpost")
             );
             _test.Eq(
-                runtime._current_status_message,
+                runtime.GetStatusText(),
                 "当前没有打开驿站路线窗口。",
-                "Stagecoach modal 使用 target_settlement_id 时应委托正式旅行命令。"
+                "Stagecoach 请求携带目标据点 id 时应委托正式旅行命令。"
             );
         }
         finally
@@ -167,7 +178,10 @@ public partial class run_world_map_system_surface_regression : LifecycleTestScen
     private static GameRuntimeFacade BuildRuntime()
     {
         GameRuntimeFacade runtime = new();
-        runtime._settlement_command_handler.SetupRuntime(runtime);
+        runtime._settlement_command_handler.SetupRuntime(
+            runtime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         return runtime;
     }
 

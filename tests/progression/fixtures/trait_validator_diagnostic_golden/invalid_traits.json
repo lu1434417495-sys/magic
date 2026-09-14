@@ -1,0 +1,253 @@
+{
+  "schema": 1,
+  "domain": "traits",
+  "family": "invalid_fixtures",
+  "templates": {},
+  "entries": [
+    {
+      "trait_id": "bad_attribute_modifier_trait",
+      "display_name": "Bad Attribute Modifier Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "character"
+      ],
+      "effect_type": "attribute_modifier",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [
+        {
+          "attribute_id": "",
+          "mode": "bad_mode",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "",
+          "source_id": ""
+        }
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "fixed_source_roll_schema_trait",
+      "display_name": "Fixed Source Roll Schema Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": [
+        {
+          "key": "amount",
+          "value_type": "int",
+          "min_value": 1,
+          "max_value": 2,
+          "allowed_values": []
+        }
+      ]
+    },
+    {
+      "trait_id": "identity_attribute_trait",
+      "display_name": "Identity Attribute Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [
+        {
+          "attribute_id": "strength",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "",
+          "source_id": ""
+        }
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "invalid_charge_scope_trait",
+      "display_name": "Invalid Charge Scope Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "per_scene",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "invalid_save_tags_trait",
+      "display_name": "Invalid Save Tags Trait",
+      "description": "Fixture covering shared save-tag list validation.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [
+        "poison",
+        "poison"
+      ],
+      "save_disadvantage_tags": [
+        "not_a_save_tag"
+      ],
+      "save_immunity_tags": [
+        "sleep_immunity"
+      ],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [
+        {
+          "status_id": "invalid_save_tag_status",
+          "power": 1,
+          "stacks": 1,
+          "display_label": "",
+          "undispellable": true,
+          "counts_as_debuff_override": false,
+          "counts_as_debuff": false,
+          "save_immunity_tags": [
+            "magic",
+            "magic"
+          ]
+        }
+      ],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "missing_source_kind_trait",
+      "display_name": "Missing Source Kind Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "missing_text_trait",
+      "display_name": "",
+      "description": "",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "passive",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    },
+    {
+      "trait_id": "unsupported_dispatch_trait",
+      "display_name": "Unsupported Dispatch Trait",
+      "description": "Invalid fixture.",
+      "categories": [],
+      "allowed_source_kinds": [
+        "identity"
+      ],
+      "effect_type": "brave",
+      "trigger_type": "on_crit",
+      "stack_policy": "unique_by_trait",
+      "charge_scope": "none",
+      "charge_reset_timing": "none",
+      "highest_roll_compare_key": "",
+      "vision_range": 0,
+      "proficiency_choice_count": 0,
+      "attribute_modifiers": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistance_entries": [],
+      "save_bonus_entries": [],
+      "passive_status_effects": [],
+      "roll_value_schema": []
+    }
+  ]
+}

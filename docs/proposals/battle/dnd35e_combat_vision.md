@@ -830,10 +830,9 @@ caster_level = class_level_in_casting_class
 ```
 
 **战棋适配**：
-- `BattleCellState` 已有 edge / low_wall 概念
-- 半墙提供 +4 AC
-- 完整墙体阻断视线
+- 树（`forest` 地形格）作为掩体：站在森林格的防御方获得 AC 加成
 - 友方单位提供 +4 软掩体（对远程攻击）
+- 注：边特征路线已整体放弃——`low_wall` 于 2026-08-16 从 `BattleEdgeFeatureKind` 移除，authored 边墙（`edge feature wall`）同日移除，游戏不再有 LOS 阻断；掩体只走地形格路线
 
 ### 12.2 高地（Elevation）
 

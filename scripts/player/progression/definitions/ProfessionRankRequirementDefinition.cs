@@ -42,34 +42,4 @@ public sealed class ProfessionRankRequirementDefinition
         && RequiredAttributeRules.Count == 0
         && RequiredReputationRules.Count == 0;
 
-    internal static ProfessionRankRequirementDefinition FromResource(
-        ProfessionRankRequirement source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return new ProfessionRankRequirementDefinition(
-            source.target_rank,
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.RequiredTagRulesProjectionBorrowed,
-                $"{path}.required_tag_rules",
-                TagRequirementDefinition.FromResource
-            ),
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.RequiredProfessionRanksProjectionBorrowed,
-                $"{path}.required_profession_ranks",
-                ProfessionRankGateDefinition.FromResource
-            ),
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.RequiredAttributeRulesProjectionBorrowed,
-                $"{path}.required_attribute_rules",
-                AttributeRequirementDefinition.FromResource
-            ),
-            ProgressionDefinitionProjection.ProjectBorrowedValues(
-                source.RequiredReputationRulesProjectionBorrowed,
-                $"{path}.required_reputation_rules",
-                ReputationRequirementDefinition.FromResource
-            )
-        );
-    }
 }

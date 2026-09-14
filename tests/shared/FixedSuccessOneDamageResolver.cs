@@ -11,7 +11,7 @@ public partial class FixedSuccessOneDamageResolver : FixedHitOneDamageResolver
         BattleUnitState target_unit,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
-        AttackContext attack_context = null
+        AttackContext attack_context
     )
     {
         AttackContext fixedContext = attack_context ?? new AttackContext();

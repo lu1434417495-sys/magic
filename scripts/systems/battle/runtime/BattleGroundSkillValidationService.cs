@@ -7,19 +7,19 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundSkillValidationService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
     private BattleGroundRelocationService _relocationService;
     private BattleGroundEffectCoordService _coordService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner,
         BattleGroundRelocationService relocationService,
         BattleGroundEffectCoordService coordService
@@ -45,9 +45,9 @@ internal class BattleGroundSkillValidationService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -56,9 +56,9 @@ internal class BattleGroundSkillValidationService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
 
 
     internal string GetGroundSpecialEffectValidationMessage(
@@ -71,7 +71,8 @@ internal class BattleGroundSkillValidationService
         CombatEffectDefinition relocationEffectDefinition =
             _relocationService._get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                _relocationService.ResolveSkillLevel(activeUnit, skillDefinition)
             );
         if (relocationEffectDefinition == null)
         {
@@ -108,7 +109,8 @@ internal class BattleGroundSkillValidationService
         CombatEffectDefinition relocationEffectDefinition =
             _relocationService._get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                _relocationService.ResolveSkillLevel(activeUnit, skillDefinition)
             );
         if (relocationEffectDefinition == null)
         {
@@ -172,7 +174,7 @@ internal class BattleGroundSkillValidationService
             return deniedResult with
             {
                 Message =
-                    Runtime?._get_skill_cast_block_message(activeUnit, skillDefinition)
+                    Runtime?.GetSkillCastBlockMessage(activeUnit, skillDefinition)
                     ?? "正式技能检查未绑定，无法施放该技能。",
             };
         }
@@ -185,7 +187,7 @@ internal class BattleGroundSkillValidationService
                     Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
                 };
         }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
+        BattleChargeResolver chargeResolver = Runtime?.GetChargeResolver();
         if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
         {
             return chargeResolver.ValidateChargeCommandResult(
@@ -200,7 +202,8 @@ internal class BattleGroundSkillValidationService
         CombatEffectDefinition relocationEffectDefinition =
             _relocationService._get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                _relocationService.ResolveSkillLevel(activeUnit, skillDefinition)
             );
         int effectiveSkillRange = _owner._get_effective_skill_range(activeUnit, skillDefinition);
         var seenCoords = new HashSet<Vector2I>();
@@ -287,6 +290,26 @@ internal class BattleGroundSkillValidationService
             return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
         }
         IReadOnlyList<Vector2I> sortedTargetCoords = BattleGroundEffectCoordService.SortCoordsTyped(normalizedCoords);
+        string placementMessage = GetGroundPlacementValidationMessage(
+            activeUnit,
+            skillDefinition,
+            castVariantDefinition,
+            sortedTargetCoords
+        );
+        if (!string.IsNullOrEmpty(placementMessage))
+        {
+            return deniedResult with { Message = placementMessage };
+        }
+        string losMessage = GetGroundLosValidationMessage(
+            activeUnit,
+            skillDefinition,
+            castVariantDefinition,
+            sortedTargetCoords
+        );
+        if (!string.IsNullOrEmpty(losMessage))
+        {
+            return deniedResult with { Message = losMessage };
+        }
         string groundExecuteMessage = GetGroundExecuteValidationMessage(
             skillDefinition,
             castVariantDefinition,
@@ -354,7 +377,7 @@ internal class BattleGroundSkillValidationService
         {
             return deniedResult with { Message = "该技能形态不是地面施法。" };
         }
-        string blockReason = Runtime?._get_skill_command_block_reason(
+        string blockReason = Runtime?.GetSkillCommandBlockReason(
             activeUnit,
             skillDefinition,
             castVariantDefinition
@@ -372,7 +395,7 @@ internal class BattleGroundSkillValidationService
                     Message = $"该技能形态需要选择 {requiredCoordCount} 个地格。",
                 };
         }
-        BattleChargeResolver chargeResolver = Runtime?._charge_resolver;
+        BattleChargeResolver chargeResolver = Runtime?.GetChargeResolver();
         if (castVariantDefinition != null && chargeResolver != null && chargeResolver.IsChargeOption(castVariantDefinition))
         {
             return chargeResolver.ValidateChargeCommandResult(
@@ -387,7 +410,8 @@ internal class BattleGroundSkillValidationService
         CombatEffectDefinition relocationEffectDefinition =
             _relocationService._get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                _relocationService.ResolveSkillLevel(activeUnit, skillDefinition)
             );
         int effectiveSkillRange = _owner._get_effective_skill_range(activeUnit, skillDefinition);
         var seenCoords = new HashSet<Vector2I>();
@@ -474,6 +498,26 @@ internal class BattleGroundSkillValidationService
             return deniedResult with { Message = "目标地格排布不符合该技能形态。" };
         }
         IReadOnlyList<Vector2I> sortedTargetCoords = BattleGroundEffectCoordService.SortCoordsTyped(normalizedCoords);
+        string placementMessage = GetGroundPlacementValidationMessage(
+            activeUnit,
+            skillDefinition,
+            castVariantDefinition,
+            sortedTargetCoords
+        );
+        if (!string.IsNullOrEmpty(placementMessage))
+        {
+            return deniedResult with { Message = placementMessage };
+        }
+        string losMessage = GetGroundLosValidationMessage(
+            activeUnit,
+            skillDefinition,
+            castVariantDefinition,
+            sortedTargetCoords
+        );
+        if (!string.IsNullOrEmpty(losMessage))
+        {
+            return deniedResult with { Message = losMessage };
+        }
         string groundExecuteMessage = GetGroundExecuteValidationMessage(
             skillDefinition,
             castVariantDefinition,
@@ -551,7 +595,7 @@ internal class BattleGroundSkillValidationService
         if (!AllUnitEffectsRequireQualifiedTargets(effects))
             return "";
         IReadOnlyList<Vector2I> effectCoords =
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit.GetAnchorCoord(),
@@ -603,7 +647,7 @@ internal class BattleGroundSkillValidationService
         if (!AllUnitEffectsRequireQualifiedTargets(effects))
             return "";
         IReadOnlyList<Vector2I> effectCoords =
-            Runtime?.BuildGroundEffectCoordsTyped(
+            Runtime?.BuildGroundEffectCoords(
                 skillDefinition,
                 targetCoords,
                 activeUnit.Coord,
@@ -712,6 +756,180 @@ internal class BattleGroundSkillValidationService
     )
     {
         return Math.Max(castVariantDefinition?.RequiredCoordCount ?? 0, 0);
+    }
+
+    private string GetGroundPlacementValidationMessage(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        return GetGroundPlacementValidationMessageCore(
+            skillDefinition,
+            Runtime?.BuildGroundEffectCoords(
+                skillDefinition,
+                targetCoords,
+                activeUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
+                activeUnit,
+                castVariantDefinition
+            ) ?? Array.Empty<Vector2I>()
+        );
+    }
+
+    private string GetGroundPlacementValidationMessage(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        return GetGroundPlacementValidationMessageCore(
+            skillDefinition,
+            Runtime?.BuildGroundEffectCoords(
+                skillDefinition,
+                targetCoords,
+                activeUnit.IsValid ? activeUnit.Coord : new Vector2I(-1, -1),
+                activeUnit,
+                castVariantDefinition
+            ) ?? Array.Empty<Vector2I>()
+        );
+    }
+
+    private string GetGroundPlacementValidationMessageCore(
+        SkillDefinition skillDefinition,
+        IReadOnlyList<Vector2I> effectCoords
+    )
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
+        {
+            return "";
+        }
+        if (combatProfile.GroundEffectRequireFullArea)
+        {
+            int radius = Math.Max(combatProfile.AreaValue, 0);
+            int expectedCount = BattleTypedNames.ToAreaPattern(combatProfile.AreaPattern) switch
+            {
+                BattleAreaPattern.Line => (radius * 2) + 1,
+                BattleAreaPattern.Cross => (radius * 4) + 1,
+                BattleAreaPattern.Diamond => 1 + (2 * radius * (radius + 1)),
+                BattleAreaPattern.Square or BattleAreaPattern.Radius =>
+                    (radius * 2 + 1) * (radius * 2 + 1),
+                _ => 1,
+            };
+            if (effectCoords.Count != expectedCount)
+            {
+                return "完整作用范围超出战场边界，不能在这里布置。";
+            }
+        }
+        foreach (Vector2I effectCoord in effectCoords)
+        {
+            if (
+                combatProfile.GroundEffectRequireEmpty
+                && GridService.GetUnitAtCoord(State, effectCoord) != null
+            )
+            {
+                return "作用范围内存在单位，不能在这里布置。";
+            }
+            if (
+                combatProfile.GroundEffectRequireTraversable
+                && !GridService.CanFitFootprintIgnoringOccupants(
+                    State,
+                    effectCoord,
+                    Vector2I.One,
+                    null
+                )
+            )
+            {
+                return "作用范围内存在不可通行地格，不能在这里布置。";
+            }
+        }
+        return "";
+    }
+
+    private string GetGroundLosValidationMessage(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        if (skillDefinition?.CombatProfile?.RequiresLos != true || activeUnit == null)
+        {
+            return "";
+        }
+        return GetGroundLosValidationMessageCore(
+            activeUnit,
+            new BattleUnitReadView(activeUnit),
+            skillDefinition,
+            castVariantDefinition,
+            targetCoords
+        );
+    }
+
+    private string GetGroundLosValidationMessage(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        if (skillDefinition?.CombatProfile?.RequiresLos != true || !activeUnit.IsValid)
+        {
+            return "";
+        }
+        return GetGroundLosValidationMessageCore(
+            activeUnit.UnsafeUnitForReadOnlyRules,
+            activeUnit,
+            skillDefinition,
+            castVariantDefinition,
+            targetCoords
+        );
+    }
+
+    private string GetGroundLosValidationMessageCore(
+        BattleUnitState sourceState,
+        BattleUnitReadView sourceView,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        if (targetCoords == null || targetCoords.Count == 0)
+        {
+            return "目标地格无效。";
+        }
+        IReadOnlyList<CombatEffectDefinition> unitEffects =
+            _coordService.CollectGroundUnitEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                sourceView
+            );
+        IReadOnlyList<CombatEffectDefinition> terrainEffects =
+            _coordService.CollectGroundTerrainEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                sourceView
+            );
+        BattleGroundEffectBarrierClipResult clip = Runtime?.GetLayeredBarrierService()
+            ?.PreviewGroundEffectBarrierClipResultAtCoord(
+                sourceState,
+                sourceView.Coord,
+                skillDefinition,
+                unitEffects,
+                terrainEffects,
+                targetCoords,
+                castVariantDefinition
+            ) ?? default;
+        if (
+            clip.TerrainEffects.BlockedCoords?.Count > 0
+            || clip.UnitEffects.BlockedCoords?.Count > 0
+        )
+        {
+            return "目标方向的视线被屏障阻挡。";
+        }
+        return "";
     }
 
     private static string GetCasterTargetVectorLineValidationMessage(

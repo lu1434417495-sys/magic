@@ -160,6 +160,21 @@ internal static class BattleAiPayloadGuard
         return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
     }
 
+    internal static bool ValidateNoForbiddenObject(BattleShieldPreviewData value, string context)
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        BattleEquipmentDurabilityPreviewData value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedObject(value, context, 0);
+        return string.IsNullOrEmpty(error) || FailLoud(error, FailureContext(context));
+    }
+
     internal static bool ValidateNoForbiddenObject(IEnumerable<StringName> value, string context)
     {
         string error = FindForbiddenInTypedObject(value, context, 0);
@@ -254,6 +269,13 @@ internal static class BattleAiPayloadGuard
             return false;
         if (
             !ValidateNoForbiddenObject(
+                preview.SourceAdvancePathTyped,
+                "preview.source_advance_path"
+            )
+        )
+            return false;
+        if (
+            !ValidateNoForbiddenObject(
                 preview.RandomChainCandidateUnitIdsTyped,
                 "preview.random_chain_candidate_unit_ids"
             )
@@ -273,6 +295,15 @@ internal static class BattleAiPayloadGuard
         if (!ValidateNoForbiddenObject(preview.FatePreviewTyped, "preview.fate_preview"))
             return false;
         if (!ValidateNoForbiddenObject(preview.SaveBranchPreviewTyped, "preview.save_branch_preview"))
+            return false;
+        if (!ValidateNoForbiddenObject(preview.ShieldPreviewTyped, "preview.shield_preview"))
+            return false;
+        if (
+            !ValidateNoForbiddenObject(
+                preview.EquipmentDurabilityPreviewTyped,
+                "preview.equipment_durability_preview"
+            )
+        )
             return false;
 
         BattleSpecialProfileGateResult gateResult = preview.special_profile_gate_result;

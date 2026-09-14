@@ -5,19 +5,6 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_progression_content_registry_typed_regression : LifecycleTestSceneTree
 {
-    private static readonly string[] AggregatedRegistryContentPrefixes =
-    {
-        "res://data/configs/skills/",
-        "res://data/configs/professions/",
-        "res://data/configs/races/",
-        "res://data/configs/subraces/",
-        "res://data/configs/traits/",
-        "res://data/configs/age_profiles/",
-        "res://data/configs/bloodlines/",
-        "res://data/configs/ascensions/",
-        "res://data/configs/stage_advancements/",
-    };
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -44,8 +31,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestOfficialProgressionRegistryTypedBoundaryMatchesPublicBoundary()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(loader);
+        using ProgressionContentRegistry registry = new();
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -69,38 +55,33 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             "contingency getter 应暴露 Definition snapshot。"
         );
 
-        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
+        var jsonBackedDefinitionCounts = new (string Domain, int Count)[]
+        {
+            ("professions", registry.GetProfessionDefsTyped().Count),
+            ("races", registry.GetRaceDefsTyped().Count),
+            ("subraces", registry.GetSubraceDefsTyped().Count),
+            ("age_profiles", registry.GetAgeProfileDefsTyped().Count),
+            ("bloodlines", registry.GetBloodlineDefsTyped().Count),
+            ("bloodline stages", registry.GetBloodlineStageDefsTyped().Count),
+            ("ascensions", registry.GetAscensionDefsTyped().Count),
+            ("ascension stages", registry.GetAscensionStageDefsTyped().Count),
+            ("stage_advancements", registry.GetStageAdvancementDefsTyped().Count),
+        };
+        foreach ((string domain, int count) in jsonBackedDefinitionCounts)
         {
             _test.True(
-                loader.CountLoadedPathsUnder(contentPrefix) > 0,
-                $"聚合 registry 应加载 {contentPrefix} 下的正式内容。"
-            );
-            IReadOnlyList<string> duplicateLoads = loader.GetDuplicateLoadsUnder(contentPrefix);
-            _test.Eq(
-                duplicateLoads.Count,
-                0,
-                $"聚合 registry 构造期间每个内容路径只能加载一次: {FormatErrors(duplicateLoads)}"
+                count > 0,
+                $"聚合 registry 应暴露 JSON-backed {domain} immutable definitions。"
             );
         }
+
     }
 
     private void TestPureDefinitionReplacementFeedsTypedValidation()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
-        foreach (string contentPrefix in AggregatedRegistryContentPrefixes)
-        {
-            _test.Eq(
-                loader.CountLoadedPathsUnder(contentPrefix),
-                0,
-                $"pure definition validation 不应加载正式内容目录 {contentPrefix}。"
-            );
-        }
 
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
         GStringArray projectedErrors = registry.Validate();
@@ -159,18 +140,21 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestDefinitionReplacementProducesDefensiveSnapshots()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         ProgressionDefinitionSources sources = BuildCustomDefinitionSources();
         registry.ReplaceDefinitionsForValidation(sources);
 
         IReadOnlyDictionary<StringName, RaceDefinition> firstSnapshot =
             registry.GetRaceDefsTyped();
         var mutableSource = (Dictionary<StringName, RaceDefinition>)sources.RaceDefinitions;
+        var mutableAchievementSource =
+            (Dictionary<StringName, AchievementDefinition>)sources.AchievementDefinitions;
+        var mutableStageAdvancementSource =
+            (Dictionary<StringName, StageAdvancementDefinition>)
+                sources.StageAdvancementDefinitions;
         mutableSource.Clear();
+        mutableAchievementSource.Clear();
+        mutableStageAdvancementSource.Clear();
 
         _test.True(
             registry.GetRaceDefsTyped().ContainsKey("human"),
@@ -180,25 +164,21 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             RejectsMutation(firstSnapshot),
             "typed getter 应返回拒绝写入的 defensive snapshot。"
         );
-        _test.True(
-            registry.GetAchievementDefsTyped()["broken_achievement"]
-                is AchievementDefinition,
-            "achievement typed getter 只能返回 AchievementDefinition。"
+        _test.Eq(
+            registry.GetAchievementDefsTyped()["broken_achievement"].AchievementId,
+            new StringName("broken_achievement"),
+            "替换入口必须复制 achievement definition index，不能保留调用方字典所有权。"
         );
-        _test.True(
-            registry.GetStageAdvancementDefsTyped()["broken_stage_cap"]
-                is StageAdvancementDefinition,
-            "stage advancement typed getter 只能返回 StageAdvancementDefinition。"
+        _test.Eq(
+            registry.GetStageAdvancementDefsTyped()["broken_stage_cap"].ModifierId,
+            new StringName("broken_stage_cap"),
+            "替换入口必须复制 stage advancement definition index，不能保留调用方字典所有权。"
         );
     }
 
     private void TestTraitDefinitionReplacementFeedsIdentityValidation()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         TraitDefinition customTrait = BuildIdentityTrait("custom_identity_trait");
         RaceDefinition customRace = BuildRace(
             "custom_race",
@@ -232,11 +212,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
 
     private void TestIdentityCatalogUsesDefinitionIndexes()
     {
-        using TestContentResourceLoader loader = new();
-        using ProgressionContentRegistry registry = new(
-            loader,
-            loadDefaultContent: false
-        );
+        using ProgressionContentRegistry registry = new(loadDefaultContent: false);
         registry.ReplaceDefinitionsForValidation(BuildCustomDefinitionSources());
 
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
@@ -351,6 +327,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             [
                 new TraitRollValueSchemaEntryDefinition(
@@ -440,6 +417,7 @@ public partial class run_progression_content_registry_typed_regression : Lifecyc
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );

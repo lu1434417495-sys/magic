@@ -53,6 +53,7 @@ internal sealed class BattleRandomChainSkillService
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariantDefinition,
         BattleEventBatch batch,
+        BattleAttackActionContext actionContext,
         IReadOnlyList<CombatEffectDefinition> effect_definitions,
         CombatEffectDefinition repeat_attack_effect,
         BattleSpellControlResult spell_control_context
@@ -118,6 +119,7 @@ internal sealed class BattleRandomChainSkillService
                         effect_definitions,
                         repeat_attack_effect,
                         batch,
+                        actionContext,
                         castVariantDefinition
                     );
             }
@@ -130,6 +132,7 @@ internal sealed class BattleRandomChainSkillService
                     castVariantDefinition,
                     effect_definitions,
                     batch,
+                    actionContext,
                     spell_control_context
                 );
             }
@@ -149,7 +152,8 @@ internal sealed class BattleRandomChainSkillService
                     castVariantDefinition,
                     effect_definitions,
                     targetSuccessfulHitCount,
-                    batch
+                    batch,
+                    actionContext
                 );
             }
             else if (!continueOnMiss)

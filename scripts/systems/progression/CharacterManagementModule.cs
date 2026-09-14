@@ -82,6 +82,9 @@ public sealed partial class CharacterManagementModule
 
         public ItemDefinition GetItemDefForTraitAggregation(StringName itemId) =>
             _owner?.GetItemDef(itemId);
+
+        public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsForTraitAggregation() =>
+            _owner?._item_def_view;
     }
 
     private sealed class AchievementProgressSummaryEntry
@@ -143,6 +146,11 @@ public sealed partial class CharacterManagementModule
         new ReadOnlyDictionary<StringName, ItemDefinition>(
             new Dictionary<StringName, ItemDefinition>()
         );
+    private Dictionary<StringName, GearSetDefinition> _gear_set_def_index = new();
+    private IReadOnlyDictionary<StringName, GearSetDefinition> _gear_set_def_view =
+        new ReadOnlyDictionary<StringName, GearSetDefinition>(
+            new Dictionary<StringName, GearSetDefinition>()
+        );
     private Dictionary<StringName, QuestDefinition> _quest_def_index = new();
     private Dictionary<StringName, TraitDefinition> _trait_def_index = new();
     private Dictionary<StringName, RaceDefinition> _race_def_index = new();
@@ -190,6 +198,7 @@ public sealed partial class CharacterManagementModule
         _profession_def_index.Clear();
         _achievement_def_index.Clear();
         _item_def_index.Clear();
+        _gear_set_def_index.Clear();
         _quest_def_index.Clear();
         _trait_def_index.Clear();
         _race_def_index.Clear();
@@ -212,7 +221,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, ItemDefinition> item_defs = null,
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs = null,
         Func<StringName> equipment_instance_id_allocator = null,
-        ProgressionIdentityCatalogData progression_identity_catalog = null
+        ProgressionIdentityCatalogData progression_identity_catalog = null,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -223,7 +233,8 @@ public sealed partial class CharacterManagementModule
             quest_defs,
             quest_defs != null && quest_defs.Count > 0,
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -235,7 +246,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -247,7 +259,8 @@ public sealed partial class CharacterManagementModule
             quest_defs != null && quest_defs.Count > 0,
             trait_defs,
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -259,7 +272,8 @@ public sealed partial class CharacterManagementModule
         IReadOnlyDictionary<StringName, QuestDefinition> quest_defs,
         bool has_quest_def_catalog,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     ) =>
         setup(
             party_state,
@@ -271,7 +285,8 @@ public sealed partial class CharacterManagementModule
             has_quest_def_catalog,
             new Dictionary<StringName, TraitDefinition>(),
             equipment_instance_id_allocator,
-            progression_identity_catalog
+            progression_identity_catalog,
+            gear_set_defs
         );
 
     public void setup(
@@ -284,7 +299,8 @@ public sealed partial class CharacterManagementModule
         bool has_quest_def_catalog,
         IReadOnlyDictionary<StringName, TraitDefinition> trait_defs,
         Func<StringName> equipment_instance_id_allocator,
-        ProgressionIdentityCatalogData progression_identity_catalog
+        ProgressionIdentityCatalogData progression_identity_catalog,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gear_set_defs = null
     )
     {
         _party_state = party_state ?? new PartyState();
@@ -294,6 +310,10 @@ public sealed partial class CharacterManagementModule
         _achievement_def_index = CloneContentDefIndex(achievement_defs);
         _item_def_index = CloneContentDefIndex(item_defs);
         _item_def_view = new ReadOnlyDictionary<StringName, ItemDefinition>(_item_def_index);
+        _gear_set_def_index = CloneContentDefIndex(gear_set_defs);
+        _gear_set_def_view = new ReadOnlyDictionary<StringName, GearSetDefinition>(
+            _gear_set_def_index
+        );
         _has_quest_def_catalog = has_quest_def_catalog;
         _quest_def_index = CloneContentDefIndex(quest_defs);
         _trait_def_index = CloneContentDefIndex(trait_defs);
@@ -323,7 +343,8 @@ public sealed partial class CharacterManagementModule
         );
         _character_trait_service = new CharacterTraitService(
             _trait_def_index.Values,
-            new CharacterTraitGatewayAdapter(this)
+            new CharacterTraitGatewayAdapter(this),
+            _gear_set_def_view
         );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         _party_warehouse_service.Setup(
@@ -353,6 +374,23 @@ public sealed partial class CharacterManagementModule
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         _item_def_view;
 
+    public IReadOnlyDictionary<StringName, GearSetDefinition> GetGearSetDefinitionsTyped() =>
+        _gear_set_def_view;
+
+    public GearSetEvaluationSnapshot EvaluateGearSets(
+        StringName member_id,
+        EquipmentState equipment_state_override = null
+    )
+    {
+        PartyMemberState memberState = GetMemberState(member_id);
+        EquipmentState equipment = equipment_state_override ?? memberState?.equipment_state;
+        return GearSetEvaluationService.Evaluate(
+            equipment,
+            _item_def_view,
+            _gear_set_def_view
+        );
+    }
+
     public bool HasItemDefCatalog() => _item_def_index.Count > 0;
 
     internal ContingencySetupMutationResult SaveContingencySetup(
@@ -368,11 +406,16 @@ public sealed partial class CharacterManagementModule
     internal ContingencySetupMutationResult ChargeContingencySetup(
         StringName member_id,
         StringName setup_id,
+        ContingencySetupTemplateDefinition template_definition,
         Func<bool> battleMutationBlockedProvider = null
     )
     {
         SetupContingencySetupService(battleMutationBlockedProvider ?? (() => false));
-        return _party_contingency_setup_service.ChargeSetup(member_id, setup_id);
+        return _party_contingency_setup_service.ChargeSetup(
+            member_id,
+            setup_id,
+            template_definition
+        );
     }
 
     internal ContingencySetupMutationResult ClearContingencyCharge(
@@ -396,6 +439,7 @@ public sealed partial class CharacterManagementModule
 
     public void SetPartyState(PartyState party_state)
     {
+        PromotionAvailabilityRevision++;
         _party_state = party_state ?? new PartyState();
         _party_warehouse_service.Setup(
             _party_state,
@@ -525,17 +569,28 @@ public sealed partial class CharacterManagementModule
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
         IReadOnlyList<AttributeModifierDefinition> equipmentModifiers =
             _party_equipment_service.BuildAttributeModifiersTyped(equipment_state);
-        context.equipment_state = equipmentModifiers;
+        var combinedEquipmentModifiers = new List<AttributeModifierDefinition>(
+            equipmentModifiers
+        );
         if (_character_trait_service != null)
         {
             EffectiveTraitSet effectiveTraits = _character_trait_service.BuildEffectiveTraits(
                 member_id,
-                equipment_state
+                equipment_state,
+                out GearSetEvaluationSnapshot gearSetEvaluation
             );
+            combinedEquipmentModifiers.AddRange(gearSetEvaluation.AttributeModifiers);
             IReadOnlyList<AttributeModifierDefinition> traitModifiers =
                 _character_trait_service.ResolveTraitAttributeModifiers(effectiveTraits);
             context.trait_attribute_modifiers = traitModifiers;
         }
+        else
+        {
+            combinedEquipmentModifiers.AddRange(
+                EvaluateGearSets(member_id, equipment_state).AttributeModifiers
+            );
+        }
+        context.equipment_state = combinedEquipmentModifiers.AsReadOnly();
         context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
             member_state
         );
@@ -1270,31 +1325,6 @@ public sealed partial class CharacterManagementModule
         return _build_practice_growth_service().GetSkillLearnedStatusTyped(skill_id, progression);
     }
 
-    public LevelGrowthTriggerResult SetActiveLevelTriggerCoreSkillTyped(
-        StringName member_id,
-        StringName skill_id
-    )
-    {
-        var member_state = GetMemberState(member_id);
-        var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_definition_index);
-        var result = service.SetActiveTriggerCoreSkillTyped(member_state, skill_id);
-        if (result.Ok && member_state?.progression != null)
-            BuildProgressionService(member_state.progression).RefreshRuntimeState();
-        return result;
-    }
-
-    public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)
-    {
-        var member_state = GetMemberState(member_id);
-        var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_definition_index);
-        var result = service.ClearActiveTriggerCoreSkillTyped(member_state);
-        if (result.Ok && member_state?.progression != null)
-            BuildProgressionService(member_state.progression).RefreshRuntimeState();
-        return result;
-    }
-
     public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)
     {
         if (_party_state == null || days_elapsed <= 0)
@@ -1356,6 +1386,7 @@ public sealed partial class CharacterManagementModule
                     skill_id
                 );
                 delta?.AppendUnlockedAchievementIds(replacement_achievement_ids);
+                PromotionAvailabilityRevision++;
                 return true;
             }
             if (!practice_status.CanLearn)
@@ -1371,6 +1402,7 @@ public sealed partial class CharacterManagementModule
             );
         var achievement_ids = RecordAchievementEvent(member_id, "skill_learned", 1, skill_id);
         delta?.AppendUnlockedAchievementIds(achievement_ids);
+        PromotionAvailabilityRevision++;
         return true;
     }
 
@@ -1386,6 +1418,7 @@ public sealed partial class CharacterManagementModule
         var progression_service = BuildProgressionService(progression);
         if (!progression_service.LearnKnowledge(knowledge_id))
             return false;
+        PromotionAvailabilityRevision++;
         var achievement_ids = RecordAchievementEvent(
             member_id,
             "knowledge_learned",
@@ -1998,38 +2031,39 @@ public sealed partial class CharacterManagementModule
         };
     }
 
-    public CharacterProgressionDelta PromoteProfession(
-        StringName member_id,
-        StringName profession_id,
-        PromotionSelectionData selection
-    )
+    internal long PromotionAvailabilityRevision { get; private set; }
+
+    public IReadOnlyList<PendingProfessionChoice> GetPromotionOffers(StringName memberId)
     {
-        var member_state = GetMemberState(member_id);
+        var member = GetMemberState(memberId);
+        return member?.progression == null || member.is_dead
+            ? System.Array.Empty<PendingProfessionChoice>()
+            : BuildProgressionService(member.progression).GetProfessionUpgradeCandidates();
+    }
+
+    public CharacterProgressionDelta PromoteProfession(StringName member_id, StringName profession_id, PromotionCommitRequest selection)
+    {
+        var member = GetMemberState(member_id);
         var delta = _new_delta(member_id);
-        if (member_state == null || member_state.progression is not UnitProgress progression)
-            return delta;
-
-        var before_skill_levels = _capture_skill_levels(progression);
-        var before_granted_skill_ids = _capture_granted_skill_ids(progression);
-        var before_profession_ranks = _capture_profession_ranks(progression);
-        var trigger_skill_id = progression.active_level_trigger_core_skill_id;
-        delta.character_level_before = progression.character_level;
-
-        var progression_service = BuildProgressionService(progression);
-        if (progression_service.PromoteProfession(profession_id, selection ?? PromotionSelectionData.Empty))
+        if (member?.progression == null || member.is_dead)
         {
-            _apply_level_trigger_attribute_growth(member_state, trigger_skill_id, delta);
-            _fill_delta_from_progression(
-                delta,
-                progression,
-                before_skill_levels,
-                before_granted_skill_ids,
-                before_profession_ranks
-            );
-            delta.AppendUnlockedAchievementIds(
-                RecordAchievementEvent(member_id, "profession_promoted", 1, profession_id)
-            );
+            delta.PromotionFailure = PromotionFailureKind.NotEligible;
+            return delta;
         }
+        var before = member.progression;
+        delta.character_level_before = before.character_level;
+        var levels = _capture_skill_levels(before);
+        var skills = _capture_granted_skill_ids(before);
+        var ranks = _capture_profession_ranks(before);
+        var prepared = BuildProgressionService(before).PreparePromotion(profession_id, selection);
+        delta.PromotionFailure = prepared.Failure;
+        if (!prepared.Ok) return delta;
+        member.progression = prepared.Candidate;
+        foreach (var change in prepared.AttributeChanges)
+            if (change.Applied)
+                delta.AddAttributeChange(CharacterAttributeChangeFact.GrowthResult(_resolve_attribute_label(change.AttributeId), change));
+        _fill_delta_from_progression(delta, member.progression, levels, skills, ranks);
+        delta.AppendUnlockedAchievementIds(RecordAchievementEvent(member_id, "profession_promoted", 1, profession_id));
         return delta;
     }
 
@@ -2287,77 +2321,6 @@ public sealed partial class CharacterManagementModule
         );
     }
 
-    private void _apply_level_trigger_attribute_growth(
-        PartyMemberState member_state,
-        StringName trigger_skill_id,
-        CharacterProgressionDelta delta
-    )
-    {
-        if (
-            member_state == null
-            || member_state.progression is not UnitProgress progression
-            || trigger_skill_id == ""
-        )
-            return;
-        var skill_definition = GetSkillDefinition(trigger_skill_id);
-        if (skill_definition == null || skill_definition.AttributeGrowthProgress.Count == 0)
-            return;
-        var skill_progress = progression.GetSkillProgress(trigger_skill_id);
-        if (skill_progress == null || skill_progress.core_max_growth_claimed)
-            return;
-        var growth_entries = _collect_attribute_growth_entries(skill_definition);
-        if (growth_entries.Count == 0)
-            return;
-        var attribute_growth_service = new AttributeGrowthService();
-        attribute_growth_service.Setup(progression);
-        var did_apply_growth = false;
-        foreach (var entry in growth_entries)
-        {
-            var growth_result = attribute_growth_service.ApplyAttributeProgressTyped(
-                entry.AttributeId,
-                entry.Amount,
-                $"{_resolve_skill_label(trigger_skill_id)} 锁定成长"
-            );
-            if (!growth_result.Applied)
-                continue;
-            did_apply_growth = true;
-            delta?.AddAttributeChange(
-                CharacterAttributeChangeFact.GrowthResult(
-                    _resolve_attribute_label(entry.AttributeId),
-                    growth_result
-                )
-            );
-        }
-        if (!did_apply_growth)
-            return;
-        skill_progress.core_max_growth_claimed = true;
-        progression.SetSkillProgress(skill_progress);
-    }
-
-    private List<AttributeGrowthEntryData> _collect_attribute_growth_entries(
-        SkillDefinition skillDefinition
-    )
-    {
-        var entries = new List<AttributeGrowthEntryData>();
-        if (skillDefinition == null)
-            return entries;
-        var attribute_entries = new List<(string key, int amount)>();
-        foreach (KeyValuePair<StringName, int> entry in skillDefinition.AttributeGrowthProgress)
-        {
-            if (entry.Key != "")
-                attribute_entries.Add((entry.Key.ToString(), entry.Value));
-        }
-        attribute_entries.Sort((a, b) => string.CompareOrdinal(a.key, b.key));
-        foreach (var (attributeKey, amount) in attribute_entries)
-        {
-            var attribute_id = ProgressionDataUtils.to_string_name(attributeKey);
-            if (amount <= 0 || !AttributeGrowthService.IsValidAttributeId(attribute_id))
-                continue;
-            entries.Add(new AttributeGrowthEntryData(attribute_id, amount));
-        }
-        return entries;
-    }
-
     private static List<PendingCharacterRewardEntry> _sort_pending_reward_entries(
         IEnumerable<PendingCharacterRewardEntry> entries
     )
@@ -2388,7 +2351,7 @@ public sealed partial class CharacterManagementModule
         return result;
     }
 
-    private static void _fill_delta_from_progression(
+    private void _fill_delta_from_progression(
         CharacterProgressionDelta delta,
         UnitProgress progression,
         Dictionary<StringName, int> before_skill_levels,
@@ -2396,9 +2359,10 @@ public sealed partial class CharacterManagementModule
         Dictionary<StringName, int> before_profession_ranks
     )
     {
+        PromotionAvailabilityRevision++;
         delta.character_level_after = progression.character_level;
-        delta.SetPendingProfessionChoices(progression.PendingProfessionChoicesTyped);
-        delta.needs_promotion_modal = delta.PendingProfessionChoicesTyped.Count > 0;
+        delta.SetPendingProfessionChoices(BuildProgressionService(progression).GetProfessionUpgradeCandidates());
+        delta.needs_promotion_modal = false;
         foreach (var skill_id in progression.GetSortedSkillIdsTyped())
         {
             var skill_progress = progression.GetSkillProgress(skill_id);

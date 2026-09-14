@@ -179,6 +179,37 @@ internal sealed class BattleSkillTargetValidationService
                 sourceRetreatValidationMessage
             );
         }
+        string airbornePullValidationMessage = GetAirbornePullValidationMessage(
+            active_unit,
+            targetUnits,
+            command,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(airbornePullValidationMessage))
+            return BattleUnitSkillValidationResult.Denied(airbornePullValidationMessage);
+        string approachAttackValidationMessage = GetApproachAttackValidationMessage(
+            active_unit,
+            targetUnits,
+            skillDefinition
+        );
+        if (!string.IsNullOrEmpty(approachAttackValidationMessage))
+        {
+            return BattleUnitSkillValidationResult.Denied(
+                approachAttackValidationMessage
+            );
+        }
+        string sequentialLineHitValidationMessage = GetSequentialLineHitValidationMessage(
+            active_unit,
+            targetUnits,
+            skillDefinition
+        );
+        if (!string.IsNullOrEmpty(sequentialLineHitValidationMessage))
+        {
+            return BattleUnitSkillValidationResult.Denied(
+                sequentialLineHitValidationMessage
+            );
+        }
 
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
         BattleTargetCollectionResult collectedTargetCoords =
@@ -340,6 +371,41 @@ internal sealed class BattleSkillTargetValidationService
                 sourceRetreatValidationMessage
             );
         }
+        string airbornePullValidationMessage = GetAirbornePullValidationMessage(
+            active_unit,
+            targetUnits,
+            command,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(airbornePullValidationMessage))
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied(
+                airbornePullValidationMessage
+            );
+        }
+        string approachAttackValidationMessage = GetApproachAttackValidationMessage(
+            active_unit,
+            targetUnits,
+            skillDefinition
+        );
+        if (!string.IsNullOrEmpty(approachAttackValidationMessage))
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied(
+                approachAttackValidationMessage
+            );
+        }
+        string sequentialLineHitValidationMessage = GetSequentialLineHitValidationMessage(
+            active_unit,
+            targetUnits,
+            skillDefinition
+        );
+        if (!string.IsNullOrEmpty(sequentialLineHitValidationMessage))
+        {
+            return BattleUnitSkillPreviewValidationResult.Denied(
+                sequentialLineHitValidationMessage
+            );
+        }
 
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
         BattleTargetCollectionResult collectedTargetCoords =
@@ -405,6 +471,82 @@ internal sealed class BattleSkillTargetValidationService
             : plan?.Message ?? "后撤方向无效。";
     }
 
+    private string GetApproachAttackValidationMessage(
+        BattleUnitState activeUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!BattleApproachAttackRules.IsApproachAttackSkill(skillDefinition))
+            return "";
+        if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
+            return "踏步攻击必须选择一个敌方单位。";
+
+        BattleApproachAttackPlan plan = Runtime?._movement_service
+            .BuildApproachAttackPlan(activeUnit, targetUnits[0], skillDefinition);
+        return plan?.Allowed == true
+            ? ""
+            : plan?.Message ?? "当前无法完成踏步推进。";
+    }
+
+    private string GetSequentialLineHitValidationMessage(
+        BattleUnitState activeUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!BattleSequentialLineHitRules.IsSequentialLineHitSkill(skillDefinition))
+            return "";
+        if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
+            return "连续直线攻击必须选择一个敌方首目标。";
+        BattleSequentialLineHitPlan plan = BattleSequentialLineHitRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnits[0],
+            skillDefinition
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
+    private string GetAirbornePullValidationMessage(
+        BattleUnitState activeUnit,
+        IReadOnlyList<BattleUnitState> targetUnits,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            );
+        CombatEffectDefinition effect = BattleAirbornePullRules.FindEffect(
+            effectDefinitions
+        );
+        if (effect == null)
+        {
+            return command?.forced_move_destination_coord != new Vector2I(-1, -1)
+                ? "当前技能不接受强制位移落点。"
+                : "";
+        }
+        if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
+            return "空中牵引必须选择一个单位目标。";
+        BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnits[0],
+            effect,
+            command?.forced_move_destination_coord ?? new Vector2I(-1, -1)
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
     private string GetSourceRetreatValidationMessage(
         BattleUnitReadView activeUnit,
         IReadOnlyList<BattleUnitReadView> targetUnits,
@@ -443,6 +585,103 @@ internal sealed class BattleSkillTargetValidationService
         return plan?.Allowed == true
             ? ""
             : plan?.Message ?? "后撤方向无效。";
+    }
+
+    private string GetApproachAttackValidationMessage(
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!BattleApproachAttackRules.IsApproachAttackSkill(skillDefinition))
+            return "";
+        if (
+            targetUnits == null
+            || targetUnits.Count != 1
+            || !targetUnits[0].IsValid
+        )
+        {
+            return "踏步攻击必须选择一个敌方单位。";
+        }
+
+        BattleApproachAttackPlan plan = Runtime?._movement_service
+            .BuildApproachAttackPlan(activeUnit, targetUnits[0], skillDefinition);
+        return plan?.Allowed == true
+            ? ""
+            : plan?.Message ?? "当前无法完成踏步推进。";
+    }
+
+    private string GetSequentialLineHitValidationMessage(
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!BattleSequentialLineHitRules.IsSequentialLineHitSkill(skillDefinition))
+            return "";
+        if (
+            !activeUnit.IsValid
+            || targetUnits == null
+            || targetUnits.Count != 1
+            || !targetUnits[0].IsValid
+        )
+        {
+            return "连续直线攻击必须选择一个敌方首目标。";
+        }
+        BattleUnitState sourceUnit = _owner.RtState()?.GetAliveUnit(activeUnit.UnitId);
+        BattleUnitState targetUnit = _owner.RtState()?.GetAliveUnit(targetUnits[0].UnitId);
+        BattleSequentialLineHitPlan plan = BattleSequentialLineHitRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            sourceUnit,
+            targetUnit,
+            skillDefinition
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
+    private string GetAirbornePullValidationMessage(
+        BattleUnitReadView activeUnit,
+        IReadOnlyList<BattleUnitReadView> targetUnits,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            );
+        CombatEffectDefinition effect = BattleAirbornePullRules.FindEffect(
+            effectDefinitions
+        );
+        if (effect == null)
+        {
+            return command?.forced_move_destination_coord != new Vector2I(-1, -1)
+                ? "当前技能不接受强制位移落点。"
+                : "";
+        }
+        if (
+            targetUnits == null
+            || targetUnits.Count != 1
+            || !targetUnits[0].IsValid
+        )
+        {
+            return "空中牵引必须选择一个单位目标。";
+        }
+        BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnits[0],
+            effect,
+            command?.forced_move_destination_coord ?? new Vector2I(-1, -1)
+        );
+        return plan.Allowed ? "" : plan.Message;
     }
 
     internal GStringNameArray _normalize_target_unit_ids(
@@ -562,6 +801,19 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.TargetTeamFilter,
                 allowDeadTargets
             )
+            || !BattleSkillCreatureTypeTargetRules.Allows(combatProfile, target_unit)
+        )
+        {
+            return false;
+        }
+        if (
+            AllRelevantUnitEffectsExcludeSource(
+                active_unit,
+                target_unit,
+                skillDefinition,
+                cast_variant,
+                allowDeadTargets
+            )
         )
         {
             return false;
@@ -579,8 +831,16 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
-            <= _owner._get_effective_skill_range(active_unit, skillDefinition);
+        BattleGridService gridService = Runtime?.GetGridService();
+        if (
+            gridService == null
+            || gridService.GetDistanceBetweenUnits(active_unit, target_unit)
+                > _owner._get_effective_skill_range(active_unit, skillDefinition)
+        )
+        {
+            return false;
+        }
+        return true;
     }
 
     internal bool _can_skill_target_unit(
@@ -617,6 +877,19 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.TargetTeamFilter,
                 allowDeadTargets
             )
+            || !BattleSkillCreatureTypeTargetRules.Allows(combatProfile, target_unit)
+        )
+        {
+            return false;
+        }
+        if (
+            AllRelevantUnitEffectsExcludeSource(
+                active_unit,
+                target_unit,
+                skillDefinition,
+                cast_variant,
+                allowDeadTargets
+            )
         )
         {
             return false;
@@ -634,8 +907,16 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        return Runtime?.GetGridService().GetDistanceBetweenUnits(active_unit, target_unit)
-            <= _owner._get_effective_skill_range(active_unit, skillDefinition);
+        BattleGridService gridService = Runtime?.GetGridService();
+        if (
+            gridService == null
+            || gridService.GetDistanceBetweenUnits(active_unit, target_unit)
+                > _owner._get_effective_skill_range(active_unit, skillDefinition)
+        )
+        {
+            return false;
+        }
+        return true;
     }
 
     private static bool SkillAllowsDeadUnitTargets(
@@ -665,7 +946,103 @@ internal sealed class BattleSkillTargetValidationService
     }
 
     private static bool IsRevivingHealEffect(CombatEffectDefinition effect) =>
-        effect?.EffectKind is BattleEffectKind.Heal or BattleEffectKind.HealFatal;
+        BattleEffectTargetRequirementRules.AllowsDeadUnitTarget(effect);
+
+    private bool AllRelevantUnitEffectsExcludeSource(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        bool allowDeadTargets
+    )
+    {
+        if (
+            activeUnit == null
+            || targetUnit == null
+            || activeUnit.unit_id == ""
+            || activeUnit.unit_id != targetUnit.unit_id
+        )
+        {
+            return false;
+        }
+
+        bool sawRelevantEffect = false;
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (
+                effectDefinition == null
+                || !_owner._is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+            sawRelevantEffect = true;
+            if (!effectDefinition.ExcludeSource)
+            {
+                return false;
+            }
+        }
+        return sawRelevantEffect;
+    }
+
+    private bool AllRelevantUnitEffectsExcludeSource(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        bool allowDeadTargets
+    )
+    {
+        if (
+            !activeUnit.IsValid
+            || !targetUnit.IsValid
+            || activeUnit.UnitId == ""
+            || activeUnit.UnitId != targetUnit.UnitId
+        )
+        {
+            return false;
+        }
+
+        bool sawRelevantEffect = false;
+        foreach (
+            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        )
+        {
+            if (
+                effectDefinition == null
+                || !_owner._is_unit_valid_for_effect(
+                    activeUnit,
+                    targetUnit,
+                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    allowDeadTargets
+                )
+            )
+            {
+                continue;
+            }
+            sawRelevantEffect = true;
+            if (!effectDefinition.ExcludeSource)
+            {
+                return false;
+            }
+        }
+        return sawRelevantEffect;
+    }
 
     internal BattleUnitSkillTargetAffordance GetUnitSkillTargetAffordance(
         BattleUnitState activeUnit,
@@ -675,6 +1052,14 @@ internal sealed class BattleSkillTargetValidationService
         bool requireAp = true
     )
     {
+        string reason = _get_unit_skill_target_validation_message(
+            activeUnit,
+            targetUnit,
+            skillDefinition,
+            castVariant
+        );
+        if (!string.IsNullOrEmpty(reason))
+            return BattleUnitSkillTargetAffordance.Denied(reason);
         bool allowed = _can_skill_target_unit(
             activeUnit,
             targetUnit,
@@ -686,15 +1071,61 @@ internal sealed class BattleSkillTargetValidationService
         {
             return BattleUnitSkillTargetAffordance.AllowedResult();
         }
-        string reason = _get_unit_skill_target_validation_message(
-            activeUnit,
-            targetUnit,
-            skillDefinition,
-            castVariant
-        );
         return BattleUnitSkillTargetAffordance.Denied(
-            string.IsNullOrEmpty(reason) ? "技能目标超出范围或不满足筛选条件。" : reason
+            "技能目标超出范围或不满足筛选条件。"
         );
+    }
+
+    private string GetPositionSwapValidationMessage(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        );
+        if (effect == null)
+            return "";
+        BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnit
+        );
+        return plan.Allowed ? "" : plan.Message;
+    }
+
+    private string GetPositionSwapValidationMessage(
+        BattleUnitReadView activeUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant
+    )
+    {
+        CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariant,
+                activeUnit
+            )
+        );
+        if (effect == null)
+            return "";
+        BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?._layered_barrier_service,
+            activeUnit,
+            targetUnit
+        );
+        return plan.Allowed ? "" : plan.Message;
     }
 
     internal string _get_unit_skill_target_validation_message(
@@ -704,6 +1135,16 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
+        string positionSwapMessage = GetPositionSwapValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(positionSwapMessage))
+        {
+            return positionSwapMessage;
+        }
         string vaultMessage = GetVaultBehindTargetValidationMessage(
             active_unit,
             target_unit,
@@ -791,6 +1232,16 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
+        string positionSwapMessage = GetPositionSwapValidationMessage(
+            active_unit,
+            target_unit,
+            skillDefinition,
+            cast_variant
+        );
+        if (!string.IsNullOrEmpty(positionSwapMessage))
+        {
+            return positionSwapMessage;
+        }
         string vaultMessage = GetVaultBehindTargetValidationMessage(
             active_unit,
             target_unit,

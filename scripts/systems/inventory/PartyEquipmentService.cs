@@ -215,7 +215,7 @@ public class PartyEquipmentService
                     DisplayName = itemDef != null && itemDef.DisplayName.Length > 0
                         ? itemDef.DisplayName
                         : itemId.ToString(),
-                    Icon = itemDef?.Icon ?? "",
+                    Icon = itemDef?.IconAssetId ?? "",
                     Description = itemDef?.Description ?? "",
                 }
             );

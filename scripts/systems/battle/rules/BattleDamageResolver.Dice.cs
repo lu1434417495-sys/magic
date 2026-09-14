@@ -93,7 +93,6 @@ public partial class BattleDamageResolver
             || sourceUnit == null
             || targetUnit == null
             || damageContext?.AttackSuccess != true
-            || !resultIncludesWeaponDamage
         )
         {
             return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
@@ -108,8 +107,83 @@ public partial class BattleDamageResolver
                     BattleState = damageContext?.BattleState,
                     AttackSucceeded = true,
                     CriticalHit = damageContext.CriticalHit,
+                    IncludesWeaponDamage = resultIncludesWeaponDamage,
                 }
             );
+        return AggregateEquipmentAbilityBonusDiceResults(
+            diceResults,
+            fallbackDamageTag,
+            rollMode
+        );
+    }
+
+    // §8.4 per-main-direct-effect 加骰：canonical resolver 每次准备结算一个主 Damage
+    // effect 时调用一次。origin 必须是显式标注的 main_direct_effect；HasAttackCheck &&
+    // !AttackSucceeded 不触发；豁免型主直接伤害（无攻击检定）仍触发；fixed repeat、
+    // repeat-until-fail、random chain 每段重新进入 resolver 自然逐段查询，不按
+    // cast/event batch/skill id/SourceEffectOrdinal/目标去重。extra_damage_segments、
+    // equipment bonus 与 conditional bonus weapon damage 走各自独立 outcome，不进入本方法。
+    private IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> RollEquipmentAbilityDirectEffectBonusDamageDiceByTag(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        CombatEffectDefinition effectDefinition,
+        DamageResolutionContext damageContext,
+        StringName primaryDamageTag,
+        bool resultIncludesWeaponDamage,
+        int sourceEffectOrdinal,
+        StringName rollMode = default
+    )
+    {
+        IBattleEquipmentDamageQuery equipmentAbilityDamageQuery =
+            _equipment_ability_damage_query;
+        if (
+            equipmentAbilityDamageQuery == null
+            || sourceUnit == null
+            || targetUnit == null
+            || damageContext == null
+            || damageContext.DamageOriginKind != BattleDamageOriginKind.MainDirectEffect
+            || (damageContext.HasAttackCheck && !damageContext.AttackSuccess)
+        )
+        {
+            return Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
+        }
+
+        IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> diceResults =
+            equipmentAbilityDamageQuery.CollectBonusDamageDiceForEffect(
+                new BattleEquipmentAbilityDirectDamageContext
+                {
+                    SourceUnit = sourceUnit,
+                    TargetUnit = targetUnit,
+                    BattleState = damageContext.BattleState,
+                    SkillId = damageContext.SkillId,
+                    SaveTag = effectDefinition?.SaveTag ?? new StringName(""),
+                    EffectCategories = ResolveEquipmentQueryEffectCategories(
+                        damageContext,
+                        effectDefinition
+                    ),
+                    PrimaryDamageTag = primaryDamageTag,
+                    DamageOriginKind = damageContext.DamageOriginKind,
+                    SourceEffectOrdinal = sourceEffectOrdinal,
+                    IsMainDirectEffect = true,
+                    IncludesWeaponDamage = resultIncludesWeaponDamage,
+                    HasAttackCheck = damageContext.HasAttackCheck,
+                    AttackSucceeded = damageContext.AttackSuccess,
+                    CriticalHit = damageContext.CriticalHit,
+                }
+            );
+        return AggregateEquipmentAbilityBonusDiceResults(
+            diceResults,
+            primaryDamageTag,
+            rollMode
+        );
+    }
+
+    private IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> AggregateEquipmentAbilityBonusDiceResults(
+        IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> diceResults,
+        StringName fallbackDamageTag,
+        StringName rollMode = default
+    )
+    {
         var aggregateByTag = new List<EquipmentAbilityTaggedBonusDamageRoll>();
         foreach (BattleEquipmentAbilityBonusDamageDiceResult dice in diceResults)
         {
@@ -193,6 +267,34 @@ public partial class BattleDamageResolver
                 CopyStringNameList(mitigationBypassTiers)
             )
         );
+    }
+
+    private static IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> MergeEquipmentAbilityTaggedBonusRolls(
+        IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> baseRolls,
+        IReadOnlyList<EquipmentAbilityTaggedBonusDamageRoll> additionalRolls
+    )
+    {
+        if (additionalRolls == null || additionalRolls.Count == 0)
+        {
+            return baseRolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>();
+        }
+        var merged = new List<EquipmentAbilityTaggedBonusDamageRoll>(
+            baseRolls ?? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
+        );
+        foreach (EquipmentAbilityTaggedBonusDamageRoll roll in additionalRolls)
+        {
+            AddEquipmentAbilityBonusDamageRoll(
+                merged,
+                roll.DamageTag,
+                roll.Roll,
+                roll.Subtract,
+                roll.MitigationBypassDamageTags,
+                roll.MitigationBypassTiers
+            );
+        }
+        return merged.Count == 0
+            ? Array.Empty<EquipmentAbilityTaggedBonusDamageRoll>()
+            : merged;
     }
 
     private static IReadOnlyList<StringName> MergeStringNameLists(

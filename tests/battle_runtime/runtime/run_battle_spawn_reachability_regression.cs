@@ -8,7 +8,7 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
 
     public override void _Initialize()
     {
-        TestRuntimeSetupAcceptsSkillDefinitionsForReachability();
+        TestRuntimeSkillDefinitionIndexDrivesReachability();
         TestDeepWaterSplitMarksEnemySpawnInvalid();
         TestBidirectionalDeepWaterSplitMarksPlayerSpawnInvalid();
         TestFlatFieldMarksEnemySpawnValid();
@@ -61,23 +61,55 @@ public partial class run_battle_spawn_reachability_regression : LifecycleTestSce
         );
     }
 
-    private void TestRuntimeSetupAcceptsSkillDefinitionsForReachability()
+    private void TestRuntimeSkillDefinitionIndexDrivesReachability()
     {
         StringName skillId = "spawn_reachability_runtime_index_skill";
         SkillDefinition skillDefinition = BuildUnitSkill(skillId, range: 3);
-        var runtime = new BattleRuntimeModule();
+        using var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
             new Dictionary<StringName, SkillDefinition> { [skillId] = skillDefinition }
         );
 
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitionIndex =
-            runtime.GetSkillDefinitionIndexTyped();
+        var service = new BattleSpawnReachabilityService();
+        using var gridService = new BattleGridService();
+        BattleState state = BuildFlatState(new Vector2I(5, 3));
+        BattleUnitState enemy = BuildUnit(
+            "runtime_index_enemy",
+            "enemy",
+            new Vector2I(1, 1),
+            skillId
+        );
+        BattleUnitState player = BuildUnit(
+            "runtime_index_player",
+            "player",
+            new Vector2I(3, 1),
+            ""
+        );
+        AddUnitToState(gridService, state, enemy, true);
+        AddUnitToState(gridService, state, player, false);
+
+        BattleSpawnReachabilityResult indexedResult = service.ValidateStateTyped(
+            state,
+            gridService,
+            runtime.GetSkillDefinitionIndexTyped()
+        );
+        BattleSpawnReachabilityResult missingIndexResult = service.ValidateStateTyped(
+            state,
+            gridService,
+            new Dictionary<StringName, SkillDefinition>()
+        );
         _test.True(
-            skillDefinitionIndex.TryGetValue(skillId, out SkillDefinition indexedSkillDefinition)
-                && indexedSkillDefinition?.SkillId == skillId
-                && indexedSkillDefinition?.CombatProfile?.RangeValue == 3,
-            "BattleRuntimeModule.setup 应接收 runtime SkillDefinition 索引供出生可达性使用。"
+            indexedResult.Valid,
+            "runtime setup 提供的技能索引应让敌人找到可达攻击位置。"
+        );
+        _test.False(
+            missingIndexResult.Valid,
+            "移除同一技能索引后，敌人不应仍被判为有可达攻击方案。"
+        );
+        _test.True(
+            StringNameListHas(missingIndexResult.InvalidEnemyUnitIds, enemy.unit_id),
+            "技能索引缺失时应明确标记对应敌方单位。"
         );
     }
 

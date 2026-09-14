@@ -6,13 +6,14 @@
 
 ## 战斗
 
-- [`battle/multi_objective_modes.md`](battle/multi_objective_modes.md)：九种战斗模式定义与 P1-P4 落地顺序；当前只有 P0 歼灭模式进入实现真相。
-- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统运行时架构；以稳定逻辑攻击 ID、单一 root batch、不可变攻击事实、显式反应边界、FIFO 排空、递归熔断与完整即时武器攻击 service 闭合 `lock_counterattack` 消费。batch、AutoCast、outcome、静滞与 snapshot 架构缺口已闭合，代码尚未实现；具体技能、内容来源、属性派生、平衡与 AI 另案处理。
-- [`battle/action_cadence_agility_derivation.md`](battle/action_cadence_agility_derivation.md)：行动节奏由敏捷派生到 `action_progress_rate_percent`（15%/点，全区间 2.94 倍）。改动时间线系统，影响全部 TU 计价内容与现存敌人强度；两条待决未关闭。
+- [`battle/objective_mode_extensions.md`](battle/objective_mode_extensions.md)：九种已落地战斗目标模式的未实现扩展；当前暂缓、未排期。
+- [`battle/composite_objectives.md`](battle/composite_objectives.md)：`All / Any / Ordered` 与 required/optional 组合目标；当前明确暂不实现、未排期。
+- [`battle/counterattack_system.md`](battle/counterattack_system.md)：反击系统原始架构推导、逐调用点迁移与验收矩阵。P1A 运行时、状态、成长及己方预算展示已经落地；P1B 风险预览方案已取消，当前真相见 [`../design/battle/counterattack_system.md`](../design/battle/counterattack_system.md)；production capability 内容来源、最终数值、属性派生、平衡与 AI 仍另案处理。
 
 ## 跨系统迁移与架构整治
 
-- [`migrations/gd_cleanup.md`](migrations/gd_cleanup.md)：内部 Godot 类型传播的清理提案。
+- [`migrations/gd_cleanup.md`](migrations/gd_cleanup.md)：内部 Godot 类型传播的清理提案。Phase A-G 已于 2026-08-15 全部落地：四条窗口输入链改为 detached typed DTO 直达 UI、`ShopWindow` 以 typed C# event 提交、低幸运据点奖励 port 改 typed input/result、`GodotVariantReadExtensions` 收敛到唯一真实边界方法、`scripts/` 下 `dynamic` 归零、`[GlobalClass]` 逐类取证后删除 3 个纯 C# UI 类。
+- [`migrations/runtime_hub_decoupling.md`](migrations/runtime_hub_decoupling.md)：两个运行时 hub 的封装收敛与解耦，分阶段。`GameRuntimeFacade` 阶段已完成（internal 字段 52→23）；`BattleRuntimeModule` 按消费者解耦进行中（1/8，已完成 `BattleTimelineDriver`），配 `battle_runtime_isolated` 层 + analyzer 禁则防回潮。开工前先读文档开头三条度量纠正（namespace 无访问控制、internal 声明数≠字段数、按字段名 grep 会误报）。
 
 功能落地后：
 

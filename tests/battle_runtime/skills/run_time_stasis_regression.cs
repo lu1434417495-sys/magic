@@ -214,58 +214,98 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private void TestStasisTargetGateBlocksNonReleaseSkills()
     {
-        Fixture fixture = BuildFixture();
-        BattleUnitState attacker = fixture.AddUnit("gate_attacker", "player", new Vector2I(1, 1));
-        BattleUnitState stasisTarget = fixture.AddUnit("gate_target", "enemy", new Vector2I(1, 2));
-        ApplyTimeStasis(stasisTarget, 60);
-
         SkillDefinition damageSkillDefinition = MakeSkillDefinition(
             "gate_damage_skill",
             TestSkillDefinitionProjection.BuildEffect(
                 "damage",
                 damageTag: "fire",
                 power: 5
-            )
+            ),
+            apCost: 1
         );
-        string blockedMessage = fixture.Runtime._get_unit_skill_target_validation_message(
-            attacker,
-            stasisTarget,
-            damageSkillDefinition
-        );
-        _test.True(
-            !string.IsNullOrEmpty(blockedMessage),
-            "非 temporal release 技能不应能以静滞单位为目标。"
-        );
-
         SkillDefinition releaseSkillDefinition = MakeSkillDefinition(
             "gate_release_skill",
             TestSkillDefinitionProjection.BuildEffect(
                 "erase_status",
                 statusId: BattleStatusSemanticTable.STATUS_TIME_STASIS,
                 effectTags: new[] { TemporalTag }
-            )
+            ),
+            apCost: 1
         );
-        string allowedMessage = fixture.Runtime._get_unit_skill_target_validation_message(
-            attacker,
-            stasisTarget,
-            releaseSkillDefinition
-        );
-        _test.Eq(allowedMessage, "", "temporal release 技能应能以静滞单位为目标。");
+        Fixture fixture = BuildFixture(damageSkillDefinition, releaseSkillDefinition);
+        BattleUnitState attacker = fixture.AddUnit("gate_attacker", "player", new Vector2I(1, 1));
+        BattleUnitState stasisTarget = fixture.AddUnit("gate_target", "enemy", new Vector2I(1, 2));
+        attacker.AddKnownActiveSkill(damageSkillDefinition.SkillId);
+        attacker.SetKnownSkillLevelTyped(damageSkillDefinition.SkillId, 1);
+        attacker.AddKnownActiveSkill(releaseSkillDefinition.SkillId);
+        attacker.SetKnownSkillLevelTyped(releaseSkillDefinition.SkillId, 1);
+        fixture.State.phase = "unit_acting";
+        fixture.State.active_unit_id = attacker.unit_id;
+        ApplyTimeStasis(stasisTarget, 60);
 
-        _test.False(
-            BattleTemporalStatusService.CanTargetTimeStasis(
+        BattleUnitSkillTargetAffordance blockedAffordance =
+            fixture.Runtime.GetUnitSkillTargetAffordance(
+                attacker,
                 stasisTarget,
                 damageSkillDefinition
-            ),
-            "CanTargetTimeStasis 应拒绝普通技能。"
+            );
+        _test.False(
+            blockedAffordance.Allowed,
+            "正式目标 affordance 应拒绝普通技能选择静滞单位。"
+        );
+        BattleCommand damageCommand = BuildUnitSkillCommand(
+            attacker,
+            stasisTarget,
+            damageSkillDefinition.SkillId
+        );
+        BattlePreview blockedPreview = fixture.Runtime.PreviewCommand(damageCommand);
+        _test.False(blockedPreview.allowed, "普通技能对静滞目标的正式 preview 应被拒绝。");
+
+        int apBeforeBlockedIssue = attacker.GetCurrentAp();
+        int hpBeforeBlockedIssue = stasisTarget.GetCurrentHp();
+        using BattleEventBatch blockedBatch = fixture.Runtime.IssueCommand(damageCommand);
+        _test.Eq(
+            attacker.GetCurrentAp(),
+            apBeforeBlockedIssue,
+            "被目标门禁拒绝的命令不应扣除 AP。"
+        );
+        _test.Eq(
+            stasisTarget.GetCurrentHp(),
+            hpBeforeBlockedIssue,
+            "被目标门禁拒绝的伤害技能不应改变目标 HP。"
         );
         _test.True(
-            BattleTemporalStatusService.CanTargetTimeStasis(
+            stasisTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
+            "被拒绝的普通技能不应移除静滞。"
+        );
+
+        BattleUnitSkillTargetAffordance releaseAffordance =
+            fixture.Runtime.GetUnitSkillTargetAffordance(
+                attacker,
                 stasisTarget,
                 releaseSkillDefinition
-            ),
-            "CanTargetTimeStasis 应放行 temporal release 技能。"
+            );
+        _test.True(
+            releaseAffordance.Allowed,
+            $"temporal release 应能选择静滞单位。reason={releaseAffordance.Reason}"
         );
+        BattleCommand releaseCommand = BuildUnitSkillCommand(
+            attacker,
+            stasisTarget,
+            releaseSkillDefinition.SkillId
+        );
+        BattlePreview releasePreview = fixture.Runtime.PreviewCommand(releaseCommand);
+        _test.True(releasePreview.allowed, "temporal release 的正式 preview 应允许静滞目标。");
+        using BattleEventBatch releaseBatch = fixture.Runtime.IssueCommand(releaseCommand);
+        _test.True(
+            !stasisTarget.HasStatusEffect(BattleStatusSemanticTable.STATUS_TIME_STASIS),
+            $"允许的 temporal release 命令应真实解除静滞。logs={string.Join(" | ", releaseBatch?.LogLinesTyped ?? System.Array.Empty<string>())} ap={attacker.GetCurrentAp()} active={fixture.State.active_unit_id}"
+        );
+
+        BattleTestFixture.DisposeBattlePreview(blockedPreview);
+        BattleTestFixture.DisposeBattlePreview(releasePreview);
+        BattleTestFixture.DisposeBattleCommand(damageCommand);
+        BattleTestFixture.DisposeBattleCommand(releaseCommand);
     }
 
     private void TestPendingCastFreezesUnderStasisAndResumes()
@@ -331,7 +371,7 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private void TestTemporalContentValidationRules()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
 
         // 1) 施加 time_stasis 必须带 temporal tag / temporal save_tag / save。
         var missingErrors = new Godot.Collections.Array<string>();
@@ -349,9 +389,15 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             ),
             "test_effect"
         );
-        _test.True(
-            missingErrors.Count >= 3,
-            $"缺少 temporal tag/save_tag/save 的静滞效果应被拒绝。 errors={FormatErrors(missingErrors)}"
+        AssertExactErrors(
+            missingErrors,
+            new[]
+            {
+                "Skill stasis_missing_meta effect test_effect applying time_stasis must declare effect_tags temporal.",
+                "Skill stasis_missing_meta effect test_effect applying time_stasis must use save_tag temporal.",
+                "Skill stasis_missing_meta effect test_effect applying time_stasis must configure a save.",
+            },
+            "缺少 temporal tag/save_tag/save 的静滞效果"
         );
 
         var validErrors = new Godot.Collections.Array<string>();
@@ -390,9 +436,15 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             ),
             "test_effect"
         );
-        _test.True(
-            bonusErrors.Count >= 3,
-            $"save_bonus_by_tag 的 string key/非法 tag/非 int 值应被拒绝。 errors={FormatErrors(bonusErrors)}"
+        AssertExactErrors(
+            bonusErrors,
+            new[]
+            {
+                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag keys must be StringName.",
+                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag uses unsupported save tag not_a_save_tag.",
+                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag.sleep must be an int >= 1.",
+            },
+            "save_bonus_by_tag 的 string key/非法 tag/非 int 值"
         );
 
         // 3) 直接施加 time_reverberation 应被拒绝。
@@ -411,9 +463,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             ),
             "test_effect"
         );
-        _test.True(
-            reverbErrors.Count >= 1,
-            $"内容直接施加 time_reverberation 应被拒绝。 errors={FormatErrors(reverbErrors)}"
+        AssertExactErrors(
+            reverbErrors,
+            new[]
+            {
+                "Skill direct_reverberation effect test_effect cannot apply time_reverberation directly; it is runtime-applied on temporal release.",
+            },
+            "内容直接施加 time_reverberation"
         );
 
         // 4) temporal-tagged erase_status 指向非 temporal 状态应被拒绝；
@@ -433,9 +489,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             ),
             "test_effect"
         );
-        _test.True(
-            mismatchedEraseErrors.Count >= 1,
-            $"temporal erase_status 指向非 temporal 状态应被拒绝。 errors={FormatErrors(mismatchedEraseErrors)}"
+        AssertExactErrors(
+            mismatchedEraseErrors,
+            new[]
+            {
+                "Skill temporal_erase_wrong_status effect test_effect temporal erase_status must target time_stasis or time_slow.",
+            },
+            "temporal erase_status 指向非 temporal 状态"
         );
 
         var untaggedEraseErrors = new Godot.Collections.Array<string>();
@@ -452,9 +512,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             ),
             "test_effect"
         );
-        _test.True(
-            untaggedEraseErrors.Count >= 1,
-            $"解除 temporal 状态但缺 temporal tag 应被拒绝。 errors={FormatErrors(untaggedEraseErrors)}"
+        AssertExactErrors(
+            untaggedEraseErrors,
+            new[]
+            {
+                "Skill untagged_temporal_erase effect test_effect erasing time_stasis must declare effect_tags temporal.",
+            },
+            "解除 temporal 状态但缺 temporal tag"
         );
 
         // 5) temporal-only 解控技能拒绝混入伤害、治疗、位移或普通状态。
@@ -505,9 +569,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                 "mixed_temporal_release",
                 mixedProfile
             );
-            _test.True(
-                mixedErrors.Count >= 1,
-                $"temporal release 混入 {forbiddenEffect.effect_type} 应被拒绝。 errors={FormatErrors(mixedErrors)}"
+            AssertExactErrors(
+                mixedErrors,
+                new[]
+                {
+                    $"Skill mixed_temporal_release combat_profile.effect_defs[1] cannot mix {forbiddenEffect.effect_type} with temporal release effects; temporal release skills must stay temporal-only.",
+                },
+                $"temporal release 混入 {forbiddenEffect.effect_type}"
             );
         }
 
@@ -620,7 +688,8 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private static SkillDefinition MakeSkillDefinition(
         StringName skillId,
-        CombatEffectDefinition effectDefinition
+        CombatEffectDefinition effectDefinition,
+        int apCost = 0
     )
     {
         return TestSkillDefinitionProjection.BuildSkill(
@@ -628,9 +697,29 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             displayName: skillId.ToString(),
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 skillId,
-                effects: new[] { effectDefinition }
+                effects: new[] { effectDefinition },
+                apCost: apCost
             )
         );
+    }
+
+    private static BattleCommand BuildUnitSkillCommand(
+        BattleUnitState source,
+        BattleUnitState target,
+        StringName skillId
+    )
+    {
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = source.unit_id,
+            skill_entry_id = BattleSkillEntryIds.KnownSkill(skillId),
+            skill_id = skillId,
+            target_unit_id = target.unit_id,
+            target_coord = target.GetAnchorCoord(),
+        };
+        command.AddTargetUnitId(target.unit_id);
+        return command;
     }
 
     private static BattleUnitState MakeUnit(StringName unitId, StringName factionId)
@@ -654,10 +743,13 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
         return unit;
     }
 
-    private static Fixture BuildFixture()
+    private static Fixture BuildFixture(params SkillDefinition[] skillDefinitions)
     {
         BattleRuntimeModule runtime = new();
-        runtime.setup();
+        var definitions = new Dictionary<StringName, SkillDefinition>();
+        foreach (SkillDefinition definition in skillDefinitions ?? System.Array.Empty<SkillDefinition>())
+            definitions[definition.SkillId] = definition;
+        runtime.setup(null, definitions);
         BattleState state = BuildState(new Vector2I(6, 6));
         runtime.SetupStateForTests(state);
         return new Fixture(runtime, state);
@@ -703,6 +795,33 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
         return string.Join(" || ", errors ?? System.Array.Empty<string>());
     }
 
+    private void AssertExactErrors(
+        IEnumerable<string> actualErrors,
+        IEnumerable<string> expectedErrors,
+        string context
+    )
+    {
+        var actual = new List<string>(actualErrors ?? System.Array.Empty<string>());
+        var expected = new List<string>(expectedErrors ?? System.Array.Empty<string>());
+        actual.Sort(System.StringComparer.Ordinal);
+        expected.Sort(System.StringComparer.Ordinal);
+
+        _test.Eq(
+            actual.Count,
+            expected.Count,
+            $"{context}应仅产生目标诊断。 actual={FormatErrors(actual)}"
+        );
+        int comparedCount = System.Math.Min(actual.Count, expected.Count);
+        for (int index = 0; index < comparedCount; index++)
+        {
+            _test.Eq(
+                actual[index],
+                expected[index],
+                $"{context}的诊断集不匹配。 actual={FormatErrors(actual)}"
+            );
+        }
+    }
+
     private readonly record struct Fixture(BattleRuntimeModule Runtime, BattleState State)
     {
         internal BattleUnitState AddUnit(StringName unitId, StringName factionId, Vector2I coord)
@@ -744,7 +863,14 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
         internal void Step(int tuDelta)
         {
-            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
+            BattleRuntimeModule runtime = Runtime;
+            using var batch = new BattleEventBatch();
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta)
+            );
         }
     }
 }

@@ -1,0 +1,1037 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:contingency_templates:v1",
+  "title": "Magic contingency template JSON authoring schema",
+  "description": "Strict closed trigger and target-resolver contract.",
+  "$ref": "#/$defs/ContingencyJsonDocumentDto",
+  "$defs": {
+    "ContingencyEmptyCellResolverPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_distance": {
+          "type": "integer"
+        },
+        "preference": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "max_distance",
+        "preference"
+      ]
+    },
+    "ContingencyEmptyPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "ContingencyEnemyRadiusTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "radius_metric": {
+          "type": "string"
+        },
+        "source_team": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "center",
+        "radius",
+        "radius_metric",
+        "source_team",
+        "timing"
+      ]
+    },
+    "ContingencyEnemyRadiusTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "center": {
+          "type": "string"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "radius_metric": {
+          "type": "string"
+        },
+        "source_team": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencyHpTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "crossing_only": {
+          "type": "boolean"
+        },
+        "percent": {
+          "type": "integer"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "crossing_only",
+        "percent",
+        "subject",
+        "timing"
+      ]
+    },
+    "ContingencyHpTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "crossing_only": {
+          "type": "boolean"
+        },
+        "percent": {
+          "type": "integer"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencyIncomingDamageTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_amount_mode": {
+          "type": "string"
+        },
+        "damage_basis": {
+          "type": "string"
+        },
+        "damage_percent": {
+          "type": "integer"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "damage_amount_mode",
+        "damage_basis",
+        "damage_percent",
+        "subject",
+        "timing"
+      ]
+    },
+    "ContingencyIncomingDamageTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_amount_mode": {
+          "type": "string"
+        },
+        "damage_basis": {
+          "type": "string"
+        },
+        "damage_percent": {
+          "type": "integer"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencyJsonDocumentDto": {
+      "description": "Contingency template document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "contingency_templates"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyTemplateJsonDto__authoring_template_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ContingencyTemplateJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "ContingencyMaterialCostJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "quantity"
+      ]
+    },
+    "ContingencySimpleTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject",
+        "timing"
+      ]
+    },
+    "ContingencySimpleTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencySpellTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_team": {
+          "type": "string"
+        },
+        "spell_match": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_team",
+        "spell_match",
+        "subject",
+        "timing"
+      ]
+    },
+    "ContingencySpellTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_team": {
+          "type": "string"
+        },
+        "spell_match": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencyStatusTriggerPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "application_match": {
+          "type": "string"
+        },
+        "status_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "application_match",
+        "status_tags",
+        "subject",
+        "timing"
+      ]
+    },
+    "ContingencyStatusTriggerPayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "application_match": {
+          "type": "string"
+        },
+        "status_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject": {
+          "type": "string"
+        },
+        "timing": {
+          "type": "string"
+        }
+      }
+    },
+    "ContingencyStoredSpellJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fallback_policy": {
+          "type": "string"
+        },
+        "max_cast_level": {
+          "type": "integer"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "parameter_bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "number",
+                "minimum": -1.7976931348623157E+308,
+                "maximum": 1.7976931348623157E+308
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        },
+        "stored_skill_id": {
+          "type": "string"
+        },
+        "target_resolver": {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto"
+        }
+      },
+      "required": [
+        "fallback_policy",
+        "max_cast_level",
+        "order",
+        "parameter_bindings",
+        "stored_skill_id",
+        "target_resolver"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__attacker_cell"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__empty_cell_near_owner"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__nearest_enemy_to_owner"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__nearest_enemy_to_trigger_cell"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__owner_centered_area"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__self"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__trigger_source"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTargetResolverJsonDto__trigger_target"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "attacker_cell": "#/$defs/ContingencyTargetResolverJsonDto__attacker_cell",
+          "empty_cell_near_owner": "#/$defs/ContingencyTargetResolverJsonDto__empty_cell_near_owner",
+          "nearest_enemy_to_owner": "#/$defs/ContingencyTargetResolverJsonDto__nearest_enemy_to_owner",
+          "nearest_enemy_to_trigger_cell": "#/$defs/ContingencyTargetResolverJsonDto__nearest_enemy_to_trigger_cell",
+          "owner_centered_area": "#/$defs/ContingencyTargetResolverJsonDto__owner_centered_area",
+          "self": "#/$defs/ContingencyTargetResolverJsonDto__self",
+          "trigger_source": "#/$defs/ContingencyTargetResolverJsonDto__trigger_source",
+          "trigger_target": "#/$defs/ContingencyTargetResolverJsonDto__trigger_target"
+        }
+      }
+    },
+    "ContingencyTargetResolverJsonDto__attacker_cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "attacker_cell"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__empty_cell_near_owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "empty_cell_near_owner"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyCellResolverPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__nearest_enemy_to_owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "nearest_enemy_to_owner"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__nearest_enemy_to_trigger_cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "nearest_enemy_to_trigger_cell"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__owner_centered_area": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "owner_centered_area"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__self": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "self"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__trigger_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "trigger_source"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTargetResolverJsonDto__trigger_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "trigger_target"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEmptyPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTemplateJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "matrix_load": {
+          "type": "integer"
+        },
+        "release_mode": {
+          "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
+        },
+        "source_skill_id": {
+          "type": "string"
+        },
+        "stored_spells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyStoredSpellJsonDto"
+          }
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto"
+        }
+      },
+      "required": [
+        "charge_material_costs",
+        "display_name",
+        "matrix_load",
+        "release_mode",
+        "reserved_mp_per_matrix_load",
+        "source_skill_id",
+        "stored_spells",
+        "template_id",
+        "trigger"
+      ]
+    },
+    "ContingencyTemplateJsonDto__authoring_template_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ContingencyTemplateJsonDto"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTemplateJsonDto__templated_template_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "ContingencyTemplateJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "matrix_load": {
+          "type": "integer"
+        },
+        "release_mode": {
+          "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
+        },
+        "source_skill_id": {
+          "type": "string"
+        },
+        "stored_spells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyStoredSpellJsonDto"
+          }
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "ContingencyTemplateJsonDto__templated_template_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "charge_material_costs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyMaterialCostJsonDto"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "matrix_load": {
+          "type": "integer"
+        },
+        "release_mode": {
+          "type": "string"
+        },
+        "reserved_mp_per_matrix_load": {
+          "type": "integer"
+        },
+        "source_skill_id": {
+          "type": "string"
+        },
+        "stored_spells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContingencyStoredSpellJsonDto"
+          }
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "template_id",
+        "template"
+      ]
+    },
+    "ContingencyTriggerJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__affected_by_spell"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__combat_started"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__enemy_enter_radius"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__fatal_damage_incoming"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__hp_below_percent"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__incoming_damage_percent"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__owner_turn_started"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__status_applied"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "affected_by_spell": "#/$defs/ContingencyTriggerJsonDto__affected_by_spell",
+          "combat_started": "#/$defs/ContingencyTriggerJsonDto__combat_started",
+          "enemy_enter_radius": "#/$defs/ContingencyTriggerJsonDto__enemy_enter_radius",
+          "fatal_damage_incoming": "#/$defs/ContingencyTriggerJsonDto__fatal_damage_incoming",
+          "hp_below_percent": "#/$defs/ContingencyTriggerJsonDto__hp_below_percent",
+          "incoming_damage_percent": "#/$defs/ContingencyTriggerJsonDto__incoming_damage_percent",
+          "owner_turn_started": "#/$defs/ContingencyTriggerJsonDto__owner_turn_started",
+          "status_applied": "#/$defs/ContingencyTriggerJsonDto__status_applied"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__affected_by_spell": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "affected_by_spell"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySpellTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__combat_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "combat_started"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__enemy_enter_radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "enemy_enter_radius"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEnemyRadiusTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__fatal_damage_incoming": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "fatal_damage_incoming"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__hp_below_percent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "hp_below_percent"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyHpTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__incoming_damage_percent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "incoming_damage_percent"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyIncomingDamageTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__owner_turn_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "owner_turn_started"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "ContingencyTriggerJsonDto__partial": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__affected_by_spell"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__combat_started"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__enemy_enter_radius"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__fatal_damage_incoming"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__hp_below_percent"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__incoming_damage_percent"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__owner_turn_started"
+        },
+        {
+          "$ref": "#/$defs/ContingencyTriggerJsonDto__partial__status_applied"
+        }
+      ]
+    },
+    "ContingencyTriggerJsonDto__partial__affected_by_spell": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "affected_by_spell"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySpellTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__combat_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "combat_started"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__enemy_enter_radius": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "enemy_enter_radius"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyEnemyRadiusTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__fatal_damage_incoming": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "fatal_damage_incoming"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__hp_below_percent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "hp_below_percent"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyHpTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__incoming_damage_percent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "incoming_damage_percent"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyIncomingDamageTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__owner_turn_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "owner_turn_started"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencySimpleTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__partial__status_applied": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "status_applied"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyStatusTriggerPayloadJsonDto__partial"
+        }
+      }
+    },
+    "ContingencyTriggerJsonDto__status_applied": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "status_applied"
+        },
+        "payload": {
+          "$ref": "#/$defs/ContingencyStatusTriggerPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    }
+  }
+}

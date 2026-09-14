@@ -8,7 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_charge_transaction_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
     private static readonly StringName GemId = "special_contingency_gem";
 
     private readonly TestHarness _test = new();
@@ -22,6 +22,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
 	{
 		try
 		{
+			TestContentRulesRejectMissingOrInvalidChargeDefinitions();
 			TestSaveValidUnchargedConfigDoesNotDebitMaterialOrClampMp();
 			TestSaveSetupRespectsBattleMutationGuard();
 			TestSaveInvalidContentReturnsInvalidSetupWithoutMutation();
@@ -43,6 +44,68 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             RequestTestExit(_test.Finish("Contingency charge transaction regression"));
 		}
 	}
+
+    private void TestContentRulesRejectMissingOrInvalidChargeDefinitions()
+    {
+        _test.True(
+            Throws<ArgumentNullException>(() => ContingencyContentRules.BuildChargeCosts(null)),
+            "Charge cost projection should reject a missing contingency template."
+        );
+        _test.True(
+            Throws<ArgumentNullException>(() => ContingencyContentRules.ResolveReservedMpMax(null)),
+            "Reserved MP projection should reject a missing contingency template."
+        );
+        _test.True(
+            Throws<System.IO.InvalidDataException>(
+                () => BuildTemplate("null_cost_collection", null)
+            ),
+            "Definition construction should reject a null charge material collection."
+        );
+        _test.True(
+            Throws<System.IO.InvalidDataException>(
+                () => BuildTemplate(
+                    "null_cost_entry",
+                    new ContingencyMaterialCostDefinition[] { null }
+                )
+            ),
+            "Definition construction should reject a null charge material entry."
+        );
+
+        ContingencySetupTemplateDefinition emptyCosts = BuildTemplate(
+            "empty_costs",
+            Array.Empty<ContingencyMaterialCostDefinition>()
+        );
+        _test.True(
+            Throws<InvalidOperationException>(
+                () => ContingencyContentRules.BuildChargeCosts(emptyCosts)
+            ),
+            "Charge cost projection should reject an empty cost table instead of making charging free."
+        );
+
+        ContingencySetupTemplateDefinition invalidCost = BuildTemplate(
+            "invalid_cost",
+            new[] { new ContingencyMaterialCostDefinition("", 1) }
+        );
+        _test.True(
+            Throws<InvalidOperationException>(
+                () => ContingencyContentRules.BuildChargeCosts(invalidCost)
+            ),
+            "Charge cost projection should reject an invalid item id instead of returning an empty table."
+        );
+
+        ContingencySetupTemplateDefinition invalidReservedMp = BuildTemplate(
+            "invalid_reserved_mp",
+            new[] { new ContingencyMaterialCostDefinition(GemId, 1) },
+            matrixLoad: 0,
+            reservedMpPerMatrixLoad: 2
+        );
+        _test.True(
+            Throws<InvalidOperationException>(
+                () => ContingencyContentRules.ResolveReservedMpMax(invalidReservedMp)
+            ),
+            "Reserved MP projection should reject invalid template values instead of returning a fallback."
+        );
+    }
 
 	private void TestSaveValidUnchargedConfigDoesNotDebitMaterialOrClampMp()
 	{
@@ -208,7 +271,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         using CharacterManagementModule manager = BuildManager(partyState);
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
 
-        ContingencySetupMutationResult result = service.ChargeSetup("hero", "insufficient_material");
+        ContingencySetupMutationResult result = service.ChargeSetup(
+            "hero",
+            "insufficient_material",
+            BuildTemplate("insufficient_material")
+        );
 
         _test.False(result.Ok, "Charge should fail when the contingency gem is missing.");
         _test.Eq(result.ErrorCode, "material_insufficient", "Missing gem should return stable material code.");
@@ -232,7 +299,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         using CharacterManagementModule manager = BuildManager(partyState);
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
 
-        ContingencySetupMutationResult result = service.ChargeSetup("hero", "invalid_content");
+        ContingencySetupMutationResult result = service.ChargeSetup(
+            "hero",
+            "invalid_content",
+            BuildTemplate("invalid_content")
+        );
 
         _test.False(result.Ok, "Charge should fail when the charged candidate fails content validation.");
         _test.Eq(result.ErrorCode, "content_validation_failed", "Validation failure should return stable code.");
@@ -257,7 +328,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
         service.ForceSetupWriteFailureAfterWarehouseCommitForTests = true;
 
-        ContingencySetupMutationResult result = service.ChargeSetup("hero", "forced_write_failure");
+        ContingencySetupMutationResult result = service.ChargeSetup(
+            "hero",
+            "forced_write_failure",
+            BuildTemplate("forced_write_failure")
+        );
 
         _test.False(result.Ok, "Forced setup write failure should fail the charge.");
         _test.Eq(result.ErrorCode, "setup_write_failed", "Forced setup write failure should return stable code.");
@@ -281,7 +356,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         using CharacterManagementModule manager = BuildManager(partyState);
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
 
-        ContingencySetupMutationResult result = service.ChargeSetup("hero", "successful_charge");
+        ContingencySetupMutationResult result = service.ChargeSetup(
+            "hero",
+            "successful_charge",
+            BuildTemplate("successful_charge")
+        );
 
         _test.True(result.Ok, $"Successful charge should pass. error={result.ErrorCode}");
         _test.True(result.Charged, "Successful charge result should report charged=true.");
@@ -307,7 +386,11 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         using CharacterManagementModule manager = BuildManager(partyState);
         PartyContingencySetupService service = BuildService(partyState, warehouse, manager);
 
-        ContingencySetupMutationResult chargeResult = service.ChargeSetup("hero", "clear_charge");
+        ContingencySetupMutationResult chargeResult = service.ChargeSetup(
+            "hero",
+            "clear_charge",
+            BuildTemplate("clear_charge")
+        );
         _test.True(chargeResult.Ok, $"Clear test setup charge should pass. error={chargeResult.ErrorCode}");
 
         ContingencySetupMutationResult clearResult = service.ClearCharge("hero", "clear_charge");
@@ -331,13 +414,13 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         RuntimeFixture fixture = await BuildRuntimeFixture();
         try
         {
-            SeedGemStack(fixture.Runtime._party_state, 1);
+            SeedGemStack(fixture.Runtime.GetPartyState(), 1);
             fixture.Runtime.SyncPartyStateServices();
-            fixture.GameSession.SetPartyState(fixture.Runtime._party_state);
+            fixture.GameSession.SetPartyState(fixture.Runtime.GetPartyState());
             fixture.GameSession.fail_payload_write = true;
 
             ContingencySetupMutationResult result =
-                fixture.Runtime.ChargeContingencySetupRuntimeTyped("hero", "runtime_charge");
+                fixture.Runtime.ChargeContingencySetupRuntimeTyped("hero", fixture.SetupId);
 
             _test.False(result.Ok, "Runtime gateway should fail when persistence fails.");
             _test.Eq(result.ErrorCode, "persistence_failure", "Runtime persist failure should return stable code.");
@@ -347,15 +430,15 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
                 "Runtime rollback should restore service warehouse reference."
             );
             AssertSetupState(
-                fixture.Runtime._party_state,
-                "runtime_charge",
+                fixture.Runtime.GetPartyState(),
+                fixture.SetupId,
                 charged: false,
                 reservedMpMax: 0,
                 materialCount: 0,
                 "Runtime rollback should restore command-start setup state."
             );
             _test.Eq(
-                fixture.Runtime._party_state.GetMemberState("hero").current_mp,
+                fixture.Runtime.GetPartyState().GetMemberState("hero").current_mp,
                 30,
                 "Runtime rollback should restore command-start MP."
             );
@@ -408,6 +491,70 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
         );
     }
 
+    private static ContingencySetupTemplateDefinition BuildTemplate(StringName templateId) =>
+        BuildTemplate(
+            templateId,
+            new[] { new ContingencyMaterialCostDefinition(GemId, 1) }
+        );
+
+    private static ContingencySetupTemplateDefinition BuildTemplate(
+        StringName templateId,
+        IReadOnlyList<ContingencyMaterialCostDefinition> chargeMaterialCosts,
+        int matrixLoad = 3,
+        int reservedMpPerMatrixLoad = 2
+    ) =>
+        new(
+            templateId,
+            templateId.ToString(),
+            "mage_chain_contingency",
+            matrixLoad,
+            reservedMpPerMatrixLoad,
+            chargeMaterialCosts,
+            "burst_release",
+            new ContingencyTriggerDefinition(
+                "hp_below_percent",
+                "owner",
+                "after_hp_changed",
+                30,
+                true,
+                0,
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                Array.Empty<StringName>(),
+                "",
+                ""
+            ),
+            new[]
+            {
+                new ContingencyStoredSpellTemplateDefinition(
+                    "mage_mirror_image",
+                    2,
+                    1,
+                    new ContingencyTargetResolverDefinition("self", "", 0),
+                    new Dictionary<string, object>(),
+                    "skip_if_invalid"
+                ),
+            }
+        );
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
+
     private static PartyContingencySetupService BuildService(
         PartyState partyState,
         PartyWarehouseService warehouse,
@@ -453,7 +600,32 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
     private async Task<RuntimeFixture> BuildRuntimeFixture()
     {
         GameSession gameSession = await InstallGameSession("ContingencyChargeTransactionSession");
-        PartyState partyState = BuildPartyState(ValidSetup("runtime_charge"), currentMp: 30);
+        ContingencySetupTemplateDefinition template = null;
+        foreach (
+            ContingencySetupTemplateDefinition candidate
+            in gameSession.GetContingencySetupTemplatesTyped().Values
+        )
+        {
+            template = candidate;
+            break;
+        }
+        if (template == null)
+            throw new InvalidOperationException("Runtime fixture requires one contingency template definition.");
+        var castLevelsByStoredSkillId = new Dictionary<StringName, int>();
+        foreach (
+            ContingencyTemplateStoredSpellInfo storedSpell
+            in ContingencyContentRules.GetTemplateStoredSpellsTyped(template)
+        )
+        {
+            castLevelsByStoredSkillId[storedSpell.StoredSkillId] = storedSpell.MaxCastLevel;
+        }
+        ContingencyMatrixSetupState runtimeSetup =
+            ContingencyContentRules.BuildSetupStateFromTemplate(
+                template,
+                sourceSkillLevel: 5,
+                castLevelsByStoredSkillId: castLevelsByStoredSkillId
+            );
+        PartyState partyState = BuildPartyState(runtimeSetup, currentMp: 30);
         gameSession.ConfigureRuntimeWorldForTests(
             "contingency_charge_transaction",
             TestConfigPath,
@@ -465,14 +637,14 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             TestWorldGenerationDefinitionFactory.Load(TestConfigPath)
         );
 
-        GameRuntimeFacade runtime = new()
-        {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
-        };
+        GameRuntimeFacade runtime = new();
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         using GodotProjectionLease<GDictionary> worldDataLease =
             gameSession.GetWorldDataLease();
         runtime._world_map_data_context.BindRootWorldData(worldDataLease.Value);
@@ -508,7 +680,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
             runtime._party_warehouse_service,
             gameSession.AllocateEquipmentInstanceId
         );
-        return new RuntimeFixture(runtime, gameSession);
+        return new RuntimeFixture(runtime, gameSession, template.TemplateId);
     }
 
     private async Task<GameSession> InstallGameSession(string nodeName)
@@ -713,7 +885,7 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
 	private static Dictionary<StringName, ItemDefinition> BuildItemIndex() =>
 		new()
         {
-            [GemId] = new ItemDef
+            [GemId] = new TestItemDefinitionBuilder
             {
                 item_id = GemId,
                 display_name = "Special Contingency Gem",
@@ -774,11 +946,17 @@ public partial class run_contingency_charge_transaction_regression : LifecycleTe
     {
         public GameRuntimeFacade Runtime { get; }
         public GameSession GameSession { get; }
+        public StringName SetupId { get; }
 
-        public RuntimeFixture(GameRuntimeFacade runtime, GameSession gameSession)
+        public RuntimeFixture(
+            GameRuntimeFacade runtime,
+            GameSession gameSession,
+            StringName setupId
+        )
         {
             Runtime = runtime;
             GameSession = gameSession;
+            SetupId = setupId;
         }
     }
 }

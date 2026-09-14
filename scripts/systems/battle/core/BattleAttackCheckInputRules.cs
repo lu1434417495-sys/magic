@@ -1,0 +1,40 @@
+internal static class BattleAttackCheckInputRules
+{
+    internal static AttackCheckInput LockCritical(AttackCheckInput source) =>
+        new(
+            attackerBaseAttackBonus: source.AttackerBaseAttackBonus,
+            attackerAttackBonus: source.AttackerAttackBonus,
+            attackerBab: source.AttackerBab,
+            targetArmorClass: source.TargetArmorClass,
+            skillAttackBonus: source.SkillAttackBonus,
+            lockedSkillHitBonus: source.LockedSkillHitBonus,
+            situationalAttackBonus: source.SituationalAttackBonus,
+            situationalAttackPenalty: source.SituationalAttackPenalty,
+            requiredRoll: source.RequiredRoll,
+            displayRequiredRoll: source.DisplayRequiredRoll,
+            hitRatePercent: source.HitRatePercent,
+            successRatePercent: source.SuccessRatePercent,
+            baseHitRatePercent: source.BaseHitRatePercent,
+            naturalOneAutoMiss: source.NaturalOneAutoMiss,
+            naturalTwentyAutoHit: source.NaturalTwentyAutoHit,
+            critThreshold: source.CritThreshold,
+            fumbleLowEnd: source.FumbleLowEnd,
+            critLocked: true,
+            critGateDie: source.CritGateDie,
+            effectiveLuck: source.EffectiveLuck,
+            forceHitNoCrit: source.ForceHitNoCrit,
+            forceCriticalOnHit: false,
+            forcedCriticalSourceEquipmentInstanceId: "",
+            forcedCriticalSourceBindingId: "",
+            forcedCriticalSourceActionId: "",
+            skillId: source.SkillId,
+            followUpAttackPenalty: source.FollowUpAttackPenalty,
+            exponentialPenalty: source.ExponentialPenalty,
+            isDisadvantage: source.IsDisadvantage,
+            isAdvantage: source.IsAdvantage,
+            invalid: source.Invalid,
+            errorId: source.ErrorId,
+            errorMessage: source.ErrorMessage,
+            previewText: source.PreviewText
+        );
+}

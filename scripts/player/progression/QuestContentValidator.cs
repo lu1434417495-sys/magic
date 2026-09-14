@@ -266,7 +266,7 @@ public static class QuestContentValidator
         }
     }
 
-    // listing_settlement_ids 引用 SettlementConfig.settlement_id（运行时据点 template_id）。
+    // listing_settlement_ids 引用 SettlementDefinition.TemplateId（JSON settlement_id，运行时据点 template_id）。
     // 悬赏板按当前据点过滤，未绑定的悬赏在任何板上都不可见，因此必须显式绑定；
     // 其它渠道当前没有消费方，禁止配置以免字段沦为无语义元数据。
     internal static void AppendListingSettlementErrors(
@@ -287,7 +287,7 @@ public static class QuestContentValidator
         {
             if (questDef.ListingSettlementIds.Count == 0)
                 errors.Add(
-                    $"Quest {questDef.QuestId}: 悬赏板任务必须通过 listing_settlement_ids 绑定至少一个据点（值为 SettlementConfig.settlement_id）。"
+                    $"Quest {questDef.QuestId}: 悬赏板任务必须通过 listing_settlement_ids 绑定至少一个据点（值为 SettlementDefinition.TemplateId / JSON settlement_id）。"
                 );
         }
         else if (questDef.ListingSettlementIds.Count > 0)
@@ -360,7 +360,7 @@ public static class QuestContentValidator
                         $"Quest {questDef.QuestId} submit_item objective {objectiveId} references missing item {targetId}."
                     );
             }
-            else if (QuestDef.IsEnemyDefeatObjectiveKind(objective.ObjectiveKind))
+            else if (QuestContentKinds.IsEnemyDefeatObjectiveKind(objective.ObjectiveKind))
             {
                 if (
                     targetId != ""
@@ -469,34 +469,34 @@ public static class QuestContentValidator
             return;
         string prefix = $"Quest {questDef.QuestId}: ";
         if (questDef.QuestId == "")
-            errors.Add(prefix + "QuestDef 缺少 quest_id。");
+            errors.Add(prefix + "Quest 缺少 quest_id。");
         if (string.IsNullOrWhiteSpace(questDef.DisplayName))
-            errors.Add(prefix + $"QuestDef {questDef.QuestId} 缺少 display_name。");
+            errors.Add(prefix + $"Quest {questDef.QuestId} 缺少 display_name。");
         if (questDef.ProviderKind == "")
-            errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 provider_kind 不能为空。");
+            errors.Add(prefix + $"Quest {questDef.QuestId} 的 provider_kind 不能为空。");
         if (questDef.ListingChannels.Count == 0)
-            errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 listing_channels 不能为空数组。");
+            errors.Add(prefix + $"Quest {questDef.QuestId} 的 listing_channels 不能为空数组。");
         foreach (StringName channel in questDef.ListingChannels)
         {
             if (channel == "")
-                errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 listing_channels 包含空值。");
+                errors.Add(prefix + $"Quest {questDef.QuestId} 的 listing_channels 包含空值。");
         }
 
         if (questDef.Objectives.Count == 0)
-            errors.Add(prefix + $"QuestDef {questDef.QuestId} 至少需要一个 objective_def。");
+            errors.Add(prefix + $"Quest {questDef.QuestId} 至少需要一个 objective_def。");
         var seenObjectiveIds = new HashSet<StringName>();
         foreach (QuestObjectiveDefinition objective in questDef.Objectives)
         {
             if (objective == null || objective.ObjectiveId == "")
             {
-                errors.Add(prefix + $"QuestDef {questDef.QuestId} 存在空 objective_id。");
+                errors.Add(prefix + $"Quest {questDef.QuestId} 存在空 objective_id。");
                 continue;
             }
             if (!seenObjectiveIds.Add(objective.ObjectiveId))
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 存在重复 objective_id {objective.ObjectiveId}。"
+                    + $"Quest {questDef.QuestId} 存在重复 objective_id {objective.ObjectiveId}。"
                 );
                 continue;
             }
@@ -504,14 +504,14 @@ public static class QuestContentValidator
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 使用了不支持的 objective_type {objective.ObjectiveType}。"
+                    + $"Quest {questDef.QuestId} 的 objective {objective.ObjectiveId} 使用了不支持的 objective_type {objective.ObjectiveType}。"
                 );
             }
             if (objective.TargetValue <= 0)
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 必须有正 target_value。"
+                    + $"Quest {questDef.QuestId} 的 objective {objective.ObjectiveId} 必须有正 target_value。"
                 );
             }
             if (
@@ -524,14 +524,14 @@ public static class QuestContentValidator
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 的 {objective.ObjectiveType} objective {objective.ObjectiveId} 缺少 target_id。"
+                    + $"Quest {questDef.QuestId} 的 {objective.ObjectiveType} objective {objective.ObjectiveId} 缺少 target_id。"
                 );
             }
             if (objective.EncounterGrowthStage < 0)
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 的 encounter_growth_stage 不能为负数。"
+                    + $"Quest {questDef.QuestId} 的 objective {objective.ObjectiveId} 的 encounter_growth_stage 不能为负数。"
                 );
             }
             if (
@@ -541,7 +541,7 @@ public static class QuestContentValidator
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 的 objective {objective.ObjectiveId} 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
+                    + $"Quest {questDef.QuestId} 的 objective {objective.ObjectiveId} 只有绑定接取遭遇时才能配置 encounter_growth_stage。"
                 );
             }
         }
@@ -552,47 +552,47 @@ public static class QuestContentValidator
             {
                 errors.Add(
                     prefix
-                    + $"QuestDef {questDef.QuestId} 使用了不支持的 reward_type {reward?.RewardType}。"
+                    + $"Quest {questDef.QuestId} 使用了不支持的 reward_type {reward?.RewardType}。"
                 );
                 continue;
             }
             if (reward.RewardKind == QuestRewardKind.Gold && reward.GoldAmount <= 0)
-                errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 gold reward 必须有正 amount。");
+                errors.Add(prefix + $"Quest {questDef.QuestId} 的 gold reward 必须有正 amount。");
             else if (reward.RewardKind == QuestRewardKind.Item)
             {
                 if (reward.ItemId == "")
-                    errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 item reward 缺少 item_id。");
+                    errors.Add(prefix + $"Quest {questDef.QuestId} 的 item reward 缺少 item_id。");
                 if (reward.ItemQuantity <= 0)
-                    errors.Add(prefix + $"QuestDef {questDef.QuestId} 的 item reward 必须有正 quantity。");
+                    errors.Add(prefix + $"Quest {questDef.QuestId} 的 item reward 必须有正 quantity。");
             }
             else if (reward.RewardKind == QuestRewardKind.PendingCharacterReward)
             {
                 if (reward.PendingRewardMemberId == "")
                     errors.Add(
                         prefix
-                        + $"QuestDef {questDef.QuestId} 的 pending_character_reward 缺少 member_id。"
+                        + $"Quest {questDef.QuestId} 的 pending_character_reward 缺少 member_id。"
                     );
                 if (reward.PendingRewardEntries.Count == 0)
                     errors.Add(
                         prefix
-                        + $"QuestDef {questDef.QuestId} 的 pending_character_reward 至少需要一条 entries。"
+                        + $"Quest {questDef.QuestId} 的 pending_character_reward 至少需要一条 entries。"
                     );
                 foreach (QuestPendingRewardEntryDefinition entry in reward.PendingRewardEntries)
                 {
                     if (entry.EntryKind == PendingCharacterRewardEntryKind.Unknown)
                         errors.Add(
                             prefix
-                            + $"QuestDef {questDef.QuestId} has unsupported pending_character_reward entry_type {entry.EntryType}."
+                            + $"Quest {questDef.QuestId} has unsupported pending_character_reward entry_type {entry.EntryType}."
                         );
                     if (entry.TargetId == "")
                         errors.Add(
                             prefix
-                            + $"QuestDef {questDef.QuestId} 的 pending_character_reward entry 缺少 target_id。"
+                            + $"Quest {questDef.QuestId} 的 pending_character_reward entry 缺少 target_id。"
                         );
                     if (entry.Amount == 0)
                         errors.Add(
                             prefix
-                            + $"QuestDef {questDef.QuestId} 的 pending_character_reward entry amount 不能为 0。"
+                            + $"Quest {questDef.QuestId} 的 pending_character_reward entry amount 不能为 0。"
                         );
                 }
             }

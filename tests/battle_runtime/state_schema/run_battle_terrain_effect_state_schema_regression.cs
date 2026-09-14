@@ -19,6 +19,7 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
         TestOverlayAndDisplayMetadataRoundtrip();
         TestAccuracyModifierSpecRoundtrip();
         TestNonstackingStatusMetadataRoundtrip();
+        TestMovementContactMetadataRoundtrip();
         TestTopLevelLifetimePolicyIsRejected();
         TestInvalidTargetTeamFilterIsRejected();
 
@@ -174,6 +175,37 @@ public partial class run_battle_terrain_effect_state_schema_regression : Lifecyc
             new StringName("rooted"),
             "terrain effect does_not_stack_with_status_ids[1] 应稳定 roundtrip。"
         );
+    }
+
+    private void TestMovementContactMetadataRoundtrip()
+    {
+        BattleTerrainEffectState effect = BuildEffect();
+        effect.terrain_contact_mode = "interrupt_movement_on_failed_save";
+        effect.terrain_remaining_effective_triggers = 2;
+        effect.terrain_requires_ground_contact = true;
+        effect.terrain_recheck_from_inside = true;
+        effect.terrain_max_active_instances_per_source = 1;
+        effect.terrain_replace_existing_from_source = true;
+        effect.contact_save_dc = 13;
+        effect.contact_save_ability = "agility";
+        effect.contact_save_tag = "agility";
+
+        BattleTerrainEffectState restored = RoundTrip(effect);
+        _test.Eq(
+            restored?.TerrainContactModeKind ?? CombatTerrainContactMode.Unknown,
+            CombatTerrainContactMode.InterruptMovementOnFailedSave,
+            "terrain movement contact mode 应通过正式 params 投影 roundtrip。"
+        );
+        _test.Eq(
+            restored?.terrain_remaining_effective_triggers ?? 0,
+            2,
+            "有效阻挡次数应稳定 roundtrip。"
+        );
+        _test.True(restored?.terrain_requires_ground_contact == true, "接地要求应稳定 roundtrip。" );
+        _test.True(restored?.terrain_recheck_from_inside == true, "格内起步重判应稳定 roundtrip。" );
+        _test.Eq(restored?.terrain_max_active_instances_per_source ?? 0, 1, "同源实例上限应稳定 roundtrip。" );
+        _test.True(restored?.terrain_replace_existing_from_source == true, "同源替换规则应稳定 roundtrip。" );
+        _test.Eq(restored?.contact_save_dc ?? 0, 13, "接触豁免DC应稳定 roundtrip。" );
     }
 
     private void TestInvalidTargetTeamFilterIsRejected()

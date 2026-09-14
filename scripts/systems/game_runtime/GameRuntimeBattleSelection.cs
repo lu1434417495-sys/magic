@@ -8,10 +8,6 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSessionSurface
 {
     private static readonly StringName StatusBlackStarBrandElite = "black_star_brand_elite";
-    private static readonly StringName CrownBreakSkillId = "crown_break";
-    private static readonly StringName DoomSentenceSkillId = "doom_sentence";
-    private static readonly StringName DoomShiftSkillId = "doom_shift";
-    private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
     private static readonly StringName GroundTargetMode = BattleTypedNames.TargetModeGround;
@@ -286,8 +282,12 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
     internal void ClearBattleSkillSelection(bool announce = false)
     {
         if (
-            GetSelectionStage()
-                == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+            (
+                GetSelectionStage()
+                    == GameRuntimeBattleSelectionStage.SourceRetreatDirection
+                || GetSelectionStage()
+                    == GameRuntimeBattleSelectionStage.ForcedMoveDestination
+            )
             && GetSelectedSkillId() != ""
         )
         {
@@ -298,7 +298,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             }
             if (announce)
             {
-                UpdateStatus("已返回攻击目标选择。");
+                UpdateStatus("已返回技能目标选择。");
             }
             return;
         }
@@ -421,6 +421,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         )
         {
             return HandleSourceRetreatDirectionClick(activeUnit, target_coord);
+        }
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.ForcedMoveDestination
+        )
+        {
+            return HandleForcedMoveDestinationClick(activeUnit, target_coord);
         }
 
         if (IsSelectedGroundSkillReady(activeUnit))
@@ -610,6 +617,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             {
                 continue;
             }
+            if (GetAirbornePullEffect(activeUnit, skillDefinition) != null)
+            {
+                continue;
+            }
             CombatCastVariantDefinition castVariant = GetCastVariant(
                 combatProfile,
                 GetDefaultUnitSkillVariantId(activeUnit, skillDefinition)
@@ -716,6 +727,19 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             command.target_unit_id = queuedTargetUnit.unit_id;
             command.target_coord = queuedTargetUnit.GetAnchorCoord();
             command.source_retreat_direction = direction;
+            return command;
+        }
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.ForcedMoveDestination
+        )
+        {
+            BattleUnitState queuedTargetUnit = ResolveQueuedSourceRetreatTarget();
+            if (queuedTargetUnit == null)
+                return null;
+            command.target_unit_id = queuedTargetUnit.unit_id;
+            command.target_coord = queuedTargetUnit.GetAnchorCoord();
+            command.forced_move_destination_coord = coord;
             return command;
         }
 
@@ -1001,6 +1025,29 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             return BattleRefreshMode.Overlay;
         }
 
+        CombatEffectDefinition airbornePullEffect = GetAirbornePullEffect(
+            activeUnit,
+            skillDefinition
+        );
+        if (airbornePullEffect != null)
+        {
+            CombatCastVariantDefinition castVariant = GetSelectedBattleSkillVariant(
+                activeUnit
+            );
+            if (!CanSkillTargetUnit(activeUnit, targetUnit, skillDefinition, castVariant))
+                return BattleRefreshMode.None;
+            SetTargetUnitIdsStateTyped(new[] { targetUnit.unit_id });
+            SetTargetCoordsStateTyped(new[] { targetUnit.GetAnchorCoord() });
+            SetSelectionStage(
+                GameRuntimeBattleSelectionStage.ForcedMoveDestination
+            );
+            RefreshBattleSelectionState();
+            UpdateStatus(
+                $"已选择 {targetUnit.display_name}，请选择一次最终牵引落点。"
+            );
+            return BattleRefreshMode.Overlay;
+        }
+
         BattleCommand skillCommand = BuildSelectedSkillCommand(activeUnit, targetUnit);
         return skillCommand != null ? IssueBattleCommand(skillCommand) : BattleRefreshMode.None;
     }
@@ -1078,6 +1125,42 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         return targetUnitIds.Count == 1
             ? GetBattleUnitById(targetUnitIds[0])
             : null;
+    }
+
+    private BattleRefreshMode HandleForcedMoveDestinationClick(
+        BattleUnitState activeUnit,
+        Vector2I selectedCoord
+    )
+    {
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatEffectDefinition effect = GetAirbornePullEffect(activeUnit, skillDefinition);
+        BattleUnitState targetUnit = ResolveQueuedSourceRetreatTarget();
+        if (
+            activeUnit == null
+            || skillDefinition == null
+            || effect == null
+            || targetUnit == null
+        )
+        {
+            ClearBattleSkillTargetSelection();
+            RefreshBattleSelectionState();
+            UpdateStatus("牵引目标已经失效，请重新选择目标。");
+            return BattleRefreshMode.Error;
+        }
+        BattleCommand command = BuildSelectedSkillCommand(activeUnit, targetUnit);
+        if (command == null)
+            return BattleRefreshMode.Error;
+        command.forced_move_destination_coord = selectedCoord;
+        BattlePreview preview = PreviewBattleCommand(command);
+        if (preview?.allowed == true)
+            return IssueBattleCommand(command);
+        RefreshBattleSelectionState();
+        UpdateStatus(
+            preview != null && preview.LogLinesTyped.Count > 0
+                ? preview.LogLinesTyped[^1]
+                : "当前牵引落点无效。"
+        );
+        return BattleRefreshMode.Error;
     }
 
     private SkillDefinition GetSelectedBattleSkillDefinition(BattleUnitState activeUnit)
@@ -1246,6 +1329,13 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         {
             return CollectSourceRetreatDirectionCoords(activeUnit);
         }
+        if (
+            GetSelectionStage()
+                == GameRuntimeBattleSelectionStage.ForcedMoveDestination
+        )
+        {
+            return CollectAirbornePullDestinationCoords(activeUnit);
+        }
         if (GetSelectedBattleSkillTargetSelectionModeKind(activeUnit) == BattleTargetSelectionMode.MultiUnit)
         {
             return CollectValidUnitSkillTargetCoords(
@@ -1298,6 +1388,35 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             }
         }
         return SortCoordsTyped(result);
+    }
+
+    private List<Vector2I> CollectAirbornePullDestinationCoords(
+        BattleUnitState activeUnit
+    )
+    {
+        BattleState state = GetBattleState();
+        SkillDefinition skillDefinition = GetSelectedBattleSkillDefinition(activeUnit);
+        CombatEffectDefinition effect = GetAirbornePullEffect(activeUnit, skillDefinition);
+        BattleUnitState targetUnit = ResolveQueuedSourceRetreatTarget();
+        if (
+            state == null
+            || activeUnit == null
+            || targetUnit == null
+            || effect == null
+        )
+        {
+            return new List<Vector2I>();
+        }
+        return new List<Vector2I>(
+            BattleAirbornePullRules.CollectLegalDestinations(
+                state,
+                Port?.GetBattleGridService(),
+                Port?.GetBattleLayeredBarrierService(),
+                activeUnit,
+                targetUnit,
+                effect
+            )
+        );
     }
 
     private List<Vector2I> CollectValidUnitSkillTargetCoords(
@@ -1478,7 +1597,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
         CombatEffectDefinition relocationEffectDefinition = ResolveGroundRelocationEffectDef(
             skillDefinition,
-            castVariant
+            castVariant,
+            Math.Max(activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId), 1)
         );
         var seenCoords = new HashSet<Vector2I>();
         foreach (Vector2I coord in targetCoords ?? Array.Empty<Vector2I>())
@@ -1550,14 +1670,18 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
     private static CombatEffectDefinition ResolveGroundRelocationEffectDef(
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant
+        CombatCastVariantDefinition castVariant,
+        int skillLevel
     )
     {
         if (castVariant != null)
         {
             foreach (CombatEffectDefinition effectDefinition in castVariant.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDefinition))
+                if (
+                    IsGroundRelocationEffect(effectDefinition)
+                    && effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+                )
                 {
                     return effectDefinition;
                 }
@@ -1567,7 +1691,10 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         {
             foreach (CombatEffectDefinition effectDefinition in skillDefinition.CombatProfile.EffectDefinitions)
             {
-                if (IsGroundRelocationEffect(effectDefinition))
+                if (
+                    IsGroundRelocationEffect(effectDefinition)
+                    && effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+                )
                 {
                     return effectDefinition;
                 }
@@ -1583,7 +1710,8 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             return false;
         }
         return effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Jump
-            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink;
+            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink
+            || effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent;
     }
 
     private static bool CanUseGroundRelocation(
@@ -1605,6 +1733,15 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.Blink)
         {
             return battleGridService.CanBlinkToCoord(battleState, activeUnit, coord, effectDefinition);
+        }
+        if (effectDefinition.ForcedMoveModeKind == BattleForcedMoveMode.GrappleAscent)
+        {
+            return battleGridService.CanGrappleAscent(
+                battleState,
+                activeUnit,
+                coord,
+                effectDefinition
+            );
         }
         return false;
     }
@@ -1801,26 +1938,22 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
 
     private static bool IsCrownBreakSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == CrownBreakSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.CrownBreak;
     }
 
     private static bool IsDoomSentenceSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomSentenceSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.DoomSentence;
     }
 
     private static bool IsDoomShiftSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == DoomShiftSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.DoomShift;
     }
 
     private static bool IsBlackCrownSealSkill(SkillDefinition skillDefinition)
     {
-        return skillDefinition != null
-            && ProgressionDataUtils.to_string_name(skillDefinition.SkillId) == BlackCrownSealSkillId;
+        return skillDefinition?.RuntimeBehaviorKind == SkillRuntimeBehaviorKind.BlackCrownSeal;
     }
 
     private static bool IsCrownBreakTargetEligible(
@@ -1958,6 +2091,34 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         return null;
     }
 
+    private CombatEffectDefinition GetAirbornePullEffect(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (unitState == null || skillDefinition?.CombatProfile == null)
+            return null;
+        int skillLevel = GetUnitSkillLevel(unitState, skillDefinition.SkillId);
+        foreach (
+            CombatEffectDefinition effectDefinition
+            in skillDefinition.CombatProfile.EffectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                effectDefinition?.EffectKind != BattleEffectKind.ForcedMove
+                || effectDefinition.ForcedMoveModeKind
+                    != BattleForcedMoveMode.AirbornePull
+                || !effectDefinition.IsUnlockedAtSkillLevel(skillLevel)
+            )
+            {
+                continue;
+            }
+            return effectDefinition;
+        }
+        return null;
+    }
+
     private SkillEffectiveCombatDefinition GetEffectiveCombatProfileForUnit(
         BattleUnitState unitState,
         SkillDefinition skillDefinition
@@ -2032,7 +2193,12 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
                 effectiveProfile.MaxTargetCount,
                 minTargetCount
             );
-            return BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount);
+            return BuildMultiUnitTargetStatus(
+                activeUnit,
+                skillDefinition,
+                minTargetCount,
+                maxTargetCount
+            );
         }
         if (castVariant == null)
         {
@@ -2114,7 +2280,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
                 return IssueSelectedMultiUnitSkill(activeUnit, skillDefinition);
             }
             RefreshBattleSelectionState();
-            UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
+            UpdateStatus(
+                BuildMultiUnitTargetStatus(
+                    activeUnit,
+                    skillDefinition,
+                    minTargetCount,
+                    maxTargetCount
+                )
+            );
             return BattleRefreshMode.Overlay;
         }
 
@@ -2138,7 +2311,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             RefreshSelectedUnitTargetCoordsFromQueue();
             SyncMultiUnitConfirmFocus(activeUnit, minTargetCount, maxTargetCount);
             RefreshBattleSelectionState();
-            UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
+            UpdateStatus(
+                BuildMultiUnitTargetStatus(
+                    activeUnit,
+                    skillDefinition,
+                    minTargetCount,
+                    maxTargetCount
+                )
+            );
             return BattleRefreshMode.Overlay;
         }
 
@@ -2187,7 +2367,14 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
         }
         SyncMultiUnitConfirmFocus(activeUnit, minTargetCount, maxTargetCount);
         RefreshBattleSelectionState();
-        UpdateStatus(BuildMultiUnitTargetStatus(skillDefinition, minTargetCount, maxTargetCount));
+        UpdateStatus(
+            BuildMultiUnitTargetStatus(
+                activeUnit,
+                skillDefinition,
+                minTargetCount,
+                maxTargetCount
+            )
+        );
         return BattleRefreshMode.Overlay;
     }
 
@@ -2255,6 +2442,7 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
     }
 
     private string BuildMultiUnitTargetStatus(
+        BattleUnitState activeUnit,
         SkillDefinition skillDefinition,
         int minTargetCount,
         int maxTargetCount
@@ -2266,20 +2454,53 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             skillDefinition?.CombatProfile != null
             && skillDefinition.CombatProfile.AllowRepeatTarget;
         string cancelHint = allowRepeat ? "点击已选目标可追加" : "点击已选目标可取消";
+        string costSuffix = BuildOrderedTargetSlotCostStatus(
+            activeUnit,
+            skillDefinition,
+            selectedCount
+        );
         if (selectedCount <= 0)
         {
-            return $"已选择技能 {title}。左键逐个点选单位目标，{cancelHint}，Esc 清除选择。";
+            return $"已选择技能 {title}。左键逐个点选单位目标，{cancelHint}，Esc 清除选择。{costSuffix}";
         }
         if (selectedCount < minTargetCount)
         {
-            return $"已选择 {title}，已选择 {selectedCount} / {minTargetCount} 个单位目标。继续点选，{cancelHint}，Esc 清除选择。";
+            return $"已选择 {title}，已选择 {selectedCount} / {minTargetCount} 个单位目标。继续点选，{cancelHint}，Esc 清除选择。{costSuffix}";
         }
         if (selectedCount < maxTargetCount)
         {
-            return $"已选择 {title}，已选择 {selectedCount} / {maxTargetCount} 个单位目标。还可继续添加，{cancelHint}，Esc 清除选择。";
+            return $"已选择 {title}，已选择 {selectedCount} / {maxTargetCount} 个单位目标。还可继续添加，{cancelHint}，Esc 清除选择。{costSuffix}";
         }
         string maxHint = allowRepeat ? "按 Esc 清除选择。" : "点击已选目标可取消，Esc 清除选择。";
-        return $"已选择 {title}，已选择 {selectedCount} / {maxTargetCount} 个单位目标。已达到上限，{maxHint}";
+        return $"已选择 {title}，已选择 {selectedCount} / {maxTargetCount} 个单位目标。已达到上限，{maxHint}{costSuffix}";
+    }
+
+    private string BuildOrderedTargetSlotCostStatus(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition,
+        int selectedCount
+    )
+    {
+        if (
+            activeUnit == null
+            || !BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition)
+        )
+        {
+            return "";
+        }
+        SkillEffectiveCombatDefinition effectiveProfile = GetEffectiveCombatProfileForUnit(
+            activeUnit,
+            skillDefinition
+        );
+        int mpPerSlot = Math.Max(effectiveProfile.MpCostPerTargetSlot, 0);
+        int staminaPerSlot = Math.Max(effectiveProfile.StaminaCostPerTargetSlot, 0);
+        if (selectedCount <= 0)
+        {
+            return $" 单发消耗 {mpPerSlot} 法力/{staminaPerSlot} 体力。";
+        }
+        CombatSkillResourceCosts selectedCosts =
+            effectiveProfile.GetResourceCostsForTargetSlots(selectedCount);
+        return $" 单发 {mpPerSlot} 法力/{staminaPerSlot} 体力；当前合计 {selectedCosts.MpCost} 法力/{selectedCosts.StaminaCost} 体力。";
     }
 
     private void RefreshSelectedUnitTargetCoordsFromQueue()
@@ -2580,6 +2801,25 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
                 command.source_retreat_direction = direction;
                 break;
             }
+        }
+        CombatEffectDefinition airbornePullEffect = GetAirbornePullEffect(
+            activeUnit,
+            skillDefinition
+        );
+        if (airbornePullEffect != null)
+        {
+            IReadOnlyList<Vector2I> destinations =
+                BattleAirbornePullRules.CollectLegalDestinations(
+                    GetBattleState(),
+                    GetBattleGridService(),
+                    Port?.GetBattleLayeredBarrierService(),
+                    activeUnit,
+                    targetUnit,
+                    airbornePullEffect
+                );
+            if (destinations.Count == 0)
+                return BattleUnitSkillTargetAffordance.Denied("目标附近没有合法牵引落点。");
+            command.forced_move_destination_coord = destinations[0];
         }
         BattlePreview preview = PreviewBattleCommand(command);
         if (preview != null && preview.allowed)

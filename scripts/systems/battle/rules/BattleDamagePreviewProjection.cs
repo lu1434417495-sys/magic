@@ -102,6 +102,51 @@ internal static class BattleDamagePreviewProjection
             estimate.Sources,
             "BattleDamagePreviewProjection.save_estimate.sources"
         );
+        target["save_failure_status_outcomes"] = WriteWeightedStatusOutcomes(
+            lease,
+            estimate.SaveFailureStatusOutcomes,
+            "BattleDamagePreviewProjection.save_estimate.save_failure_status_outcomes"
+        );
+    }
+
+    private static GArray WriteWeightedStatusOutcomes<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> outcomes,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (outcomes == null)
+            return result;
+        for (int index = 0; index < outcomes.Count; index++)
+        {
+            BattleWeightedStatusOutcomePreviewData outcome = outcomes[index];
+            if (outcome == null)
+                continue;
+            GDictionary payload = lease.Own(
+                new GDictionary(),
+                $"{reason}[{index}]"
+            );
+            payload["outcome_id"] = outcome.OutcomeId;
+            payload["status_id"] = outcome.StatusId;
+            payload["display_name"] = outcome.DisplayName ?? "";
+            payload["weight"] = outcome.Weight;
+            payload["total_weight"] = outcome.TotalWeight;
+            payload["conditional_probability_basis_points"] =
+                outcome.ConditionalProbabilityBasisPoints;
+            payload["application_probability_basis_points"] =
+                outcome.ApplicationProbabilityBasisPoints;
+            payload["duration_tu"] = outcome.DurationTu;
+            payload["power"] = outcome.Power;
+            payload["attack_roll_penalty"] = outcome.AttackRollPenalty;
+            payload["lock_counterattack"] = outcome.LockCounterattack;
+            payload["lock_guard"] = outcome.LockGuard;
+            payload["lock_dodge_bonus"] = outcome.LockDodgeBonus;
+            payload["lock_crit"] = outcome.LockCrit;
+            result.Add(payload);
+        }
+        return result;
     }
 
     private static void WriteInto<TLeaseRoot>(
@@ -145,8 +190,9 @@ internal static class BattleDamagePreviewProjection
             lease,
             "BattleDamagePreviewProjection.status_effect_ids"
         );
-        target["removed_status_effect_ids"] = EmptyArray(
+        target["removed_status_effect_ids"] = WriteStringNameArray(
             lease,
+            preview.RemovedStatusEffectIds,
             "BattleDamagePreviewProjection.removed_status_effect_ids"
         );
         target["source_status_effect_ids"] = EmptyArray(
@@ -170,6 +216,21 @@ internal static class BattleDamagePreviewProjection
         );
         target["stable_lethal"] = preview.StableLethal;
         target["lethal_probability_basis_points"] = preview.LethalProbabilityBasisPoints;
+        target["fatal_intercept_probability_basis_points"] =
+            preview.FatalInterceptProbabilityBasisPoints;
+        target["expected_survival_hp"] = preview.ExpectedSurvivalHp;
+        target["fatal_intercept_preview"] =
+            BattleEquipmentAbilityPreviewProjection.WriteFatalIntercept(
+                lease,
+                preview.FatalInterceptPreview,
+                "BattleDamagePreviewProjection.fatal_intercept_preview"
+            );
+        target["equipment_action_previews"] =
+            BattleEquipmentAbilityPreviewProjection.WriteActions(
+                lease,
+                preview.EquipmentActionPreviews,
+                "BattleDamagePreviewProjection.equipment_action_previews"
+            );
 
         if (preview.RollMode != default)
             target["roll_mode"] = preview.RollMode.ToString();
@@ -256,6 +317,19 @@ internal static class BattleDamagePreviewProjection
         string reason
     )
         where TLeaseRoot : class, IDisposable => lease.Own(new GArray(), reason);
+
+    private static GArray WriteStringNameArray<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<StringName> values,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+            result.Add(value);
+        return result;
+    }
 
     private readonly record struct ProjectionRoot(
         GodotProjectionLease<GDictionary> Lease,

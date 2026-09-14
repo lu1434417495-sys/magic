@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- Linked T0.1-T0.4 sources predate project-wide nullable annotations. New CLI files opt in. -->
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>Magic.ContentJsonValidation.Cli</RootNamespace>
+    <AssemblyName>Magic.ContentJsonValidation.Cli</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>$(DefineConstants);CONTENT_JSON_OFFLINE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="ContentJsonCliFileSystemSourceReader.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonDocumentContracts.cs" Link="Shared/ContentJsonDocumentContracts.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonDocumentLoader.cs" Link="Shared/ContentJsonDocumentLoader.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonTemplateMerger.cs" Link="Shared/ContentJsonTemplateMerger.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentImportBatch.cs" Link="Shared/ContentImportBatch.cs" />
+    <Compile Include="../../scripts/systems/content/json/JsonContentDomainDescriptor.cs" Link="Shared/JsonContentDomainDescriptor.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonStrictDtoParser.cs" Link="Shared/ContentJsonStrictDtoParser.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonOfflineValidation.cs" Link="Shared/ContentJsonOfflineValidation.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaContracts.cs" Link="Shared/ContentJsonSchemaContracts.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonSchemaSampleDomain.cs" Link="Shared/ContentJsonSchemaSampleDomain.cs" />
+    <Compile Include="../../scripts/systems/content/json/ContentJsonOfflineValidationSampleDomain.cs" Link="Shared/ContentJsonOfflineValidationSampleDomain.cs" />
+    <Compile Include="../../scripts/systems/content/skills/PendingCastBindingModeKind.cs" Link="Shared/PendingCastBindingModeKind.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillTypedLevelValueModels.cs" Link="Shared/SkillTypedLevelValueModels.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillJsonImportContracts.cs" Link="Shared/SkillJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillFullCombatEffectClosedSpec.cs" Link="Shared/SkillFullCombatEffectClosedSpec.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillCombatEffectImportModels.cs" Link="Shared/SkillCombatEffectImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillCombatEffectValueRules.cs" Link="Shared/SkillCombatEffectValueRules.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillCombatEffectJsonDtos.cs" Link="Shared/SkillCombatEffectJsonDtos.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillCombatEffectJsonNormalizer.cs" Link="Shared/SkillCombatEffectJsonNormalizer.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatImportModels.cs" Link="Shared/SkillRootCombatImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatImportValueRules.cs" Link="Shared/SkillRootCombatImportValueRules.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonDtos.cs" Link="Shared/SkillRootCombatJsonDtos.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillRootCombatJsonNormalizer.cs" Link="Shared/SkillRootCombatJsonNormalizer.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillJsonImportParser.cs" Link="Shared/SkillJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/skills/SkillContentJsonAuthoringDomain.cs" Link="Shared/SkillContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/configuration/GameplayConfigurationJsonContent.cs" Link="Shared/GameplayConfigurationJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemImportModels.cs" Link="Shared/ItemImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemJsonImportContracts.cs" Link="Shared/ItemJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemJsonImportParser.cs" Link="Shared/ItemJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemImportModelValidator.cs" Link="Shared/ItemImportModelValidator.cs" />
+    <Compile Include="../../scripts/systems/content/items/ItemContentJsonAuthoringDomain.cs" Link="Shared/ItemContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportModels.cs" Link="Shared/TraitImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportValueRules.cs" Link="Shared/TraitImportValueRules.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitJsonImportContracts.cs" Link="Shared/TraitJsonImportContracts.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitJsonImportParser.cs" Link="Shared/TraitJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitImportModelValidator.cs" Link="Shared/TraitImportModelValidator.cs" />
+    <Compile Include="../../scripts/systems/content/traits/TraitContentJsonAuthoringDomain.cs" Link="Shared/TraitContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/player/progression/equipment_abilities/EquipmentAbilityClosedVocabulary.cs" Link="Shared/EquipmentAbilityClosedVocabulary.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportModels.cs" Link="Shared/EquipmentAbilityImportModels.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityJsonDtos.cs" Link="Shared/EquipmentAbilityJsonDtos.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportGraphMapper.cs" Link="Shared/EquipmentAbilityImportGraphMapper.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityPayloadKindCatalog.cs" Link="Shared/EquipmentAbilityPayloadKindCatalog.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilitySchemaVocabularyProviders.cs" Link="Shared/EquipmentAbilitySchemaVocabularyProviders.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityImportVocabularyValidator.cs" Link="Shared/EquipmentAbilityImportVocabularyValidator.cs" />
+    <Compile Include="../../scripts/systems/content/equipment_abilities/EquipmentAbilityContentJsonAuthoringDomain.cs" Link="Shared/EquipmentAbilityContentJsonAuthoringDomain.cs" />
+    <Compile Include="../../scripts/systems/content/recipes/RecipeJsonContent.cs" Link="Shared/RecipeJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/gear_sets/GearSetJsonContent.cs" Link="Shared/GearSetJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonContracts.cs" Link="Shared/EnemyContentJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonImportParser.cs" Link="Shared/EnemyContentJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentJsonAuthoringDomains.cs" Link="Shared/EnemyContentJsonAuthoringDomains.cs" />
+    <Compile Include="../../scripts/systems/content/enemies/EnemyContentImportValidator.Rules.cs" Link="Shared/EnemyContentImportValidator.Rules.cs" />
+    <Compile Include="../../scripts/systems/battle/core/BattleTimeRules.cs" Link="Shared/BattleTimeRules.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonContracts.cs" Link="Shared/BattleEncounterJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterJsonImportParser.cs" Link="Shared/BattleEncounterJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/battle/content/BattleEncounterImportValidator.cs" Link="Shared/BattleEncounterImportValidator.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierJsonContracts.cs" Link="Shared/BarrierJsonContracts.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierJsonImportParser.cs" Link="Shared/BarrierJsonImportParser.cs" />
+    <Compile Include="../../scripts/player/progression/BarrierImportValidator.cs" Link="Shared/BarrierImportValidator.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileJsonContracts.cs" Link="Shared/BattleSpecialProfileJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileJsonImportParser.cs" Link="Shared/BattleSpecialProfileJsonImportParser.cs" />
+    <Compile Include="../../scripts/systems/battle/core/special_profiles/BattleSpecialProfileImportValidator.cs" Link="Shared/BattleSpecialProfileImportValidator.cs" />
+    <Compile Include="../../scripts/player/progression/ProfessionIdentityJsonContracts.cs" Link="Shared/ProfessionIdentityJsonContracts.cs" />
+    <Compile Include="../../scripts/player/progression/ProfessionIdentityJsonImport.cs" Link="Shared/ProfessionIdentityJsonImport.cs" />
+    <Compile Include="../../scripts/player/progression/QuestJsonContent.cs" Link="Shared/QuestJsonContent.cs" />
+    <Compile Include="../../scripts/player/progression/ContingencyJsonContent.cs" Link="Shared/ContingencyJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/battle_sim/BattleSimJsonContent.cs" Link="Shared/BattleSimJsonContent.cs" />
+    <Compile Include="../../scripts/systems/content/world/WorldJsonContracts.cs" Link="Shared/WorldJsonContracts.cs" />
+    <Compile Include="../../scripts/systems/content/world/WorldJsonImport.cs" Link="Shared/WorldJsonImport.cs" />
+  </ItemGroup>
+</Project>

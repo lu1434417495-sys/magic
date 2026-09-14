@@ -1,0 +1,252 @@
+{
+  "schema": 1,
+  "domain": "battle_encounters",
+  "family": "core",
+  "templates": {},
+  "entries": [
+    {
+      "encounter_id": "mist_hollow_control",
+      "display_name": "争夺迷雾据点",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "control",
+        "payload": {
+          "control_zones": [
+            {
+              "zone_id": "west_control_zone",
+              "display_name": "西侧占领区",
+              "placement_edge": "left",
+              "placement_depth": 2
+            },
+            {
+              "zone_id": "east_control_zone",
+              "display_name": "东侧占领区",
+              "placement_edge": "right",
+              "placement_depth": 2
+            }
+          ],
+          "score_target": 100
+        }
+      },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_defense",
+      "display_name": "坚守迷雾防线",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "defense",
+        "payload": {
+          "target_actor_id": "mist_warden",
+          "duration_tu": 200
+        }
+      },
+      "scenario_actors": [
+        {
+          "actor_id": "mist_warden",
+          "template_id": "militia",
+          "display_name": "迷雾守望者",
+          "spawn_zone_id": "west_defense_line",
+          "spawn_edge": "left",
+          "spawn_depth": 3
+        }
+      ],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_escape",
+      "display_name": "逃离雾沼",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "escape",
+        "payload": {
+          "exit_zone_id": "east_escape",
+          "exit_edge": "right",
+          "exit_depth": 2
+        }
+      },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_escort",
+      "display_name": "护送避难向导",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "escort",
+        "payload": {
+          "target_actor_id": "refugee_guide",
+          "exit_zone_id": "east_safe_exit",
+          "exit_edge": "right",
+          "exit_depth": 2
+        }
+      },
+      "scenario_actors": [
+        {
+          "actor_id": "refugee_guide",
+          "template_id": "militia",
+          "display_name": "避难向导",
+          "spawn_zone_id": "west_entry",
+          "spawn_edge": "left",
+          "spawn_depth": 2
+        }
+      ],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_intercept",
+      "display_name": "截击迷雾信使",
+      "roster_profile_id": "mist_hollow_intercept",
+      "objective": {
+        "kind": "intercept",
+        "payload": {
+          "target_actor_id": "mist_courier",
+          "exit_zone_id": "west_breakthrough",
+          "exit_edge": "left",
+          "exit_depth": 2
+        }
+      },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_node_operation",
+      "display_name": "净化迷雾节点",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "node_operation",
+        "payload": {
+          "operation_nodes": [
+            {
+              "node_id": "west_mist_seal",
+              "display_name": "西侧雾印",
+              "zone_id": "west_mist_seal_zone",
+              "placement_edge": "left",
+              "placement_depth": 3
+            },
+            {
+              "node_id": "east_mist_seal",
+              "display_name": "东侧雾印",
+              "zone_id": "east_mist_seal_zone",
+              "placement_edge": "right",
+              "placement_depth": 3
+            }
+          ]
+        }
+      },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow_rescue",
+      "display_name": "营救被俘斥候",
+      "roster_profile_id": "mist_hollow",
+      "objective": {
+        "kind": "rescue",
+        "payload": { "target_actor_id": "captured_scout" }
+      },
+      "scenario_actors": [
+        {
+          "actor_id": "captured_scout",
+          "template_id": "militia",
+          "display_name": "被俘斥候",
+          "spawn_zone_id": "east_prison",
+          "spawn_edge": "right",
+          "spawn_depth": 3
+        }
+      ],
+      "world_resolution": {
+        "player_success_mode": "preserve",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "mist_hollow",
+      "display_name": "雾沼伏猎群",
+      "roster_profile_id": "mist_hollow",
+      "objective": { "kind": "elimination", "payload": {} },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "clear",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "red_dragon_lair",
+      "display_name": "红龙巢穴",
+      "roster_profile_id": "red_dragon_lair",
+      "objective": {
+        "kind": "boss",
+        "payload": { "target_actor_id": "red_dragon_boss" }
+      },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "clear",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    },
+    {
+      "encounter_id": "wolf_den",
+      "display_name": "荒狼巢穴",
+      "roster_profile_id": "wolf_den",
+      "objective": { "kind": "elimination", "payload": {} },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "suppress",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 3
+      }
+    },
+    {
+      "encounter_id": "wolf_wilds",
+      "display_name": "荒狼群",
+      "roster_profile_id": "wolf_pack_skirmish",
+      "objective": { "kind": "elimination", "payload": {} },
+      "scenario_actors": [],
+      "world_resolution": {
+        "player_success_mode": "clear",
+        "player_failure_mode": "preserve",
+        "draw_mode": "preserve",
+        "suppression_steps": 0
+      }
+    }
+  ]
+}

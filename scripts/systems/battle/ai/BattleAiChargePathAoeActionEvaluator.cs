@@ -151,7 +151,11 @@ internal sealed class BattleAiChargePathAoeActionEvaluator
                 }
 
                 int effectiveRange = Math.Max(
-                    skillDefinition.CombatProfile.GetEffectiveRangeValue(skillEntry.SkillLevel),
+                    BattleRangeService.ResolveConfiguredSkillRange(
+                        actor,
+                        skillDefinition,
+                        skillEntry.SkillLevel
+                    ),
                     0
                 );
                 foreach (

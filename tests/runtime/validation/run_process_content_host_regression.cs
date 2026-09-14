@@ -32,38 +32,25 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         );
         ProcessContentHost host = coordinator.ContentHost;
         ContentSnapshot first = host.GetSnapshot();
-        int rootCount = host.CanonicalRootCount;
         long epoch = host.Epoch;
 
+        TestSyntheticSnapshotIsolationAndExclusiveRawHost(
+            host,
+            first,
+            epoch
+        );
+
         _test.True(host.IsSealed, "process content host should be sealed before tests run");
-        _test.True(rootCount > 0, "process content host should retain canonical authored roots");
+        _test.True(
+            host.EngineAssets.HasPublishedCatalog,
+            "process content host should own the published engine asset catalog"
+        );
         _test.True(epoch > 0, "process content epoch should be positive");
         _test.True(
             ReferenceEquals(first, host.BuildAndSeal()),
             "BuildAndSeal should return the already-published snapshot"
         );
-        _test.Eq(host.CanonicalRootCount, rootCount, "idempotent build should not add roots");
         _test.Eq(host.Epoch, epoch, "idempotent build should preserve epoch");
-        _test.True(
-            Throws<InvalidOperationException>(() =>
-                host.LoadCanonical<Resource>(
-                    "res://data/configs/world_map/./test_world_map_config.tres"
-                )
-            ),
-            "authored loads should be rejected after seal"
-        );
-
-        IReadOnlyList<ContentRootDiagnostic> diagnostics = host.GetCanonicalRootDiagnostics();
-        _test.Eq(diagnostics.Count, rootCount, "root diagnostics should match canonical root count");
-        _test.Eq(
-            diagnostics.Select(entry => entry.CanonicalPath).Distinct(StringComparer.Ordinal).Count(),
-            diagnostics.Count,
-            "canonical root diagnostics should not contain duplicate paths"
-        );
-        _test.True(
-            diagnostics.All(entry => entry.Role == ReferenceRole.Borrowed),
-            "path-backed content roots should be diagnosed as borrowed"
-        );
         _test.True(
             first.EnemyTemplates.Count > 0,
             "the process snapshot should expose typed enemy definitions"
@@ -89,10 +76,10 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
             );
         }
 
-        PackedScene firstScene = host.EngineAssets.ResolveBorrowed<PackedScene>(
+        PackedScene firstScene = host.EngineAssets.ResolveCodeAssetBorrowed<PackedScene>(
             "res://scenes/main/login_screen.tscn"
         );
-        PackedScene repeatedScene = host.EngineAssets.ResolveBorrowed<PackedScene>(
+        PackedScene repeatedScene = host.EngineAssets.ResolveCodeAssetBorrowed<PackedScene>(
             "res://scenes/main/./login_screen.tscn"
         );
         _test.True(
@@ -129,6 +116,41 @@ public partial class run_process_content_host_regression : LifecycleTestSceneTre
         _test.True(
             ReferenceEquals(first, coordinator.ContentHost.GetSnapshot()),
             "the coordinator-owned host should remain published until application shutdown"
+        );
+    }
+
+    private void TestSyntheticSnapshotIsolationAndExclusiveRawHost(
+        ProcessContentHost host,
+        ContentSnapshot processSnapshot,
+        long processEpoch
+    )
+    {
+        SyntheticContentSnapshotSeed syntheticSeed =
+            SyntheticContentSnapshotFactory.CreateSeed(processSnapshot);
+        syntheticSeed.Epoch = processEpoch + 1000;
+        ContentSnapshot syntheticSnapshot =
+            SyntheticContentSnapshotFactory.Create(syntheticSeed);
+
+        using (
+            GameSession syntheticSession = GameSessionTestFactory.CreateSynthetic(
+                syntheticSnapshot
+            )
+        )
+        {
+            _test.Eq(
+                syntheticSession.GetContentSnapshotEpoch(),
+                syntheticSnapshot.Epoch,
+                "pure synthetic snapshots may use an isolated epoch in the same process"
+            );
+        }
+
+        _test.True(
+            ReferenceEquals(host.GetSnapshot(), processSnapshot),
+            "synthetic snapshot borrowing does not replace the published process snapshot"
+        );
+        _test.True(
+            Throws<InvalidOperationException>(() => _ = new ProcessContentHost()),
+            "the process rejects a second raw content host"
         );
     }
 

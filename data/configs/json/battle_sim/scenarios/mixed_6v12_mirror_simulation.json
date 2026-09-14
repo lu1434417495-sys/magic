@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "domain": "battle_sim_scenarios",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "scenario_id": "mixed_6v12_mirror_simulation",
+      "display_name": "Mixed 6v12 Mirror Simulation",
+      "description": "30x18 canyon 地图上 6 精英单位对 12 普通单位，单位由正式角色创建 fixture 生成。",
+      "map_size": {
+        "x": 30,
+        "y": 18
+      },
+      "terrain_profile_id": "canyon",
+      "use_formal_terrain_generation": true,
+      "world_coord": {
+        "x": 7,
+        "y": 11
+      },
+      "ally_units": [],
+      "enemy_units": [],
+      "cell_overrides": [],
+      "timeline_ticks_per_step": 1,
+      "tu_per_tick": 5,
+      "max_iterations": 3000,
+      "manual_policy": "wait",
+      "trace_enabled": true,
+      "seeds": [
+        101,
+        102,
+        103,
+        104,
+        105
+      ]
+    }
+  ]
+}

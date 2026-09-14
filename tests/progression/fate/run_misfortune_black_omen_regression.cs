@@ -308,7 +308,7 @@ public partial class run_misfortune_black_omen_regression : LifecycleTestSceneTr
         IEnumerable<StringName> slotIds
     )
     {
-        ItemDef itemDef = new()
+        TestItemDefinitionBuilder itemDef = new()
         {
             item_id = itemId,
             display_name = itemId.ToString(),

@@ -4,8 +4,8 @@ using System.Collections.ObjectModel;
 using Godot;
 
 /// <summary>
-/// Process-scoped, immutable projection of authored content. Runtime owners may
-/// borrow this graph, but they never receive the raw Resource roots used to build it.
+/// Process-scoped, immutable projection of authored JSON content. Runtime owners may
+/// borrow this graph, but they never receive mutable import registries or engine assets.
 /// </summary>
 internal sealed class ContentSnapshot
 {
@@ -28,16 +28,19 @@ internal sealed class ContentSnapshot
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfiles,
         IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> contingencyTemplates,
         IReadOnlyDictionary<StringName, ItemDefinition> items,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gearSets,
         IReadOnlyDictionary<StringName, RecipeDefinition> recipes,
         IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> equipmentAbilityPacks,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
-        IReadOnlyDictionary<string, WorldGenerationDefinition> worldGenerations,
+        IReadOnlyDictionary<StringName, WorldPresetDefinition> worldPresets,
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> worldGenerations,
         IBattleSpecialProfileView battleSpecialProfiles,
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates = null,
         IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> enemyBrains = null,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters = null,
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters = null,
-        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null
+        IReadOnlyDictionary<StringName, BattleSimProfileDefinition> battleSimProfiles = null,
+        GameplayConfigurationDefinition gameplayConfiguration = null
     )
     {
         if (epoch <= 0)
@@ -71,16 +74,19 @@ internal sealed class ContentSnapshot
         BarrierProfiles = Freeze(barrierProfiles);
         ContingencyTemplates = Freeze(contingencyTemplates);
         Items = Freeze(items);
+        GearSets = Freeze(gearSets);
         Recipes = Freeze(recipes);
         EquipmentAbilityPacks = Freeze(equipmentAbilityPacks);
         EquipmentAbilityBindings = Freeze(equipmentAbilityBindings);
-        WorldGenerations = Freeze(worldGenerations, StringComparer.Ordinal);
+        WorldPresets = Freeze(worldPresets);
+        WorldGenerations = Freeze(worldGenerations);
         BattleSpecialProfiles = battleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty;
         EnemyTemplates = Freeze(enemyTemplates);
         EnemyBrains = Freeze(enemyBrains);
         EncounterRosters = Freeze(encounterRosters);
         BattleEncounters = Freeze(battleEncounters);
         BattleSimProfiles = Freeze(battleSimProfiles);
+        GameplayConfiguration = gameplayConfiguration;
     }
 
     internal long Epoch { get; }
@@ -102,16 +108,19 @@ internal sealed class ContentSnapshot
     internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfiles { get; }
     internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> ContingencyTemplates { get; }
     internal IReadOnlyDictionary<StringName, ItemDefinition> Items { get; }
+    internal IReadOnlyDictionary<StringName, GearSetDefinition> GearSets { get; }
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; }
-    internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; }
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> WorldPresets { get; }
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> WorldGenerations { get; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; }
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; }
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; }
     internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; }
+    internal GameplayConfigurationDefinition GameplayConfiguration { get; }
 
     private static IReadOnlyDictionary<TKey, TValue> Freeze<TKey, TValue>(
         IReadOnlyDictionary<TKey, TValue> source,

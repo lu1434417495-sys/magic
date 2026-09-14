@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class ReputationRequirement : Resource
+public partial class ReputationRequirement : RefCounted
 {
     [Export]
     public StringName state_id = "";

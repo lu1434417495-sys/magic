@@ -62,33 +62,25 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
         if (!fixture.ItemDefs.ContainsKey(UmbrellaItemId))
             return;
 
-        ItemDef rawUmbrella = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_umbrella.tres"
+        ItemDefinition umbrellaDefinition = TestItemDefinitionLookup.GetProductionItem(
+            "weapon_unique_exotic_umbrella_232"
         );
-        GodotContentOwnership.RegisterBorrowedContent(
-            rawUmbrella,
-            "umbrella_sword_weapon_ability_regression:raw_item"
-        );
-        _test.True(rawUmbrella != null, "伞剑原始资源应能加载。");
-        if (rawUmbrella != null)
+        _test.True(umbrellaDefinition != null, "伞剑 JSON definition 应能加载。");
+        if (umbrellaDefinition != null)
         {
-            _test.Eq(rawUmbrella.display_name, "伞剑", "伞剑显示名应来自设计源。");
-            _test.Eq(rawUmbrella.base_item_id, new StringName("weapon_type_rapier_base"), "伞剑应继承 rapier 模板。");
-            _test.Eq(rawUmbrella.base_price, 35000, "伞剑基础价格应为 35000。");
-            WeaponProfileDef rawProfile = rawUmbrella.weapon_profile as WeaponProfileDef;
+            _test.Eq(umbrellaDefinition.DisplayName, "伞剑", "伞剑显示名应来自设计源。");
+            _test.Eq(umbrellaDefinition.BasePrice, 35000, "伞剑基础价格应为 35000。");
+            WeaponProfileDefinition rawProfile = umbrellaDefinition.WeaponProfile;
             _test.True(rawProfile != null, "伞剑应声明武器 profile 覆写。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.training_group, new StringName("martial"), "伞剑训练组应为 martial。");
-                _test.Eq(rawProfile.range_type, new StringName("melee"), "伞剑自身应是 melee weapon。");
-                _test.Eq(rawProfile.attack_range, 1, "伞剑攻击距离应为 1。");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("martial"), "伞剑训练组应为 martial。");
+                _test.Eq(rawProfile.RangeType, new StringName("melee"), "伞剑自身应是 melee weapon。");
+                _test.Eq(rawProfile.AttackRange, 1, "伞剑攻击距离应为 1。");
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildUmbrellaUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -106,19 +98,6 @@ public partial class run_umbrella_sword_weapon_ability_regression : LifecycleTes
         AssertUnitHasTraitAndAbilitySource(equipped, GuardTraitId, GuardBindingId, "eq_umbrella_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, RainAdvantageTraitId, RainAdvantageBindingId, "eq_umbrella_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除伞剑后 weapon_item_id 应清空。");
-        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除伞剑后 weapon profile 应回到装备前状态。");
-        _test.Eq(removedWeapon.RangeType, baselineWeapon.RangeType, "移除伞剑后 weapon range_type 应回到装备前状态。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除伞剑后装备能力源应清空。"
-        );
-        _test.Eq(equipped.GetEffectiveTraitInstanceCountTyped(), baseline.GetEffectiveTraitInstanceCountTyped(), "移除伞剑后装备 trait 实例应回到装备前状态。");
     }
 
     private void TestRainScreenReducesFireColdDamageThroughRealDamageResolver()

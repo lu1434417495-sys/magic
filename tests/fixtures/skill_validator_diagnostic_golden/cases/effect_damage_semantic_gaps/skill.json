@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_damage_semantic_gaps",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_damage_semantic_gaps",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_damage_semantic_gaps",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {}
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "mitigation_bypass_damage_tags": [
+              "fire"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "extra_damage_segments": [
+              {
+                "mitigation_bypass_damage_tags": [
+                  "fire"
+                ],
+                "dice_bonus": 1
+              }
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "target_damage_multiplier_rules": [
+              {},
+              {
+                "all_creature_type_tags": [
+                  "",
+                  "dragon",
+                  "dragon"
+                ],
+                "excluded_creature_type_tags": [
+                  "",
+                  "undead",
+                  "undead"
+                ]
+              }
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "bonus_condition": "target_creature_type"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "weapon_dice_multiplier": 2,
+            "bonus_weapon_dice_multiplier": 1,
+            "damage_tag": "fire"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "bonus_damage_dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "bonus_damage_dice_count": 1,
+            "bonus_condition": "target_low_hp"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_damage_semantic_gaps",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

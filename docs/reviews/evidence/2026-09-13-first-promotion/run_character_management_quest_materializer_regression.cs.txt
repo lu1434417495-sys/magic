@@ -1,0 +1,10 @@
+
+[1/1] [RUN] tests/progression/core/run_character_management_quest_materializer_regression.cs
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management quest materializer regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+[1/1] [DONE] tests/progression/core/run_character_management_quest_materializer_regression.cs - 成功 (3.51s)
+
+Passed: 1
+Failed: 0

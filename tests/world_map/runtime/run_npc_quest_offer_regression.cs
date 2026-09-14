@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 
@@ -18,28 +18,37 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
     private async void RunAsync()
     {
-        await TestNpcQuestOfferOpensForMatchingInteraction();
-        await TestNpcQuestOfferSkipsNonNpcProvider();
-        await TestNpcQuestOfferRequiresNpcOfferChannel();
-        await TestNpcQuestOfferRespectsAcceptRequirements();
-        await TestNpcQuestOfferAcceptsQuest();
-        await TestNpcQuestOfferSubmitsItemsAndClaimsReward();
-        await TestNpcQuestOfferConfirmationFlow();
-        await TestNpcQuestOfferRejectsLockedQuest();
-        await TestNpcQuestOfferRejectsSubmissionWithoutModal();
-        await TestNpcQuestOfferRejectsWrongSettlement();
-        await TestNpcQuestOfferRejectsWrongAction();
-        await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
-        await TestNpcQuestOfferMultipleQuests();
-        await TestNpcQuestOfferRejectsMissingQuestId();
-        await TestNpcQuestOfferRejectsWrongNpcQuest();
-        await TestNpcQuestOfferRejectsWrongListingChannel();
-        await TestNpcQuestOfferRejectsNonNpcProviderKind();
-        await TestNpcQuestOfferCloseModalLifecycle();
-        await TestNpcQuestOfferRefreshesEntriesAfterAccept();
-        await TestNpcQuestOfferRejectsConfirmBypass();
-
-        RequestTestExit(_test.Finish("NPC quest offer regression"));
+        try
+        {
+            await TestNpcQuestOfferOpensForMatchingInteraction();
+            await TestNpcQuestOfferSkipsNonNpcProvider();
+            await TestNpcQuestOfferRequiresNpcOfferChannel();
+            await TestNpcQuestOfferRespectsAcceptRequirements();
+            await TestNpcQuestOfferAcceptsQuest();
+            await TestNpcQuestOfferSubmitsItemsAndClaimsReward();
+            await TestNpcQuestOfferConfirmationFlow();
+            await TestNpcQuestOfferRejectsLockedQuest();
+            await TestNpcQuestOfferRejectsSubmissionWithoutModal();
+            await TestNpcQuestOfferRejectsWrongSettlement();
+            await TestNpcQuestOfferRejectsWrongAction();
+            await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
+            await TestNpcQuestOfferMultipleQuests();
+            await TestNpcQuestOfferRejectsMissingQuestId();
+            await TestNpcQuestOfferRejectsWrongNpcQuest();
+            await TestNpcQuestOfferRejectsWrongListingChannel();
+            await TestNpcQuestOfferRejectsNonNpcProviderKind();
+            await TestNpcQuestOfferCloseModalLifecycle();
+            await TestNpcQuestOfferRefreshesEntriesAfterAccept();
+            await TestNpcQuestOfferRejectsConfirmBypass();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("NPC quest offer regression"));
+        }
     }
 
     private async Task TestNpcQuestOfferOpensForMatchingInteraction()
@@ -97,7 +106,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
             _test.True(result.Ok, $"NPC 委托动作应成功打开 offer。message={result.Message}");
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.NpcQuestOffer,
                 "NPC 委托动作应将当前 modal 切换为 NpcQuestOffer。"
             );
@@ -204,7 +213,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
             _test.True(result.Ok, $"据点任务板动作应正常打开。message={result.Message}");
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.ContractBoard,
                 "service_contract_board 不应被 NPC 分支截获。"
             );
@@ -263,7 +272,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
             _test.True(result.Ok, $"无 offer 的 NPC 动作应返回成功。message={result.Message}");
             _test.True(
-                runtime._active_modal_kind != RuntimeModalKind.NpcQuestOffer,
+                runtime.GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer,
                 "未挂载 npc_offer 频道的 NPC 不应打开 NpcQuestOffer。"
             );
         }
@@ -316,7 +325,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
             _test.True(result.Ok, $"有前置锁定的 NPC 动作应成功打开 offer。message={result.Message}");
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.NpcQuestOffer,
                 "有前置锁定的 NPC 动作仍应打开 NpcQuestOffer。"
             );
@@ -416,7 +425,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "成功接受应返回 accept_feedback_success。"
             );
             _test.True(
-                runtime._party_state.HasActiveQuest("npc_blacksmith_hrothgar_cave_beasts"),
+                runtime.GetPartyState().HasActiveQuest("npc_blacksmith_hrothgar_cave_beasts"),
                 "接受后任务应进入 active_quests。"
             );
 
@@ -515,7 +524,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             _test.True(submitResult.Ok, $"三份药草应能提交。message={submitResult.Message}");
             _test.Eq(fixture.WarehouseService.CountItem("healing_herb"), 0, "提交应消耗三份药草。");
             _test.True(
-                runtime._party_state.HasClaimableQuest("npc_village_healer_herbs"),
+                runtime.GetPartyState().HasClaimableQuest("npc_village_healer_herbs"),
                 "提交完成后药草任务应进入待领奖状态。"
             );
             entry = runtime
@@ -535,10 +544,10 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 );
             _test.True(claimResult.Ok, $"村医奖励应能领取。message={claimResult.Message}");
             _test.True(
-                runtime._party_state.HasCompletedQuest("npc_village_healer_herbs"),
+                runtime.GetPartyState().HasCompletedQuest("npc_village_healer_herbs"),
                 "领奖后药草任务应进入 completed。"
             );
-            _test.Eq(runtime._party_state.gold, 130, "领奖应发放任务配置的 30 金。");
+            _test.Eq(runtime.GetPartyState().gold, 130, "领奖应发放任务配置的 30 金。");
             entry = runtime
                 .GetActiveNpcQuestOfferData()
                 .Entries.FirstOrDefault(e => e.QuestId == "npc_village_healer_herbs");
@@ -657,7 +666,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 $"二次提交应成功接受委托。message={secondSubmit.Message}"
             );
             _test.True(
-                runtime._party_state.HasActiveQuest("npc_blacksmith_hrothgar_cave_beasts"),
+                runtime.GetPartyState().HasActiveQuest("npc_blacksmith_hrothgar_cave_beasts"),
                 "确认后任务应进入 active_quests。"
             );
 
@@ -731,7 +740,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "失败应返回 accept_feedback_failure。"
             );
             _test.False(
-                runtime._party_state.HasActiveQuest("npc_elder_secret"),
+                runtime.GetPartyState().HasActiveQuest("npc_elder_secret"),
                 "失败后任务不应进入 active_quests。"
             );
 
@@ -969,7 +978,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
 
             _test.True(result.Ok, $"无匹配任务时应返回默认成功。message={result.Message}");
             _test.True(
-                runtime._active_modal_kind != RuntimeModalKind.NpcQuestOffer,
+                runtime.GetActiveModalKind() != RuntimeModalKind.NpcQuestOffer,
                 "无匹配任务时不应打开 NpcQuestOffer。"
             );
             _test.Eq(
@@ -1046,7 +1055,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 $"应能接受第二个任务。message={submitResult.Message}"
             );
             _test.True(
-                runtime._party_state.HasActiveQuest("npc_blacksmith_hrothgar_iron_delivery"),
+                runtime.GetPartyState().HasActiveQuest("npc_blacksmith_hrothgar_iron_delivery"),
                 "第二个任务应进入 active_quests。"
             );
         }
@@ -1346,7 +1355,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             handler.OnNpcQuestOfferWindowClosed();
 
             _test.Eq(
-                runtime._active_modal_kind,
+                runtime.GetActiveModalKind(),
                 RuntimeModalKind.Settlement,
                 "关闭 NPC offer 后应返回据点服务。"
             );
@@ -1534,14 +1543,14 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
         );
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
-        var runtime = new GameRuntimeFacade
-        {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
-        };
+        var runtime = new GameRuntimeFacade();
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);

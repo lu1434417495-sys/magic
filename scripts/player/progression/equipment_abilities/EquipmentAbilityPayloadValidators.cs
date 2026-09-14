@@ -9,11 +9,12 @@ internal static class EquipmentAbilityPayloadValidators
     private static readonly StringName StatusStackRefresh = "refresh";
     private static readonly StringName StatusStackAdd = "add";
 
-    internal static StringName ReadStringNamePayloadMember(Resource payload, string memberName)
+    internal static StringName ReadStringNamePayloadMember(IEquipmentAbilityPayloadImportModel payload, string memberName)
     {
         if (payload == null || string.IsNullOrWhiteSpace(memberName))
             return "";
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public;
+        const BindingFlags flags =
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         Type type = payload.GetType();
         PropertyInfo property = type.GetProperty(memberName, flags);
         object raw = property != null ? property.GetValue(payload) : null;
@@ -30,17 +31,30 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAddDamageDicePayload(
-        AddDamageDiceActionPayloadDef payload,
+        AddDamageDiceActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
     )
     {
+        EquipmentAbilityDamageTypeModeKind damageTypeMode =
+            EquipmentAbilityDamageTypeModeContentRules.ToKind(payload.damage_type_mode);
+        if (!EquipmentAbilityDamageTypeModeContentRules.IsValid(damageTypeMode))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_TYPE_MODE_INVALID",
+                $"{path}.payload.damage_type_mode",
+                $"add_damage_dice damage_type_mode {payload.damage_type_mode} is not supported; expected explicit or inherit_primary"
+            );
+        }
+        bool inheritPrimary =
+            damageTypeMode == EquipmentAbilityDamageTypeModeKind.InheritPrimary;
         bool hasDiceTerm = payload.dice != null && payload.dice.terms.Count > 0;
         bool hasFlatBonus = payload.dice != null && payload.dice.flat_bonus > 0;
         if (
             payload.target_selector == ""
-            || payload.damage_type == ""
+            || (!inheritPrimary && payload.damage_type == "")
             || payload.dice == null
             || (!hasDiceTerm && !hasFlatBonus)
         )
@@ -49,7 +63,21 @@ internal static class EquipmentAbilityPayloadValidators
                 errors,
                 "EQA_ACTION_REQUIRED_FIELD_MISSING",
                 path,
-                "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
+                inheritPrimary
+                    ? "add_damage_dice requires target_selector and dice terms or positive flat_bonus"
+                    : "add_damage_dice requires target_selector, damage_type, and dice terms or positive flat_bonus"
+            );
+        }
+        if (
+            inheritPrimary
+            && (payload.damage_type != "" || (payload.damage_tags?.Count ?? 0) > 0)
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_TYPE_MODE_INHERIT_CONFLICT",
+                $"{path}.payload.damage_type_mode",
+                "add_damage_dice damage_type_mode inherit_primary forbids an explicit damage_type or damage_tags"
             );
         }
         if (
@@ -77,9 +105,30 @@ internal static class EquipmentAbilityPayloadValidators
             path,
             errors
         );
+        StringName replacementGroupId = ProgressionDataUtils.to_string_name(
+            payload.replacement_group_id
+        );
+        if (replacementGroupId == "" && payload.replacement_priority != 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_REPLACEMENT_GROUP_REQUIRED",
+                $"{path}.payload.replacement_group_id",
+                "add_damage_dice replacement_priority requires replacement_group_id"
+            );
+        }
+        if (payload.replacement_priority < 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_DAMAGE_REPLACEMENT_PRIORITY_INVALID",
+                $"{path}.payload.replacement_priority",
+                "add_damage_dice replacement_priority must be zero or positive"
+            );
+        }
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -95,7 +144,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateImmediateWeaponAttackPayload(
-        ImmediateWeaponAttackActionPayloadDef payload,
+        ImmediateWeaponAttackActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -123,6 +172,24 @@ internal static class EquipmentAbilityPayloadValidators
             $"{path}.payload.skill_id",
             errors
         );
+        if (
+            context.KnownSkillDefinitions.TryGetValue(
+                payload.skill_id,
+                out SkillDefinition skillDefinition
+            )
+            && !BattleUnitSkillDefinitionExecutionRules
+                .IncludesWeaponDamage(
+                    skillDefinition.CombatProfile?.EffectDefinitions
+                )
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_IMMEDIATE_WEAPON_ATTACK_REQUIRES_WEAPON_DAMAGE",
+                $"{path}.payload.skill_id",
+                $"skill_id {payload.skill_id} does not resolve weapon damage"
+            );
+        }
         StringName filter = ProgressionDataUtils.to_string_name(payload.target_team_filter);
         if (filter != "enemy" && filter != "ally" && filter != "any")
         {
@@ -136,7 +203,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDealDamagePayload(
-        DealDamageActionPayloadDef payload,
+        DealDamageActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -185,7 +252,7 @@ internal static class EquipmentAbilityPayloadValidators
         );
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -201,7 +268,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateHealPayload(
-        HealActionPayloadDef payload,
+        HealActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -219,7 +286,7 @@ internal static class EquipmentAbilityPayloadValidators
         }
         if (payload.dice != null)
         {
-            foreach (DiceExpressionTermDef term in payload.dice.terms)
+            foreach (DiceExpressionTermImportModel term in payload.dice.terms)
             {
                 if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
                 {
@@ -235,7 +302,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateHealFromFactPayload(
-        HealFromFactActionPayloadDef payload,
+        HealFromFactActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -263,7 +330,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     private static void ValidateDamageTagArray(
-        Godot.Collections.Array<StringName> damageTags,
+        IReadOnlyList<string> damageTags,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -297,8 +364,8 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     private static void ValidateMitigationBypassArrays(
-        Godot.Collections.Array<StringName> damageTags,
-        Godot.Collections.Array<StringName> tiers,
+        IReadOnlyList<string> damageTags,
+        IReadOnlyList<string> tiers,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -342,7 +409,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackRollBonusPayload(
-        AttackRollBonusActionPayloadDef payload,
+        AttackRollBonusActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -361,7 +428,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackRollAdvantagePayload(
-        AttackRollAdvantageActionPayloadDef payload,
+        AttackRollAdvantageActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -378,7 +445,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateAttackDefenseModifierPayload(
-        EquipmentAttackDefenseModifierDef payload,
+        EquipmentAttackDefenseModifierImportModel payload,
         string path,
         List<string> errors
     )
@@ -401,7 +468,7 @@ internal static class EquipmentAbilityPayloadValidators
         }
 
         var ignored = new HashSet<StringName>();
-        foreach (StringName componentId in payload.ignored_ac_components ?? new Godot.Collections.Array<StringName>())
+        foreach (string componentId in payload.ignored_ac_components ?? Array.Empty<string>())
         {
             if (!AttributeContentRules.IsArmorClassComponentAttributeId(componentId))
             {
@@ -416,7 +483,7 @@ internal static class EquipmentAbilityPayloadValidators
             ignored.Add(componentId);
         }
 
-        foreach (EquipmentAcComponentMultiplierDef multiplier in payload.ac_component_multipliers ?? new Godot.Collections.Array<EquipmentAcComponentMultiplierDef>())
+        foreach (EquipmentAcComponentMultiplierImportModel multiplier in payload.ac_component_multipliers ?? Array.Empty<EquipmentAcComponentMultiplierImportModel>())
         {
             if (multiplier == null)
                 continue;
@@ -511,7 +578,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDamageRollModeOverridePayload(
-        DamageRollModeOverrideActionPayloadDef payload,
+        DamageRollModeOverrideActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -535,7 +602,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDamageReductionPayload(
-        DamageReductionActionPayloadDef payload,
+        DamageReductionActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -577,8 +644,68 @@ internal static class EquipmentAbilityPayloadValidators
         }
     }
 
+    internal static void ValidateGrantMitigationTierPayload(
+        GrantMitigationTierActionPayloadImportModel payload,
+        EquipmentAbilityContentValidationContext context,
+        string path,
+        List<string> errors
+    )
+    {
+        if (
+            payload.target_selector == ""
+            || payload.mitigation_tier == ""
+            || (payload.damage_tags?.Count ?? 0) == 0
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_ACTION_REQUIRED_FIELD_MISSING",
+                path,
+                "grant_mitigation_tier requires target_selector, mitigation_tier, and at least one damage tag"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        DamageMitigationTierKind tierKind = DamageTagContentRules.ToMitigationTierKind(
+            payload.mitigation_tier
+        );
+        if (
+            payload.mitigation_tier != ""
+            && tierKind
+                is DamageMitigationTierKind.Unknown
+                    or DamageMitigationTierKind.Normal
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_GRANT_MITIGATION_TIER_INVALID",
+                $"{path}.payload.mitigation_tier",
+                $"grant_mitigation_tier mitigation_tier must be one of half, double, immune"
+            );
+        }
+        if (
+            payload.target_selector != ""
+            && payload.target_selector != "self"
+            && payload.target_selector != "holder"
+            && payload.target_selector != "defender"
+            && payload.target_selector != "damage_target"
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_GRANT_MITIGATION_TIER_TARGET_SELECTOR_UNSUPPORTED",
+                $"{path}.payload.target_selector",
+                $"grant_mitigation_tier target_selector {payload.target_selector} is not supported"
+            );
+        }
+    }
+
     internal static void ValidateLootQuantityMultiplierPayload(
-        LootQuantityMultiplierActionPayloadDef payload,
+        LootQuantityMultiplierActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -607,7 +734,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyStatusPayload(
-        ApplyStatusActionPayloadDef payload,
+        ApplyStatusActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -623,6 +750,55 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         EquipmentAbilityBindingValidator.ValidateStatusReference(payload.status_id, context, $"{path}.payload.status_id", errors);
+        StringName mitigationDamageTag = ProgressionDataUtils.to_string_name(payload.damage_tag);
+        if (
+            mitigationDamageTag != ""
+            && DamageTagContentRules.ToDamageTagKind(mitigationDamageTag)
+                == DamageTagKind.Unknown
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_REFERENCE_UNKNOWN_DAMAGE_TYPE",
+                $"{path}.payload.damage_tag",
+                $"damage tag {mitigationDamageTag} is not known"
+            );
+        }
+        ValidateDamageTagArray(
+            payload.damage_tags,
+            context,
+            $"{path}.payload.damage_tags",
+            errors
+        );
+        StringName mitigationTier = ProgressionDataUtils.to_string_name(
+            payload.mitigation_tier
+        );
+        if (
+            mitigationTier != ""
+            && DamageTagContentRules.ToMitigationTierKind(mitigationTier)
+                == DamageMitigationTierKind.Unknown
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_MITIGATION_TIER_INVALID",
+                $"{path}.payload.mitigation_tier",
+                $"mitigation tier {mitigationTier} is not supported"
+            );
+        }
+        if (
+            mitigationTier != ""
+            && mitigationDamageTag == ""
+            && (payload.damage_tags?.Count ?? 0) == 0
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_MITIGATION_DAMAGE_TAG_REQUIRED",
+                $"{path}.payload.mitigation_tier",
+                "apply_status mitigation_tier requires damage_tag or damage_tags"
+            );
+        }
         ValidateStatusSemanticPayload(
             payload.stack_behavior,
             payload.stack_limit,
@@ -662,6 +838,15 @@ internal static class EquipmentAbilityPayloadValidators
                 "EQA_STATUS_HEAL_MULTIPLIER_INVALID",
                 $"{path}.payload.heal_multiplier_percent",
                 "apply_status heal_multiplier_percent must be between 0 and 100"
+            );
+        }
+        if (payload.armor_class_bonus_per_stack < 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ARMOR_CLASS_BONUS_INVALID",
+                $"{path}.payload.armor_class_bonus_per_stack",
+                "apply_status armor_class_bonus_per_stack must be >= 0"
             );
         }
         if (payload.save_dc > 0 && (payload.save_ability == "" || payload.save_tag == ""))
@@ -728,7 +913,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateModifyActionPointsPayload(
-        ModifyActionPointsActionPayloadDef payload,
+        ModifyActionPointsActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -802,7 +987,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateMarkTargetPayload(
-        MarkTargetActionPayloadDef payload,
+        MarkTargetActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -840,7 +1025,7 @@ internal static class EquipmentAbilityPayloadValidators
                 errors
             );
         }
-        foreach (StringName statusId in payload.clear_status_ids_on_replace ?? new Godot.Collections.Array<StringName>())
+        foreach (string statusId in payload.clear_status_ids_on_replace ?? Array.Empty<string>())
         {
             EquipmentAbilityBindingValidator.ValidateStatusReference(
                 statusId,
@@ -852,7 +1037,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateSummonUnitsPayload(
-        SummonUnitsActionPayloadDef payload,
+        SummonUnitsActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -901,7 +1086,7 @@ internal static class EquipmentAbilityPayloadValidators
                 "summon_units cognition_kind must be mindless, instinctive, or sapient"
             );
         }
-        foreach (StringName skillId in payload?.known_active_skill_ids ?? new Godot.Collections.Array<StringName>())
+        foreach (string skillId in payload?.known_active_skill_ids ?? Array.Empty<string>())
         {
             StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
             if (normalizedSkillId == "")
@@ -914,7 +1099,11 @@ internal static class EquipmentAbilityPayloadValidators
                 );
                 continue;
             }
-            if (!context.KnownSkillIds.Contains(normalizedSkillId))
+            if (
+                !context.KnownSkillDefinitions.ContainsKey(
+                    normalizedSkillId
+                )
+            )
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -936,7 +1125,7 @@ internal static class EquipmentAbilityPayloadValidators
         if (hasNaturalWeapon)
         {
             bool hasOneDiceTerm = payload.natural_weapon_damage_dice?.terms?.Count == 1;
-            DiceExpressionTermDef term = hasOneDiceTerm
+            DiceExpressionTermImportModel term = hasOneDiceTerm
                 ? payload.natural_weapon_damage_dice.terms[0]
                 : null;
             if (
@@ -968,7 +1157,7 @@ internal static class EquipmentAbilityPayloadValidators
                 );
             }
         }
-        foreach (DiceExpressionTermDef term in payload?.count_dice?.terms ?? new Godot.Collections.Array<DiceExpressionTermDef>())
+        foreach (DiceExpressionTermImportModel term in payload?.count_dice?.terms ?? Array.Empty<DiceExpressionTermImportModel>())
         {
             if (term == null || term.dice_count <= 0 || term.dice_sides <= 0)
             {
@@ -983,7 +1172,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateConsumeSummonedUnitsPayload(
-        ConsumeSummonedUnitsActionPayloadDef payload,
+        ConsumeSummonedUnitsActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1000,7 +1189,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateConsumeStatusStacksPayload(
-        ConsumeStatusStacksActionPayloadDef payload,
+        ConsumeStatusStacksActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1029,7 +1218,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateSummonedUnitAttackRollModifierPayload(
-        SummonedUnitAttackRollModifierActionPayloadDef payload,
+        SummonedUnitAttackRollModifierActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1062,7 +1251,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateClearStatusPayload(
-        ClearStatusActionPayloadDef payload,
+        ClearStatusActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1093,7 +1282,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateCriticalHitOverridePayload(
-        CriticalHitOverrideActionPayloadDef payload,
+        CriticalHitOverrideActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1110,7 +1299,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateTriggerSkillPayload(
-        TriggerSkillActionPayloadDef payload,
+        TriggerSkillActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1196,7 +1385,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateScheduleAreaEffectPayload(
-        ScheduleAreaEffectActionPayloadDef payload,
+        ScheduleAreaEffectActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1354,7 +1543,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyBattleTerrainEffectAfterCheckPayload(
-        ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload,
+        ApplyBattleTerrainEffectAfterCheckActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1404,7 +1593,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateApplyEdgeFeaturePayload(
-        ApplyEdgeFeatureActionPayloadDef payload,
+        ApplyEdgeFeatureActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1451,6 +1640,18 @@ internal static class EquipmentAbilityPayloadValidators
                 "EQA_ACTION_INVALID_VALUE",
                 $"{path}.payload.render_layers",
                 "apply_edge_feature render_layers must be >= 0"
+            );
+        }
+        // 边墙移除后（2026-08-16）没有任何 LOS 阻断消费者，blocks_los 会被静默忽略。
+        // 字段本身保留（移除该 [Export] 会触发 Godot mono finalizer 崩溃，见
+        // docs/proposals/battle/skill_runtime_expansion.md），改为在内容期 fail-closed 拒绝。
+        if (payload.blocks_los)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_ACTION_INVALID_VALUE",
+                $"{path}.payload.blocks_los",
+                "apply_edge_feature blocks_los has no runtime consumer since edge walls were removed; leave it false"
             );
         }
         if (!IsValidEdgeEndpointSelector(payload.from_selector, sourceOnly: true))
@@ -1504,7 +1705,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateModifyAbilityStatePayload(
-        ModifyAbilityStateActionPayloadDef payload,
+        ModifyAbilityStateActionPayloadImportModel payload,
         string path,
         List<string> errors
     )
@@ -1538,7 +1739,7 @@ internal static class EquipmentAbilityPayloadValidators
     }
 
     internal static void ValidateDurabilityPayload(
-        EquipmentDurabilityDamageActionPayloadDef payload,
+        EquipmentDurabilityDamageActionPayloadImportModel payload,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1572,8 +1773,8 @@ internal static class EquipmentAbilityPayloadValidators
             );
         }
         foreach (
-            StringName slot in payload.target_slots
-                ?? new Godot.Collections.Array<StringName>()
+            string slot in payload.target_slots
+                ?? Array.Empty<string>()
         )
         {
             if (!EquipmentRules.IsValidSlot(slot))
@@ -1591,7 +1792,7 @@ internal static class EquipmentAbilityPayloadValidators
         {
             for (int index = 0; index < payload.slot_weights.Count; index++)
             {
-                EquipmentSlotWeightDef weight = payload.slot_weights[index];
+                EquipmentSlotWeightImportModel weight = payload.slot_weights[index];
                 if (weight == null || weight.slot_id == "" || weight.weight <= 0)
                 {
                     EquipmentAbilityContentRegistry.AddError(

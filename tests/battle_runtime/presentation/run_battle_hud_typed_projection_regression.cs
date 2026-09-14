@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_battle_hud_typed_projection_regression : LifecycleTestSceneTree
 {
     private const string HudRootKeys =
-        "header_title|header_subtitle|objective_progress|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel|barriers|barrier_summary_text";
+        "header_title|header_subtitle|objective_progress|round_badge|mode_text|queue_entries|focus_unit|skill_title|selected_skill_variant_name|skill_subtitle|skill_slots|tile_text|selected_skill_hit_preview_text|selected_skill_hit_preview_payload|selected_skill_hit_badge_text|selected_skill_hit_stage_rates|selected_skill_damage_preview_text|selected_skill_damage_min|selected_skill_damage_max|selected_skill_save_branch_preview_payload|selected_skill_save_branch_preview_text|selected_skill_fate_preview_text|selected_skill_fate_badges|selected_skill_preview_tooltip_text|selected_skill_target_selection_mode|selected_skill_target_min_count|selected_skill_target_max_count|selected_skill_target_count|selected_skill_confirm_ready|selected_skill_auto_cast_ready|command_dock|hint_text|recent_battle_log_lines|equipment_panel|gear_set_summaries|barriers|barrier_summary_text";
     private const string ObjectiveProgressKeys =
         "mode|title|progress_text|target_actor_id|target_unit_id|target_display_name|target_alive|target_secured|target_reached_exit|required_unit_ids|alive_required_unit_ids|reached_exit_unit_ids|required_unit_count|alive_required_unit_count|reached_exit_unit_count|exit_zone_id|exit_edge|exit_depth|exit_coords|current_tu|start_tu|deadline_tu|remaining_tu|enemy_unit_count|alive_enemy_unit_count|operation_nodes|operation_node_count|completed_operation_node_count|incomplete_operation_node_count|control_zones|control_zone_count|player_control_score|hostile_control_score|control_score_target";
     private const string HoverRootKeys =
@@ -15,9 +15,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string QueueEntryKeys =
         "slot_index|name|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_ratio|hp_text|ap_text|is_active|is_ready|is_enemy";
     private const string SkillSlotKeys =
-        "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason";
+        "index|is_empty|skill_entry_id|skill_id|source_kind|source_label_key|skill_level|is_battle_only|suppressed_source_keys|display_name|short_name|description|icon_key|hotkey|footer_text|is_selected|is_disabled|accent_color|accent_dark|edge_color|cooldown|disabled_reason|tooltip";
     private const string FocusUnitKeys =
-        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|status_effects";
+        "name|role_text|resource_info|glyph|portrait_key|primary_color|secondary_color|edge_color|hp_current|hp_max|mp_current|mp_max|stamina_current|stamina_max|aura_current|aura_max|ap_current|ap_max|move_current|move_max|reaction_budget|status_effects";
     private const string EquipmentPanelKeys =
         "title|meta|active_unit_id|active_unit_name|ap_cost|can_change_equipment|disabled_reason|slots|backpack_entries|summary_text";
     private const string EquipmentSlotKeys =
@@ -38,6 +38,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         try
         {
             TestFixedProjectionSchemaAndMutationIsolation();
+            TestSkillIconKeysDoNotFallbackToSkillIds();
             TestAdapterReadsStayManaged();
             TestBossObjectiveAdapterProjection();
             TestInterceptObjectiveAdapterProjection();
@@ -49,6 +50,47 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             _test.Fail($"Unhandled exception: {exception}");
         }
         RequestTestExit(_test.Finish("Battle HUD typed projection regression"));
+    }
+
+    private void TestSkillIconKeysDoNotFallbackToSkillIds()
+    {
+        using var scope = new NativeLeaseScope(
+            "battle-hud-skill-icon-keys",
+            LifetimeDomain.Request
+        );
+        SkillDef emptyRaw = scope.Own(
+            new SkillDef
+            {
+                skill_id = "empty_icon_probe",
+                display_name = "空图标",
+                icon_id = "",
+            },
+            "battle-hud-empty-icon-probe"
+        );
+        SkillDef unknownRaw = scope.Own(
+            new SkillDef
+            {
+                skill_id = "unknown_icon_probe",
+                display_name = "未知图标",
+                icon_id = "test.skill_icon.unknown",
+            },
+            "battle-hud-unknown-icon-probe"
+        );
+
+        _test.Eq(
+            BattleHudAdapter.GetSkillIconKeyForTest(
+                SkillDefinition.FromDiagnosticFixture(emptyRaw)
+            ),
+            "",
+            "HUD projection should preserve an empty icon ID instead of substituting skill_id"
+        );
+        _test.Eq(
+            BattleHudAdapter.GetSkillIconKeyForTest(
+                SkillDefinition.FromDiagnosticFixture(unknownRaw)
+            ),
+            "test.skill_icon.unknown",
+            "HUD projection should preserve a non-empty asset ID without rewriting it"
+        );
     }
 
     private void TestFixedProjectionSchemaAndMutationIsolation()
@@ -222,6 +264,20 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             _test.Eq(KeyOrder(focus), FocusUnitKeys, "focus unit schema must remain fixed.");
             GDictionary resourceInfo = Dict(lease, focus, "resource_info");
             _test.Eq(KeyOrder(Dict(lease, resourceInfo, "hp")), "current|max|ratio|label|visible", "resource line schema must remain fixed.");
+            GDictionary reactionBudget = Dict(
+                lease,
+                focus,
+                "reaction_budget"
+            );
+            _test.Eq(
+                KeyOrder(reactionBudget),
+                "visible|charges_remaining|charge_capacity|next_recharge_at_tu",
+                "reaction budget schema must remain fixed."
+            );
+            _test.True(
+                reactionBudget["visible"].AsBool(),
+                "party-backed focus reaction budget must remain visible."
+            );
 
             GDictionary equipment = Dict(lease, root, "equipment_panel");
             _test.Eq(KeyOrder(equipment), EquipmentPanelKeys, "equipment panel schema must remain fixed.");
@@ -619,12 +675,68 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         LifecycleAuditSnapshot prePanelBaseline =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
         const string panelScenePath = "res://scenes/ui/battle_map_panel.tscn";
-        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(panelScenePath);
+        PackedScene scene = EngineAssetAccess.ResolveCodeAssetBorrowed<PackedScene>(
+            panelScenePath
+        );
         BattleMapPanel panel = scene.Instantiate<BattleMapPanel>();
         Root.AddChild(panel);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         LifecycleAuditSnapshot readyBaseline =
             LifecycleAuditRegistry.Shared.CaptureSnapshot();
+
+        Texture2D catalogIcon = panel.ResolveSkillIconForTest(
+            "warrior_whirlwind_slash"
+        );
+        _test.True(catalogIcon != null, "registered skill icon asset ID should resolve a Texture2D.");
+        _test.True(
+            ReferenceEquals(
+                catalogIcon,
+                EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+                    panel,
+                    "warrior_whirlwind_slash"
+                )
+            ),
+            "skill grid should borrow the catalog-owned texture for a non-empty icon ID"
+        );
+        _test.True(
+            panel.ResolveSkillIconForTest("") == null,
+            "empty icon ID should remain empty and select the short-name glyph path"
+        );
+        _test.True(
+            Throws<System.Collections.Generic.KeyNotFoundException>(() =>
+                panel.ResolveSkillIconForTest("test.skill_icon.unknown")
+            ),
+            "unknown non-empty icon ID should fail without a path, skill-id, or whirlwind fallback"
+        );
+
+        var emptyIconSlot = new BattleHudSkillSlotSnapshot(
+            index: 0,
+            isEmpty: false,
+            skillEntryId: "known:empty_icon_skill",
+            skillId: "empty_icon_skill",
+            displayName: "空图技能",
+            shortName: "空图",
+            iconKey: "",
+            hotkey: "1",
+            footerText: "READY",
+            accentColor: Colors.Orange,
+            accentDark: Colors.DarkOrange,
+            edgeColor: Colors.Gold
+        );
+        panel._apply_snapshot(
+            BuildHudSnapshot(
+                Array.Empty<BattleHudQueueEntrySnapshot>(),
+                new[] { emptyIconSlot },
+                Array.Empty<string>(),
+                Array.Empty<BattleHudEquipmentSlotSnapshot>(),
+                Array.Empty<BattleHudBackpackEntrySnapshot>(),
+                BattlePresentationPayload.Empty
+            )
+        );
+        _test.True(
+            FindLabelByText(panel.skill_grid, "空图") != null,
+            "empty icon ID should render the skill short-name glyph"
+        );
 
         var disabledSlot = new BattleHudSkillSlotSnapshot(
             index: 0,
@@ -677,7 +789,14 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         _test.True(panel.HasPresentationLeaseForTest(), "panel should create one scene-lifetime presentation lease.");
         _test.True(GodotWrapperOwnershipRegistry.IsOwnedTransient(material), "pathless ShaderMaterial should be lease-owned.");
         _test.True(GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(shader), "path-backed Shader should be registered borrowed.");
-        _test.True(GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(texture), "path-backed Texture2D should be registered borrowed.");
+        _test.True(
+            ReferenceEquals(texture, catalogIcon),
+            "disabled skill icon should retain the catalog-owned borrowed Texture2D"
+        );
+        _test.False(
+            GodotWrapperOwnershipRegistry.IsBorrowedStaticContent(texture),
+            "catalog child Texture2D should not be registered as an independent path-backed root"
+        );
 
         LifecycleAuditSnapshot active = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         _test.Eq(active.ActiveLeaseCount, readyBaseline.ActiveLeaseCount + 1, "panel presentation lease should be audited.");
@@ -723,6 +842,35 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         return null;
     }
 
+    private static Label FindLabelByText(Node root, string text)
+    {
+        if (root == null)
+            return null;
+        if (root is Label label && string.Equals(label.Text, text, StringComparison.Ordinal))
+            return label;
+        foreach (Node child in root.GetChildren())
+        {
+            Label found = FindLabelByText(child, text);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    private static bool Throws<TException>(Action action)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (TException)
+        {
+            return true;
+        }
+    }
+
     private static BattleHudSnapshot BuildHudSnapshot(
         IEnumerable<BattleHudQueueEntrySnapshot> queueEntries,
         IEnumerable<BattleHudSkillSlotSnapshot> skillSlots,
@@ -757,10 +905,16 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
             2,
             3,
             4,
-            6
+            6,
+            new BattleHudReactionBudgetSnapshot(
+                true,
+                1,
+                2,
+                120
+            )
         );
         var equipment = new BattleHudEquipmentPanelSnapshot(
-            "队伍共享背包（战斗局部）",
+            "队伍随身背包",
             "meta",
             "hud_typed_caster",
             "施法者",

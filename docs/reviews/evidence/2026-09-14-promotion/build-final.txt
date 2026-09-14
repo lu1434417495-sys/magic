@@ -1,0 +1,10 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  Magic.ArchitectureAnalyzers -> E:\game\magic\tools\architecture\Magic.ArchitectureAnalyzers\bin\Debug\netstandard2.0\Magic.ArchitectureAnalyzers.dll
+  magic -> E:\game\magic\.godot\mono\temp\bin\Debug\magic.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:10.21

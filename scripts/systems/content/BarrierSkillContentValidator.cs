@@ -104,7 +104,9 @@ internal static class BarrierSkillContentValidator
             if (effect?.EffectKind != BattleEffectKind.LayeredBarrier)
                 continue;
 
-            StringName profileId = effect.GetStringNameParamTyped("profile_id", "");
+            StringName profileId =
+                (effect.Payload as LayeredBarrierEffectPayloadDefinition)?.ProfileId
+                ?? new StringName("");
             string effectLabel = $"Skill {skillId} {effectsLabel}[{effectIndex}] layered_barrier";
             if (profileId == "")
             {

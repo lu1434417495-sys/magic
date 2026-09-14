@@ -14,7 +14,7 @@ public partial class run_archer_suppressive_fire_regression : LifecycleTestScene
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/archer_suppressive_fire.tres",
+                "archer_suppressive_fire",
                 "archer_suppressive_fire_regression"
             );
             TestAuthoredContract(skill);

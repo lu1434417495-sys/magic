@@ -31,26 +31,6 @@ public sealed class ProfessionActiveConditionDefinition
     public bool MatchesValue(int value) =>
         ProgressionDataUtils.MatchesValueRange(value, MinValue, MaxValue);
 
-    internal static ProfessionActiveConditionDefinition FromResource(
-        ProfessionActiveCondition source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ProgressionDefinitionProjection.RequireKnown(
-            source.ConditionKind != ProfessionActiveConditionKind.Unknown,
-            $"{path}.condition_type",
-            source.condition_type
-        );
-        return new ProfessionActiveConditionDefinition(
-            source.condition_type,
-            source.attribute_id,
-            source.state_id,
-            source.min_value,
-            source.max_value
-        );
-    }
-
     private static ProfessionActiveConditionKind ToConditionKind(StringName value)
     {
         if (value == ConditionAttributeRange)

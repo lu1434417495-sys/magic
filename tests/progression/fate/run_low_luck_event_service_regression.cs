@@ -196,7 +196,7 @@ public partial class run_low_luck_event_service_regression : LifecycleTestSceneT
         };
         memberState.progression.unit_id = HeroId;
         memberState.progression.display_name = "Hero";
-        memberState.progression.character_level = 12;
+        PromotionHistoryTestFixture.InitializeHistoricalLevel(memberState.progression, 12);
         memberState.progression.unit_base_attributes.SetAttributeValue(
             "hidden_luck_at_birth",
             hiddenLuckAtBirth

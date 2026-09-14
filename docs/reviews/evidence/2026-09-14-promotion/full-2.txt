@@ -1,0 +1,1686 @@
+Running 527 test(s) with 6 parallel job(s).
+Per-test Godot user data root: C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r
+
+[1/527] [RUN] tests/battle_runtime/ai/run_ai_trace_recorder_regression.cs
+
+[2/527] [RUN] tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.cs
+
+[3/527] [RUN] tests/battle_runtime/ai/run_battle_ai_action_intent_safety_gate_regression.cs
+
+[4/527] [RUN] tests/battle_runtime/ai/run_battle_ai_advantage_behavior_regression.cs
+
+[5/527] [RUN] tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs
+
+[6/527] [RUN] tests/battle_runtime/ai/run_battle_ai_decision_lifetime_regression.cs
+[1/527] [DONE] tests/battle_runtime/ai/run_ai_trace_recorder_regression.cs - 成功 (5.20s)
+
+[7/527] [RUN] tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs
+[3/527] [DONE] tests/battle_runtime/ai/run_battle_ai_action_intent_safety_gate_regression.cs - 成功 (5.20s)
+
+[8/527] [RUN] tests/battle_runtime/ai/run_battle_ai_equipment_granted_skill_regression.cs
+[2/527] [DONE] tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.cs - 成功 (5.20s)
+
+[9/527] [RUN] tests/battle_runtime/ai/run_battle_ai_failure_policy_regression.cs
+[6/527] [DONE] tests/battle_runtime/ai/run_battle_ai_decision_lifetime_regression.cs - 成功 (5.29s)
+
+[10/527] [RUN] tests/battle_runtime/ai/run_battle_ai_ground_reposition_behavior_regression.cs
+[4/527] [DONE] tests/battle_runtime/ai/run_battle_ai_advantage_behavior_regression.cs - 成功 (5.47s)
+
+[11/527] [RUN] tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs
+[5/527] [DONE] tests/battle_runtime/ai/run_battle_ai_charge_path_aoe_behavior_regression.cs - 成功 (5.66s)
+
+[12/527] [RUN] tests/battle_runtime/ai/run_battle_ai_melee_screening_behavior_regression.cs
+[9/527] [DONE] tests/battle_runtime/ai/run_battle_ai_failure_policy_regression.cs - 成功 (5.27s)
+
+[13/527] [RUN] tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs
+[10/527] [DONE] tests/battle_runtime/ai/run_battle_ai_ground_reposition_behavior_regression.cs - 成功 (5.45s)
+
+[14/527] [RUN] tests/battle_runtime/ai/run_battle_ai_objective_behavior_regression.cs
+[8/527] [DONE] tests/battle_runtime/ai/run_battle_ai_equipment_granted_skill_regression.cs - 成功 (5.55s)
+
+[15/527] [RUN] tests/battle_runtime/ai/run_battle_ai_query_service_regression.cs
+[12/527] [DONE] tests/battle_runtime/ai/run_battle_ai_melee_screening_behavior_regression.cs - 成功 (5.64s)
+
+[16/527] [RUN] tests/battle_runtime/ai/run_battle_ai_random_chain_behavior_regression.cs
+[11/527] [DONE] tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs - 成功 (5.83s)
+
+[17/527] [RUN] tests/battle_runtime/ai/run_battle_ai_retreat_behavior_regression.cs
+[7/527] [DONE] tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs - 成功 (6.94s)
+
+[18/527] [RUN] tests/battle_runtime/ai/run_battle_ai_role_threat_scoring_regression.cs
+[15/527] [DONE] tests/battle_runtime/ai/run_battle_ai_query_service_regression.cs - 成功 (5.40s)
+
+[19/527] [RUN] tests/battle_runtime/ai/run_battle_ai_runtime_action_plan_regression.cs
+[13/527] [DONE] tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs - 成功 (5.73s)
+
+[20/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_context_adapter_regression.cs
+[14/527] [DONE] tests/battle_runtime/ai/run_battle_ai_objective_behavior_regression.cs - 成功 (5.66s)
+
+[21/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_execute_regression.cs
+[16/527] [DONE] tests/battle_runtime/ai/run_battle_ai_random_chain_behavior_regression.cs - 成功 (5.45s)
+
+[22/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_input_metrics_regression.cs
+[17/527] [DONE] tests/battle_runtime/ai/run_battle_ai_retreat_behavior_regression.cs - 成功 (5.60s)
+
+[23/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_ordering_regression.cs
+[18/527] [DONE] tests/battle_runtime/ai/run_battle_ai_role_threat_scoring_regression.cs - 成功 (5.36s)
+
+[24/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.cs
+[19/527] [DONE] tests/battle_runtime/ai/run_battle_ai_runtime_action_plan_regression.cs - 成功 (5.28s)
+
+[25/527] [RUN] tests/battle_runtime/ai/run_battle_ai_score_selection_regression.cs
+[20/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_context_adapter_regression.cs - 成功 (5.37s)
+
+[26/527] [RUN] tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.cs
+[21/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_execute_regression.cs - 成功 (5.37s)
+
+[27/527] [RUN] tests/battle_runtime/ai/run_battle_ai_state_resolver_regression.cs
+[23/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_ordering_regression.cs - 成功 (5.39s)
+
+[28/527] [RUN] tests/battle_runtime/ai/run_battle_ai_trace_disabled_regression.cs
+[24/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.cs - 成功 (5.39s)
+
+[29/527] [RUN] tests/battle_runtime/ai/run_battle_ai_trace_projection_lease_regression.cs
+[22/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_input_metrics_regression.cs - 成功 (6.35s)
+
+[30/527] [RUN] tests/battle_runtime/ai/run_battle_ai_trace_summary_regression.cs
+[26/527] [DONE] tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.cs - 成功 (5.46s)
+
+[31/527] [RUN] tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs
+[25/527] [DONE] tests/battle_runtime/ai/run_battle_ai_score_selection_regression.cs - 成功 (5.74s)
+
+[32/527] [RUN] tests/battle_runtime/ai/run_battle_ai_unit_snapshot_regression.cs
+[27/527] [DONE] tests/battle_runtime/ai/run_battle_ai_state_resolver_regression.cs - 成功 (5.40s)
+
+[33/527] [RUN] tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs
+[28/527] [DONE] tests/battle_runtime/ai/run_battle_ai_trace_disabled_regression.cs - 成功 (5.46s)
+
+[34/527] [RUN] tests/battle_runtime/ai/run_dragon_frightful_presence_regression.cs
+[30/527] [DONE] tests/battle_runtime/ai/run_battle_ai_trace_summary_regression.cs - 成功 (5.37s)
+
+[35/527] [RUN] tests/battle_runtime/ai/run_enemy_ai_action_skill_compatibility_regression.cs
+[29/527] [DONE] tests/battle_runtime/ai/run_battle_ai_trace_projection_lease_regression.cs - 成功 (5.67s)
+
+[36/527] [RUN] tests/battle_runtime/ai/run_enemy_ai_generation_slots_content_regression.cs
+[31/527] [DONE] tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs - 成功 (5.46s)
+
+[37/527] [RUN] tests/battle_runtime/ai/run_enemy_ai_generation_slots_schema_regression.cs
+[32/527] [DONE] tests/battle_runtime/ai/run_battle_ai_unit_snapshot_regression.cs - 成功 (5.37s)
+
+[38/527] [RUN] tests/battle_runtime/ai/run_enemy_ai_transition_schema_regression.cs
+[33/527] [DONE] tests/battle_runtime/ai/run_battle_ai_wait_behavior_regression.cs - 成功 (5.68s)
+
+[39/527] [RUN] tests/battle_runtime/ai/run_enemy_multi_unit_skill_command_regression.cs
+[34/527] [DONE] tests/battle_runtime/ai/run_dragon_frightful_presence_regression.cs - 成功 (5.96s)
+
+[40/527] [RUN] tests/battle_runtime/ai/run_enemy_template_runtime_start_regression.cs
+[35/527] [DONE] tests/battle_runtime/ai/run_enemy_ai_action_skill_compatibility_regression.cs - 成功 (5.40s)
+
+[41/527] [RUN] tests/battle_runtime/ai/run_enemy_template_schema_boundary_regression.cs
+[36/527] [DONE] tests/battle_runtime/ai/run_enemy_ai_generation_slots_content_regression.cs - 成功 (5.38s)
+
+[42/527] [RUN] tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs
+[37/527] [DONE] tests/battle_runtime/ai/run_enemy_ai_generation_slots_schema_regression.cs - 成功 (5.47s)
+
+[43/527] [RUN] tests/battle_runtime/ai/run_mist_harrier_level_regression.cs
+[38/527] [DONE] tests/battle_runtime/ai/run_enemy_ai_transition_schema_regression.cs - 成功 (5.47s)
+
+[44/527] [RUN] tests/battle_runtime/ai/run_move_to_range_progress_regression.cs
+[39/527] [DONE] tests/battle_runtime/ai/run_enemy_multi_unit_skill_command_regression.cs - 成功 (6.21s)
+
+[45/527] [RUN] tests/battle_runtime/ai/run_phantasmal_kill_ai_regression.cs
+[41/527] [DONE] tests/battle_runtime/ai/run_enemy_template_schema_boundary_regression.cs - 成功 (5.47s)
+
+[46/527] [RUN] tests/battle_runtime/ai/run_wolf_alpha_content_regression.cs
+[40/527] [DONE] tests/battle_runtime/ai/run_enemy_template_runtime_start_regression.cs - 成功 (5.93s)
+
+[47/527] [RUN] tests/battle_runtime/ai/run_wolf_alpha_runtime_behavior_regression.cs
+[42/527] [DONE] tests/battle_runtime/ai/run_meteor_swarm_ai_regression.cs - 成功 (5.75s)
+
+[48/527] [RUN] tests/battle_runtime/fate/run_black_star_brand_regression.cs
+[43/527] [DONE] tests/battle_runtime/ai/run_mist_harrier_level_regression.cs - 成功 (5.36s)
+
+[49/527] [RUN] tests/battle_runtime/fate/run_crown_break_regression.cs
+[44/527] [DONE] tests/battle_runtime/ai/run_move_to_range_progress_regression.cs - 成功 (5.64s)
+
+[50/527] [RUN] tests/battle_runtime/fate/run_doom_sentence_regression.cs
+[45/527] [DONE] tests/battle_runtime/ai/run_phantasmal_kill_ai_regression.cs - 成功 (5.45s)
+
+[51/527] [RUN] tests/battle_runtime/fate/run_fate_attack_formula_regression.cs
+[46/527] [DONE] tests/battle_runtime/ai/run_wolf_alpha_content_regression.cs - 成功 (5.48s)
+
+[52/527] [RUN] tests/battle_runtime/fate/run_fate_calamity_drop_regression.cs
+[48/527] [DONE] tests/battle_runtime/fate/run_black_star_brand_regression.cs - 成功 (5.73s)
+
+[53/527] [RUN] tests/battle_runtime/fate/run_fate_low_luck_tactical_skills_regression.cs
+[47/527] [DONE] tests/battle_runtime/ai/run_wolf_alpha_runtime_behavior_regression.cs - 成功 (5.91s)
+
+[54/527] [RUN] tests/battle_runtime/fate/run_fate_typed_event_regression.cs
+[49/527] [DONE] tests/battle_runtime/fate/run_crown_break_regression.cs - 成功 (5.74s)
+
+[55/527] [RUN] tests/battle_runtime/fate/run_low_luck_relic_regression.cs
+[50/527] [DONE] tests/battle_runtime/fate/run_doom_sentence_regression.cs - 成功 (5.74s)
+
+[56/527] [RUN] tests/battle_runtime/fate/run_misfortune_service_regression.cs
+[51/527] [DONE] tests/battle_runtime/fate/run_fate_attack_formula_regression.cs - 成功 (5.38s)
+
+[57/527] [RUN] tests/battle_runtime/objectives/run_battle_boss_objective_regression.cs
+[52/527] [DONE] tests/battle_runtime/fate/run_fate_calamity_drop_regression.cs - 成功 (6.04s)
+
+[58/527] [RUN] tests/battle_runtime/objectives/run_battle_control_objective_regression.cs
+[54/527] [DONE] tests/battle_runtime/fate/run_fate_typed_event_regression.cs - 成功 (5.46s)
+
+[59/527] [RUN] tests/battle_runtime/objectives/run_battle_defense_objective_regression.cs
+[53/527] [DONE] tests/battle_runtime/fate/run_fate_low_luck_tactical_skills_regression.cs - 成功 (5.73s)
+
+[60/527] [RUN] tests/battle_runtime/objectives/run_battle_elimination_objective_regression.cs
+[55/527] [DONE] tests/battle_runtime/fate/run_low_luck_relic_regression.cs - 成功 (5.46s)
+
+[61/527] [RUN] tests/battle_runtime/objectives/run_battle_escape_objective_regression.cs
+[56/527] [DONE] tests/battle_runtime/fate/run_misfortune_service_regression.cs - 成功 (5.64s)
+
+[62/527] [RUN] tests/battle_runtime/objectives/run_battle_intercept_objective_regression.cs
+[57/527] [DONE] tests/battle_runtime/objectives/run_battle_boss_objective_regression.cs - 成功 (5.39s)
+
+[63/527] [RUN] tests/battle_runtime/objectives/run_battle_node_operation_objective_regression.cs
+[58/527] [DONE] tests/battle_runtime/objectives/run_battle_control_objective_regression.cs - 成功 (5.56s)
+
+[64/527] [RUN] tests/battle_runtime/objectives/run_battle_rescue_escort_objective_regression.cs
+[59/527] [DONE] tests/battle_runtime/objectives/run_battle_defense_objective_regression.cs - 成功 (5.46s)
+
+[65/527] [RUN] tests/battle_runtime/presentation/run_battle_board_native_lease_regression.cs
+[60/527] [DONE] tests/battle_runtime/objectives/run_battle_elimination_objective_regression.cs - 成功 (5.37s)
+
+[66/527] [RUN] tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs
+[61/527] [DONE] tests/battle_runtime/objectives/run_battle_escape_objective_regression.cs - 成功 (5.37s)
+
+[67/527] [RUN] tests/battle_runtime/presentation/run_battle_presentation_delta_regression.cs
+[62/527] [DONE] tests/battle_runtime/objectives/run_battle_intercept_objective_regression.cs - 成功 (5.45s)
+
+[68/527] [RUN] tests/battle_runtime/presentation/run_battle_skill_tooltip_regression.cs
+[63/527] [DONE] tests/battle_runtime/objectives/run_battle_node_operation_objective_regression.cs - 成功 (5.46s)
+
+[69/527] [RUN] tests/battle_runtime/rendering/run_battle_board_regression.cs
+[64/527] [DONE] tests/battle_runtime/objectives/run_battle_rescue_escort_objective_regression.cs - 成功 (5.55s)
+
+[70/527] [RUN] tests/battle_runtime/rendering/run_battle_board_render_profile_schema_regression.cs
+[65/527] [DONE] tests/battle_runtime/presentation/run_battle_board_native_lease_regression.cs - 成功 (5.83s)
+
+[71/527] [RUN] tests/battle_runtime/rendering/run_battle_board_terrain_mutation_regression.cs
+[66/527] [DONE] tests/battle_runtime/presentation/run_battle_hud_typed_projection_regression.cs - 成功 (5.83s)
+
+[72/527] [RUN] tests/battle_runtime/rendering/run_battle_command_dock_snapshot_regression.cs
+[67/527] [DONE] tests/battle_runtime/presentation/run_battle_presentation_delta_regression.cs - 成功 (5.37s)
+
+[73/527] [RUN] tests/battle_runtime/rendering/run_battle_hover_hp_predict_regression.cs
+[69/527] [DONE] tests/battle_runtime/rendering/run_battle_board_regression.cs - 成功 (5.76s)
+
+[74/527] [RUN] tests/battle_runtime/rendering/run_battle_player_sprite_regression.cs
+[70/527] [DONE] tests/battle_runtime/rendering/run_battle_board_render_profile_schema_regression.cs - 成功 (5.27s)
+
+[75/527] [RUN] tests/battle_runtime/rendering/run_battle_pwk_hover_preview_regression.cs
+[72/527] [DONE] tests/battle_runtime/rendering/run_battle_command_dock_snapshot_regression.cs - 成功 (6.04s)
+
+[76/527] [RUN] tests/battle_runtime/rendering/run_battle_status_badge_regression.cs
+[71/527] [DONE] tests/battle_runtime/rendering/run_battle_board_terrain_mutation_regression.cs - 成功 (6.39s)
+
+[77/527] [RUN] tests/battle_runtime/rendering/run_equipment_movement_trail_overlay_regression.cs
+[73/527] [DONE] tests/battle_runtime/rendering/run_battle_hover_hp_predict_regression.cs - 成功 (5.37s)
+
+[78/527] [RUN] tests/battle_runtime/rendering/run_phantasmal_kill_hover_preview_regression.cs
+[74/527] [DONE] tests/battle_runtime/rendering/run_battle_player_sprite_regression.cs - 成功 (5.74s)
+
+[79/527] [RUN] tests/battle_runtime/rules/run_attack_policy_parity_regression.cs
+[75/527] [DONE] tests/battle_runtime/rendering/run_battle_pwk_hover_preview_regression.cs - 成功 (5.46s)
+
+[80/527] [RUN] tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs
+[68/527] [DONE] tests/battle_runtime/presentation/run_battle_skill_tooltip_regression.cs - 成功 (12.58s)
+
+[81/527] [RUN] tests/battle_runtime/rules/run_battle_damage_preview_range_contract_regression.cs
+[76/527] [DONE] tests/battle_runtime/rendering/run_battle_status_badge_regression.cs - 成功 (5.37s)
+
+[82/527] [RUN] tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.cs
+[77/527] [DONE] tests/battle_runtime/rendering/run_equipment_movement_trail_overlay_regression.cs - 失败 exit=1 (5.64s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Equipment movement trail overlay regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Equipment movement trail overlay regression: 火步危险格应实际写入对应高度 OverlayH 层，而不只是存在配置。 | actual=-1 expected=36
+ERROR: [test] Equipment movement trail overlay regression: 火焰冲锋危险格应实际写入对应高度 OverlayH 层，而不只是存在配置。 | actual=-1 expected=37
+
+
+[83/527] [RUN] tests/battle_runtime/rules/run_battle_death_resolution_rules_regression.cs
+[78/527] [DONE] tests/battle_runtime/rendering/run_phantasmal_kill_hover_preview_regression.cs - 成功 (5.55s)
+
+[84/527] [RUN] tests/battle_runtime/rules/run_battle_effect_category_resolver_contract_regression.cs
+[79/527] [DONE] tests/battle_runtime/rules/run_attack_policy_parity_regression.cs - 成功 (5.37s)
+
+[85/527] [RUN] tests/battle_runtime/rules/run_battle_equipment_requirement_rules_regression.cs
+[80/527] [DONE] tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs - 成功 (5.37s)
+
+[86/527] [RUN] tests/battle_runtime/rules/run_battle_execution_rules_contract_regression.cs
+[81/527] [DONE] tests/battle_runtime/rules/run_battle_damage_preview_range_contract_regression.cs - 成功 (5.28s)
+
+[87/527] [RUN] tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs
+[82/527] [DONE] tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.cs - 成功 (5.60s)
+
+[88/527] [RUN] tests/battle_runtime/rules/run_battle_hit_rate_legacy_cleanup_regression.cs
+[83/527] [DONE] tests/battle_runtime/rules/run_battle_death_resolution_rules_regression.cs - 成功 (5.27s)
+
+[89/527] [RUN] tests/battle_runtime/rules/run_battle_hit_resolver_bab_regression.cs
+[84/527] [DONE] tests/battle_runtime/rules/run_battle_effect_category_resolver_contract_regression.cs - 成功 (5.37s)
+
+[90/527] [RUN] tests/battle_runtime/rules/run_battle_range_service_contract_regression.cs
+[85/527] [DONE] tests/battle_runtime/rules/run_battle_equipment_requirement_rules_regression.cs - 成功 (5.37s)
+
+[91/527] [RUN] tests/battle_runtime/rules/run_battle_report_formatter_contract_regression.cs
+[86/527] [DONE] tests/battle_runtime/rules/run_battle_execution_rules_contract_regression.cs - 成功 (5.37s)
+
+[92/527] [RUN] tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.cs
+[87/527] [DONE] tests/battle_runtime/rules/run_battle_hit_preview_contract_regression.cs - 成功 (5.92s)
+
+[93/527] [RUN] tests/battle_runtime/rules/run_battle_skill_resolution_rules_regression.cs
+[88/527] [DONE] tests/battle_runtime/rules/run_battle_hit_rate_legacy_cleanup_regression.cs - 成功 (5.37s)
+
+[94/527] [RUN] tests/battle_runtime/rules/run_battle_status_modifier_rules_regression.cs
+[89/527] [DONE] tests/battle_runtime/rules/run_battle_hit_resolver_bab_regression.cs - 成功 (5.47s)
+
+[95/527] [RUN] tests/battle_runtime/rules/run_battle_target_team_rules_regression.cs
+[90/527] [DONE] tests/battle_runtime/rules/run_battle_range_service_contract_regression.cs - 成功 (6.01s)
+
+[96/527] [RUN] tests/battle_runtime/rules/run_damage_application_projection_regression.cs
+[91/527] [DONE] tests/battle_runtime/rules/run_battle_report_formatter_contract_regression.cs - 成功 (5.28s)
+
+[97/527] [RUN] tests/battle_runtime/rules/run_damage_context_typed_regression.cs
+[92/527] [DONE] tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.cs - 成功 (5.55s)
+
+[98/527] [RUN] tests/battle_runtime/rules/run_damage_origin_context_regression.cs
+[93/527] [DONE] tests/battle_runtime/rules/run_battle_skill_resolution_rules_regression.cs - 成功 (5.37s)
+
+[99/527] [RUN] tests/battle_runtime/rules/run_damage_resistance_regression.cs
+[94/527] [DONE] tests/battle_runtime/rules/run_battle_status_modifier_rules_regression.cs - 成功 (5.56s)
+
+[100/527] [RUN] tests/battle_runtime/rules/run_dynamic_move_capacity_skill_range_regression.cs
+[95/527] [DONE] tests/battle_runtime/rules/run_battle_target_team_rules_regression.cs - 成功 (5.28s)
+
+[101/527] [RUN] tests/battle_runtime/rules/run_equipment_durability_selected_target_regression.cs
+[96/527] [DONE] tests/battle_runtime/rules/run_damage_application_projection_regression.cs - 成功 (5.37s)
+
+[102/527] [RUN] tests/battle_runtime/rules/run_extra_damage_segment_critical_regression.cs
+[97/527] [DONE] tests/battle_runtime/rules/run_damage_context_typed_regression.cs - 成功 (5.28s)
+
+[103/527] [RUN] tests/battle_runtime/rules/run_phantasmal_kill_execution_rules_regression.cs
+[98/527] [DONE] tests/battle_runtime/rules/run_damage_origin_context_regression.cs - 成功 (5.46s)
+
+[104/527] [RUN] tests/battle_runtime/rules/run_skill_attack_defense_mode_regression.cs
+[99/527] [DONE] tests/battle_runtime/rules/run_damage_resistance_regression.cs - 成功 (5.46s)
+
+[105/527] [RUN] tests/battle_runtime/rules/run_status_effect_semantics_regression.cs
+[100/527] [DONE] tests/battle_runtime/rules/run_dynamic_move_capacity_skill_range_regression.cs - 成功 (5.37s)
+
+[106/527] [RUN] tests/battle_runtime/rules/run_status_effect_typed_fields_regression.cs
+[101/527] [DONE] tests/battle_runtime/rules/run_equipment_durability_selected_target_regression.cs - 成功 (5.48s)
+
+[107/527] [RUN] tests/battle_runtime/rules/run_weapon_hit_combo_stack_regression.cs
+[102/527] [DONE] tests/battle_runtime/rules/run_extra_damage_segment_critical_regression.cs - 成功 (5.47s)
+
+[108/527] [RUN] tests/battle_runtime/runtime/run_action_cadence_tu_invariance_regression.cs
+[103/527] [DONE] tests/battle_runtime/rules/run_phantasmal_kill_execution_rules_regression.cs - 成功 (5.32s)
+
+[109/527] [RUN] tests/battle_runtime/runtime/run_action_threshold_floor_breakpoint_regression.cs
+[104/527] [DONE] tests/battle_runtime/rules/run_skill_attack_defense_mode_regression.cs - 成功 (5.39s)
+
+[110/527] [RUN] tests/battle_runtime/runtime/run_barrier_geometry_contract_regression.cs
+[105/527] [DONE] tests/battle_runtime/rules/run_status_effect_semantics_regression.cs - 成功 (5.55s)
+
+[111/527] [RUN] tests/battle_runtime/runtime/run_basic_attack_skill_role_regression.cs
+[106/527] [DONE] tests/battle_runtime/rules/run_status_effect_typed_fields_regression.cs - 成功 (5.46s)
+
+[112/527] [RUN] tests/battle_runtime/runtime/run_battle_barrier_move_cost_regression.cs
+[107/527] [DONE] tests/battle_runtime/rules/run_weapon_hit_combo_stack_regression.cs - 成功 (6.25s)
+
+[113/527] [RUN] tests/battle_runtime/runtime/run_battle_barrier_store_typed_regression.cs
+[108/527] [DONE] tests/battle_runtime/runtime/run_action_cadence_tu_invariance_regression.cs - 成功 (5.37s)
+
+[114/527] [RUN] tests/battle_runtime/runtime/run_battle_change_equipment_requirement_regression.cs
+[109/527] [DONE] tests/battle_runtime/runtime/run_action_threshold_floor_breakpoint_regression.cs - 成功 (5.39s)
+
+[115/527] [RUN] tests/battle_runtime/runtime/run_battle_contribution_event_builder_regression.cs
+[110/527] [DONE] tests/battle_runtime/runtime/run_barrier_geometry_contract_regression.cs - 成功 (5.29s)
+
+[116/527] [RUN] tests/battle_runtime/runtime/run_battle_execute_effect_regression.cs
+[111/527] [DONE] tests/battle_runtime/runtime/run_basic_attack_skill_role_regression.cs - 成功 (5.46s)
+
+[117/527] [RUN] tests/battle_runtime/runtime/run_battle_execute_ground_protocol_regression.cs
+[112/527] [DONE] tests/battle_runtime/runtime/run_battle_barrier_move_cost_regression.cs - 成功 (5.46s)
+
+[118/527] [RUN] tests/battle_runtime/runtime/run_battle_execute_lethal_regression.cs
+[113/527] [DONE] tests/battle_runtime/runtime/run_battle_barrier_store_typed_regression.cs - 成功 (5.37s)
+
+[119/527] [RUN] tests/battle_runtime/runtime/run_battle_execute_target_gate_regression.cs
+[114/527] [DONE] tests/battle_runtime/runtime/run_battle_change_equipment_requirement_regression.cs - 成功 (5.50s)
+
+[120/527] [RUN] tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs
+[115/527] [DONE] tests/battle_runtime/runtime/run_battle_contribution_event_builder_regression.cs - 成功 (5.28s)
+
+[121/527] [RUN] tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs
+[116/527] [DONE] tests/battle_runtime/runtime/run_battle_execute_effect_regression.cs - 成功 (5.38s)
+
+[122/527] [RUN] tests/battle_runtime/runtime/run_battle_loot_drop_luck_regression.cs
+[117/527] [DONE] tests/battle_runtime/runtime/run_battle_execute_ground_protocol_regression.cs - 成功 (5.37s)
+
+[123/527] [RUN] tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs
+[118/527] [DONE] tests/battle_runtime/runtime/run_battle_execute_lethal_regression.cs - 成功 (5.93s)
+
+[124/527] [RUN] tests/battle_runtime/runtime/run_battle_metrics_collector_regression.cs
+[119/527] [DONE] tests/battle_runtime/runtime/run_battle_execute_target_gate_regression.cs - 成功 (5.47s)
+
+[125/527] [RUN] tests/battle_runtime/runtime/run_battle_move_path_result_projection_regression.cs
+[120/527] [DONE] tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs - 成功 (5.60s)
+
+[126/527] [RUN] tests/battle_runtime/runtime/run_battle_movement_query_service_lifecycle_regression.cs
+[121/527] [DONE] tests/battle_runtime/runtime/run_battle_loot_commit_service_regression.cs - 成功 (6.66s)
+
+[127/527] [RUN] tests/battle_runtime/runtime/run_battle_projection_lease_regression.cs
+[122/527] [DONE] tests/battle_runtime/runtime/run_battle_loot_drop_luck_regression.cs - 成功 (6.58s)
+
+[128/527] [RUN] tests/battle_runtime/runtime/run_battle_rating_projection_regression.cs
+[123/527] [DONE] tests/battle_runtime/runtime/run_battle_map_panel_schema_regression.cs - 成功 (6.40s)
+
+[129/527] [RUN] tests/battle_runtime/runtime/run_battle_runtime_attack_check_smoke.cs
+[125/527] [DONE] tests/battle_runtime/runtime/run_battle_move_path_result_projection_regression.cs - 成功 (5.57s)
+
+[130/527] [RUN] tests/battle_runtime/runtime/run_battle_runtime_borrower_teardown_regression.cs
+[124/527] [DONE] tests/battle_runtime/runtime/run_battle_metrics_collector_regression.cs - 成功 (6.33s)
+
+[131/527] [RUN] tests/battle_runtime/runtime/run_battle_runtime_terrain_generator_ownership_regression.cs
+[126/527] [DONE] tests/battle_runtime/runtime/run_battle_movement_query_service_lifecycle_regression.cs - 成功 (5.48s)
+
+[132/527] [RUN] tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs
+[127/527] [DONE] tests/battle_runtime/runtime/run_battle_projection_lease_regression.cs - 成功 (5.46s)
+
+[133/527] [RUN] tests/battle_runtime/runtime/run_battle_shield_service_typed_context_regression.cs
+[128/527] [DONE] tests/battle_runtime/runtime/run_battle_rating_projection_regression.cs - 成功 (5.28s)
+
+[134/527] [RUN] tests/battle_runtime/runtime/run_battle_sim_analysis_output_contract_regression.cs
+[129/527] [DONE] tests/battle_runtime/runtime/run_battle_runtime_attack_check_smoke.cs - 成功 (5.47s)
+
+[135/527] [RUN] tests/battle_runtime/runtime/run_battle_sim_exception_cleanup_regression.cs
+[131/527] [DONE] tests/battle_runtime/runtime/run_battle_runtime_terrain_generator_ownership_regression.cs - 成功 (5.39s)
+
+[136/527] [RUN] tests/battle_runtime/runtime/run_battle_sim_report_output_regression.cs
+[130/527] [DONE] tests/battle_runtime/runtime/run_battle_runtime_borrower_teardown_regression.cs - 成功 (6.02s)
+
+[137/527] [RUN] tests/battle_runtime/runtime/run_battle_spawn_reachability_regression.cs
+[132/527] [DONE] tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs - 成功 (5.50s)
+
+[138/527] [RUN] tests/battle_runtime/runtime/run_battle_spawn_side_regression.cs
+[133/527] [DONE] tests/battle_runtime/runtime/run_battle_shield_service_typed_context_regression.cs - 成功 (5.47s)
+
+[139/527] [RUN] tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.cs
+[134/527] [DONE] tests/battle_runtime/runtime/run_battle_sim_analysis_output_contract_regression.cs - 成功 (5.37s)
+
+[140/527] [RUN] tests/battle_runtime/runtime/run_battle_target_collection_service_regression.cs
+[135/527] [DONE] tests/battle_runtime/runtime/run_battle_sim_exception_cleanup_regression.cs - 成功 (5.56s)
+
+[141/527] [RUN] tests/battle_runtime/runtime/run_battle_unit_factory_weapon_projection_regression.cs
+[136/527] [DONE] tests/battle_runtime/runtime/run_battle_sim_report_output_regression.cs - 成功 (5.37s)
+
+[142/527] [RUN] tests/battle_runtime/runtime/run_battle_validation_result_projection_regression.cs
+[137/527] [DONE] tests/battle_runtime/runtime/run_battle_spawn_reachability_regression.cs - 成功 (5.48s)
+
+[143/527] [RUN] tests/battle_runtime/runtime/run_bonecrusher_weapon_ability_regression.cs
+[138/527] [DONE] tests/battle_runtime/runtime/run_battle_spawn_side_regression.cs - 成功 (5.48s)
+
+[144/527] [RUN] tests/battle_runtime/runtime/run_butcher_weapon_ability_regression.cs
+[139/527] [DONE] tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.cs - 成功 (5.37s)
+
+[145/527] [RUN] tests/battle_runtime/runtime/run_combat_effect_heal_floor_target_limiter_regression.cs
+[140/527] [DONE] tests/battle_runtime/runtime/run_battle_target_collection_service_regression.cs - 成功 (5.49s)
+
+[146/527] [RUN] tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs
+[141/527] [DONE] tests/battle_runtime/runtime/run_battle_unit_factory_weapon_projection_regression.cs - 成功 (5.56s)
+
+[147/527] [RUN] tests/battle_runtime/runtime/run_contingency_battle_lifecycle_regression.cs
+[142/527] [DONE] tests/battle_runtime/runtime/run_battle_validation_result_projection_regression.cs - 成功 (5.65s)
+
+[148/527] [RUN] tests/battle_runtime/runtime/run_contingency_damage_hook_contract_regression.cs
+[143/527] [DONE] tests/battle_runtime/runtime/run_bonecrusher_weapon_ability_regression.cs - 成功 (5.90s)
+
+[149/527] [RUN] tests/battle_runtime/runtime/run_contingency_target_resolver_regression.cs
+[144/527] [DONE] tests/battle_runtime/runtime/run_butcher_weapon_ability_regression.cs - 成功 (5.65s)
+
+[150/527] [RUN] tests/battle_runtime/runtime/run_contingency_trigger_contract_regression.cs
+[145/527] [DONE] tests/battle_runtime/runtime/run_combat_effect_heal_floor_target_limiter_regression.cs - 成功 (5.55s)
+
+[151/527] [RUN] tests/battle_runtime/runtime/run_control_status_contract_regression.cs
+[146/527] [DONE] tests/battle_runtime/runtime/run_contingency_autocast_origin_regression.cs - 成功 (6.30s)
+
+[152/527] [RUN] tests/battle_runtime/runtime/run_courage_weapon_ability_regression.cs
+[147/527] [DONE] tests/battle_runtime/runtime/run_contingency_battle_lifecycle_regression.cs - 成功 (5.92s)
+
+[153/527] [RUN] tests/battle_runtime/runtime/run_cowardice_weapon_ability_regression.cs
+[148/527] [DONE] tests/battle_runtime/runtime/run_contingency_damage_hook_contract_regression.cs - 成功 (5.60s)
+
+[154/527] [RUN] tests/battle_runtime/runtime/run_double_edged_weapon_ability_regression.cs
+[149/527] [DONE] tests/battle_runtime/runtime/run_contingency_target_resolver_regression.cs - 成功 (5.57s)
+
+[155/527] [RUN] tests/battle_runtime/runtime/run_dragon_scale_battleaxe_weapon_ability_regression.cs
+[150/527] [DONE] tests/battle_runtime/runtime/run_contingency_trigger_contract_regression.cs - 成功 (5.46s)
+
+[156/527] [RUN] tests/battle_runtime/runtime/run_dragon_scale_dragon_blood_boil_regression.cs
+[151/527] [DONE] tests/battle_runtime/runtime/run_control_status_contract_regression.cs - 成功 (5.37s)
+
+[157/527] [RUN] tests/battle_runtime/runtime/run_dragon_scale_set_regression.cs
+[152/527] [DONE] tests/battle_runtime/runtime/run_courage_weapon_ability_regression.cs - 成功 (5.83s)
+
+[158/527] [RUN] tests/battle_runtime/runtime/run_dragonbone_weapon_ability_regression.cs
+[153/527] [DONE] tests/battle_runtime/runtime/run_cowardice_weapon_ability_regression.cs - 成功 (5.74s)
+
+[159/527] [RUN] tests/battle_runtime/runtime/run_echo_weapon_ability_regression.cs
+[154/527] [DONE] tests/battle_runtime/runtime/run_double_edged_weapon_ability_regression.cs - 成功 (5.75s)
+
+[160/527] [RUN] tests/battle_runtime/runtime/run_encounter_roster_builder_typed_boundary_regression.cs
+[155/527] [DONE] tests/battle_runtime/runtime/run_dragon_scale_battleaxe_weapon_ability_regression.cs - 成功 (5.74s)
+
+[161/527] [RUN] tests/battle_runtime/runtime/run_encounter_roster_loot_preview_regression.cs
+[156/527] [DONE] tests/battle_runtime/runtime/run_dragon_scale_dragon_blood_boil_regression.cs - 成功 (5.83s)
+
+[162/527] [RUN] tests/battle_runtime/runtime/run_enemy_action_threshold_derivation_regression.cs
+[157/527] [DONE] tests/battle_runtime/runtime/run_dragon_scale_set_regression.cs - 成功 (5.74s)
+
+[163/527] [RUN] tests/battle_runtime/runtime/run_enemy_template_attribute_projection_regression.cs
+[158/527] [DONE] tests/battle_runtime/runtime/run_dragonbone_weapon_ability_regression.cs - 成功 (5.74s)
+
+[164/527] [RUN] tests/battle_runtime/runtime/run_equipment_ability_preview_integrity_regression.cs
+[159/527] [DONE] tests/battle_runtime/runtime/run_echo_weapon_ability_regression.cs - 成功 (5.65s)
+
+[165/527] [RUN] tests/battle_runtime/runtime/run_equipment_attack_hit_reaction_regression.cs
+[160/527] [DONE] tests/battle_runtime/runtime/run_encounter_roster_builder_typed_boundary_regression.cs - 成功 (5.65s)
+
+[166/527] [RUN] tests/battle_runtime/runtime/run_equipment_bonus_damage_replacement_regression.cs
+[161/527] [DONE] tests/battle_runtime/runtime/run_encounter_roster_loot_preview_regression.cs - 成功 (5.28s)
+
+[167/527] [RUN] tests/battle_runtime/runtime/run_equipment_conditional_mitigation_tier_regression.cs
+[162/527] [DONE] tests/battle_runtime/runtime/run_enemy_action_threshold_derivation_regression.cs - 成功 (5.65s)
+
+[168/527] [RUN] tests/battle_runtime/runtime/run_equipment_direct_effect_bonus_dice_regression.cs
+[163/527] [DONE] tests/battle_runtime/runtime/run_enemy_template_attribute_projection_regression.cs - 成功 (5.37s)
+
+[169/527] [RUN] tests/battle_runtime/runtime/run_equipment_fatal_intercept_runtime_regression.cs
+[164/527] [DONE] tests/battle_runtime/runtime/run_equipment_ability_preview_integrity_regression.cs - 成功 (5.84s)
+
+[170/527] [RUN] tests/battle_runtime/runtime/run_equipment_finalized_damage_status_ac_regression.cs
+[165/527] [DONE] tests/battle_runtime/runtime/run_equipment_attack_hit_reaction_regression.cs - 成功 (5.51s)
+
+[171/527] [RUN] tests/battle_runtime/runtime/run_equipment_mitigation_aura_regression.cs
+[166/527] [DONE] tests/battle_runtime/runtime/run_equipment_bonus_damage_replacement_regression.cs - 成功 (5.37s)
+
+[172/527] [RUN] tests/battle_runtime/runtime/run_equipment_movement_trail_regression.cs
+[167/527] [DONE] tests/battle_runtime/runtime/run_equipment_conditional_mitigation_tier_regression.cs - 成功 (5.56s)
+
+[173/527] [RUN] tests/battle_runtime/runtime/run_equipment_source_bound_status_cleanup_regression.cs
+[168/527] [DONE] tests/battle_runtime/runtime/run_equipment_direct_effect_bonus_dice_regression.cs - 成功 (5.47s)
+
+[174/527] [RUN] tests/battle_runtime/runtime/run_equipment_weapon_profile_overlay_regression.cs
+[169/527] [DONE] tests/battle_runtime/runtime/run_equipment_fatal_intercept_runtime_regression.cs - 成功 (5.55s)
+
+[175/527] [RUN] tests/battle_runtime/runtime/run_eternity_edge_weapon_ability_regression.cs
+[170/527] [DONE] tests/battle_runtime/runtime/run_equipment_finalized_damage_status_ac_regression.cs - 成功 (5.46s)
+
+[176/527] [RUN] tests/battle_runtime/runtime/run_executioner_axe_weapon_ability_regression.cs
+[171/527] [DONE] tests/battle_runtime/runtime/run_equipment_mitigation_aura_regression.cs - 成功 (5.38s)
+
+[177/527] [RUN] tests/battle_runtime/runtime/run_fixed_repeat_attack_execution_regression.cs
+[172/527] [DONE] tests/battle_runtime/runtime/run_equipment_movement_trail_regression.cs - 成功 (5.46s)
+
+[178/527] [RUN] tests/battle_runtime/runtime/run_flame_morningstar_weapon_ability_regression.cs
+[173/527] [DONE] tests/battle_runtime/runtime/run_equipment_source_bound_status_cleanup_regression.cs - 成功 (5.48s)
+
+[179/527] [RUN] tests/battle_runtime/runtime/run_frost_mace_weapon_ability_regression.cs
+[174/527] [DONE] tests/battle_runtime/runtime/run_equipment_weapon_profile_overlay_regression.cs - 成功 (5.55s)
+
+[180/527] [RUN] tests/battle_runtime/runtime/run_frostbite_weapon_ability_regression.cs
+[175/527] [DONE] tests/battle_runtime/runtime/run_eternity_edge_weapon_ability_regression.cs - 成功 (5.65s)
+
+[181/527] [RUN] tests/battle_runtime/runtime/run_giants_heel_weapon_ability_regression.cs
+[177/527] [DONE] tests/battle_runtime/runtime/run_fixed_repeat_attack_execution_regression.cs - 成功 (5.56s)
+
+[182/527] [RUN] tests/battle_runtime/runtime/run_glory_weapon_ability_regression.cs
+[176/527] [DONE] tests/battle_runtime/runtime/run_executioner_axe_weapon_ability_regression.cs - 成功 (5.92s)
+
+[183/527] [RUN] tests/battle_runtime/runtime/run_glutton_weapon_ability_regression.cs
+[178/527] [DONE] tests/battle_runtime/runtime/run_flame_morningstar_weapon_ability_regression.cs - 成功 (5.65s)
+
+[184/527] [RUN] tests/battle_runtime/runtime/run_gorgon_crossbow_weapon_ability_regression.cs
+[179/527] [DONE] tests/battle_runtime/runtime/run_frost_mace_weapon_ability_regression.cs - 成功 (5.74s)
+
+[185/527] [RUN] tests/battle_runtime/runtime/run_heartbane_weapon_ability_regression.cs
+[180/527] [DONE] tests/battle_runtime/runtime/run_frostbite_weapon_ability_regression.cs - 成功 (5.84s)
+
+[186/527] [RUN] tests/battle_runtime/runtime/run_hunter_axe_weapon_ability_regression.cs
+[181/527] [DONE] tests/battle_runtime/runtime/run_giants_heel_weapon_ability_regression.cs - 成功 (5.83s)
+
+[187/527] [RUN] tests/battle_runtime/runtime/run_last_lesson_weapon_ability_regression.cs
+[182/527] [DONE] tests/battle_runtime/runtime/run_glory_weapon_ability_regression.cs - 成功 (5.73s)
+
+[188/527] [RUN] tests/battle_runtime/runtime/run_lumberjack_axe_weapon_ability_regression.cs
+[183/527] [DONE] tests/battle_runtime/runtime/run_glutton_weapon_ability_regression.cs - 成功 (5.73s)
+
+[189/527] [RUN] tests/battle_runtime/runtime/run_lunareclipse_weapon_ability_regression.cs
+[184/527] [DONE] tests/battle_runtime/runtime/run_gorgon_crossbow_weapon_ability_regression.cs - 成功 (5.84s)
+
+[190/527] [RUN] tests/battle_runtime/runtime/run_memoryeater_vine_weapon_ability_regression.cs
+[185/527] [DONE] tests/battle_runtime/runtime/run_heartbane_weapon_ability_regression.cs - 成功 (5.75s)
+
+[191/527] [RUN] tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs
+[186/527] [DONE] tests/battle_runtime/runtime/run_hunter_axe_weapon_ability_regression.cs - 成功 (5.79s)
+
+[192/527] [RUN] tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs
+[187/527] [DONE] tests/battle_runtime/runtime/run_last_lesson_weapon_ability_regression.cs - 成功 (5.73s)
+
+[193/527] [RUN] tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs
+[188/527] [DONE] tests/battle_runtime/runtime/run_lumberjack_axe_weapon_ability_regression.cs - 成功 (5.74s)
+
+[194/527] [RUN] tests/battle_runtime/runtime/run_mountainbreaker_weapon_ability_regression.cs
+[189/527] [DONE] tests/battle_runtime/runtime/run_lunareclipse_weapon_ability_regression.cs - 成功 (5.78s)
+
+[195/527] [RUN] tests/battle_runtime/runtime/run_movement_query_typed_result_regression.cs
+[190/527] [DONE] tests/battle_runtime/runtime/run_memoryeater_vine_weapon_ability_regression.cs - 成功 (5.74s)
+
+[196/527] [RUN] tests/battle_runtime/runtime/run_oathscar_weapon_ability_regression.cs
+[191/527] [DONE] tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs - 成功 (5.39s)
+
+[197/527] [RUN] tests/battle_runtime/runtime/run_phoenix_bow_weapon_ability_regression.cs
+[192/527] [DONE] tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs - 成功 (5.37s)
+
+[198/527] [RUN] tests/battle_runtime/runtime/run_phoenix_rebirth_body_cloak_behavior_regression.cs
+[193/527] [DONE] tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.cs - 成功 (5.66s)
+
+[199/527] [RUN] tests/battle_runtime/runtime/run_phoenix_rebirth_set_regression.cs
+[195/527] [DONE] tests/battle_runtime/runtime/run_movement_query_typed_result_regression.cs - 成功 (5.39s)
+
+[200/527] [RUN] tests/battle_runtime/runtime/run_phoenix_rebirth_single_item_behavior_regression.cs
+[194/527] [DONE] tests/battle_runtime/runtime/run_mountainbreaker_weapon_ability_regression.cs - 成功 (5.65s)
+
+[201/527] [RUN] tests/battle_runtime/runtime/run_plague_tongue_weapon_ability_regression.cs
+[197/527] [DONE] tests/battle_runtime/runtime/run_phoenix_bow_weapon_ability_regression.cs - 成功 (5.66s)
+
+[202/527] [RUN] tests/battle_runtime/runtime/run_prismatic_random_chain_breaker_preview_regression.cs
+[196/527] [DONE] tests/battle_runtime/runtime/run_oathscar_weapon_ability_regression.cs - 成功 (5.75s)
+
+[203/527] [RUN] tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs
+[198/527] [DONE] tests/battle_runtime/runtime/run_phoenix_rebirth_body_cloak_behavior_regression.cs - 成功 (5.74s)
+
+[204/527] [RUN] tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs
+[199/527] [DONE] tests/battle_runtime/runtime/run_phoenix_rebirth_set_regression.cs - 成功 (5.84s)
+
+[205/527] [RUN] tests/battle_runtime/runtime/run_ravenplume_weapon_ability_regression.cs
+[200/527] [DONE] tests/battle_runtime/runtime/run_phoenix_rebirth_single_item_behavior_regression.cs - 成功 (5.74s)
+
+[206/527] [RUN] tests/battle_runtime/runtime/run_repeat_attack_decay_multiplier_regression.cs
+[201/527] [DONE] tests/battle_runtime/runtime/run_plague_tongue_weapon_ability_regression.cs - 成功 (5.74s)
+
+[207/527] [RUN] tests/battle_runtime/runtime/run_rock_halberd_weapon_ability_regression.cs
+[202/527] [DONE] tests/battle_runtime/runtime/run_prismatic_random_chain_breaker_preview_regression.cs - 成功 (5.57s)
+
+[208/527] [RUN] tests/battle_runtime/runtime/run_rustanchor_weapon_ability_regression.cs
+[203/527] [DONE] tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs - 成功 (6.58s)
+
+[209/527] [RUN] tests/battle_runtime/runtime/run_rustoath_weapon_ability_regression.cs
+[204/527] [DONE] tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs - 成功 (5.65s)
+
+[210/527] [RUN] tests/battle_runtime/runtime/run_sacred_hammer_weapon_ability_regression.cs
+[205/527] [DONE] tests/battle_runtime/runtime/run_ravenplume_weapon_ability_regression.cs - 成功 (5.69s)
+
+[211/527] [RUN] tests/battle_runtime/runtime/run_sands_time_weapon_ability_regression.cs
+[206/527] [DONE] tests/battle_runtime/runtime/run_repeat_attack_decay_multiplier_regression.cs - 成功 (5.46s)
+
+[212/527] [RUN] tests/battle_runtime/runtime/run_save_index_resilience_regression.cs
+[207/527] [DONE] tests/battle_runtime/runtime/run_rock_halberd_weapon_ability_regression.cs - 成功 (5.46s)
+
+[213/527] [RUN] tests/battle_runtime/runtime/run_scorpion_bow_weapon_ability_regression.cs
+[208/527] [DONE] tests/battle_runtime/runtime/run_rustanchor_weapon_ability_regression.cs - 成功 (5.64s)
+
+[214/527] [RUN] tests/battle_runtime/runtime/run_shieldbreaker_guard_breaker_regression.cs
+[209/527] [DONE] tests/battle_runtime/runtime/run_rustoath_weapon_ability_regression.cs - 成功 (5.74s)
+
+[215/527] [RUN] tests/battle_runtime/runtime/run_shieldbreaker_weapon_projection_regression.cs
+[210/527] [DONE] tests/battle_runtime/runtime/run_sacred_hammer_weapon_ability_regression.cs - 成功 (5.74s)
+
+[216/527] [RUN] tests/battle_runtime/runtime/run_smiths_regret_weapon_ability_regression.cs
+[211/527] [DONE] tests/battle_runtime/runtime/run_sands_time_weapon_ability_regression.cs - 成功 (5.65s)
+
+[217/527] [RUN] tests/battle_runtime/runtime/run_spider_spear_weapon_ability_regression.cs
+[213/527] [DONE] tests/battle_runtime/runtime/run_scorpion_bow_weapon_ability_regression.cs - 成功 (5.65s)
+
+[218/527] [RUN] tests/battle_runtime/runtime/run_starfell_stardust_weapon_ability_regression.cs
+[212/527] [DONE] tests/battle_runtime/runtime/run_save_index_resilience_regression.cs - 成功 (5.83s)
+
+[219/527] [RUN] tests/battle_runtime/runtime/run_starfell_weapon_ability_regression.cs
+[214/527] [DONE] tests/battle_runtime/runtime/run_shieldbreaker_guard_breaker_regression.cs - 成功 (5.60s)
+
+[220/527] [RUN] tests/battle_runtime/runtime/run_starfragment_weapon_ability_regression.cs
+[215/527] [DONE] tests/battle_runtime/runtime/run_shieldbreaker_weapon_projection_regression.cs - 成功 (5.37s)
+
+[221/527] [RUN] tests/battle_runtime/runtime/run_storms_eye_weapon_ability_regression.cs
+[216/527] [DONE] tests/battle_runtime/runtime/run_smiths_regret_weapon_ability_regression.cs - 成功 (5.65s)
+
+[222/527] [RUN] tests/battle_runtime/runtime/run_temporal_status_semantics_regression.cs
+[217/527] [DONE] tests/battle_runtime/runtime/run_spider_spear_weapon_ability_regression.cs - 成功 (5.56s)
+
+[223/527] [RUN] tests/battle_runtime/runtime/run_threadweaver_weapon_ability_regression.cs
+[219/527] [DONE] tests/battle_runtime/runtime/run_starfell_weapon_ability_regression.cs - 成功 (5.47s)
+
+[224/527] [RUN] tests/battle_runtime/runtime/run_thunder_halberd_weapon_ability_regression.cs
+[218/527] [DONE] tests/battle_runtime/runtime/run_starfell_stardust_weapon_ability_regression.cs - 成功 (5.75s)
+
+[225/527] [RUN] tests/battle_runtime/runtime/run_thunderbow_weapon_ability_regression.cs
+[220/527] [DONE] tests/battle_runtime/runtime/run_starfragment_weapon_ability_regression.cs - 成功 (5.75s)
+
+[226/527] [RUN] tests/battle_runtime/runtime/run_thunderfang_weapon_ability_regression.cs
+[221/527] [DONE] tests/battle_runtime/runtime/run_storms_eye_weapon_ability_regression.cs - 成功 (5.68s)
+
+[227/527] [RUN] tests/battle_runtime/runtime/run_titanbow_weapon_ability_regression.cs
+[222/527] [DONE] tests/battle_runtime/runtime/run_temporal_status_semantics_regression.cs - 成功 (5.56s)
+
+[228/527] [RUN] tests/battle_runtime/runtime/run_trait_save_tag_bonus_regression.cs
+[223/527] [DONE] tests/battle_runtime/runtime/run_threadweaver_weapon_ability_regression.cs - 成功 (5.74s)
+
+[229/527] [RUN] tests/battle_runtime/runtime/run_tremor_weapon_ability_regression.cs
+[224/527] [DONE] tests/battle_runtime/runtime/run_thunder_halberd_weapon_ability_regression.cs - 成功 (5.67s)
+
+[230/527] [RUN] tests/battle_runtime/runtime/run_twilight_edge_weapon_ability_regression.cs
+[225/527] [DONE] tests/battle_runtime/runtime/run_thunderbow_weapon_ability_regression.cs - 成功 (5.75s)
+
+[231/527] [RUN] tests/battle_runtime/runtime/run_umbrella_sword_weapon_ability_regression.cs
+[226/527] [DONE] tests/battle_runtime/runtime/run_thunderfang_weapon_ability_regression.cs - 成功 (5.83s)
+
+[232/527] [RUN] tests/battle_runtime/runtime/run_unit_skill_exclude_source_living_target_regression.cs
+[227/527] [DONE] tests/battle_runtime/runtime/run_titanbow_weapon_ability_regression.cs - 成功 (5.74s)
+
+[233/527] [RUN] tests/battle_runtime/runtime/run_viper_morningstar_weapon_ability_regression.cs
+[228/527] [DONE] tests/battle_runtime/runtime/run_trait_save_tag_bonus_regression.cs - 成功 (5.46s)
+
+[234/527] [RUN] tests/battle_runtime/runtime/run_void_axe_weapon_ability_regression.cs
+[229/527] [DONE] tests/battle_runtime/runtime/run_tremor_weapon_ability_regression.cs - 成功 (5.83s)
+
+[235/527] [RUN] tests/battle_runtime/runtime/run_wild_encounter_roster_typed_regression.cs
+[230/527] [DONE] tests/battle_runtime/runtime/run_twilight_edge_weapon_ability_regression.cs - 成功 (5.74s)
+
+[236/527] [RUN] tests/battle_runtime/runtime/run_windbow_weapon_ability_regression.cs
+[231/527] [DONE] tests/battle_runtime/runtime/run_umbrella_sword_weapon_ability_regression.cs - 成功 (5.64s)
+
+[237/527] [RUN] tests/battle_runtime/runtime/run_wolf_bow_weapon_ability_regression.cs
+[232/527] [DONE] tests/battle_runtime/runtime/run_unit_skill_exclude_source_living_target_regression.cs - 成功 (5.74s)
+
+[238/527] [RUN] tests/battle_runtime/runtime/run_wyrmbreak_weapon_ability_regression.cs
+[233/527] [DONE] tests/battle_runtime/runtime/run_viper_morningstar_weapon_ability_regression.cs - 成功 (5.83s)
+
+[239/527] [RUN] tests/battle_runtime/schema/run_stage6_battle_json_contract_regression.cs
+[234/527] [DONE] tests/battle_runtime/runtime/run_void_axe_weapon_ability_regression.cs - 成功 (5.75s)
+
+[240/527] [RUN] tests/battle_runtime/skills/run_archer_backstep_shot_regression.cs
+[235/527] [DONE] tests/battle_runtime/runtime/run_wild_encounter_roster_typed_regression.cs - 成功 (5.59s)
+
+[241/527] [RUN] tests/battle_runtime/skills/run_archer_breach_barrage_regression.cs
+[236/527] [DONE] tests/battle_runtime/runtime/run_windbow_weapon_ability_regression.cs - 成功 (5.55s)
+
+[242/527] [RUN] tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs
+[237/527] [DONE] tests/battle_runtime/runtime/run_wolf_bow_weapon_ability_regression.cs - 成功 (5.74s)
+
+[243/527] [RUN] tests/battle_runtime/skills/run_archer_double_nock_regression.cs
+[238/527] [DONE] tests/battle_runtime/runtime/run_wyrmbreak_weapon_ability_regression.cs - 成功 (5.93s)
+
+[244/527] [RUN] tests/battle_runtime/skills/run_archer_flash_whistle_regression.cs
+[239/527] [DONE] tests/battle_runtime/schema/run_stage6_battle_json_contract_regression.cs - 成功 (5.46s)
+
+[245/527] [RUN] tests/battle_runtime/skills/run_archer_grapple_ascent_regression.cs
+[240/527] [DONE] tests/battle_runtime/skills/run_archer_backstep_shot_regression.cs - 成功 (6.48s)
+
+[246/527] [RUN] tests/battle_runtime/skills/run_archer_harrier_mark_regression.cs
+[241/527] [DONE] tests/battle_runtime/skills/run_archer_breach_barrage_regression.cs - 成功 (6.40s)
+
+[247/527] [RUN] tests/battle_runtime/skills/run_archer_long_draw_regression.cs
+[243/527] [DONE] tests/battle_runtime/skills/run_archer_double_nock_regression.cs - 成功 (6.30s)
+
+[248/527] [RUN] tests/battle_runtime/skills/run_archer_repel_arrow_regression.cs
+[242/527] [DONE] tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs - 成功 (6.76s)
+
+[249/527] [RUN] tests/battle_runtime/skills/run_archer_suppressive_fire_regression.cs
+[244/527] [DONE] tests/battle_runtime/skills/run_archer_flash_whistle_regression.cs - 成功 (6.20s)
+
+[250/527] [RUN] tests/battle_runtime/skills/run_archer_tripwire_arrow_regression.cs
+[245/527] [DONE] tests/battle_runtime/skills/run_archer_grapple_ascent_regression.cs - 成功 (6.29s)
+
+[251/527] [RUN] tests/battle_runtime/skills/run_battle_on_kill_gain_resources_regression.cs
+[246/527] [DONE] tests/battle_runtime/skills/run_archer_harrier_mark_regression.cs - 成功 (6.01s)
+
+[252/527] [RUN] tests/battle_runtime/skills/run_battle_weapon_dice_regression.cs
+[247/527] [DONE] tests/battle_runtime/skills/run_archer_long_draw_regression.cs - 成功 (6.20s)
+
+[253/527] [RUN] tests/battle_runtime/skills/run_dragon_breath_regression.cs
+[249/527] [DONE] tests/battle_runtime/skills/run_archer_suppressive_fire_regression.cs - 成功 (6.11s)
+
+[254/527] [RUN] tests/battle_runtime/skills/run_hunter_mark_skill_regression.cs
+[248/527] [DONE] tests/battle_runtime/skills/run_archer_repel_arrow_regression.cs - 成功 (6.20s)
+
+[255/527] [RUN] tests/battle_runtime/skills/run_jump_arc_regression_typed.cs
+[250/527] [DONE] tests/battle_runtime/skills/run_archer_tripwire_arrow_regression.cs - 成功 (6.29s)
+
+[256/527] [RUN] tests/battle_runtime/skills/run_mage_arcane_missile_regression.cs
+[251/527] [DONE] tests/battle_runtime/skills/run_battle_on_kill_gain_resources_regression.cs - 成功 (6.40s)
+
+[257/527] [RUN] tests/battle_runtime/skills/run_mage_arcane_orbit_regression.cs
+[252/527] [DONE] tests/battle_runtime/skills/run_battle_weapon_dice_regression.cs - 成功 (5.87s)
+
+[258/527] [RUN] tests/battle_runtime/skills/run_mage_bone_chill_regression.cs
+[253/527] [DONE] tests/battle_runtime/skills/run_dragon_breath_regression.cs - 成功 (6.29s)
+
+[259/527] [RUN] tests/battle_runtime/skills/run_mage_burning_hands_regression.cs
+[255/527] [DONE] tests/battle_runtime/skills/run_jump_arc_regression_typed.cs - 成功 (5.46s)
+
+[260/527] [RUN] tests/battle_runtime/skills/run_mage_chain_lightning_regression.cs
+[254/527] [DONE] tests/battle_runtime/skills/run_hunter_mark_skill_regression.cs - 成功 (6.01s)
+
+[261/527] [RUN] tests/battle_runtime/skills/run_mage_color_spray_regression.cs
+[256/527] [DONE] tests/battle_runtime/skills/run_mage_arcane_missile_regression.cs - 成功 (6.38s)
+
+[262/527] [RUN] tests/battle_runtime/skills/run_mage_dimension_swap_regression.cs
+[257/527] [DONE] tests/battle_runtime/skills/run_mage_arcane_orbit_regression.cs - 成功 (6.29s)
+
+[263/527] [RUN] tests/battle_runtime/skills/run_mage_force_lance_regression.cs
+[258/527] [DONE] tests/battle_runtime/skills/run_mage_bone_chill_regression.cs - 成功 (6.30s)
+
+[264/527] [RUN] tests/battle_runtime/skills/run_mage_frost_bolt_regression.cs
+[259/527] [DONE] tests/battle_runtime/skills/run_mage_burning_hands_regression.cs - 成功 (6.30s)
+
+[265/527] [RUN] tests/battle_runtime/skills/run_mage_gust_of_wind_regression.cs
+[260/527] [DONE] tests/battle_runtime/skills/run_mage_chain_lightning_regression.cs - 成功 (6.29s)
+
+[266/527] [RUN] tests/battle_runtime/skills/run_mage_sleep_dust_regression.cs
+[261/527] [DONE] tests/battle_runtime/skills/run_mage_color_spray_regression.cs - 成功 (6.20s)
+
+[267/527] [RUN] tests/battle_runtime/skills/run_mage_voltage_hook_regression.cs
+[262/527] [DONE] tests/battle_runtime/skills/run_mage_dimension_swap_regression.cs - 成功 (6.20s)
+
+[268/527] [RUN] tests/battle_runtime/skills/run_magic_backlash_regression.cs
+[263/527] [DONE] tests/battle_runtime/skills/run_mage_force_lance_regression.cs - 成功 (6.20s)
+
+[269/527] [RUN] tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs
+[264/527] [DONE] tests/battle_runtime/skills/run_mage_frost_bolt_regression.cs - 成功 (6.20s)
+
+[270/527] [RUN] tests/battle_runtime/skills/run_passive_status_orchestrator_regression.cs
+[265/527] [DONE] tests/battle_runtime/skills/run_mage_gust_of_wind_regression.cs - 成功 (6.29s)
+
+[271/527] [RUN] tests/battle_runtime/skills/run_phantasmal_kill_regression.cs
+[266/527] [DONE] tests/battle_runtime/skills/run_mage_sleep_dust_regression.cs - 成功 (6.29s)
+
+[272/527] [RUN] tests/battle_runtime/skills/run_priest_aid_regression.cs
+[267/527] [DONE] tests/battle_runtime/skills/run_mage_voltage_hook_regression.cs - 成功 (6.34s)
+
+[273/527] [RUN] tests/battle_runtime/skills/run_spell_disjunction_equipment_durability_regression.cs
+[268/527] [DONE] tests/battle_runtime/skills/run_magic_backlash_regression.cs - 成功 (6.29s)
+
+[274/527] [RUN] tests/battle_runtime/skills/run_time_stasis_regression.cs
+[270/527] [DONE] tests/battle_runtime/skills/run_passive_status_orchestrator_regression.cs - 成功 (5.64s)
+
+[275/527] [RUN] tests/battle_runtime/skills/run_titan_colossus_form_regression.cs
+[269/527] [DONE] tests/battle_runtime/skills/run_meteor_swarm_special_profile_regression.cs - 成功 (6.47s)
+
+[276/527] [RUN] tests/battle_runtime/skills/run_trait_trigger_regression.cs
+[271/527] [DONE] tests/battle_runtime/skills/run_phantasmal_kill_regression.cs - 成功 (6.29s)
+
+[277/527] [RUN] tests/battle_runtime/skills/run_warrior_chain_slashes_regression.cs
+[273/527] [DONE] tests/battle_runtime/skills/run_spell_disjunction_equipment_durability_regression.cs - 成功 (5.36s)
+
+[278/527] [RUN] tests/battle_runtime/skills/run_warrior_double_strike_regression.cs
+[272/527] [DONE] tests/battle_runtime/skills/run_priest_aid_regression.cs - 成功 (6.10s)
+
+[279/527] [RUN] tests/battle_runtime/skills/run_warrior_guard_break_regression.cs
+[274/527] [DONE] tests/battle_runtime/skills/run_time_stasis_regression.cs - 成功 (5.64s)
+
+[280/527] [RUN] tests/battle_runtime/skills/run_warrior_hamstring_regression.cs
+[276/527] [DONE] tests/battle_runtime/skills/run_trait_trigger_regression.cs - 成功 (5.36s)
+
+[281/527] [RUN] tests/battle_runtime/skills/run_warrior_heavy_blow_windup_regression.cs
+[275/527] [DONE] tests/battle_runtime/skills/run_titan_colossus_form_regression.cs - 成功 (5.64s)
+
+[282/527] [RUN] tests/battle_runtime/skills/run_warrior_night_pressure_regression.cs
+[277/527] [DONE] tests/battle_runtime/skills/run_warrior_chain_slashes_regression.cs - 成功 (6.10s)
+
+[283/527] [RUN] tests/battle_runtime/skills/run_warrior_nine_echo_final_hammer_regression.cs
+[278/527] [DONE] tests/battle_runtime/skills/run_warrior_double_strike_regression.cs - 成功 (6.11s)
+
+[284/527] [RUN] tests/battle_runtime/skills/run_warrior_over_shoulder_regression.cs
+[279/527] [DONE] tests/battle_runtime/skills/run_warrior_guard_break_regression.cs - 成功 (6.15s)
+
+[285/527] [RUN] tests/battle_runtime/skills/run_warrior_overhead_chop_regression.cs
+[280/527] [DONE] tests/battle_runtime/skills/run_warrior_hamstring_regression.cs - 成功 (5.36s)
+
+[286/527] [RUN] tests/battle_runtime/skills/run_warrior_perfect_rhythm_regression.cs
+[282/527] [DONE] tests/battle_runtime/skills/run_warrior_night_pressure_regression.cs - 成功 (6.10s)
+
+[287/527] [RUN] tests/battle_runtime/skills/run_warrior_phantom_through_regression.cs
+[281/527] [DONE] tests/battle_runtime/skills/run_warrior_heavy_blow_windup_regression.cs - 成功 (6.94s)
+
+[288/527] [RUN] tests/battle_runtime/skills/run_warrior_piercing_thrust_regression.cs
+[283/527] [DONE] tests/battle_runtime/skills/run_warrior_nine_echo_final_hammer_regression.cs - 成功 (6.52s)
+
+[289/527] [RUN] tests/battle_runtime/skills/run_warrior_repeat_attack_mastery_bonus_regression.cs
+[284/527] [DONE] tests/battle_runtime/skills/run_warrior_over_shoulder_regression.cs - 成功 (6.57s)
+
+[290/527] [RUN] tests/battle_runtime/skills/run_warrior_repeat_skill_tier_regression.cs
+[285/527] [DONE] tests/battle_runtime/skills/run_warrior_overhead_chop_regression.cs - 成功 (6.49s)
+
+[291/527] [RUN] tests/battle_runtime/skills/run_warrior_spin_slash_regression.cs
+[286/527] [DONE] tests/battle_runtime/skills/run_warrior_perfect_rhythm_regression.cs - 成功 (6.43s)
+
+[292/527] [RUN] tests/battle_runtime/skills/run_warrior_taunt_cognition_regression.cs
+[287/527] [DONE] tests/battle_runtime/skills/run_warrior_phantom_through_regression.cs - 成功 (6.87s)
+
+[293/527] [RUN] tests/battle_runtime/state_schema/run_battle_cell_state_schema_regression.cs
+[288/527] [DONE] tests/battle_runtime/skills/run_warrior_piercing_thrust_regression.cs - 成功 (6.85s)
+
+[294/527] [RUN] tests/battle_runtime/state_schema/run_battle_edge_feature_state_schema_regression.cs
+[289/527] [DONE] tests/battle_runtime/skills/run_warrior_repeat_attack_mastery_bonus_regression.cs - 成功 (6.02s)
+
+[295/527] [RUN] tests/battle_runtime/state_schema/run_battle_state_owner_api_regression.cs
+[290/527] [DONE] tests/battle_runtime/skills/run_warrior_repeat_skill_tier_regression.cs - 成功 (6.21s)
+
+[296/527] [RUN] tests/battle_runtime/state_schema/run_battle_status_effect_state_schema_regression.cs
+[292/527] [DONE] tests/battle_runtime/skills/run_warrior_taunt_cognition_regression.cs - 成功 (5.76s)
+
+[297/527] [RUN] tests/battle_runtime/state_schema/run_battle_terrain_effect_state_schema_regression.cs
+[291/527] [DONE] tests/battle_runtime/skills/run_warrior_spin_slash_regression.cs - 成功 (6.39s)
+
+[298/527] [RUN] tests/battle_runtime/state_schema/run_battle_timeline_state_schema_regression.cs
+[293/527] [DONE] tests/battle_runtime/state_schema/run_battle_cell_state_schema_regression.cs - 成功 (5.46s)
+
+[299/527] [RUN] tests/battle_runtime/state_schema/run_battle_unit_state_owner_api_regression.cs
+[294/527] [DONE] tests/battle_runtime/state_schema/run_battle_edge_feature_state_schema_regression.cs - 成功 (5.37s)
+
+[300/527] [RUN] tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs
+[295/527] [DONE] tests/battle_runtime/state_schema/run_battle_state_owner_api_regression.cs - 成功 (5.28s)
+
+[301/527] [RUN] tests/battle_runtime/status/run_battle_status_effect_typed_state_regression.cs
+[296/527] [DONE] tests/battle_runtime/state_schema/run_battle_status_effect_state_schema_regression.cs - 成功 (5.36s)
+
+[302/527] [RUN] tests/battle_runtime/status/run_battle_status_source_contribution_regression.cs
+[297/527] [DONE] tests/battle_runtime/state_schema/run_battle_terrain_effect_state_schema_regression.cs - 成功 (5.37s)
+
+[303/527] [RUN] tests/battle_runtime/terrain/run_battle_cell_state_owner_api_regression.cs
+[298/527] [DONE] tests/battle_runtime/state_schema/run_battle_timeline_state_schema_regression.cs - 成功 (5.49s)
+
+[304/527] [RUN] tests/battle_runtime/terrain/run_battle_edge_face_service_regression.cs
+[299/527] [DONE] tests/battle_runtime/state_schema/run_battle_unit_state_owner_api_regression.cs - 成功 (5.36s)
+
+[305/527] [RUN] tests/battle_runtime/terrain/run_battle_grid_service_pathfinding_invariants_typed.cs
+[300/527] [DONE] tests/battle_runtime/state_schema/run_battle_unit_state_schema_contract_regression.cs - 成功 (5.55s)
+
+[306/527] [RUN] tests/battle_runtime/terrain/run_battle_terrain_lifetime_regression.cs
+[301/527] [DONE] tests/battle_runtime/status/run_battle_status_effect_typed_state_regression.cs - 成功 (5.37s)
+
+[307/527] [RUN] tests/battle_runtime/terrain/run_battle_terrain_topology_service_regression.cs
+[302/527] [DONE] tests/battle_runtime/status/run_battle_status_source_contribution_regression.cs - 成功 (5.49s)
+
+[308/527] [RUN] tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs
+[303/527] [DONE] tests/battle_runtime/terrain/run_battle_cell_state_owner_api_regression.cs - 成功 (5.28s)
+
+[309/527] [RUN] tests/battle_runtime/ui/run_battle_board_ui_small_regression.cs
+[304/527] [DONE] tests/battle_runtime/terrain/run_battle_edge_face_service_regression.cs - 成功 (5.37s)
+
+[310/527] [RUN] tests/equipment/run_equipment_drop_service_regression.cs
+[305/527] [DONE] tests/battle_runtime/terrain/run_battle_grid_service_pathfinding_invariants_typed.cs - 成功 (5.41s)
+
+[311/527] [RUN] tests/equipment/run_equipment_rules_regression.cs
+[306/527] [DONE] tests/battle_runtime/terrain/run_battle_terrain_lifetime_regression.cs - 成功 (5.46s)
+
+[312/527] [RUN] tests/equipment/run_equipment_trait_roll_regression.cs
+[307/527] [DONE] tests/battle_runtime/terrain/run_battle_terrain_topology_service_regression.cs - 成功 (5.37s)
+
+[313/527] [RUN] tests/equipment/run_gear_set_evaluation_regression.cs
+[309/527] [DONE] tests/battle_runtime/ui/run_battle_board_ui_small_regression.cs - 成功 (5.28s)
+
+[314/527] [RUN] tests/equipment/run_party_equipment_regression.cs
+[308/527] [DONE] tests/battle_runtime/terrain/run_meteor_swarm_terrain_modifier_regression.cs - 成功 (5.37s)
+
+[315/527] [RUN] tests/equipment/run_party_equipment_service_regression.cs
+[310/527] [DONE] tests/equipment/run_equipment_drop_service_regression.cs - 成功 (5.29s)
+
+[316/527] [RUN] tests/equipment/run_phoenix_rebirth_unique_acquisition_regression.cs
+[311/527] [DONE] tests/equipment/run_equipment_rules_regression.cs - 成功 (5.38s)
+
+[317/527] [RUN] tests/progression/attributes/run_action_threshold_agility_derivation_regression.cs
+[312/527] [DONE] tests/equipment/run_equipment_trait_roll_regression.cs - 成功 (5.37s)
+
+[318/527] [RUN] tests/progression/attributes/run_action_threshold_curve_property_regression.cs
+[313/527] [DONE] tests/equipment/run_gear_set_evaluation_regression.cs - 成功 (5.37s)
+
+[319/527] [RUN] tests/progression/core/run_attribute_growth_service_regression.cs
+[315/527] [DONE] tests/equipment/run_party_equipment_service_regression.cs - 成功 (5.46s)
+
+[320/527] [RUN] tests/progression/core/run_attribute_trait_modifier_regression.cs
+[314/527] [DONE] tests/equipment/run_party_equipment_regression.cs - 成功 (5.64s)
+
+[321/527] [RUN] tests/progression/core/run_base_attack_bonus_regression.cs
+[317/527] [DONE] tests/progression/attributes/run_action_threshold_agility_derivation_regression.cs - 成功 (5.17s)
+
+[322/527] [RUN] tests/progression/core/run_bounty_mist_harrier_quest_regression.cs
+[316/527] [DONE] tests/equipment/run_phoenix_rebirth_unique_acquisition_regression.cs - 成功 (6.85s)
+
+[323/527] [RUN] tests/progression/core/run_character_creation_service_regression.cs
+[318/527] [DONE] tests/progression/attributes/run_action_threshold_curve_property_regression.cs - 成功 (5.36s)
+
+[324/527] [RUN] tests/progression/core/run_character_management_achievement_summary_regression.cs
+[319/527] [DONE] tests/progression/core/run_attribute_growth_service_regression.cs - 成功 (5.36s)
+
+[325/527] [RUN] tests/progression/core/run_character_management_practice_regression.cs
+[320/527] [DONE] tests/progression/core/run_attribute_trait_modifier_regression.cs - 成功 (5.37s)
+
+[326/527] [RUN] tests/progression/core/run_character_management_quest_materializer_regression.cs
+[321/527] [DONE] tests/progression/core/run_base_attack_bonus_regression.cs - 成功 (5.28s)
+
+[327/527] [RUN] tests/progression/core/run_character_management_trait_attribute_regression.cs
+[322/527] [DONE] tests/progression/core/run_bounty_mist_harrier_quest_regression.cs - 成功 (5.37s)
+
+[328/527] [RUN] tests/progression/core/run_character_management_weapon_projection_regression.cs
+[323/527] [DONE] tests/progression/core/run_character_creation_service_regression.cs - 成功 (5.40s)
+
+[329/527] [RUN] tests/progression/core/run_character_trait_service_regression.cs
+[324/527] [DONE] tests/progression/core/run_character_management_achievement_summary_regression.cs - 成功 (5.37s)
+
+[330/527] [RUN] tests/progression/core/run_effective_trait_set_regression.cs
+[325/527] [DONE] tests/progression/core/run_character_management_practice_regression.cs - 成功 (5.37s)
+
+[331/527] [RUN] tests/progression/core/run_level_description_template_regression.cs
+[326/527] [DONE] tests/progression/core/run_character_management_quest_materializer_regression.cs - 成功 (5.46s)
+
+[332/527] [RUN] tests/progression/core/run_party_state_duplicate_regression.cs
+[327/527] [DONE] tests/progression/core/run_character_management_trait_attribute_regression.cs - 成功 (5.55s)
+
+[333/527] [RUN] tests/progression/core/run_profession_assignment_service_regression.cs
+[328/527] [DONE] tests/progression/core/run_character_management_weapon_projection_regression.cs - 成功 (5.40s)
+
+[334/527] [RUN] tests/progression/core/run_profession_rule_service_regression.cs
+[329/527] [DONE] tests/progression/core/run_character_trait_service_regression.cs - 成功 (5.28s)
+
+[335/527] [RUN] tests/progression/core/run_progression_service_resource_unlock_typed_regression.cs
+[330/527] [DONE] tests/progression/core/run_effective_trait_set_regression.cs - 成功 (5.42s)
+
+[336/527] [RUN] tests/progression/core/run_promotion_selection_typed_regression.cs
+[331/527] [DONE] tests/progression/core/run_level_description_template_regression.cs - 成功 (5.93s)
+
+[337/527] [RUN] tests/progression/core/run_quest_accept_requirement_evaluator_regression.cs
+[332/527] [DONE] tests/progression/core/run_party_state_duplicate_regression.cs - 成功 (5.37s)
+
+[338/527] [RUN] tests/progression/core/run_quest_danger_rating_resolver_regression.cs
+[333/527] [DONE] tests/progression/core/run_profession_assignment_service_regression.cs - 成功 (5.37s)
+
+[339/527] [RUN] tests/progression/core/run_quest_progress_service_regression.cs
+[334/527] [DONE] tests/progression/core/run_profession_rule_service_regression.cs - 成功 (5.37s)
+
+[340/527] [RUN] tests/progression/core/run_racial_skill_grant_service_regression.cs
+[335/527] [DONE] tests/progression/core/run_progression_service_resource_unlock_typed_regression.cs - 成功 (5.40s)
+
+[341/527] [RUN] tests/progression/core/run_skill_description_consistency_regression.cs
+[336/527] [DONE] tests/progression/core/run_promotion_selection_typed_regression.cs - 成功 (5.46s)
+
+[342/527] [RUN] tests/progression/core/run_skill_effective_max_level_rules_regression.cs
+[337/527] [DONE] tests/progression/core/run_quest_accept_requirement_evaluator_regression.cs - 成功 (5.37s)
+
+[343/527] [RUN] tests/progression/core/run_skill_merge_service_regression.cs
+[338/527] [DONE] tests/progression/core/run_quest_danger_rating_resolver_regression.cs - 成功 (5.46s)
+
+[344/527] [RUN] tests/progression/core/run_typed_party_quest_state_regression.cs
+[339/527] [DONE] tests/progression/core/run_quest_progress_service_regression.cs - 成功 (5.37s)
+
+[345/527] [RUN] tests/progression/fate/run_faith_service_regression.cs
+[340/527] [DONE] tests/progression/core/run_racial_skill_grant_service_regression.cs - 成功 (5.46s)
+
+[346/527] [RUN] tests/progression/fate/run_fortuna_guidance_regression.cs
+[341/527] [DONE] tests/progression/core/run_skill_description_consistency_regression.cs - 成功 (5.58s)
+
+[347/527] [RUN] tests/progression/fate/run_fortune_service_regression.cs
+[342/527] [DONE] tests/progression/core/run_skill_effective_max_level_rules_regression.cs - 成功 (5.38s)
+
+[348/527] [RUN] tests/progression/fate/run_low_luck_event_service_regression.cs
+[343/527] [DONE] tests/progression/core/run_skill_merge_service_regression.cs - 成功 (5.27s)
+
+[349/527] [RUN] tests/progression/fate/run_luck_getter_regression.cs
+[344/527] [DONE] tests/progression/core/run_typed_party_quest_state_regression.cs - 成功 (5.37s)
+
+[350/527] [RUN] tests/progression/fate/run_misfortune_black_omen_regression.cs
+[345/527] [DONE] tests/progression/fate/run_faith_service_regression.cs - 成功 (5.41s)
+
+[351/527] [RUN] tests/progression/fate/run_misfortune_guidance_regression.cs
+[346/527] [DONE] tests/progression/fate/run_fortuna_guidance_regression.cs - 成功 (5.46s)
+
+[352/527] [RUN] tests/progression/fate/run_party_state_fate_regression.cs
+[347/527] [DONE] tests/progression/fate/run_fortune_service_regression.cs - 成功 (5.27s)
+
+[353/527] [RUN] tests/progression/identity/run_attribute_source_context_regression.cs
+[348/527] [DONE] tests/progression/fate/run_low_luck_event_service_regression.cs - 成功 (5.47s)
+
+[354/527] [RUN] tests/progression/identity/run_bloodline_ascension_regression.cs
+[349/527] [DONE] tests/progression/fate/run_luck_getter_regression.cs - 成功 (5.27s)
+
+[355/527] [RUN] tests/progression/identity/run_identity_payload_validator_regression.cs
+[350/527] [DONE] tests/progression/fate/run_misfortune_black_omen_regression.cs - 成功 (5.27s)
+
+[356/527] [RUN] tests/progression/identity/run_party_member_state_owner_api_regression.cs
+[351/527] [DONE] tests/progression/fate/run_misfortune_guidance_regression.cs - 成功 (5.55s)
+
+[357/527] [RUN] tests/progression/identity/run_protected_custom_stat_regression.cs
+[352/527] [DONE] tests/progression/fate/run_party_state_fate_regression.cs - 成功 (5.27s)
+
+[358/527] [RUN] tests/progression/identity/run_trait_content_registry_regression.cs
+[353/527] [DONE] tests/progression/identity/run_attribute_source_context_regression.cs - 成功 (5.46s)
+
+[359/527] [RUN] tests/progression/run_contingency_charge_transaction_regression.cs
+[354/527] [DONE] tests/progression/identity/run_bloodline_ascension_regression.cs - 成功 (5.40s)
+
+[360/527] [RUN] tests/progression/run_effective_mp_reservation_regression.cs
+[355/527] [DONE] tests/progression/identity/run_identity_payload_validator_regression.cs - 成功 (5.36s)
+
+[361/527] [RUN] tests/progression/schema/run_barrier_profile_schema_contract_regression.cs
+[356/527] [DONE] tests/progression/identity/run_party_member_state_owner_api_regression.cs - 成功 (5.37s)
+
+[362/527] [RUN] tests/progression/schema/run_battle_save_skill_schema_regression.cs
+[357/527] [DONE] tests/progression/identity/run_protected_custom_stat_regression.cs - 成功 (5.38s)
+
+[363/527] [RUN] tests/progression/schema/run_chain_damage_typed_schema_regression.cs
+[358/527] [DONE] tests/progression/identity/run_trait_content_registry_regression.cs - 成功 (5.56s)
+
+[364/527] [RUN] tests/progression/schema/run_charge_skill_schema_regression.cs
+[359/527] [DONE] tests/progression/run_contingency_charge_transaction_regression.cs - 成功 (5.55s)
+
+[365/527] [RUN] tests/progression/schema/run_combat_effect_equipment_durability_schema_regression.cs
+[360/527] [DONE] tests/progression/run_effective_mp_reservation_regression.cs - 成功 (5.57s)
+
+[366/527] [RUN] tests/progression/schema/run_combat_effect_shield_schema_regression.cs
+[361/527] [DONE] tests/progression/schema/run_barrier_profile_schema_contract_regression.cs - 成功 (5.45s)
+
+[367/527] [RUN] tests/progression/schema/run_combat_projectile_kind_schema_regression.cs
+[362/527] [DONE] tests/progression/schema/run_battle_save_skill_schema_regression.cs - 成功 (5.57s)
+
+[368/527] [RUN] tests/progression/schema/run_contingency_content_validator_regression.cs
+[363/527] [DONE] tests/progression/schema/run_chain_damage_typed_schema_regression.cs - 成功 (5.37s)
+
+[369/527] [RUN] tests/progression/schema/run_contingency_setup_schema_regression.cs
+[364/527] [DONE] tests/progression/schema/run_charge_skill_schema_regression.cs - 成功 (5.36s)
+
+[370/527] [RUN] tests/progression/schema/run_equipment_ability_content_registry_regression.cs
+[365/527] [DONE] tests/progression/schema/run_combat_effect_equipment_durability_schema_regression.cs - 成功 (5.46s)
+
+[371/527] [RUN] tests/progression/schema/run_equipment_bonus_damage_replacement_schema_regression.cs
+[366/527] [DONE] tests/progression/schema/run_combat_effect_shield_schema_regression.cs - 成功 (5.27s)
+
+[372/527] [RUN] tests/progression/schema/run_identity_growth_json_content_regression.cs
+[367/527] [DONE] tests/progression/schema/run_combat_projectile_kind_schema_regression.cs - 成功 (5.36s)
+
+[373/527] [RUN] tests/progression/schema/run_identity_required_text_schema_regression.cs
+[369/527] [DONE] tests/progression/schema/run_contingency_setup_schema_regression.cs - 成功 (5.46s)
+
+[374/527] [RUN] tests/progression/schema/run_identity_sub_registry_schema_regression.cs
+[368/527] [DONE] tests/progression/schema/run_contingency_content_validator_regression.cs - 成功 (5.82s)
+
+[375/527] [RUN] tests/progression/schema/run_phantasmal_kill_schema_regression.cs
+[370/527] [DONE] tests/progression/schema/run_equipment_ability_content_registry_regression.cs - 成功 (5.36s)
+
+[376/527] [RUN] tests/progression/schema/run_phoenix_rebirth_body_cloak_content_regression.cs
+[371/527] [DONE] tests/progression/schema/run_equipment_bonus_damage_replacement_schema_regression.cs - 成功 (5.27s)
+
+[377/527] [RUN] tests/progression/schema/run_phoenix_rebirth_single_item_content_regression.cs
+[372/527] [DONE] tests/progression/schema/run_identity_growth_json_content_regression.cs - 成功 (5.46s)
+
+[378/527] [RUN] tests/progression/schema/run_power_word_kill_execute_schema_regression.cs
+[373/527] [DONE] tests/progression/schema/run_identity_required_text_schema_regression.cs - 成功 (5.28s)
+
+[379/527] [RUN] tests/progression/schema/run_skill_attack_defense_mode_schema_regression.cs
+[375/527] [DONE] tests/progression/schema/run_phantasmal_kill_schema_regression.cs - 成功 (5.93s)
+
+[380/527] [RUN] tests/progression/schema/run_skill_attribute_growth_typed_regression.cs
+[374/527] [DONE] tests/progression/schema/run_identity_sub_registry_schema_regression.cs - 成功 (6.30s)
+
+[381/527] [RUN] tests/progression/schema/run_skill_attribute_modifiers_typed_regression.cs
+[376/527] [DONE] tests/progression/schema/run_phoenix_rebirth_body_cloak_content_regression.cs - 成功 (5.28s)
+
+[382/527] [RUN] tests/progression/schema/run_skill_level_description_typed_regression.cs
+[377/527] [DONE] tests/progression/schema/run_phoenix_rebirth_single_item_content_regression.cs - 成功 (5.28s)
+
+[383/527] [RUN] tests/progression/schema/run_skill_requirements_typed_regression.cs
+[378/527] [DONE] tests/progression/schema/run_power_word_kill_execute_schema_regression.cs - 成功 (6.11s)
+
+[384/527] [RUN] tests/progression/schema/run_skill_tags_typed_regression.cs
+[379/527] [DONE] tests/progression/schema/run_skill_attack_defense_mode_schema_regression.cs - 成功 (6.12s)
+
+[385/527] [RUN] tests/progression/schema/run_skill_validator_diagnostic_golden_regression.cs
+[382/527] [DONE] tests/progression/schema/run_skill_level_description_typed_regression.cs - 成功 (5.46s)
+
+[386/527] [RUN] tests/progression/schema/run_trait_content_rules_regression.cs
+[380/527] [DONE] tests/progression/schema/run_skill_attribute_growth_typed_regression.cs - 成功 (6.48s)
+
+[387/527] [RUN] tests/progression/schema/run_trait_instance_state_schema_regression.cs
+[381/527] [DONE] tests/progression/schema/run_skill_attribute_modifiers_typed_regression.cs - 成功 (6.39s)
+
+[388/527] [RUN] tests/progression/schema/run_trait_json_content_regression.cs
+[383/527] [DONE] tests/progression/schema/run_skill_requirements_typed_regression.cs - 成功 (6.57s)
+
+[389/527] [RUN] tests/progression/schema/run_trait_save_tag_bonus_schema_regression.cs
+[384/527] [DONE] tests/progression/schema/run_skill_tags_typed_regression.cs - 成功 (6.38s)
+
+[390/527] [RUN] tests/runtime/contracts/run_settlement_service_result_regression.cs
+[385/527] [DONE] tests/progression/schema/run_skill_validator_diagnostic_golden_regression.cs - 成功 (6.31s)
+
+[391/527] [RUN] tests/runtime/facade/run_battle_local_writeback_failure_boundary_regression.cs
+[386/527] [DONE] tests/progression/schema/run_trait_content_rules_regression.cs - 成功 (5.39s)
+
+[392/527] [RUN] tests/runtime/facade/run_battle_permadeath_regression.cs
+[387/527] [DONE] tests/progression/schema/run_trait_instance_state_schema_regression.cs - 成功 (5.30s)
+
+[393/527] [RUN] tests/runtime/facade/run_battle_quest_progress_event_builder_regression.cs
+[388/527] [DONE] tests/progression/schema/run_trait_json_content_regression.cs - 成功 (5.54s)
+
+[394/527] [RUN] tests/runtime/facade/run_battle_seed_source_regression.cs
+[389/527] [DONE] tests/progression/schema/run_trait_save_tag_bonus_schema_regression.cs - 成功 (5.36s)
+
+[395/527] [RUN] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs
+[390/527] [DONE] tests/runtime/contracts/run_settlement_service_result_regression.cs - 成功 (5.45s)
+
+[396/527] [RUN] tests/runtime/facade/run_confirmed_bugfix_regression.cs
+[391/527] [DONE] tests/runtime/facade/run_battle_local_writeback_failure_boundary_regression.cs - 成功 (5.37s)
+
+[397/527] [RUN] tests/runtime/facade/run_game_runtime_reward_flow_regression.cs
+[393/527] [DONE] tests/runtime/facade/run_battle_quest_progress_event_builder_regression.cs - 成功 (5.38s)
+
+[398/527] [RUN] tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs
+[392/527] [DONE] tests/runtime/facade/run_battle_permadeath_regression.cs - 成功 (6.38s)
+
+[399/527] [RUN] tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs
+[394/527] [DONE] tests/runtime/facade/run_battle_seed_source_regression.cs - 成功 (5.74s)
+
+[400/527] [RUN] tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs
+[395/527] [DONE] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs - 成功 (6.01s)
+
+[401/527] [RUN] tests/runtime/lifecycle/run_application_shutdown_contract_regression.cs
+[396/527] [DONE] tests/runtime/facade/run_confirmed_bugfix_regression.cs - 成功 (5.36s)
+
+[402/527] [RUN] tests/runtime/lifecycle/run_application_shutdown_pipeline_regression.cs
+[397/527] [DONE] tests/runtime/facade/run_game_runtime_reward_flow_regression.cs - 成功 (5.46s)
+
+[403/527] [RUN] tests/runtime/lifecycle/run_content_snapshot_query_soak_regression.cs
+[398/527] [DONE] tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs - 成功 (5.92s)
+
+[404/527] [RUN] tests/runtime/lifecycle/run_game_session_close_lifecycle_regression.cs
+[399/527] [DONE] tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs - 失败 exit=1 (5.73s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Application lifecycle soak regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Application lifecycle soak regression: application lifecycle soak threw: System.InvalidOperationException: cycle 1: lifecycle soak requires save version 20.
+   at LifecycleSoakScenario.Require(Boolean condition, String message) in E:\game\magic\tests\runtime\lifecycle\LifecycleSoakScenario.cs:line 367
+   at LifecycleSoakScenario.RunSessionLifecycle(GameSession session, Int32 cycle) in E:\game\magic\tests\runtime\lifecycle\LifecycleSoakScenario.cs:line 107
+   at LifecycleSoakScenario.RunCycleAsync(Int32 cycle) in E:\game\magic\tests\runtime\lifecycle\LifecycleSoakScenario.cs:line 56
+   at LifecycleSoakScenario.RunCycleAsync(Int32 cycle) in E:\game\magic\tests\runtime\lifecycle\LifecycleSoakScenario.cs:line 76
+   at run_application_lifecycle_soak_regression.RunSoakAsync() in E:\game\magic\tests\runtime\lifecycle\run_application_lifecycle_soak_regression.cs:line 71
+   at run_application_lifecycle_soak_regression.Run() in E:\game\magic\tests\runtime\lifecycle\run_application_lifecycle_soak_regression.cs:line 18
+
+
+[405/527] [RUN] tests/runtime/lifecycle/run_lifecycle_audit_activity_snapshot_regression.cs
+[401/527] [DONE] tests/runtime/lifecycle/run_application_shutdown_contract_regression.cs - 成功 (5.37s)
+
+[406/527] [RUN] tests/runtime/lifecycle/run_lifecycle_soak_statistics_regression.cs
+[400/527] [DONE] tests/runtime/lifecycle/run_application_lifetime_coordinator_regression.cs - 成功 (6.58s)
+
+[407/527] [RUN] tests/runtime/persistence/run_display_settings_service_regression.cs
+[402/527] [DONE] tests/runtime/lifecycle/run_application_shutdown_pipeline_regression.cs - 成功 (5.40s)
+
+[408/527] [RUN] tests/runtime/persistence/run_game_log_service_regression.cs
+[405/527] [DONE] tests/runtime/lifecycle/run_lifecycle_audit_activity_snapshot_regression.cs - 成功 (5.27s)
+
+[409/527] [RUN] tests/runtime/persistence/run_game_session_persistence_options_regression.cs
+[404/527] [DONE] tests/runtime/lifecycle/run_game_session_close_lifecycle_regression.cs - 成功 (5.46s)
+
+[410/527] [RUN] tests/runtime/persistence/run_game_session_random_start_skill_regression.cs
+[403/527] [DONE] tests/runtime/lifecycle/run_content_snapshot_query_soak_regression.cs - 成功 (8.05s)
+
+[411/527] [RUN] tests/runtime/persistence/run_game_session_transaction_regression.cs
+[406/527] [DONE] tests/runtime/lifecycle/run_lifecycle_soak_statistics_regression.cs - 成功 (5.37s)
+
+[412/527] [RUN] tests/runtime/persistence/run_invalid_save_graceful_regression.cs
+[407/527] [DONE] tests/runtime/persistence/run_display_settings_service_regression.cs - 成功 (5.55s)
+
+[413/527] [RUN] tests/runtime/persistence/run_save_payload_string_minimization_regression.cs
+[408/527] [DONE] tests/runtime/persistence/run_game_log_service_regression.cs - 成功 (5.47s)
+
+[414/527] [RUN] tests/runtime/persistence/run_save_serializer_quest_round_trip_regression.cs
+[409/527] [DONE] tests/runtime/persistence/run_game_session_persistence_options_regression.cs - 成功 (5.36s)
+
+[415/527] [RUN] tests/runtime/validation/run_barrier_skill_content_validation_regression.cs
+[410/527] [DONE] tests/runtime/persistence/run_game_session_random_start_skill_regression.cs - 成功 (5.92s)
+
+[416/527] [RUN] tests/runtime/validation/run_battle_sim_definition_patch_regression.cs
+[411/527] [DONE] tests/runtime/persistence/run_game_session_transaction_regression.cs - 成功 (6.66s)
+
+[417/527] [RUN] tests/runtime/validation/run_battle_sim_scenario_definition_regression.cs
+[413/527] [DONE] tests/runtime/persistence/run_save_payload_string_minimization_regression.cs - 成功 (5.64s)
+
+[418/527] [RUN] tests/runtime/validation/run_content_canonical_json_writer_regression.cs
+[412/527] [DONE] tests/runtime/persistence/run_invalid_save_graceful_regression.cs - 失败 exit=1 (6.65s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Invalid save graceful regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+2026-09-13T17:12:58.469Z [ERROR] [session] [session.config.definition_unavailable] GameSession snapshot has no world generation definition for missing_generation. | context={"world_generation_id":"missing_generation"}
+2026-09-13T17:12:58.788Z [ERROR] [session] [session.save.load.decode_rejected] 存档内容未通过解码校验。 | context={"rejection_reason":"world_data_normalization_failed:Corrupt save world_data: missing required field 'next_equipment_instance_serial'.","world_generation_id":"test"}
+2026-09-13T17:12:59.346Z [ERROR] [session] [session.save.read.missing] GameSession could not find persisted save user://saves/save_20260913_171259_936392.dat. Error: 33
+2026-09-13T17:12:59.440Z [ERROR] [session] [session.character_creation.invalid_payload] GameSession rejected invalid character creation payload for main character player_sword_01. | context={"member_id":"player_sword_01"}
+ERROR: [test] Invalid save graceful regression: 阶段 7 顶层 save schema 应为 20。 | actual=21 expected=20
+
+
+[419/527] [RUN] tests/runtime/validation/run_content_json_document_loader_regression.cs
+[414/527] [DONE] tests/runtime/persistence/run_save_serializer_quest_round_trip_regression.cs - 失败 exit=1 (7.95s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Save serializer quest round trip regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Save serializer quest round trip regression: Current strict world schema should use top-level save version 20. | actual=21 expected=20
+
+
+[420/527] [RUN] tests/runtime/validation/run_content_json_offline_validation_regression.cs
+[416/527] [DONE] tests/runtime/validation/run_battle_sim_definition_patch_regression.cs - 成功 (5.36s)
+
+[421/527] [RUN] tests/runtime/validation/run_content_json_schema_export_regression.cs
+[415/527] [DONE] tests/runtime/validation/run_barrier_skill_content_validation_regression.cs - 成功 (6.20s)
+
+[422/527] [RUN] tests/runtime/validation/run_content_json_template_merger_regression.cs
+[418/527] [DONE] tests/runtime/validation/run_content_canonical_json_writer_regression.cs - 成功 (5.36s)
+
+[423/527] [RUN] tests/runtime/validation/run_enemy_content_registry_typed_regression.cs
+[417/527] [DONE] tests/runtime/validation/run_battle_sim_scenario_definition_regression.cs - 成功 (5.46s)
+
+[424/527] [RUN] tests/runtime/validation/run_engine_asset_catalog_regression.cs
+[419/527] [DONE] tests/runtime/validation/run_content_json_document_loader_regression.cs - 成功 (5.36s)
+
+[425/527] [RUN] tests/runtime/validation/run_engine_asset_resolver_api_regression.cs
+[420/527] [DONE] tests/runtime/validation/run_content_json_offline_validation_regression.cs - 成功 (5.37s)
+
+[426/527] [RUN] tests/runtime/validation/run_equipment_ability_json_content_regression.cs
+[422/527] [DONE] tests/runtime/validation/run_content_json_template_merger_regression.cs - 成功 (5.46s)
+
+[427/527] [RUN] tests/runtime/validation/run_equipment_closure_generation_catalog_regression.cs
+[421/527] [DONE] tests/runtime/validation/run_content_json_schema_export_regression.cs - 成功 (5.96s)
+
+[428/527] [RUN] tests/runtime/validation/run_equipment_closure_generation_validation_pipeline_regression.cs
+[423/527] [DONE] tests/runtime/validation/run_enemy_content_registry_typed_regression.cs - 成功 (5.37s)
+
+[429/527] [RUN] tests/runtime/validation/run_full_combat_effect_import_contract_regression.cs
+[425/527] [DONE] tests/runtime/validation/run_engine_asset_resolver_api_regression.cs - 成功 (5.74s)
+
+[430/527] [RUN] tests/runtime/validation/run_game_root_content_catalog_regression.cs
+[424/527] [DONE] tests/runtime/validation/run_engine_asset_catalog_regression.cs - 成功 (6.12s)
+
+[431/527] [RUN] tests/runtime/validation/run_gameplay_configuration_content_validator_regression.cs
+[426/527] [DONE] tests/runtime/validation/run_equipment_ability_json_content_regression.cs - 成功 (7.03s)
+
+[432/527] [RUN] tests/runtime/validation/run_gear_set_json_content_regression.cs
+[427/527] [DONE] tests/runtime/validation/run_equipment_closure_generation_catalog_regression.cs - 成功 (5.38s)
+
+[433/527] [RUN] tests/runtime/validation/run_godot_projection_lease_regression.cs
+[428/527] [DONE] tests/runtime/validation/run_equipment_closure_generation_validation_pipeline_regression.cs - 成功 (5.48s)
+
+[434/527] [RUN] tests/runtime/validation/run_item_icon_asset_catalog_validator_regression.cs
+[429/527] [DONE] tests/runtime/validation/run_full_combat_effect_import_contract_regression.cs - 成功 (5.41s)
+
+[435/527] [RUN] tests/runtime/validation/run_item_json_content_regression.cs
+[431/527] [DONE] tests/runtime/validation/run_gameplay_configuration_content_validator_regression.cs - 成功 (5.28s)
+
+[436/527] [RUN] tests/runtime/validation/run_item_recipe_registry_typed_regression.cs
+[430/527] [DONE] tests/runtime/validation/run_game_root_content_catalog_regression.cs - 成功 (5.55s)
+
+[437/527] [RUN] tests/runtime/validation/run_item_validator_diagnostic_golden_regression.cs
+[432/527] [DONE] tests/runtime/validation/run_gear_set_json_content_regression.cs - 成功 (5.37s)
+
+[438/527] [RUN] tests/runtime/validation/run_json_content_domain_descriptor_regression.cs
+[433/527] [DONE] tests/runtime/validation/run_godot_projection_lease_regression.cs - 成功 (5.37s)
+
+[439/527] [RUN] tests/runtime/validation/run_layered_barrier_effect_payload_import_regression.cs
+[434/527] [DONE] tests/runtime/validation/run_item_icon_asset_catalog_validator_regression.cs - 成功 (5.38s)
+
+[440/527] [RUN] tests/runtime/validation/run_native_lease_scope_regression.cs
+[435/527] [DONE] tests/runtime/validation/run_item_json_content_regression.cs - 成功 (5.48s)
+
+[441/527] [RUN] tests/runtime/validation/run_non_ai_content_snapshot_regression.cs
+[436/527] [DONE] tests/runtime/validation/run_item_recipe_registry_typed_regression.cs - 成功 (5.47s)
+
+[442/527] [RUN] tests/runtime/validation/run_process_content_host_regression.cs
+[437/527] [DONE] tests/runtime/validation/run_item_validator_diagnostic_golden_regression.cs - 成功 (5.46s)
+
+[443/527] [RUN] tests/runtime/validation/run_progression_content_registry_typed_regression.cs
+[438/527] [DONE] tests/runtime/validation/run_json_content_domain_descriptor_regression.cs - 成功 (5.37s)
+
+[444/527] [RUN] tests/runtime/validation/run_quest_content_validator_typed_regression.cs
+[439/527] [DONE] tests/runtime/validation/run_layered_barrier_effect_payload_import_regression.cs - 成功 (5.27s)
+
+[445/527] [RUN] tests/runtime/validation/run_recipe_json_content_regression.cs
+[441/527] [DONE] tests/runtime/validation/run_non_ai_content_snapshot_regression.cs - 成功 (5.46s)
+
+[446/527] [RUN] tests/runtime/validation/run_resource_validation_regression.cs
+[442/527] [DONE] tests/runtime/validation/run_process_content_host_regression.cs - 成功 (5.46s)
+
+[447/527] [RUN] tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs
+[443/527] [DONE] tests/runtime/validation/run_progression_content_registry_typed_regression.cs - 成功 (6.29s)
+
+[448/527] [RUN] tests/runtime/validation/run_save_projection_lease_regression.cs
+[440/527] [DONE] tests/runtime/validation/run_native_lease_scope_regression.cs - 成功 (8.05s)
+
+[449/527] [RUN] tests/runtime/validation/run_skill_canonical_json_schema_regression.cs
+[444/527] [DONE] tests/runtime/validation/run_quest_content_validator_typed_regression.cs - 成功 (5.46s)
+
+[450/527] [RUN] tests/runtime/validation/run_skill_catalog_query_regression.cs
+[445/527] [DONE] tests/runtime/validation/run_recipe_json_content_regression.cs - 成功 (5.37s)
+
+[451/527] [RUN] tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs
+[447/527] [DONE] tests/runtime/validation/run_runtime_lifecycle_boundary_regression.cs - 成功 (5.47s)
+
+[452/527] [RUN] tests/runtime/validation/run_skill_definition_projector_parity_regression.cs
+[446/527] [DONE] tests/runtime/validation/run_resource_validation_regression.cs - 成功 (7.25s)
+
+[453/527] [RUN] tests/runtime/validation/run_skill_generation_schema_guidance_regression.cs
+[448/527] [DONE] tests/runtime/validation/run_save_projection_lease_regression.cs - 成功 (5.83s)
+
+[454/527] [RUN] tests/runtime/validation/run_skill_generation_stage3_admission_regression.cs
+[449/527] [DONE] tests/runtime/validation/run_skill_canonical_json_schema_regression.cs - 成功 (5.78s)
+
+[455/527] [RUN] tests/runtime/validation/run_skill_generation_validation_pipeline_regression.cs
+[450/527] [DONE] tests/runtime/validation/run_skill_catalog_query_regression.cs - 成功 (5.46s)
+
+[456/527] [RUN] tests/runtime/validation/run_skill_icon_asset_catalog_validator_regression.cs
+[451/527] [DONE] tests/runtime/validation/run_skill_definition_plain_value_graph_regression.cs - 成功 (6.11s)
+
+[457/527] [RUN] tests/runtime/validation/run_skill_json_directory_round_trip_regression.cs
+[453/527] [DONE] tests/runtime/validation/run_skill_generation_schema_guidance_regression.cs - 成功 (5.46s)
+
+[458/527] [RUN] tests/runtime/validation/run_skill_json_import_contract_regression.cs
+[454/527] [DONE] tests/runtime/validation/run_skill_generation_stage3_admission_regression.cs - 失败 exit=1 (5.28s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Stage 3 generated-skill admission regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_force_needle production JSON should be the unmodified accepted source bytes
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_force_needle admitted JSON hash should remain stable | actual=9FAD1AA191A33E729E892A690398482C04EBAA13FF6BD874FEF265276C9DA2EA expected=FAAB6BABB122123FDF76915C76BBE5B98C0B2D8B8DCB44611E9E1CACD9A5FB9E
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_ember_orb production JSON should be the unmodified accepted source bytes
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_ember_orb admitted JSON hash should remain stable | actual=EB20661171F7620307E179F1E3F2C55FFC0AEFC5D923ED9D7CF594EBF6033E2F expected=0938DE70A557734C475CF5CF3B8D3CC8054337CC74691384F09FE7D2072DF651
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_reserve_comet production JSON should be the unmodified accepted source bytes
+ERROR: [test] Stage 3 generated-skill admission regression: mage_generated_reserve_comet admitted JSON hash should remain stable | actual=FBC17D32C974D9ED2A06CFD07FC19430D5EFE53B2CE1BF6C0D69ECECF794ABFA expected=2E055356BFAB3DB49E16512AE0F665D944C73197ED0E2BA1FE520DD371061253
+
+
+[459/527] [RUN] tests/runtime/validation/run_true_random_seed_test_override_regression.cs
+[455/527] [DONE] tests/runtime/validation/run_skill_generation_validation_pipeline_regression.cs - 成功 (5.47s)
+
+[460/527] [RUN] tests/runtime/validation/run_world_map_content_validator_typed_regression.cs
+[452/527] [DONE] tests/runtime/validation/run_skill_definition_projector_parity_regression.cs - 失败 exit=1 (8.42s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Skill definition projector parity regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Skill definition projector parity regression: stage-2 full-domain skill Definition SHA256 golden | actual=D6C1AD5BB5697CC77EAA96887AD7CBC81D7DB3B29118C287C2A4180B2967DBB4 expected=D7AAC4D932184171477982D4F1FC64B8013869CFBDA95C17D567B58C622B8512
+
+
+[461/527] [RUN] tests/shared/run_item_trait_detail_text_regression.cs
+[456/527] [DONE] tests/runtime/validation/run_skill_icon_asset_catalog_validator_regression.cs - 成功 (5.28s)
+
+[462/527] [RUN] tests/shared/run_shared_test_fixture_regression.cs
+[457/527] [DONE] tests/runtime/validation/run_skill_json_directory_round_trip_regression.cs - 成功 (5.76s)
+
+[463/527] [RUN] tests/text_runtime/commands/run_battle_equipment_text_command_regression.cs
+[458/527] [DONE] tests/runtime/validation/run_skill_json_import_contract_regression.cs - 成功 (5.46s)
+
+[464/527] [RUN] tests/text_runtime/commands/run_contingency_text_commands_regression.cs
+[459/527] [DONE] tests/runtime/validation/run_true_random_seed_test_override_regression.cs - 成功 (5.46s)
+
+[465/527] [RUN] tests/text_runtime/commands/run_text_command_parse_regression.cs
+[460/527] [DONE] tests/runtime/validation/run_world_map_content_validator_typed_regression.cs - 成功 (5.38s)
+
+[466/527] [RUN] tests/text_runtime/commands/run_text_save_load_regression.cs
+[461/527] [DONE] tests/shared/run_item_trait_detail_text_regression.cs - 成功 (5.37s)
+
+[467/527] [RUN] tests/text_runtime/commands/run_validation_text_surface_regression.cs
+[462/527] [DONE] tests/shared/run_shared_test_fixture_regression.cs - 成功 (5.56s)
+
+[468/527] [RUN] tests/text_runtime/headless/run_battle_skill_entry_identity_regression.cs
+[463/527] [DONE] tests/text_runtime/commands/run_battle_equipment_text_command_regression.cs - 成功 (7.33s)
+
+[469/527] [RUN] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs
+[465/527] [DONE] tests/text_runtime/commands/run_text_command_parse_regression.cs - 成功 (5.86s)
+
+[470/527] [RUN] tests/text_runtime/headless/run_headless_game_test_session_regression.cs
+[464/527] [DONE] tests/text_runtime/commands/run_contingency_text_commands_regression.cs - 成功 (6.75s)
+
+[471/527] [RUN] tests/text_runtime/headless/run_progression_text_snapshot_regression.cs
+[466/527] [DONE] tests/text_runtime/commands/run_text_save_load_regression.cs - 成功 (6.57s)
+
+[472/527] [RUN] tests/text_runtime/headless/run_text_command_party_battle_surface_regression.cs
+[467/527] [DONE] tests/text_runtime/commands/run_validation_text_surface_regression.cs - 成功 (5.46s)
+
+[473/527] [RUN] tests/text_runtime/headless/run_text_command_quest_progress_regression.cs
+[468/527] [DONE] tests/text_runtime/headless/run_battle_skill_entry_identity_regression.cs - 成功 (6.75s)
+
+[474/527] [RUN] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs
+[471/527] [DONE] tests/text_runtime/headless/run_progression_text_snapshot_regression.cs - 成功 (5.46s)
+
+[475/527] [RUN] tests/text_runtime/headless/run_text_command_warehouse_use_regression.cs
+[469/527] [DONE] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs - 成功 (7.13s)
+
+[476/527] [RUN] tests/warehouse/run_item_price_rules_regression.cs
+[470/527] [DONE] tests/text_runtime/headless/run_headless_game_test_session_regression.cs - 成功 (6.50s)
+
+[477/527] [RUN] tests/warehouse/run_party_item_use_service_regression.cs
+[473/527] [DONE] tests/text_runtime/headless/run_text_command_quest_progress_regression.cs - 成功 (5.93s)
+
+[478/527] [RUN] tests/warehouse/run_party_warehouse_batch_swap_regression.cs
+[472/527] [DONE] tests/text_runtime/headless/run_text_command_party_battle_surface_regression.cs - 成功 (7.03s)
+
+[479/527] [RUN] tests/warehouse/run_party_warehouse_quantity_batch_regression.cs
+[474/527] [DONE] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs - 成功 (6.01s)
+
+[480/527] [RUN] tests/warehouse/run_party_warehouse_window_schema_regression.cs
+[476/527] [DONE] tests/warehouse/run_item_price_rules_regression.cs - 成功 (5.28s)
+
+[481/527] [RUN] tests/warehouse/run_skill_book_item_helpers_regression.cs
+[477/527] [DONE] tests/warehouse/run_party_item_use_service_regression.cs - 成功 (5.36s)
+
+[482/527] [RUN] tests/warehouse/run_warehouse_preview_no_side_effect_regression.cs
+[478/527] [DONE] tests/warehouse/run_party_warehouse_batch_swap_regression.cs - 成功 (5.38s)
+
+[483/527] [RUN] tests/warehouse/run_warehouse_state_item_validator_regression.cs
+[475/527] [DONE] tests/text_runtime/headless/run_text_command_warehouse_use_regression.cs - 成功 (6.38s)
+
+[484/527] [RUN] tests/world_map/runtime/run_character_info_payload_schema_regression.cs
+[479/527] [DONE] tests/warehouse/run_party_warehouse_quantity_batch_regression.cs - 成功 (5.46s)
+
+[485/527] [RUN] tests/world_map/runtime/run_game_runtime_party_command_handler_regression.cs
+[480/527] [DONE] tests/warehouse/run_party_warehouse_window_schema_regression.cs - 成功 (5.65s)
+
+[486/527] [RUN] tests/world_map/runtime/run_game_runtime_pending_battle_request_regression.cs
+[481/527] [DONE] tests/warehouse/run_skill_book_item_helpers_regression.cs - 成功 (5.37s)
+
+[487/527] [RUN] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs
+[482/527] [DONE] tests/warehouse/run_warehouse_preview_no_side_effect_regression.cs - 成功 (5.29s)
+
+[488/527] [RUN] tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.cs
+[483/527] [DONE] tests/warehouse/run_warehouse_state_item_validator_regression.cs - 成功 (5.41s)
+
+[489/527] [RUN] tests/world_map/runtime/run_game_runtime_world_encounter_regression.cs
+[484/527] [DONE] tests/world_map/runtime/run_character_info_payload_schema_regression.cs - 成功 (5.47s)
+
+[490/527] [RUN] tests/world_map/runtime/run_game_runtime_world_event_regression.cs
+[485/527] [DONE] tests/world_map/runtime/run_game_runtime_party_command_handler_regression.cs - 成功 (5.49s)
+
+[491/527] [RUN] tests/world_map/runtime/run_npc_quest_offer_regression.cs
+[486/527] [DONE] tests/world_map/runtime/run_game_runtime_pending_battle_request_regression.cs - 成功 (5.93s)
+
+[492/527] [RUN] tests/world_map/runtime/run_quest_accept_encounter_binding_regression.cs
+[487/527] [DONE] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs - 成功 (5.46s)
+
+[493/527] [RUN] tests/world_map/runtime/run_settlement_action_request_boundary_regression.cs
+[489/527] [DONE] tests/world_map/runtime/run_game_runtime_world_encounter_regression.cs - 成功 (5.39s)
+
+[494/527] [RUN] tests/world_map/runtime/run_settlement_forge_service_regression.cs
+[488/527] [DONE] tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.cs - 成功 (6.29s)
+
+[495/527] [RUN] tests/world_map/runtime/run_settlement_persist_failure_rollback_regression.cs
+[490/527] [DONE] tests/world_map/runtime/run_game_runtime_world_event_regression.cs - 成功 (5.39s)
+
+[496/527] [RUN] tests/world_map/runtime/run_settlement_research_service_schema_regression.cs
+[491/527] [DONE] tests/world_map/runtime/run_npc_quest_offer_regression.cs - 成功 (6.47s)
+
+[497/527] [RUN] tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs
+[492/527] [DONE] tests/world_map/runtime/run_quest_accept_encounter_binding_regression.cs - 成功 (5.46s)
+
+[498/527] [RUN] tests/world_map/runtime/run_settlement_shop_stock_persistence_regression.cs
+[493/527] [DONE] tests/world_map/runtime/run_settlement_action_request_boundary_regression.cs - 成功 (5.55s)
+
+[499/527] [RUN] tests/world_map/runtime/run_wild_encounter_growth_system_regression.cs
+[496/527] [DONE] tests/world_map/runtime/run_settlement_research_service_schema_regression.cs - 成功 (5.37s)
+
+[500/527] [RUN] tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.cs
+[494/527] [DONE] tests/world_map/runtime/run_settlement_forge_service_regression.cs - 成功 (6.02s)
+
+[501/527] [RUN] tests/world_map/runtime/run_world_map_battle_start_confirm_regression.cs
+[495/527] [DONE] tests/world_map/runtime/run_settlement_persist_failure_rollback_regression.cs - 成功 (6.21s)
+
+[502/527] [RUN] tests/world_map/runtime/run_world_map_data_context_regression.cs
+[497/527] [DONE] tests/world_map/runtime/run_settlement_research_typed_catalog_regression.cs - 成功 (5.28s)
+
+[503/527] [RUN] tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs
+[498/527] [DONE] tests/world_map/runtime/run_settlement_shop_stock_persistence_regression.cs - 成功 (5.37s)
+
+[504/527] [RUN] tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
+[499/527] [DONE] tests/world_map/runtime/run_wild_encounter_growth_system_regression.cs - 成功 (5.28s)
+
+[505/527] [RUN] tests/world_map/runtime/run_world_map_save_transaction_regression.cs
+[502/527] [DONE] tests/world_map/runtime/run_world_map_data_context_regression.cs - 成功 (5.46s)
+
+[506/527] [RUN] tests/world_map/runtime/run_world_map_settlement_entry_regression.cs
+[501/527] [DONE] tests/world_map/runtime/run_world_map_battle_start_confirm_regression.cs - 成功 (6.76s)
+
+[507/527] [RUN] tests/world_map/runtime/run_world_map_shared_content_injection_regression.cs
+[500/527] [DONE] tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.cs - 成功 (7.34s)
+
+[508/527] [RUN] tests/world_map/runtime/run_world_map_spawn_typed_regression.cs
+[504/527] [DONE] tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs - 成功 (6.11s)
+
+[509/527] [RUN] tests/world_map/runtime/run_world_map_system_surface_regression.cs
+[503/527] [DONE] tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs - 失败 exit=1 (6.94s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+World map runtime log dock regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] World map runtime log dock regression: 世界态共享日志窗口默认尺寸应使用锁定宽度与默认高度。 actual=(412, 56) expected=(412, 600)
+ERROR: [test] World map runtime log dock regression: 世界态共享日志窗口高度应随窗口高度缩小。
+ERROR: [test] World map runtime log dock regression: 进入战斗后共享日志窗口元信息应切到 battle log 容量摘要。
+
+
+[510/527] [RUN] tests/world_map/runtime/run_world_map_view_color_config_regression.cs
+[505/527] [DONE] tests/world_map/runtime/run_world_map_save_transaction_regression.cs - 成功 (6.20s)
+
+[511/527] [RUN] tests/world_map/runtime/run_world_runtime_data_typed_regression.cs
+[506/527] [DONE] tests/world_map/runtime/run_world_map_settlement_entry_regression.cs - 成功 (5.86s)
+
+[512/527] [RUN] tests/world_map/runtime/run_world_submap_regression.cs
+[508/527] [DONE] tests/world_map/runtime/run_world_map_spawn_typed_regression.cs - 成功 (5.46s)
+
+[513/527] [RUN] tests/world_map/schema/run_encounter_anchor_schema_regression.cs
+[509/527] [DONE] tests/world_map/runtime/run_world_map_system_surface_regression.cs - 成功 (6.02s)
+
+[514/527] [RUN] tests/world_map/schema/run_world_map_low_level_defensive_regression.cs
+[510/527] [DONE] tests/world_map/runtime/run_world_map_view_color_config_regression.cs - 成功 (6.57s)
+
+[515/527] [RUN] tests/world_map/schema/run_world_time_system_regression.cs
+[511/527] [DONE] tests/world_map/runtime/run_world_runtime_data_typed_regression.cs - 成功 (5.40s)
+
+[516/527] [RUN] tests/world_map/ui/run_character_creation_window_payload_regression.cs
+[507/527] [DONE] tests/world_map/runtime/run_world_map_shared_content_injection_regression.cs - 成功 (9.26s)
+
+[517/527] [RUN] tests/world_map/ui/run_character_info_details_regression.cs
+[513/527] [DONE] tests/world_map/schema/run_encounter_anchor_schema_regression.cs - 成功 (5.37s)
+
+[518/527] [RUN] tests/world_map/ui/run_character_info_identity_regression.cs
+[512/527] [DONE] tests/world_map/runtime/run_world_submap_regression.cs - 成功 (7.80s)
+
+[519/527] [RUN] tests/world_map/ui/run_character_info_window_fate_regression.cs
+[514/527] [DONE] tests/world_map/schema/run_world_map_low_level_defensive_regression.cs - 成功 (5.38s)
+
+[520/527] [RUN] tests/world_map/ui/run_chronicle_window_presentation_regression.cs
+[515/527] [DONE] tests/world_map/schema/run_world_time_system_regression.cs - 成功 (5.37s)
+
+[521/527] [RUN] tests/world_map/ui/run_contingency_setup_window_regression.cs
+[516/527] [DONE] tests/world_map/ui/run_character_creation_window_payload_regression.cs - 成功 (6.06s)
+
+[522/527] [RUN] tests/world_map/ui/run_modal_window_shell_regression.cs
+[517/527] [DONE] tests/world_map/ui/run_character_info_details_regression.cs - 成功 (5.74s)
+
+[523/527] [RUN] tests/world_map/ui/run_npc_quest_offer_dialog_action_regression.cs
+[518/527] [DONE] tests/world_map/ui/run_character_info_identity_regression.cs - 成功 (5.46s)
+
+[524/527] [RUN] tests/world_map/ui/run_party_management_window_regression.cs
+[519/527] [DONE] tests/world_map/ui/run_character_info_window_fate_regression.cs - 成功 (5.56s)
+
+[525/527] [RUN] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs
+[521/527] [DONE] tests/world_map/ui/run_contingency_setup_window_regression.cs - 成功 (5.65s)
+
+[526/527] [RUN] tests/world_map/ui/run_promotion_window_flow_regression.cs
+[520/527] [DONE] tests/world_map/ui/run_chronicle_window_presentation_regression.cs - 成功 (6.78s)
+
+[527/527] [RUN] tests/world_map/ui/run_settlement_shop_window_schema_regression.cs
+[522/527] [DONE] tests/world_map/ui/run_modal_window_shell_regression.cs - 成功 (5.48s)
+[523/527] [DONE] tests/world_map/ui/run_npc_quest_offer_dialog_action_regression.cs - 成功 (5.38s)
+[524/527] [DONE] tests/world_map/ui/run_party_management_window_regression.cs - 成功 (5.83s)
+[525/527] [DONE] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs - 失败 exit=1 (5.46s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Promotion choice window schema regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+ERROR: [test] Promotion choice window schema regression: 授予技能文本中的方括号内容也不应被当作 BBCode。
+
+[527/527] [DONE] tests/world_map/ui/run_settlement_shop_window_schema_regression.cs - 成功 (5.64s)
+[526/527] [DONE] tests/world_map/ui/run_promotion_window_flow_regression.cs - 成功 (6.57s)
+Kept per-test Godot user data root: C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r
+
+Passed: 519
+Failed: 8
+Failed tests:
+- tests/battle_runtime/rendering/run_equipment_movement_trail_overlay_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0077_tests_battle_runtime_rendering_run_equipment_movement_trail_overlay_regression_cs
+- tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0399_tests_runtime_lifecycle_run_application_lifecycle_soak_regression_cs
+- tests/runtime/persistence/run_invalid_save_graceful_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0412_tests_runtime_persistence_run_invalid_save_graceful_regression_cs
+- tests/runtime/persistence/run_save_serializer_quest_round_trip_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0414_tests_runtime_persistence_run_save_serializer_quest_round_trip_regression_cs
+- tests/runtime/validation/run_skill_definition_projector_parity_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0452_tests_runtime_validation_run_skill_definition_projector_parity_regression_cs
+- tests/runtime/validation/run_skill_generation_stage3_admission_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0454_tests_runtime_validation_run_skill_generation_stage3_admission_regression_cs
+- tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0503_tests_world_map_runtime_run_world_map_runtime_log_dock_regression_cs
+- tests/world_map/ui/run_promotion_choice_window_schema_regression.cs exit=1 user_data=C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-db43rt3r\0525_tests_world_map_ui_run_promotion_choice_window_schema_regression_cs

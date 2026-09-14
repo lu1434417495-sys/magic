@@ -250,7 +250,7 @@ public partial class run_party_warehouse_quantity_batch_regression : LifecycleTe
             ["herb"] = BuildStackItem("herb", 2),
             ["gem"] = BuildStackItem("gem", 99),
             ["elixir"] = BuildStackItem("elixir", 3),
-            ["iron_sword"] = new ItemDef
+            ["iron_sword"] = new TestItemDefinitionBuilder
             {
                 item_id = "iron_sword",
                 display_name = "Iron Sword",
@@ -266,7 +266,7 @@ public partial class run_party_warehouse_quantity_batch_regression : LifecycleTe
         };
 
     private static ItemDefinition BuildStackItem(StringName itemId, int maxStack) =>
-        new ItemDef
+        new TestItemDefinitionBuilder
         {
             item_id = itemId,
             display_name = itemId.ToString(),

@@ -374,14 +374,18 @@ public partial class BattleDamageResolver
         );
     }
 
-    private static GDictionary BuildInvalidDamageTagDiagnostic(
+    // 诊断条目会进 diagnostics 这个 plain payload，最终被 AI trace 的
+    // RuntimePlainPayload.CloneValue 深拷贝。那里只认托管容器：GDictionary 会被当成
+    // IEnumerable 展开成 KeyValuePair<Variant, Variant> 然后抛 unsupported value type。
+    // 所以这里必须是 Dictionary<string, object>，不能是 GDictionary。
+    private static Dictionary<string, object> BuildInvalidDamageTagDiagnostic(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
         DamageOutcomeResult damageOutcome
     )
     {
-        return new GDictionary
+        return new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["error_code"] = "invalid_damage_tag",
             ["reason"] = damageOutcome.Reason,
@@ -893,9 +897,24 @@ public partial class BattleDamageResolver
 
     private int ResolveHealAmount(
         BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition
     )
     {
+        if (effectDefinition?.HealToHpPercentFloor > 0)
+        {
+            return BattleCombatEffectTargetRules.ResolveHealToHpPercentFloorAmount(
+                targetUnit,
+                effectDefinition.HealToHpPercentFloor
+            );
+        }
+        if (effectDefinition?.HealMissingHpPercent > 0)
+        {
+            return BattleCombatEffectTargetRules.ResolveHealMissingHpPercentAmount(
+                targetUnit,
+                effectDefinition.HealMissingHpPercent
+            );
+        }
         int healAmount = Math.Max(effectDefinition?.Power ?? 0, 0);
         DicePoolRollResult healDiceRoll = RollEffectDice(sourceUnit, effectDefinition);
         if (healDiceRoll.HasDice)
@@ -998,6 +1017,10 @@ public partial class BattleDamageResolver
         {
             return 0;
         }
+        if (effectDefinition.DiceCount > 0 && effectDefinition.DiceSides > 0)
+        {
+            return ResolveHealAmount(sourceUnit, targetUnit, effectDefinition);
+        }
         int skillLevel = Math.Max(context?.SourceSkillLevel ?? 0, 0);
         if (skillLevel <= 0 && sourceUnit != null && context != null && context.SkillId != "")
         {
@@ -1040,18 +1063,29 @@ public partial class BattleDamageResolver
         {
             ClearOtherCrownBreakSeals(targetUnit, resolvedStatusId);
         }
+        StringName sourceUnitId = sourceUnit != null
+            ? sourceUnit.unit_id
+            : new StringName("");
+        StringName sourceSkillId = ProgressionDataUtils.to_string_name(context?.SkillId ?? "");
+        BattleStatusSourceIdentity sourceIdentity = sourceSkillId != ""
+            ? BattleStatusSourceIdentity.Skill(sourceUnitId, sourceSkillId)
+            : BattleStatusSourceIdentity.RuntimeEffect(sourceUnitId, resolvedStatusId);
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             effectDefinition,
-            sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
+            sourceUnitId,
             targetUnit.GetStatusEffect(resolvedStatusId),
-            resolvedStatusId
+            resolvedStatusId,
+            sourceIdentity
         );
         if (statusEntry == null)
         {
             return false;
         }
-        StringName sourceSkillId = ProgressionDataUtils.to_string_name(context?.SkillId ?? "");
-        if (statusEntry.source_skill_id == "" && sourceSkillId != "")
+        if (
+            !statusEntry.HasSourceContributionsTyped()
+            && statusEntry.source_skill_id == ""
+            && sourceSkillId != ""
+        )
         {
             statusEntry.source_skill_id = sourceSkillId;
         }
@@ -1068,6 +1102,7 @@ public partial class BattleDamageResolver
         BattleUnitState sourceUnit,
         CombatEffectDefinition effectDefinition,
         BattleSaveResult saveResult,
+        DamageResolutionContext context,
         out StringName appliedStatusId
     )
     {
@@ -1077,21 +1112,52 @@ public partial class BattleDamageResolver
             || effectDefinition == null
             || !saveResult.HasSave
             || saveResult.Success
-            || effectDefinition.SaveFailureStatusId == ""
         )
         {
             return false;
         }
 
+        CombatEffectDefinition statusEffectDefinition = effectDefinition;
+        StringName authoredStatusId = ProgressionDataUtils.to_string_name(
+            effectDefinition.SaveFailureStatusId
+        );
+        if ((effectDefinition.SaveFailureStatusOutcomes?.Count ?? 0) > 0)
+        {
+            int totalWeight = BattleWeightedStatusOutcomeRules.GetTotalWeight(
+                effectDefinition.SaveFailureStatusOutcomes
+            );
+            if (totalWeight <= 0)
+                return false;
+            CombatWeightedStatusOutcomeDefinition selectedOutcome =
+                BattleWeightedStatusOutcomeRules.SelectByRoll(
+                    effectDefinition.SaveFailureStatusOutcomes,
+                    _roll_weighted_status_outcome(totalWeight)
+                );
+            statusEffectDefinition = selectedOutcome?.StatusEffect;
+            authoredStatusId = ProgressionDataUtils.to_string_name(
+                statusEffectDefinition?.StatusId ?? ""
+            );
+        }
+        if (statusEffectDefinition == null || authoredStatusId == "")
+            return false;
+
         StringName resolvedStatusId = BattleTemporalStatusService.ApplyEliteBossStasisDowngrade(
             targetUnit,
-            ProgressionDataUtils.to_string_name(effectDefinition.SaveFailureStatusId)
+            authoredStatusId
         );
         if (resolvedStatusId == "")
         {
             return false;
         }
-        if (!ApplyStatusEffect(targetUnit, sourceUnit, effectDefinition, resolvedStatusId))
+        if (
+            !ApplyStatusEffect(
+                targetUnit,
+                sourceUnit,
+                statusEffectDefinition,
+                resolvedStatusId,
+                context
+            )
+        )
         {
             return false;
         }
@@ -1108,10 +1174,9 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        StringName grantStatusId = effectDefinition.GetStringNameParamTyped(
-            "grant_status_id",
-            ""
-        );
+        CombatSourceStatusGrantDefinition grant =
+            effectDefinition.SourceStatusGrantOnHit;
+        StringName grantStatusId = grant?.StatusId ?? new StringName("");
         if (
             grantStatusId == ""
             || grantStatusId == StatusMeleeComboStack
@@ -1120,18 +1185,9 @@ public partial class BattleDamageResolver
         {
             return;
         }
-        int grantPower = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_power", 1),
-            1
-        );
-        int grantDuration = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_duration_tu", 180),
-            0
-        );
-        int stackLimit = Math.Max(
-            effectDefinition.GetIntParamTyped("grant_status_stack_limit", 20),
-            1
-        );
+        int grantPower = Math.Max(grant.Power, 1);
+        int grantDuration = Math.Max(grant.DurationTu, 0);
+        int stackLimit = Math.Max(grant.StackLimit, 1);
         BattleStatusEffectState existingEntry = sourceUnit.GetStatusEffect(grantStatusId);
         if (existingEntry != null)
         {

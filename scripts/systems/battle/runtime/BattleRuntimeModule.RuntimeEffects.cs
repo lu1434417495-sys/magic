@@ -186,16 +186,38 @@ public sealed partial class BattleRuntimeModule
     )
     {
         _ensure_sidecars_ready();
-        return _ground_effect_service._apply_ground_unit_effects_result(
-            source_unit,
-            skillDefinition,
-            castVariantDefinition,
-            effectDefinitions ?? Array.Empty<CombatEffectDefinition>(),
-            effect_coords ?? Array.Empty<Vector2I>(),
-            batch,
-            target_coords ?? Array.Empty<Vector2I>(),
-            contingency_effect_coords
-        );
+        IReadOnlyList<CombatEffectDefinition> resolvedEffects =
+            effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>();
+        BattleAttackDeliveryKind deliveryKind =
+            BattleAttackDeliveryRules.Resolve(
+                resolvedEffects,
+                source_unit.GetWeaponProjectionReadViewTyped()
+            );
+        using BattleLogicalAttackScope logicalAttack =
+            BeginLogicalAttack(deliveryKind);
+        try
+        {
+            BattleGroundUnitEffectsResult result =
+                _ground_effect_service._apply_ground_unit_effects_result(
+                    source_unit,
+                    skillDefinition,
+                    castVariantDefinition,
+                    resolvedEffects,
+                    effect_coords ?? Array.Empty<Vector2I>(),
+                    batch,
+                    logicalAttack.Context,
+                    target_coords ?? Array.Empty<Vector2I>(),
+                    contingency_effect_coords
+                );
+            logicalAttack.Complete();
+            return result;
+        }
+        catch
+        {
+            AbortActiveReactionBoundary();
+            throw;
+        }
     }
 
     internal BattleGroundTerrainEffectsResult ApplyGroundTerrainEffectsResultTyped(
@@ -319,6 +341,41 @@ public sealed partial class BattleRuntimeModule
             skillDefinition?.SkillId ?? new StringName(""),
             batch
         );
+    }
+
+    internal void GrantTerrainEffectiveTriggerMastery(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName skillId,
+        BattleEventBatch batch
+    )
+    {
+        SkillDefinition skillDefinition = GetSkillDefinitionTyped(skillId);
+        if (
+            sourceUnit == null
+            || skillDefinition?.CombatProfile?.MasteryTriggerModeKind
+                != CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger
+            || IsEmpty(sourceUnit.source_member_id)
+            || _characterGateway == null
+        )
+        {
+            return;
+        }
+        int masteryAmount = _skill_mastery_service.ResolveTargetMasteryAmount(
+            sourceUnit,
+            targetUnit,
+            skillDefinition
+        );
+        if (masteryAmount <= 0)
+        {
+            return;
+        }
+        CharacterProgressionDelta delta = _characterGateway.GrantBattleMastery(
+            sourceUnit.source_member_id,
+            skillId,
+            masteryAmount
+        );
+        _append_progression_delta_to_batch(sourceUnit, delta, batch);
     }
 
     internal void _grant_skill_mastery_if_needed(
@@ -629,6 +686,31 @@ public sealed partial class BattleRuntimeModule
             batch,
             unit_state.GetOccupiedCoordsReadViewTyped()
         );
+    }
+
+    internal BattleReactionBoundaryScope BeginReactionBoundary(
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _attackActionCoordinator.BeginReactionBoundary(batch);
+    }
+
+    internal void AbortActiveReactionBoundary() =>
+        _attackActionCoordinator?.AbortActiveBoundary();
+
+    internal BattleLogicalAttackScope BeginLogicalAttack(
+        BattleAttackDeliveryKind deliveryKind
+    )
+    {
+        _ensure_sidecars_ready();
+        return _attackActionCoordinator.BeginLogicalAttack(deliveryKind);
+    }
+
+    internal void RequireActiveReactionBatch(BattleEventBatch batch)
+    {
+        _ensure_sidecars_ready();
+        _attackActionCoordinator.RequireActiveRootBatch(batch);
     }
 
     internal void _collect_defeated_unit_loot(

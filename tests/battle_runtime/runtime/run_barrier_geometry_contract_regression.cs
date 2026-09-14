@@ -68,6 +68,22 @@ public partial class run_barrier_geometry_contract_regression : LifecycleTestSce
         List<Vector2I> barrierCoords = DiamondArea(new Vector2I(2, 2), 2);
         _test.True(
             BattleBarrierGeometryService.LineCrossesBarrierArea(
+                new Vector2I(2, 2),
+                new Vector2I(5, 2),
+                barrierCoords
+            ),
+            "Inside-to-outside projected lines must be blocked by the boundary."
+        );
+        _test.True(
+            BattleBarrierGeometryService.LineCrossesBarrierArea(
+                new Vector2I(5, 2),
+                new Vector2I(2, 2),
+                barrierCoords
+            ),
+            "Outside-to-inside projected lines must be blocked by the boundary."
+        );
+        _test.True(
+            BattleBarrierGeometryService.LineCrossesBarrierArea(
                 new Vector2I(5, 2),
                 new Vector2I(-1, 2),
                 barrierCoords

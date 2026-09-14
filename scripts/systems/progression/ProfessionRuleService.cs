@@ -47,77 +47,23 @@ public sealed class ProfessionRuleService
             && _unit_progress.HasKnowledge(professionDef.UnlockKnowledgeId);
     }
 
-    public bool CanUnlockProfession(StringName professionId)
+    internal bool EvaluatePromotionPrerequisites(StringName professionId, int targetRank)
     {
-        ProfessionDefinition professionDef = GetProfessionDef(professionId);
-        if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
-            return false;
-
-        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-        if (professionProgress != null && professionProgress.rank > 0)
-            return false;
-
-        ProfessionPromotionRequirementDefinition unlockRequirement = professionDef.UnlockRequirement;
-        if (unlockRequirement == null)
-            return true;
-
-        if (
-            !CanSatisfyRequiredSkillIdsForUnlock(professionId, unlockRequirement.RequiredSkillIds)
-        )
-            return false;
-        if (!CanSatisfyTagRulesForUnlock(professionId, unlockRequirement.RequiredTagRules))
-            return false;
-        if (!CanSatisfyProfessionGates(unlockRequirement.RequiredProfessionRanks))
-            return false;
-        if (!CanSatisfyAttributeRules(unlockRequirement.RequiredAttributeRules))
-            return false;
-        if (!CanSatisfyReputationRules(unlockRequirement.RequiredReputationRules))
-            return false;
-
-        return true;
-    }
-
-    public bool CanRankUpProfession(StringName professionId)
-    {
-        ProfessionDefinition professionDef = GetProfessionDef(professionId);
-        if (professionDef == null || !IsProfessionKnowledgeUnlocked(professionId))
-            return false;
-
-        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-        if (professionProgress == null || professionProgress.rank <= 0)
-            return false;
-        if (professionProgress.rank >= professionDef.MaxRank)
-            return false;
-
-        int targetRank = professionProgress.rank + 1;
-        ProfessionRankRequirementDefinition rankRequirement = professionDef.GetRankRequirement(targetRank);
-        if (rankRequirement == null)
-            return false;
-
-        List<StringName> previewAssignedSkillIds = GetRankUpPreviewAssignedCoreSkillIds(
-            professionId
-        );
-        if (
-            !CanSatisfyTagRulesWithSkillIds(
-                GetRankUpCandidateSkillIds(professionId, previewAssignedSkillIds),
-                professionId,
-                rankRequirement.RequiredTagRules,
-                false,
-                previewAssignedSkillIds
-            )
-        )
+        ProfessionDefinition definition = GetProfessionDef(professionId);
+        int currentRank = GetProfessionProgress(professionId)?.rank ?? 0;
+        if (definition == null || targetRank != currentRank + 1 || targetRank > definition.MaxRank
+            || !IsProfessionKnowledgeUnlocked(professionId)) return false;
+        if (targetRank == 1)
         {
-            return false;
+            var requirement = definition.UnlockRequirement;
+            return requirement == null || (CanSatisfyProfessionGates(requirement.RequiredProfessionRanks)
+                && CanSatisfyAttributeRules(requirement.RequiredAttributeRules)
+                && CanSatisfyReputationRules(requirement.RequiredReputationRules));
         }
-
-        if (!CanSatisfyProfessionGates(rankRequirement.RequiredProfessionRanks))
-            return false;
-        if (!CanSatisfyAttributeRules(rankRequirement.RequiredAttributeRules))
-            return false;
-        if (!CanSatisfyReputationRules(rankRequirement.RequiredReputationRules))
-            return false;
-
-        return true;
+        var rankRequirement = definition.GetRankRequirement(targetRank);
+        return rankRequirement != null && CanSatisfyProfessionGates(rankRequirement.RequiredProfessionRanks)
+            && CanSatisfyAttributeRules(rankRequirement.RequiredAttributeRules)
+            && CanSatisfyReputationRules(rankRequirement.RequiredReputationRules);
     }
 
     public bool CanSatisfyTagRules(
@@ -291,35 +237,6 @@ public sealed class ProfessionRuleService
         }
     }
 
-    private bool CanSatisfyRequiredSkillIdsForUnlock(
-        StringName professionId,
-        IEnumerable<StringName> requiredSkillIds
-    )
-    {
-        if (requiredSkillIds == null)
-            return true;
-
-        foreach (StringName requiredSkillId in requiredSkillIds)
-        {
-            if (!IsSkillEligibleForUnlock(requiredSkillId, professionId))
-                return false;
-        }
-        return true;
-    }
-
-    private bool CanSatisfyTagRulesForUnlock(
-        StringName professionId,
-        IEnumerable<TagRequirementDefinition> tagRules
-    )
-    {
-        return CanSatisfyTagRulesWithSkillIds(
-            GetUnlockCandidateSkillIds(professionId),
-            professionId,
-            tagRules,
-            true
-        );
-    }
-
     private bool CanSatisfyTagRulesWithSkillIds(
         IEnumerable<StringName> candidateSkillIds,
         StringName professionId,
@@ -355,11 +272,6 @@ public sealed class ProfessionRuleService
         return true;
     }
 
-    private List<StringName> GetUnlockCandidateSkillIds(StringName professionId)
-    {
-        return GetAllLearnedSkillIds();
-    }
-
     private List<StringName> GetRankUpCandidateSkillIds(
         StringName professionId,
         IEnumerable<StringName> previewAssignedSkillIds = null
@@ -383,58 +295,6 @@ public sealed class ProfessionRuleService
             }
         }
         return candidateSkillIds;
-    }
-
-    private List<StringName> GetRankUpPreviewAssignedCoreSkillIds(StringName professionId)
-    {
-        List<StringName> previewSkillIds = new();
-        StringName triggerSkillId = GetReadyActiveLevelTriggerSkillId();
-        if (triggerSkillId == "")
-            return previewSkillIds;
-        if (!IsSkillEligibleForProfession(triggerSkillId, professionId, true))
-            return previewSkillIds;
-
-        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
-        if (skillProgress == null || skillProgress.assigned_profession_id != "")
-            return previewSkillIds;
-
-        previewSkillIds.Add(triggerSkillId);
-        return previewSkillIds;
-    }
-
-    private bool IsSkillEligibleForUnlock(StringName skillId, StringName professionId)
-    {
-        return IsSkillEligibleForProfession(skillId, professionId, true);
-    }
-
-    private bool IsSkillEligibleForProfession(
-        StringName skillId,
-        StringName professionId,
-        bool allowUnassigned
-    )
-    {
-        if (_unit_progress == null)
-            return false;
-
-        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
-        if (skillProgress == null || !skillProgress.is_learned || !skillProgress.is_core)
-            return false;
-
-        SkillDefinition skillDefinition = GetSkillDefinition(skillId);
-        if (skillDefinition == null)
-            return false;
-        if (
-            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDefinition,
-                skillProgress,
-                _unit_progress
-            )
-        )
-            return false;
-
-        if (skillProgress.assigned_profession_id == "")
-            return allowUnassigned;
-        return skillProgress.assigned_profession_id == professionId;
     }
 
     private bool MatchesAnyTagRule(
@@ -470,7 +330,7 @@ public sealed class ProfessionRuleService
         SkillDefinition skillDefinition = GetSkillDefinition(skillId);
         if (skillDefinition == null || !skillDefinition.HasTag(tagRule.Tag))
             return false;
-        if (!MatchesSkillState(skillProgress, skillDefinition, tagRule))
+        if (!MatchesSkillState(skillProgress, skillDefinition, tagRule, ContainsSkillId(previewAssignedSkillIds, skillId)))
             return false;
         if (!MatchesOriginFilter(skillProgress, tagRule))
             return false;
@@ -485,15 +345,17 @@ public sealed class ProfessionRuleService
     private bool MatchesSkillState(
         UnitSkillProgress skillProgress,
         SkillDefinition skillDefinition,
-        TagRequirementDefinition tagRule
+        TagRequirementDefinition tagRule,
+        bool projectedCore
     )
     {
         return tagRule.SkillStateKind switch
         {
             TagRequirementSkillState.Learned => skillProgress.is_learned,
-            TagRequirementSkillState.Core => skillProgress.is_core,
+            TagRequirementSkillState.Core => skillProgress.is_core || projectedCore,
+            TagRequirementSkillState.CoreQualified => PromotionEligibilityRules.HasCoreQualification(skillDefinition, skillProgress, _unit_progress, projectedCore),
             TagRequirementSkillState.CoreMax =>
-                skillProgress.is_core
+                (skillProgress.is_core || projectedCore)
                 && SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                     skillDefinition,
                     skillProgress,
@@ -528,36 +390,6 @@ public sealed class ProfessionRuleService
         if (skillProgress.assigned_profession_id != "")
             return false;
         return allowUnassigned || ContainsSkillId(previewAssignedSkillIds, skillProgress.skill_id);
-    }
-
-    private StringName GetReadyActiveLevelTriggerSkillId()
-    {
-        if (_unit_progress == null)
-            return "";
-
-        StringName triggerSkillId = _unit_progress.active_level_trigger_core_skill_id;
-        if (triggerSkillId == "")
-            return "";
-
-        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(triggerSkillId);
-        SkillDefinition skillDefinition = GetSkillDefinition(triggerSkillId);
-        if (skillProgress == null || skillDefinition == null)
-            return "";
-        if (!skillProgress.is_learned || !skillProgress.is_core)
-            return "";
-        if (skillProgress.is_level_trigger_locked)
-            return "";
-        if (_unit_progress.HasLockedLevelTriggerSkillId(triggerSkillId))
-            return "";
-        if (
-            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
-                skillDefinition,
-                skillProgress,
-                _unit_progress
-            )
-        )
-            return "";
-        return triggerSkillId;
     }
 
     private List<StringName> GetAllLearnedSkillIds()

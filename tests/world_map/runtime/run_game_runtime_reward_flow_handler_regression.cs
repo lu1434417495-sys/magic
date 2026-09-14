@@ -1,6 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_game_runtime_reward_flow_handler_regression : LifecycleTestSceneTree
 {
@@ -39,15 +38,15 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult missingChoiceResult =
                 runtime.CommandChoosePromotionTyped("warrior");
             _test.False(missingChoiceResult.Ok, "command_choose_promotion() 应委托给正式 reward handler 并拒绝不存在的职业。");
-            _test.Eq(missingChoiceResult.Message, "当前晋升列表中不存在职业 warrior。", "缺失晋升选项应返回正式错误文案。");
+            _test.Eq(missingChoiceResult.Message, "职业 warrior 没有唯一匹配方案，请同时指定成长技能。", "缺失晋升选项应返回正式错误文案。");
 
             RuntimeCommandResult cancelResult = runtime.CommandCancelPromotionChoiceTyped();
             _test.True(
                 cancelResult.Ok,
                 "cancel_promotion_choice() 应委托给正式 reward handler。"
             );
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "world promotion 取消后仍应停留在 promotion modal。");
-            _test.Eq(runtime.GetStatusText(), "当前晋升选择必须确认后才能继续结算奖励。", "world promotion 取消应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "暂缓应关闭 promotion modal。");
+            _test.Eq(runtime.GetStatusText(), "已暂缓晋升，可从人物管理或按 G 重新打开。", "world promotion 取消应刷新正式状态文案。");
 
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
@@ -61,9 +60,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult closeResult =
                 runtime.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "command_close_active_modal() 应委托给 reward handler。");
-            using GodotProjectionLease<GDictionary> characterInfoLease =
-                runtime.GetCharacterInfoContextLease();
-            _test.Eq(characterInfoLease.Value.Count, 0, "character_info 关闭应清空人物信息上下文。");
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "character_info 关闭应清空人物信息上下文。"
+            );
             _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "character_info 关闭后应清空 modal。");
             _test.Eq(runtime.GetStatusText(), "已关闭人物信息窗。", "character_info 关闭应刷新状态文案。");
         }
@@ -139,7 +139,17 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult rewardClose =
                 handler.CommandCloseActiveModalTyped();
             _test.False(rewardClose.Ok, "reward modal 不能被普通关闭命令跳过。");
+            _test.Eq(
+                rewardClose.Code,
+                RuntimeCommandCode.InvalidState,
+                "reward modal 普通关闭应返回 InvalidState。"
+            );
             _test.Eq(rewardClose.Message, "当前角色奖励必须确认后才能继续。", "reward modal 普通关闭应返回正式错误文案。");
+            _test.Eq(
+                runtime.GetActiveModalKind(),
+                RuntimeModalKind.Reward,
+                "reward modal 拒绝关闭后应继续保持打开。"
+            );
 
             runtime.SetActiveRewardState(BuildPendingReward());
             RuntimeCommandResult confirmActiveReward =
@@ -151,7 +161,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult cancelPromotionChoice =
                 handler.CommandCancelPromotionChoiceTyped();
             _test.True(cancelPromotionChoice.Ok, "cancel promotion choice 应走 typed helper。");
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "cancel promotion choice 后应仍停留在 promotion modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "cancel promotion choice 应允许暂缓。");
         }
         finally
         {
@@ -172,17 +182,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             );
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Promotion);
 
-            using (
-                GodotProjectionLease<GDictionary> promotionLease =
-                    runtime.GetCharacterInfoContextLease()
-            )
-            {
-                _test.Eq(
-                    promotionLease.Value.Count,
-                    0,
-                    "promotion 覆盖 character_info 时应清空隐藏的人物信息上下文。"
-                );
-            }
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "promotion 覆盖 character_info 时应清空隐藏的人物信息上下文。"
+            );
             _test.Eq(
                 runtime.GetActiveModalKind(),
                 RuntimeModalKind.Promotion,
@@ -197,17 +200,10 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             );
             runtime.ClearResolvedBattleRuntimeContext();
 
-            using (
-                GodotProjectionLease<GDictionary> resolutionLease =
-                    runtime.GetCharacterInfoContextLease()
-            )
-            {
-                _test.Eq(
-                    resolutionLease.Value.Count,
-                    0,
-                    "battle resolution 应清空仍打开的人物信息上下文。"
-                );
-            }
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "battle resolution 应清空仍打开的人物信息上下文。"
+            );
             _test.Eq(
                 runtime.GetActiveModalKind(),
                 RuntimeModalKind.None,
@@ -250,18 +246,21 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
                     "",
                     System.Array.Empty<StringName>(),
                     "",
-                    PromotionSelectionData.Empty
+                    new PromotionCommitRequest("test_skill", 1, new StringName[] { "test_skill" }, System.Array.Empty<StringName>())
                 ),
             }
         );
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {
-        var runtime = new GameRuntimeFacade
-        {
-            _party_state = partyState,
-        };
-        runtime._settlement_command_handler.SetupRuntime(runtime);
+        var runtime = new GameRuntimeFacade();
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
+        runtime._settlement_command_handler.SetupRuntime(
+            runtime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         runtime._warehouse_handler.Setup(runtime);
         runtime._party_command_handler.Setup(runtime);
         runtime._reward_flow_handler.Setup(runtime);

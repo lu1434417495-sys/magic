@@ -6,7 +6,7 @@ public partial class run_new_game_e2e : E2eSceneTree
 {
     internal const string CharacterName = "E2E Hero";
     private const string TestWorldConfigPath =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
 
     private protected override string ScenarioLabel => "E2E create new game";
 
@@ -34,7 +34,7 @@ public partial class run_new_game_e2e : E2eSceneTree
             "New-game confirmation should persist the save file inside the isolated user data."
         );
         Test.Eq(
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId().ToString(),
             TestWorldConfigPath,
             "The login TestButton should create the configured test world."
         );

@@ -1,9 +1,9 @@
 # 角色成长与 CharacterManagement 模块可重建规格说明
 
 > 状态：`Current / Implemented`
-> 核对日期：`2026-07-29`
+> 成长与晋升链核对日期：`2026-09-14`；其他章节沿用各模块既有核对。
 
-更新日期：`2026-07-29`
+更新日期：`2026-09-14`
 
 ## 目标与边界
 
@@ -20,7 +20,8 @@ GameContentCatalog(typed skill/profession/achievement/quest/item/identity)
 GameRuntimeFacade sidecars
   -> PartyManagementWindow / PromotionChoiceWindow / MasteryRewardWindow
   -> IGameRuntimeCharacterInfoQuery -> GameRuntimeCharacterInfoBuilder
-    -> GameRuntimeCharacterInfoContext -> plain snapshot / Request lease -> CharacterInfoWindow
+    -> GameRuntimeCharacterInfoContext -> CharacterInfoWindow（typed 直达）
+    -> GameRuntimeCharacterInfoContext -> BuildSnapshotPlain() -> headless snapshot
 ```
 
 `PartyState` 是运行期真相源；content catalog 只提供只读定义。不要把角色运行态塞回 content catalog。
@@ -40,18 +41,21 @@ UnitProgress 是技能/职业成长 owner：
 - skill progress 和 profession progress 正式承载面是 internal typed dictionary；Godot dictionary 只作边界投影。
 - combat resource id 合法性由 `CombatResourceIds` 统一拥有，不在 UnitProgress/BattleUnitState 复制 HashSet。
 - `merged_skill_source_map` 等来源映射应保持 typed owner，避免 UI dictionary 成为业务态。
+- `UnitProgress.version = 2`。职业晋升历史是技能成长机会已消费的唯一持久事实；每条记录明确唯一 `growth_trigger_skill_id` 和 `growth_trigger_level`，各职业 rank 必须连续，记录数等于 rank，人物等级等于所有职业 rank 之和。同一角色不能出现重复触发技能。
+- 活跃成长触发、锁定列表、技能锁定／领取标志和待选职业缓存已移除。历史可引用已遗忘或融合移除的技能，不能因此删除已发生的晋升；当前不存在或未学习的技能仍不能充当职业资格。
+- `DuplicateState()` 直接复制 CLR 状态，只在副本同步派生集合，不改写源对象。提交的副本发布边界及资格公式见 [技能驱动晋升](skill_driven_promotion.md)。
 
 善恶度继续由每名成员各自的 `UnitProgress.reputation_state.morality: int` 持有，并随成员状态保存、载入和深复制；它不是 PartyState 的全队共享值，也不是国家声望。当前字段层只提供 `GetReputationValue("morality")` / `SetReputationValue("morality", value)`，尚未定义区间、阵营判定或由任务自动传播的规则；世界名望与国家声望的写入不得隐式联动善恶度。
 
 ## 内容定义
 
 - `SkillDef` / `CombatSkillDef`：技能 id、等级上限、消耗、目标、效果、special profile id。
-- `ProfessionDef`：职业 id、rank gate、promotion requirement、granted skills、属性成长。
+- `ProfessionDefinition`：职业 id、rank gate、promotion requirement、granted skills、属性成长；由 `professions` strict JSON domain 唯一投影。
 - `AchievementDef`：触发条件、progress key、reward。
-- `QuestDef`：provider、objectives、rewards、accept/complete/claim 条件。
+- `QuestDefinition`：provider、objectives、rewards、accept/complete/claim 条件；由 `quests` strict JSON domain 唯一投影。
 - identity catalog：race/subrace/age/bloodline/faith/barrier/ascension/stage advancement 等 typed 定义。
 
-所有 runtime 查询都应使用 typed `StringName` key。registry/content seed 可以在 process snapshot 构建期把资源字典投成 typed catalog；建卡候选、建卡提交与身份校验只接收不可变 `ProgressionIdentityCatalogData`，runtime 不接收 `ProgressionContentRegistry`，也不使用 string-key fallback。
+所有 runtime 查询都应使用 typed `StringName` key。职业、任务、race/subrace/age/bloodline/ascension/faith/stage advancement registry 在 process snapshot 构建期从固定 JSON 目录投影 typed catalog；建卡候选、建卡提交与身份校验只接收不可变 `ProgressionIdentityCatalogData`，runtime 不接收 `ProgressionContentRegistry`、JSON DTO/import model 或 string-key fallback。
 
 ## CharacterManagementModule Setup
 
@@ -59,8 +63,8 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 
 - 读取/写回 party state。
 - 计算属性快照、装备视图、武器投影。
-- 授予技能 mastery、职业经验、成就进度、任务进度。
-- 创建 pending promotion / pending mastery reward。
+- 授予技能 mastery、结算职业晋升、成就进度、任务进度。
+- 查询当前晋升方案，创建 pending mastery reward。
 - 处理技能书学习、任务奖励、战斗结算成长。
 
 ## 成长事件流
@@ -76,12 +80,14 @@ setup 输入：PartyState、typed skill defs、profession defs、achievement def
 
 ## 转职与奖励
 
-- promotion choice 由 CharacterManagement 生成 pending prompt，UI 提交 profession id 和 selection。
-- 成功转职写 UnitProfessionProgress、授予技能/属性/奖励，并清 pending prompt。
+- `CharacterManagementModule.GetPromotionOffers` 从当前角色事实查询完整方案，不保存候选缓存；死亡成员无方案。
+- 完整晋升条件满足后由 runtime 自动开窗；已有 modal 时排队，暂缓后恢复世界／战斗并保留常驻晋升提示，同一批机会不反复弹出。人物管理、提示按钮或 G 可重新打开；新机会与读档恢复会重新自动提示。资格查询与展示去重的边界见 [技能驱动晋升](skill_driven_promotion.md)。
+- `ProgressionService.PreparePromotion` 在 `UnitProgress` 副本上结算核心化、职业归属、rank、HP、职业授予技能、属性成长和历史。全部成功后，CharacterManagement 仅替换一次 `member.progression`，再发 delta 和成就事件。
 - mastery reward 进入 PendingCharacterReward 队列；确认奖励后再写 party state。
 - reward 队列真源在 PartyState，不能只放 WorldMapSystem 内存。
 - `PendingCharacterReward` / `PendingCharacterRewardEntry` 是 `scripts/player/progression/` 下的 Party save graph DTO；progression service 只负责生成、应用和编排奖励，不拥有这两个持久数据类型。
-- battle/world 两套待确认晋升 prompt 的长期 owner 是 `GameRuntimePromotionPromptContext`，其中 choice 以 `GameRuntimePromotionChoiceContext` 保存 profession、展示信息、授予技能和 immutable `PromotionSelectionData`。`GameRuntimeRewardFlowHandler` 只弱借 `IGameRuntimeRewardFlowPort`，不读取 `PartyState`、character/battle module、session 或内容索引；队列取下一项、晋升/奖励提交、持久化和 modal 清理由 facade 的奖励域 capability 提供。headless、proxy 与 UI 仍按既有 `{member_id, member_name, choices}` schema 获取 detached plain snapshot，长期 owner 不保存 Dictionary/Variant 图。
+- battle/world 临时晋升 prompt 的 owner 是 `GameRuntimePromotionPromptContext`，不进入存档。每次打开生成新 token，choice 保存展示信息及 immutable `PromotionCommitRequest`；请求明确 trigger、目标 rank、assigned／qualifier 集合和 prompt token，缺字段与空请求不能自动选择。提交既验证当前 prompt，又重新验证领域资格。`GameRuntimeRewardFlowHandler` 只弱借 `IGameRuntimeRewardFlowPort`；提交、持久化和 modal 清理由 facade capability 提供。headless、proxy 与 UI 按 `{member_id, member_name, choices}` 获取 detached plain snapshot，长期 owner 不保存 Dictionary/Variant 图。
+- 世界晋升发布后通过既有入口保存；落盘失败返回 `PersistenceFailure`，内存保留已应用状态，重复确认不能重新掷骰。战斗晋升只更新当前角色与战斗投影，遵守保存锁，随正常战斗结算写回。暂缓和成功提交都会恢复晋升窗口冻结的 timeline。
 
 ## 任务与成就
 
@@ -103,9 +109,11 @@ Achievement progress 应根据 typed event 更新，并把 reward 交给统一 r
 
 `GameRuntimeFacade` 只持有 nullable、私有的 `GameRuntimeCharacterInfoContext`。该 context 在打开世界 NPC 或战斗单位信息窗时一次性构造，保存 detached 的 source、显示名、meta/status label、section/entry 以及可选 fate；不得持有 `BattleUnitState`、`WorldMapNpcData`、runtime/query owner 或 Godot collection。`GameRuntimeCharacterInfoBuilder` 只经弱引用 `IGameRuntimeCharacterInfoQuery` 读取所需事实，并直接产出 typed section/entry/fate。
 
-长期 owner 内不保存 `Dictionary<string, object>`、`Godot.Collections.Dictionary` 或 `Variant` 图。headless snapshot 由 context 生成 detached plain C# graph；Godot Dictionary 只在 `GetCharacterInfoContextLease()` 的同步 Request-domain 投影中创建，`WorldMapSystem` 调用 `CharacterInfoWindow.ShowCharacter(...)` 后立即释放 lease。当前 payload 继续保持 `{display_name, meta_label, sections, status_label, source}`，战斗路径按原条件追加 `unit_id` 和 `fate`；空 tooltip、空 identity id 和空 fate 不输出对应键。
+长期 owner 内不保存 `Dictionary<string, object>`、`Godot.Collections.Dictionary` 或 `Variant` 图。窗口输入是 typed 直达：`WorldMapSystem` 经 `WorldMapRuntimeProxy.GetCharacterInfoContextTyped()` 把 context 本体交给 `CharacterInfoWindow.ShowCharacter(...)`，渲染链上不再有 Godot Dictionary 投影，也没有 UI 私有 schema parser；无 context 时传 `null`，窗口关闭。命运段落由窗口从 `GameRuntimeCharacterInfoFate` 现场格式化，属于展示层，不进入 plain snapshot。
 
-context 在 runtime setup/dispose、成功进入或返回子地图、人物信息窗正常关闭，以及通过统一 sidecar modal port 离开 CharacterInfo 时清空；当前异步路径包含战斗自动推进触发 promotion，battle resolution 也会在清理战斗上下文时显式丢弃人物 context，避免已被新 modal 覆盖的 context 继续隐藏存活。正常关闭顺序必须保持 `context = null -> modal = None -> 更新状态 -> PresentPendingRewardIfReady()`，以保证待领奖励能在人物窗关闭后立即接续展示。世界 NPC 的 `service_type` / `facility_name` 在 `WorldMapNpcData.FromDictionary(...)` 时按正式 String payload 一次读取；`StringName` 不作为兼容输入。
+headless snapshot 仍由 context 的 `BuildSnapshotPlain()` 单向生成 detached plain C# graph，payload 继续保持 `{display_name, meta_label, sections, status_label, source}`，战斗路径按原条件追加 `unit_id` 和 `fate`；空 tooltip、空 identity id 和空 fate 不输出对应键。plain snapshot 不得反向作为窗口输入。
+
+context 在 runtime setup/dispose、成功进入或返回子地图、人物信息窗正常关闭，以及通过统一 sidecar modal port 离开 CharacterInfo 时清空；battle resolution 也会在清理战斗上下文时显式丢弃人物 context，避免已被新 modal 覆盖的 context 继续隐藏存活。正常关闭顺序必须保持 `context = null -> modal = None -> 更新状态 -> PresentPendingRewardIfReady()`，以保证待领奖励能在人物窗关闭后立即接续展示。世界 NPC 的 `service_type` / `facility_name` 在 `WorldMapNpcData.FromDictionary(...)` 时按正式 String payload 一次读取；`StringName` 不作为兼容输入。
 
 ## 回归入口
 
@@ -131,11 +139,12 @@ godot --headless -s res://tests/text_runtime/headless/run_text_command_party_bat
 
 setup 后应建立并持有以下 typed 索引：
 
-- `Dictionary<StringName, SkillDef>`。
-- `Dictionary<StringName, ProfessionDef>`。
-- `Dictionary<StringName, AchievementDef>`。
-- `Dictionary<StringName, ItemDef>`。
-- `Dictionary<StringName, QuestDef>`。
+- `IReadOnlyDictionary<StringName, SkillDefinition>`。
+- `IReadOnlyDictionary<StringName, ProfessionDefinition>`。
+- `IReadOnlyDictionary<StringName, AchievementDefinition>`。
+- `IReadOnlyDictionary<StringName, ItemDefinition>`。
+- `IReadOnlyDictionary<StringName, GearSetDefinition>`、`IReadOnlyDictionary<StringName, TraitDefinition>`。
+- `IReadOnlyDictionary<StringName, QuestDefinition>`。
 - `ProgressionIdentityCatalogData`。
 
 这些索引只从 catalog typed view 初始化。不要在运行中扫描 public Godot dictionary projection 补 key。
@@ -154,7 +163,7 @@ setup 后应建立并持有以下 typed 索引：
 
 ## 实现级补充：技能成长
 
-技能进度应包含：skill id、level/mastery exp、learn source、锁定/替换信息、source map。授予技能时：
+技能进度包含 skill id、level/mastery exp、learn source、核心与职业归属、融合 source map；成长完成事实由职业历史提供。授予技能时：
 
 1. 校验 skill def 存在。
 2. 校验 learn requirements / knowledge / achievement / profession gate。
@@ -166,13 +175,13 @@ setup 后应建立并持有以下 typed 索引：
 
 ## 实现级补充：职业成长与转职
 
-职业进度应包含 profession id、rank、exp、promotion records。转职流程：
+职业进度包含 profession id、rank、核心／授予技能、活动／隐藏状态和 promotion records，没有独立职业经验池。转职流程：
 
-1. 根据 ProfessionDef.rank gates 和 requirements 计算候选。
-2. 生成 PendingProfessionChoice，记录 target rank map、trigger skill ids、候选职业。
-3. UI 提交 profession id 后再次校验候选仍合法。
-4. 写 UnitProfessionProgress、授予 profession granted skills、属性成长和奖励。
-5. 清 pending choice，返回 progression delta。
+1. 根据 `ProfessionDefinition` 的 rank gates 和 requirements 计算候选。
+2. 为每个未消费且达基础门槛的技能生成临时 PendingProfessionChoice，保存已求解的完整请求；只有选中 trigger 被投影为核心。
+3. UI 提交完整冻结请求后，再校验 rank、来源、标签、归属、容量及未重复使用。
+4. 在副本结算成长并一次发布，返回 progression delta。
+5. 清当前 prompt，按世界保存／战斗写回边界持久化。
 
 不要让 UI 构造职业结果；UI 只提交选择。
 
@@ -213,7 +222,7 @@ AchievementProgressState 记录 progress、unlocked、claimed/reward state。事
 
 ## 实现级补充：奖励队列
 
-PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化。当前持久化契约是 PartyState v9、顶层 SaveVersion 18；旧版本不提供兼容迁移。后续源码物理迁移不得隐式改变版本、类型名、字段或 payload key。奖励确认流程：
+PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 canonical schema 序列化。当前持久化契约是 PartyState v9、UnitProgress v2、顶层 SaveVersion 21、索引版本 5；旧存档被明确拒绝，文件不删除，不提供兼容迁移。后续源码物理迁移不得隐式改变版本、类型名、字段或 payload key。奖励确认流程：
 
 1. peek active reward。
 2. UI 展示 reward choices。
@@ -254,7 +263,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public GDictionary ToDictionary()`
 - `public new void Dispose()`
 - `public PartyState GetPartyState() => _party_state;`
-- `public IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped() => _item_def_index;`
+- `public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() => _item_def_view;`
 - `public bool HasItemDefCatalog() => _item_def_index.Count > 0;`
 - `public void SetPartyState(PartyState party_state)`
 - `internal AttributeSourceContext build_attribute_source_context(StringName member_id) =>`
@@ -283,7 +292,8 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public StringName GetMemberWeaponPhysicalDamageTag(StringName member_id)`
 - `public bool LearnSkill(StringName member_id, StringName skill_id) =>`
 - `public bool LearnKnowledge(StringName member_id, StringName knowledge_id) =>`
-- `public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)`
+- `public IReadOnlyList<PendingProfessionChoice> GetPromotionOffers(StringName memberId)`
+- `public CharacterProgressionDelta PromoteProfession(StringName member_id, StringName profession_id, PromotionCommitRequest selection)`
 - `public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)`
 - `public GStringNameArray RecordAchievementEvent(StringName member_id, StringName event_type) =>`
 - `public bool UnlockAchievement(StringName member_id, StringName achievement_id) =>`
@@ -292,7 +302,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public void CommitBattleDeath(StringName member_id)`
 - `public void CommitBattleKo(StringName member_id) => CommitBattleDeath(member_id);`
 - `public int FlushAfterBattle() => (int)Error.Ok;`
-- `public ItemDef GetItemDef(StringName itemId) =>`
+- `public ItemDefinition GetItemDef(StringName itemId) =>`
 - `private sealed class PendingCharacterRewardEntryData`
 - `private sealed class QuestSubmitItemPreviewData`
 - `private sealed class QuestObjectiveDefData`
@@ -301,13 +311,11 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `private sealed class QuestRewardData`
 - `public static QuestRewardData Missing() =>`
 - `public static QuestRewardData FromDictionary(GDictionary questData)`
-- `public static QuestRewardData FromQuestDef(QuestDef questDef)`
 - `private sealed class QuestRewardEntryData`
 - `internal GArray CloneEntries() => _entries.Duplicate(true);`
 - `public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)`
 - `public static QuestRewardEntryData FromVariant(Variant value)`
 - `public static QuestRewardEntryData FromDictionary(GDictionary data)`
-- `public static QuestRewardEntryData FromQuestRewardEntry(QuestDef.RewardEntryData entry)`
 - `private sealed class QuestRewardPreviewData`
 - `internal GArray CloneItemRewards() => _itemRewards.Duplicate(true);`
 - `public List<StringName> CloneWarehouseDepositItemIds() =>`
@@ -596,7 +604,7 @@ PendingCharacterReward 必须通过 `PartyState.BuildSaveSnapshotPlain()` 的 ca
 - `public int RecordObjectiveProgress(StringName objectiveId, int delta)`
 - `public bool IsObjectiveComplete(StringName objectiveId, int targetValue = 0)`
 - `public bool IsObjectiveComplete(StringName objectiveId)`
-- `public bool HasCompletedAllObjectives(QuestDef questDef)`
+- `public bool HasCompletedAllObjectives(QuestDefinition questDef)`
 - `public void MarkAccepted(int worldStep = -1)`
 - `public void MarkCompleted(int worldStep = -1)`
 - `public void MarkRewardClaimed(int worldStep = -1)`

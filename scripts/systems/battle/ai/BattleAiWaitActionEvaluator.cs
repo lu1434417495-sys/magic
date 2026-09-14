@@ -202,7 +202,7 @@ internal sealed class BattleAiWaitActionEvaluator
 
     private int ResolveDesiredRestStamina(WaitActionDefinition action, BattleAiContext context)
     {
-        int desiredCost = GetSkillStaminaCost(context, "basic_attack");
+        int desiredCost = GetSkillStaminaCost(context, context.basic_attack_skill_id);
         foreach (
             BattleAvailableSkillEntry entry in _helper.ResolveAvailableSkillEntries(
                 context,
@@ -232,7 +232,10 @@ internal sealed class BattleAiWaitActionEvaluator
         SkillEffectiveCombatDefinition effective =
             context?.skill_catalog?.GetEffectiveCombatDefinition(skillId, Mathf.Max(skillLevel, 1))
             ?? SkillEffectiveCombatDefinition.BuildUncached(skill, Mathf.Max(skillLevel, 1));
-        return Mathf.Max(effective.ResourceCosts.StaminaCost, 0);
+        return Mathf.Max(
+            effective.GetResourceCostsForTargetSlots(1).StaminaCost,
+            0
+        );
     }
 
     private static int GetSkillStaminaCost(
@@ -249,7 +252,10 @@ internal sealed class BattleAiWaitActionEvaluator
                 entry.EntryRef.SkillId,
                 skillLevel
             ) ?? SkillEffectiveCombatDefinition.BuildUncached(skill, skillLevel);
-        return Mathf.Max(effective.ResourceCosts.StaminaCost, 0);
+        return Mathf.Max(
+            effective.GetResourceCostsForTargetSlots(1).StaminaCost,
+            0
+        );
     }
 
     private static int EstimateRestingRecovery(BattleUnitState unit, int tuDelta)

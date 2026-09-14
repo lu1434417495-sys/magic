@@ -55,7 +55,7 @@ internal sealed class BountyBoardWindowData
 {
     public string SettlementId { get; set; } = "";
 
-    // 当前据点的模板 id（= SettlementConfig.settlement_id），
+    // 当前据点的模板 id（= SettlementDefinition.TemplateId / JSON settlement_id），
     // 用于按 QuestDefinition.ListingSettlementIds 过滤悬赏条目。
     public string SettlementTemplateId { get; set; } = "";
     public string ActionId { get; set; } = "";

@@ -1,3 +1,4 @@
+﻿using System.Linq;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -744,7 +745,7 @@ public sealed class BattleSessionFacade : IDisposable
         var choiceEntries = new List<GameRuntimePromotionChoiceContext>();
         foreach (PendingProfessionChoice choiceObj in delta.PendingProfessionChoicesTyped)
         {
-            if (choiceObj == null)
+            if (choiceObj?.DefaultSelection?.IsWellFormed != true)
                 continue;
             foreach (StringName pid in choiceObj.CandidateProfessionIdsTyped)
             {
@@ -752,7 +753,7 @@ public sealed class BattleSessionFacade : IDisposable
                     continue;
                 if (!choiceObj.TryGetTargetRank(pid, out int targetRank))
                     continue;
-                if (targetRank <= 0)
+                if (targetRank <= 0 || choiceObj.DefaultSelection.TargetRank != targetRank)
                     continue;
                 if (
                     Port == null
@@ -775,11 +776,15 @@ public sealed class BattleSessionFacade : IDisposable
                         !string.IsNullOrEmpty(professionDef.DisplayName)
                             ? professionDef.DisplayName
                             : pid.ToString(),
-                        string.Format("Rank {0}", targetRank),
+                        $"职业等级 {targetRank}\n成长技能：{Port.GetSkillDisplayName(choiceObj.DefaultSelection.GrowthTriggerSkillId)}",
                         professionDef.Description,
                         grantedSkillIds,
-                        selectionHint,
-                        PromotionSelectionData.Empty
+                        selectionHint + "\n职业核心：" + string.Join("、", choiceObj.DefaultSelection.AssignedCoreSkillIds.Select(Port.GetSkillDisplayName))
+                            + (choiceObj.DefaultSelection.QualifierSkillIds.Count > 0
+                                ? "\n资格技能：" + string.Join("、", choiceObj.DefaultSelection.QualifierSkillIds.Select(Port.GetSkillDisplayName)) : "")
+                            + $"\n生命上限：1d{professionDef.HitDieSides} + 2 × 体质修正，至少增加 1。"
+                            + "\n授予技能：" + (grantedSkillIds.Count == 0 ? "无" : string.Join("、", grantedSkillIds.Select(Port.GetSkillDisplayName))),
+                        choiceObj.DefaultSelection
                     )
                 );
             }

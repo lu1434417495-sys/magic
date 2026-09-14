@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:age_profiles:v1",
+  "title": "Magic age_profiles JSON authoring schema",
+  "description": "Strict age_profiles contract. Cross-domain relations are content IDs.",
+  "$ref": "#/$defs/AgeProfileJsonDocumentDto",
+  "$defs": {
+    "AgeProfileJsonDocumentDto": {
+      "description": "Age profile JSON document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "age_profiles"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgeProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/AgeProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "AgeProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adult_age": {
+          "type": "integer"
+        },
+        "child_age": {
+          "type": "integer"
+        },
+        "creation_stage_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_age_by_stage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "max_natural_age": {
+          "type": "integer"
+        },
+        "middle_age": {
+          "type": "integer"
+        },
+        "old_age": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "stage_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgeStageRuleJsonDto"
+          }
+        },
+        "teen_age": {
+          "type": "integer"
+        },
+        "venerable_age": {
+          "type": "integer"
+        },
+        "young_adult_age": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adult_age",
+        "child_age",
+        "creation_stage_ids",
+        "default_age_by_stage",
+        "max_natural_age",
+        "middle_age",
+        "old_age",
+        "profile_id",
+        "race_id",
+        "stage_rules",
+        "teen_age",
+        "venerable_age",
+        "young_adult_age"
+      ]
+    },
+    "AgeProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AgeProfileJsonDto"
+        },
+        {
+          "$ref": "#/$defs/AgeProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "AgeProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adult_age": {
+          "type": "integer"
+        },
+        "child_age": {
+          "type": "integer"
+        },
+        "creation_stage_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_age_by_stage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "max_natural_age": {
+          "type": "integer"
+        },
+        "middle_age": {
+          "type": "integer"
+        },
+        "old_age": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "stage_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgeStageRuleJsonDto"
+          }
+        },
+        "teen_age": {
+          "type": "integer"
+        },
+        "venerable_age": {
+          "type": "integer"
+        },
+        "young_adult_age": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "AgeProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adult_age": {
+          "type": "integer"
+        },
+        "child_age": {
+          "type": "integer"
+        },
+        "creation_stage_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_age_by_stage": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "max_natural_age": {
+          "type": "integer"
+        },
+        "middle_age": {
+          "type": "integer"
+        },
+        "old_age": {
+          "type": "integer"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "race_id": {
+          "type": "string"
+        },
+        "stage_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgeStageRuleJsonDto"
+          }
+        },
+        "teen_age": {
+          "type": "integer"
+        },
+        "venerable_age": {
+          "type": "integer"
+        },
+        "young_adult_age": {
+          "type": "integer"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    },
+    "AgeStageRuleJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IdentityAttributeModifierJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "reachable_by_aging": {
+          "type": "boolean"
+        },
+        "selectable_in_creation": {
+          "type": "boolean"
+        },
+        "stage_id": {
+          "type": "string"
+        },
+        "trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trait_summary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "attribute_modifiers",
+        "description",
+        "display_name",
+        "reachable_by_aging",
+        "selectable_in_creation",
+        "stage_id",
+        "trait_ids",
+        "trait_summary"
+      ]
+    },
+    "IdentityAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "source_id",
+        "source_type",
+        "value",
+        "value_per_rank"
+      ]
+    }
+  }
+}

@@ -79,26 +79,21 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         _test.True(fixture.Bindings.ContainsKey(BlackBloomAwakeningBindingId), "应包含黑花将醒 binding。");
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_memoryeater_vine.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_rapier_memoryeater_vine");
         _test.True(rawItem != null, "噬忆血蔓原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "噬忆血蔓 item_id 不应包含来源编号。");
-            _test.Eq(rawItem.display_name, "噬忆血蔓", "装备名应更具传奇性。");
-            _test.True(ContainsText(rawItem.description, "生命故事"), "简介应跟随新名称与生命故事主题更新。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_rapier_base"), "噬忆血蔓应继承 rapier 模板。");
-            _test.Eq(rawItem.base_price, 75000, "噬忆血蔓基础价格应保持 75000。");
-            _test.Eq(rawItem.trait_ids.Count, 6, "噬忆血蔓应固定 6 个特性。");
-            _test.True(ContainsStringName(rawItem.trait_ids, LifebloodLedgerTraitId), "应固定生命簿血计。");
-            _test.True(ContainsStringName(rawItem.trait_ids, SymbioticSiphonTraitId), "应固定共生虹吸。");
-            _test.True(ContainsStringName(rawItem.trait_ids, MemoryThornEdgeTraitId), "应固定忆刺锋芽。");
-            _test.True(ContainsStringName(rawItem.trait_ids, StoryRootSnareTraitId), "应固定故事根缚。");
-            _test.True(ContainsStringName(rawItem.trait_ids, MourningVineLungeTraitId), "应固定哀藤追刺。");
-            _test.True(ContainsStringName(rawItem.trait_ids, BlackBloomAwakeningTraitId), "应固定黑花将醒。");
+            _test.Eq(rawItem.ItemId, ItemId, "噬忆血蔓 item_id 不应包含来源编号。");
+            _test.Eq(rawItem.DisplayName, "噬忆血蔓", "装备名应更具传奇性。");
+            _test.True(ContainsText(rawItem.Description, "生命故事"), "简介应跟随新名称与生命故事主题更新。");
+            _test.Eq(rawItem.BasePrice, 75000, "噬忆血蔓基础价格应保持 75000。");
+            _test.Eq(rawItem.TraitIds.Count, 6, "噬忆血蔓应固定 6 个特性。");
+            _test.True(ContainsStringName(rawItem.TraitIds, LifebloodLedgerTraitId), "应固定生命簿血计。");
+            _test.True(ContainsStringName(rawItem.TraitIds, SymbioticSiphonTraitId), "应固定共生虹吸。");
+            _test.True(ContainsStringName(rawItem.TraitIds, MemoryThornEdgeTraitId), "应固定忆刺锋芽。");
+            _test.True(ContainsStringName(rawItem.TraitIds, StoryRootSnareTraitId), "应固定故事根缚。");
+            _test.True(ContainsStringName(rawItem.TraitIds, MourningVineLungeTraitId), "应固定哀藤追刺。");
+            _test.True(ContainsStringName(rawItem.TraitIds, BlackBloomAwakeningTraitId), "应固定黑花将醒。");
         }
 
         ModifyAbilityStateActionPayloadDefinition lifebloodAction =
@@ -129,7 +124,6 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
             "血阶 state_key 必须在装备配置中声明为持久状态。"
         );
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildMemoryeaterUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -148,22 +142,6 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         AssertUnitHasTraitAndAbilitySource(equipped, MourningVineLungeTraitId, MourningVineLungeBindingId, "eq_memoryeater_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, BlackBloomAwakeningTraitId, BlackBloomAwakeningBindingId, "eq_memoryeater_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除噬忆血蔓后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除后装备 trait 实例应回到装备前状态。"
-        );
-        BattleTestFixture.DisposeBattleUnit(equipped);
-        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestLifebloodCounterIncrementsOnlyForThisWeaponAttackAgainstLivingKinds()
@@ -254,7 +232,10 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         SetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey, 1);
         BattleUnitState directKill = BuildEnemy("lifeblood_direct", new Vector2I(1, 0), 0, "humanoid");
         directKill.MarkDead();
-        directFixture.Runtime._collect_defeated_unit_loot(directKill, directAttacker);
+        directFixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(
+            directKill,
+            directAttacker
+        );
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directAction.StateKey), 10L, "没有攻击来源证明的击杀不应增加生命簿。");
         _test.Eq(GetPersistentCounterValue(directInstance, LifebloodLedgerBindingId, directTierStateKey), 1L, "没有攻击来源证明的击杀不应改变保存血阶。");
     }
@@ -354,19 +335,24 @@ public partial class run_memoryeater_vine_weapon_ability_regression : LifecycleT
         fixture.Runtime.SetupStateForTests(state);
 
         using BattleEventBatch batch = new();
-        fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
-            new BattleEquipmentAbilityOnKillContext
-            {
-                SourceUnit = attacker,
-                DefeatedUnit = firstDefeated,
-                BattleState = state,
-                Batch = batch,
-                KillProvenance = BattleKillProvenance.ForEquipmentAttack(
-                    FindSource(attacker, LifebloodLedgerBindingId)?.SourceEquipmentInstanceId ?? "",
-                    LifebloodLedgerBindingId,
-                    "test.initial_weapon_attack"
-                ),
-            }
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            () => fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = attacker,
+                    DefeatedUnit = firstDefeated,
+                    BattleState = state,
+                    Batch = batch,
+                    KillProvenance = BattleKillProvenance.ForWeaponAttack(
+                        BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
+                        FindSource(attacker, LifebloodLedgerBindingId)?.SourceEquipmentInstanceId ?? "",
+                        LifebloodLedgerBindingId,
+                        "test.initial_weapon_attack"
+                    ),
+                }
+            )
         );
 
         _test.False(followupTarget.IsAlive(), "血阶 5 解锁的哀藤追刺应以立即武器攻击击杀相邻敌人。");

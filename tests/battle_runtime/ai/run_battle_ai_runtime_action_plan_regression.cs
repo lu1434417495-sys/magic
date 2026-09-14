@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTestSceneTree
@@ -12,7 +11,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
     {
         try
         {
-            TestPlanAndEntryOwnNoResourceOrInstanceIdState();
             TestEntryDefensivelyCopiesMetadata();
             TestPlanFingerprintTracksSkillsAndImmutableBrainShape();
             TestClearAndDisposeReleasePlainBorrowers();
@@ -25,40 +23,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : LifecycleTes
         }
 
         RequestTestExit(_test.Finish("Battle AI runtime action plan regression"));
-    }
-
-    private void TestPlanAndEntryOwnNoResourceOrInstanceIdState()
-    {
-        foreach (
-            FieldInfo field in typeof(BattleAiRuntimeActionPlan).GetFields(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            )
-        )
-        {
-            _test.True(
-                !typeof(Resource).IsAssignableFrom(field.FieldType)
-                    && field.FieldType != typeof(NativeLeaseScope)
-                    && !field.Name.Contains("instanceId", StringComparison.OrdinalIgnoreCase),
-                $"Runtime action plan field {field.Name} must not own Resource/native scope/instance-id metadata."
-            );
-        }
-
-        PropertyInfo actionProperty = typeof(BattleAiRuntimeActionEntry).GetProperty(
-            "Action",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.Eq(
-            actionProperty?.PropertyType,
-            typeof(EnemyAiActionDefinition),
-            "Runtime entries should expose one typed immutable action definition."
-        );
-        _test.True(
-            typeof(BattleAiRuntimeActionEntry).GetProperty(
-                "ResourceAction",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            ) == null,
-            "Runtime entries must not expose a ResourceAction fallback."
-        );
     }
 
     private void TestEntryDefensivelyCopiesMetadata()

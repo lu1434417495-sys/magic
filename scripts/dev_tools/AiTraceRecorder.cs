@@ -389,14 +389,43 @@ public class AiTraceRecorder
         var dirPath = path.GetBaseDir();
 
         if (!DirAccess.DirExistsAbsolute(dirPath))
-            DirAccess.MakeDirRecursiveAbsolute(dirPath);
+        {
+            Error directoryError = DirAccess.MakeDirRecursiveAbsolute(dirPath);
+            if (directoryError != Error.Ok)
+            {
+                GameLog.Error(
+                    $"AiTraceRecorder could not create trace directory {dirPath}. Error: {(int)directoryError}",
+                    "trace.dump_dir_failed",
+                    "dev"
+                );
+                return false;
+            }
+        }
 
         using var file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
 
         if (file == null)
+        {
+            GameLog.Error(
+                $"AiTraceRecorder could not open trace file {path}. Error: {(int)FileAccess.GetOpenError()}",
+                "trace.dump_open_failed",
+                "dev"
+            );
             return false;
+        }
 
+        // 原先既不看 MakeDirRecursiveAbsolute 也不看写入结果，磁盘满/只读时照样返回 true。
         file.StoreString(Json.Stringify(doc));
+        Error writeError = file.GetError();
+        if (writeError != Error.Ok)
+        {
+            GameLog.Error(
+                $"AiTraceRecorder could not write trace file {path}. Error: {(int)writeError}",
+                "trace.dump_write_failed",
+                "dev"
+            );
+            return false;
+        }
 
         return true;
     }

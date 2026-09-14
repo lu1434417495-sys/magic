@@ -15,7 +15,6 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     private void Run()
     {
         TestLevelDescriptionSchemaValidationUsesTypedEntries();
-        TestLevelDescriptionFormatterUsesTypedConfigs();
         TestLevelDescriptionFormatterUsesTypedEffectParameters();
 
         RequestTestExit(_test.Finish("Skill level description typed regression"));
@@ -143,8 +142,10 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
                 invalidIntKeySkill
             );
         _test.True(
-            invalidIntKeyErrors.Count > 0,
-            "level_description_configs int key 应被 typed schema entry 拒绝。"
+            invalidIntKeyErrors.Contains(
+                "Skill invalid_level_description_int_key_skill level_description_configs key 0 must be a non-negative integer string."
+            ),
+            $"level_description_configs int key 应命中严格字符串 key 诊断。实际错误：{string.Join(" | ", invalidIntKeyErrors)}"
         );
 
         SkillDef invalidShapeSkill = new()
@@ -162,37 +163,24 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             invalidShapeSkill.skill_id,
             invalidShapeSkill
         );
+        string formattedInvalidErrors = string.Join(" | ", invalidErrors);
         _test.True(
-            invalidErrors.Count >= 3,
-            "非法 level_description_configs shape 应保持非法。"
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs[2] must be a Dictionary."
+            ),
+            $"level_description_configs 非字典 value 应命中 shape 诊断。实际错误：{formattedInvalidErrors}"
         );
-    }
-
-    private void TestLevelDescriptionFormatterUsesTypedConfigs()
-    {
-        SkillDefinition skill = BuildSkillDefinition(
-            "typed_level_description_formatter_skill",
-            "模板{value}{{?bonus}}+{bonus}{{/bonus}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
-            {
-                [0] = new Dictionary<string, object> { ["value"] = "零级" },
-                [1] = new Dictionary<string, object>
-                {
-                    ["value"] = "一级",
-                    ["bonus"] = 2,
-                },
-            }
+        _test.True(
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs[2] must be <= max_level 1."
+            ),
+            $"超出 max_level 的 config key 应被精确拒绝。实际错误：{formattedInvalidErrors}"
         );
-
-        _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 0, new GDictionary()),
-            "模板零级",
-            "formatter 应从 typed level description config 读取 0 级描述。"
-        );
-        _test.Eq(
-            SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 1, new GDictionary()),
-            "模板一级+2",
-            "formatter 应从 typed level description config 读取 1 级描述。"
+        _test.True(
+            invalidErrors.Contains(
+                "Skill invalid_level_description_shape_skill level_description_configs must include level 1."
+            ),
+            $"level_description_configs 的缺失 level 应被精确报告。实际错误：{formattedInvalidErrors}"
         );
     }
 
@@ -200,7 +188,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
     {
         SkillDefinition skill = BuildSkillDefinition(
             "typed_level_description_effect_params_skill",
-            "连锁半径{base_chain_radius}，湿地{wet_chain_radius}",
+            "基础跳距{chain_base_hop_range}，导电跳距{chain_conductive_hop_range}，目标上限{chain_max_total_targets}",
             combatProfile: BuildCombatProfile(
                 "typed_level_description_effect_params_skill",
                 new CombatEffectDefinition(
@@ -248,26 +236,29 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
                     durationTu: 0,
                     tickIntervalTu: 0,
                     effectTags: System.Array.Empty<StringName>(),
-                    parameters: new Dictionary<string, object>
-                    {
-                        ["base_chain_radius"] = 1,
-                        ["wet_chain_radius"] = 2,
-                    }
+                    chainDamage: new CombatChainDamageDefinition(
+                        baseHopRange: 1,
+                        conductiveHopRange: 2,
+                        maxTotalTargets: 0,
+                        conductiveStatusIds: new StringName[] { "shocked" },
+                        conductiveTerrainEffectIds: new StringName[] { "wet" },
+                        backlashHopRangeBonus: 1
+                    )
                 )
             )
         );
 
         _test.Eq(
             SkillLevelDescriptionFormatter.BuildLevelDescription(skill, 0, new GDictionary()),
-            "连锁半径1，湿地2",
-            "formatter 应从纯 SkillDefinition effect parameters 渲染描述。"
+            "基础跳距1，导电跳距2，目标上限不限",
+            "formatter 应从纯 SkillDefinition typed chain_damage 定义渲染无限目标描述。"
         );
     }
 
     private static SkillDefinition BuildSkillDefinition(
         StringName skillId,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs = null,
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs = null,
         CombatSkillDefinition combatProfile = null
     )
     {
@@ -301,7 +292,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: levelDescriptionTemplate,
             levelDescriptionConfigs: levelDescriptionConfigs
-                ?? new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+                ?? new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: combatProfile
         );
     }
@@ -331,7 +322,7 @@ public partial class run_skill_level_description_typed_regression : LifecycleTes
             attackRollBonus: 0,
             attackResolutionMode: "",
             auraCost: 0,
-            levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelOverrides: new Dictionary<int, CombatSkillLevelOverrideImportModel>(),
             masteryTriggerMode: "",
             masteryAmountMode: "",
             spellFateMode: "",

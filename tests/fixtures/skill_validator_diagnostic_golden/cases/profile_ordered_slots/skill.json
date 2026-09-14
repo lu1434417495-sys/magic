@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_ordered_slots",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_profile_ordered_slots",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_profile_ordered_slots",
+        "target_mode": "ground",
+        "casting_time_tu": 5,
+        "target_selection_mode": "single_coord",
+        "unit_target_resolution_mode": "ordered_slots"
+      },
+      "icon_id": "diagnostic_profile_ordered_slots",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

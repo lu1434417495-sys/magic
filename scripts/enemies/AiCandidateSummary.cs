@@ -9,6 +9,13 @@ public sealed class AiCandidateSummary
     public Dictionary<string, object> ScoreInput { get; } = new(System.StringComparer.Ordinal);
     public Dictionary<string, object> ExtraFields { get; } = new(System.StringComparer.Ordinal);
 
+    /// <summary>
+    /// Ranking facts captured from the originating score input so trace top-candidate order
+    /// matches the decision engine's preference order instead of raw <see cref="TotalScore"/>.
+    /// Null when the candidate was offered without a score input.
+    /// </summary>
+    internal BattleAiCandidateFacts OrderingFacts { get; set; }
+
     public AiCandidateSummary()
     {
         Command = new AiCommandSummary();
@@ -37,7 +44,11 @@ public sealed class AiCandidateSummary
             TotalScore,
             RuntimePlainPayload.CloneDictionary(ScoreInput),
             RuntimePlainPayload.CloneDictionary(ExtraFields)
-        );
+        )
+        {
+            // Ordering facts are immutable value snapshots; sharing the reference is safe.
+            OrderingFacts = OrderingFacts,
+        };
     }
 
     internal static AiCandidateSummary Create(
@@ -55,6 +66,7 @@ public sealed class AiCandidateSummary
             scoreInput != null ? BattleAiScoreProjection.BuildPlain(scoreInput) : null,
             extra
         );
+        summary.OrderingFacts = BattleAiCandidateOrdering.FromScoreInput(scoreInput);
         summary.ExtraFields.Remove("label");
         summary.ExtraFields.Remove("command");
         summary.ExtraFields.Remove("total_score");

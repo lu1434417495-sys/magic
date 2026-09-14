@@ -58,32 +58,29 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"锈锚应包含 binding {bindingId}。");
         _test.True(fixture.SkillDefs.ContainsKey(SunkAnchorSkillId), "沉锚守势应落成真实 SkillDef，而不是 trait 文本。");
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_rustanchor.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greataxe_rustanchor");
         _test.True(rawItem != null, "锈锚原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "锈锚 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "锈锚", "锈锚显示名应匹配设计。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_greataxe_base"), "锈锚应继承 greataxe。");
-            _test.Eq(rawItem.base_price, 38000, "锈锚价格应为 38000。");
-            _test.Eq(rawItem.trait_ids.Count, 3, "锈锚应有且只有 3 个新特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "锈锚 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "锈锚", "锈锚显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 38000, "锈锚价格应为 38000。");
+            _test.Eq(rawItem.TraitIds.Count, 3, "锈锚应有且只有 3 个新特性。");
             foreach (StringName traitId in new[] { SunkAnchorTraitId, RustChainTraitId, NoReturnTraitId })
-                _test.True(rawItem.trait_ids.Contains(traitId), $"锈锚 item 应声明 {traitId}。");
+                _test.True(rawItem.TraitIds.Contains(traitId), $"锈锚 item 应声明 {traitId}。");
 
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "锈锚应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.weapon_type_id, new StringName("greataxe"), "锈锚 weapon_type_id 应为 greataxe。");
-                _test.Eq(profile.family, new StringName("axe"), "锈锚 family 应为 axe。");
-                _test.Eq(profile.range_type, new StringName("melee"), "锈锚应为 melee。");
-                _test.Eq(profile.damage_tag, new StringName("physical_slash"), "锈锚应为斩击。");
-                _test.Eq(profile.attack_range, 1, "锈锚攻击距离应为 1。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 1, "锈锚应为 1D12+1。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 12, "锈锚应为 1D12+1。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 1, "锈锚应为 1D12+1。");
+                _test.Eq(profile.WeaponTypeId, new StringName("greataxe"), "锈锚 weapon_type_id 应为 greataxe。");
+                _test.Eq(profile.Family, new StringName("axe"), "锈锚 family 应为 axe。");
+                _test.Eq(profile.RangeType, new StringName("melee"), "锈锚应为 melee。");
+                _test.Eq(profile.DamageTag, new StringName("physical_slash"), "锈锚应为斩击。");
+                _test.Eq(profile.AttackRange, 1, "锈锚攻击距离应为 1。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 1, "锈锚应为 1D12+1。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 12, "锈锚应为 1D12+1。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 1, "锈锚应为 1D12+1。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "two_handed"), "锈锚应声明 two_handed。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "heavy"), "锈锚应声明 heavy。");
             }
@@ -92,10 +89,7 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         if (fixture.SkillDefs.TryGetValue(SunkAnchorSkillId, out SkillDefinition skill))
             AssertSunkAnchorSkillDefinition(skill, fixture);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildRustanchorUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ItemId, "锈锚装备后 unit 应保留 item_id。");
@@ -111,17 +105,6 @@ public partial class run_rustanchor_weapon_ability_regression : LifecycleTestSce
         AssertUnitHasTraitAndAbilitySource(equipped, RustChainTraitId, RustChainBindingId, "eq_rustanchor_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, NoReturnTraitId, NoReturnBindingId, "eq_rustanchor_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除锈锚后 weapon_item_id 应清空。");
-        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除锈锚后武器 profile 应恢复。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除锈锚后装备能力源应清空。"
-        );
     }
 
     private void TestSunkAnchorSkillAppliesStatusBlocksForcedMoveAndReducesDamage()

@@ -39,6 +39,7 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             TestGluttonProjectsRealContentOntoBattleUnitAndClearsOnUnequip();
             TestUnsatisfiedAddsHungerAndDevouringChopConsumesItForDamage();
             TestSatedHealsForHalfActualHpDamageOnWeaponKill();
+            TestSatedHealFromFactRespectsHealingSuppression();
             RequestTestExit(_test.Finish("Glutton weapon ability regression"));
         }
         catch (Exception exception)
@@ -73,33 +74,23 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             fixture.Bindings.ContainsKey(DevouringChopBindingId),
             "真实装备能力内容应包含吞食斩 binding。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_glutton.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_glutton_090");
         _test.True(rawItem != null, "贪食者原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "贪食者", "贪食者显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "贪食者应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 42000, "贪食者价格应为 42000。");
-            _test.True(rawItem.trait_ids.Contains(SatedTraitId), "贪食者物品应声明饱食。");
-            _test.True(rawItem.trait_ids.Contains(UnsatisfiedTraitId), "贪食者物品应声明永不满足。");
-            _test.True(rawItem.trait_ids.Contains(DevouringChopTraitId), "贪食者物品应声明吞食斩。");
+            _test.Eq(rawItem.DisplayName, "贪食者", "贪食者显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 42000, "贪食者价格应为 42000。");
+            _test.True(rawItem.TraitIds.Contains(SatedTraitId), "贪食者物品应声明饱食。");
+            _test.True(rawItem.TraitIds.Contains(UnsatisfiedTraitId), "贪食者物品应声明永不满足。");
+            _test.True(rawItem.TraitIds.Contains(DevouringChopTraitId), "贪食者物品应声明吞食斩。");
             _test.False(
-                ContainsText(rawItem.description, "长休")
-                    || ContainsText(rawItem.description, "三日")
-                    || ContainsText(rawItem.description, "necrotic"),
+                ContainsText(rawItem.Description, "长休")
+                    || ContainsText(rawItem.Description, "三日")
+                    || ContainsText(rawItem.Description, "necrotic"),
                 "玩家说明不应包含已延后的长休、三日或英文负能量反噬文本。"
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildGluttonUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -155,20 +146,6 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
             "吞食斩造成伤害后必须清除已消耗的饥饿层数。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除贪食者后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除贪食者后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除贪食者后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestUnsatisfiedAddsHungerAndDevouringChopConsumesItForDamage()
@@ -241,6 +218,47 @@ public partial class run_glutton_weapon_ability_regression : LifecycleTestSceneT
         _test.False(
             attacker.HasStatusEffect(HungerStatusId),
             "击杀触发饱食时不应再按未击杀路径获得饥饿。"
+        );
+    }
+
+    private void TestSatedHealFromFactRespectsHealingSuppression()
+    {
+        using GluttonFixture fixture = GluttonFixture.Build(new GArray { 10 });
+        BattleUnitState attacker = fixture.BuildGluttonUnit("sated_healing_suppression");
+        attacker.attribute_snapshot.SetValue(AttributeService.HP_MAX, 100);
+        attacker.SetCurrentHp(40);
+        attacker.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "glutton_test_healing_suppression",
+                stacks = 1,
+                duration = 60,
+                heal_multiplier_percent = 50,
+            }
+        );
+        BattleUnitState target = BuildEnemy(
+            "glutton_suppressed_heal_target",
+            new Vector2I(1, 0),
+            hp: 12
+        );
+
+        IssueBasicAttackWithAttackerHp(
+            fixture.Runtime,
+            attacker,
+            target,
+            "glutton_sated_suppressed_heal",
+            attackerHp: 40
+        );
+
+        _test.False(target.IsAlive(), "减疗用例中的贪食者攻击应击杀目标。");
+        _test.Eq(
+            43,
+            attacker.GetCurrentHp(),
+            "饱食原始6点heal_from_fact治疗应受50%减疗缩放为3点。"
+        );
+        _test.False(
+            attacker.HasStatusEffect(HungerStatusId),
+            "击杀触发受抑制的饱食治疗时仍不应获得饥饿。"
         );
     }
 

@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_item_recipe_registry_typed_regression : LifecycleTestSceneTree
@@ -20,44 +18,29 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
     private void Run()
     {
-        TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary();
-        TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary();
-        TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary();
+        TestOfficialItemRegistryIsImmutableAndValid();
+        TestOfficialRecipeRegistryIsImmutableAndValid();
+        TestInvalidRecipeRegistryPreservesDiagnosticsAcrossValidationSurfaces();
+        TestRecipeRegistryRejectsMissingItemReference();
         TestItemTraitValidationAcceptsSourceScopedReferences();
         TestItemTraitValidationRejectsWrongSourceAndUnsatisfiableRollGroups();
-        TestDefinitionsContainNoGodotObjectGraph();
-        TestProjectionRejectsNullNestedResources();
-        TestItemMergeIsPureAndDeeplyReadOnly();
-        TestWeaponSubresourcesAreTypedAndInvalidDiceRemainInvalid();
+        TestProjectionRejectsNullNestedValues();
+        TestItemDefinitionIsDeeplyReadOnly();
+        TestInvalidWeaponDiceRemainInvalid();
 
         RequestTestExit(_test.Finish("Item/recipe registry typed regression"));
     }
 
-    private void TestOfficialItemRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestOfficialItemRegistryIsImmutableAndValid()
     {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry registry = new(loader);
+        using ItemContentRegistry registry = new();
 
         IReadOnlyDictionary<StringName, ItemDefinition> typedItemDefs =
             registry.GetItemDefsTyped();
-        _test.True(
-            typedItemDefs is not Dictionary<StringName, ItemDefinition>,
-            "item registry should not expose a mutable dictionary."
-        );
         IReadOnlyList<string> typedErrors = registry.ValidateTyped();
-        GDictionary projectedItemDefs = ProjectItemDefs(typedItemDefs);
         GStringArray projectedErrors = registry.Validate();
 
-        _test.Eq(
-            typedItemDefs.Count,
-            projectedItemDefs.Count,
-            "item registry typed/public item defs 数量应保持一致。"
-        );
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "item registry typed/public validation error 数量应保持一致。"
-        );
+        _test.Eq(typedErrors.Count, 0, $"正式 typed item validation 不应报错: {FormatErrors(typedErrors)}");
         _test.Eq(
             projectedErrors.Count,
             0,
@@ -67,64 +50,81 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             typedItemDefs.ContainsKey("steel_longsword"),
             "typed item defs 应保留正式 steel_longsword。"
         );
+        AssertDictionaryRejectsRemoval(
+            typedItemDefs,
+            "steel_longsword",
+            "item registry 返回的 definitions 必须拒绝消费方删除"
+        );
     }
 
-    private void TestOfficialRecipeRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestOfficialRecipeRegistryIsImmutableAndValid()
     {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry itemRegistry = new(loader);
-        using RecipeContentRegistry recipeRegistry = new(loader);
+        using ItemContentRegistry itemRegistry = new();
+        using RecipeContentRegistry recipeRegistry = new();
 
         recipeRegistry.Setup(itemRegistry.GetItemDefsTyped());
 
         IReadOnlyDictionary<StringName, RecipeDefinition> typedRecipeDefs =
             recipeRegistry.GetRecipeDefsTyped();
-        _test.True(
-            typedRecipeDefs is not Dictionary<StringName, RecipeDefinition>,
-            "recipe registry should not expose a mutable dictionary."
-        );
         IReadOnlyList<string> typedErrors = recipeRegistry.ValidateTyped();
-        GDictionary projectedRecipeDefs = ProjectRecipeDefs(typedRecipeDefs);
         GStringArray projectedErrors = recipeRegistry.Validate();
 
-        _test.Eq(
-            typedRecipeDefs.Count,
-            projectedRecipeDefs.Count,
-            "recipe registry typed/public recipe defs 数量应保持一致。"
-        );
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "recipe registry typed/public validation error 数量应保持一致。"
-        );
+        _test.Eq(typedErrors.Count, 0, $"正式 typed recipe validation 不应报错: {FormatErrors(typedErrors)}");
         _test.Eq(
             projectedErrors.Count,
             0,
             $"正式 recipe registry 不应报错: {FormatErrors(projectedErrors)}"
         );
+        _test.True(
+            typedRecipeDefs.ContainsKey("forge_militia_axe"),
+            "typed recipe defs 应保留正式 forge_militia_axe。"
+        );
+        AssertDictionaryRejectsRemoval(
+            typedRecipeDefs,
+            "forge_militia_axe",
+            "recipe registry 返回的 definitions 必须拒绝消费方删除"
+        );
     }
 
-    private void TestInvalidRecipeRegistryTypedBoundaryMatchesPublicBoundary()
+    private void TestInvalidRecipeRegistryPreservesDiagnosticsAcrossValidationSurfaces()
     {
-        using TestContentResourceLoader loader = new();
-        using ItemContentRegistry itemRegistry = new(loader);
-        using RecipeContentRegistry recipeRegistry = new(loader);
+        using ItemContentRegistry itemRegistry = new();
+        using RecipeContentRegistry recipeRegistry = new();
 
         recipeRegistry.Setup(itemRegistry.GetItemDefsTyped());
-        recipeRegistry.LoadFromDirectory(InvalidRecipeDirectory);
+        recipeRegistry.LoadFromJsonDirectory(
+            InvalidRecipeDirectory,
+            new GodotContentJsonSourceReader()
+        );
 
         IReadOnlyList<string> typedErrors = recipeRegistry.ValidateTyped();
         GStringArray projectedErrors = recipeRegistry.Validate();
 
-        _test.Eq(
-            typedErrors.Count,
-            projectedErrors.Count,
-            "invalid recipe fixture 下 typed/public validation error 数量应保持一致。"
+        AssertContains(typedErrors, ContentJsonDocumentLoader.DuplicateEntryIdRule, "duplicate_recipes.json", "typed validation 应拒绝重复 recipe id。");
+        AssertContains(typedErrors, ContentJsonDocumentLoader.InvalidEntryIdRule, "invalid_recipe_id.json", "typed validation 应拒绝缺失 recipe id。");
+        AssertContains(projectedErrors, ContentJsonDocumentLoader.DuplicateEntryIdRule, "duplicate_recipes.json", "public validation 应保留重复 recipe id 诊断。");
+        AssertContains(projectedErrors, ContentJsonDocumentLoader.InvalidEntryIdRule, "invalid_recipe_id.json", "public validation 应保留缺失 recipe id 诊断。");
+    }
+
+    private void TestRecipeRegistryRejectsMissingItemReference()
+    {
+        const string document =
+            "{\"schema\":1,\"domain\":\"recipes\",\"family\":\"missing_reference\",\"templates\":{},\"entries\":[{"
+            + "\"recipe_id\":\"missing_reference_recipe\",\"display_name\":\"Missing reference\",\"description\":\"\","
+            + "\"inputs\":[{\"item_id\":\"missing_item\",\"quantity\":1}],\"output_item_id\":\"militia_axe\","
+            + "\"output_quantity\":1,\"required_facility_tags\":[\"forge\"],\"failure_reason\":\"\"}]}";
+        using ItemContentRegistry itemRegistry = new();
+        using RecipeContentRegistry recipeRegistry = new();
+        recipeRegistry.Setup(itemRegistry.GetItemDefsTyped());
+        recipeRegistry.LoadFromJsonDirectory(
+            "fixture://missing_recipe_reference",
+            new SingleJsonSourceReader("missing_reference.json", document)
         );
-        _test.True(
-            typedErrors.Count > 0,
-            $"invalid recipe fixture 应保持非法。 errors={FormatErrors(typedErrors)}"
-        );
+
+        IReadOnlyList<string> typedErrors = recipeRegistry.ValidateTyped();
+        GStringArray projectedErrors = recipeRegistry.Validate();
+        AssertContains(typedErrors, "missing input item", "missing_item", "typed validation 应拒绝缺失的 input item。");
+        AssertContains(projectedErrors, "missing input item", "missing_item", "public validation 应保留缺失 input item 诊断。");
     }
 
     private void TestItemTraitValidationAcceptsSourceScopedReferences()
@@ -194,50 +194,9 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         );
     }
 
-    private void TestDefinitionsContainNoGodotObjectGraph()
+    private void TestProjectionRejectsNullNestedValues()
     {
-        Type[] definitionTypes =
-        {
-            typeof(ItemDefinition),
-            typeof(RecipeDefinition),
-            typeof(TraitRollGroupDefinition),
-            typeof(TraitRollGroupEntryDefinition),
-            typeof(WeaponProfileDefinition),
-            typeof(WeaponDamageDiceDefinition),
-            typeof(EquipmentRequirementDefinition),
-            typeof(EquipmentAttributeRequirementDefinition),
-        };
-
-        foreach (Type definitionType in definitionTypes)
-        {
-            foreach (
-                PropertyInfo property in definitionType.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public
-                )
-            )
-            {
-                foreach (Type inspected in EnumerateTypeGraph(property.PropertyType))
-                {
-                    _test.True(
-                        !typeof(GodotObject).IsAssignableFrom(inspected),
-                        $"{definitionType.Name}.{property.Name} must not retain GodotObject type {inspected.FullName}."
-                    );
-                    _test.True(
-                        inspected.FullName == null
-                            || !inspected.FullName.StartsWith(
-                                "Godot.Collections.",
-                                StringComparison.Ordinal
-                            ),
-                        $"{definitionType.Name}.{property.Name} must not retain Godot collection type {inspected.FullName}."
-                    );
-                }
-            }
-        }
-    }
-
-    private void TestProjectionRejectsNullNestedResources()
-    {
-        ItemDef badGroupItem = new() { item_id = "bad_null_group" };
+        TestItemDefinitionBuilder badGroupItem = new() { item_id = "bad_null_group" };
         badGroupItem.trait_roll_groups.Add(null);
         AssertInvalidData(
             () => badGroupItem.ToDefinition(),
@@ -245,7 +204,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             "null trait roll group must fail projection"
         );
 
-        TraitRollGroupDef badEntryGroup = new() { group_id = "bad_null_entry" };
+        TestTraitRollGroupDefinitionBuilder badEntryGroup = new() { group_id = "bad_null_entry" };
         badEntryGroup.entries.Add(null);
         AssertInvalidData(
             () => badEntryGroup.ToDefinition(),
@@ -259,29 +218,6 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             () => badRequirement.ToDefinition(),
             "attribute_requirements[0]",
             "null equipment attribute requirement must fail projection"
-        );
-
-        RecipeDef nullQuantities = new()
-        {
-            recipe_id = "null_quantities",
-            input_item_quantities = null,
-        };
-        AssertInvalidData(
-            () => nullQuantities.ToDefinition(),
-            "input_item_quantities",
-            "null recipe quantities must fail projection"
-        );
-
-        RecipeDef mismatchedRecipe = new()
-        {
-            recipe_id = "mismatched_recipe",
-            input_item_ids = new Godot.Collections.Array<StringName> { "ore" },
-            input_item_quantities = Array.Empty<int>(),
-        };
-        AssertInvalidData(
-            () => mismatchedRecipe.ToDefinition(),
-            "input_item_quantities",
-            "recipe id/quantity count mismatch must fail projection"
         );
 
         bool typedMismatchRejected = false;
@@ -306,25 +242,16 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         _test.True(typedMismatchRejected, "typed recipe constructor must enforce id/quantity pairing");
     }
 
-    private void TestItemMergeIsPureAndDeeplyReadOnly()
+    private void TestItemDefinitionIsDeeplyReadOnly()
     {
-        EquipmentRequirement requirement = new();
-        requirement.required_profession_ids.Add("fighter");
-        requirement.attribute_requirements.Add(
-            new EquipmentAttributeRequirementDef
-            {
-                attribute_id = "strength",
-                min_value = 12,
-            }
-        );
-        TraitRollGroupDef rollGroup = new() { group_id = "prefix", roll_count = 1 };
+        TestTraitRollGroupDefinitionBuilder rollGroup = new() { group_id = "prefix", roll_count = 1 };
         rollGroup.entries.Add(
-            new TraitRollGroupEntryDef { trait_id = "sharp_edge", weight = 2 }
+            new TestTraitRollGroupEntryDefinitionBuilder { trait_id = "sharp_edge", weight = 2 }
         );
-        ItemDef templateRaw = new()
+        TestItemDefinitionBuilder itemRaw = new()
         {
-            item_id = "template_sword",
-            display_name = "Template Sword",
+            item_id = "flat_sword",
+            display_name = "Flat Sword",
             item_category = "equipment",
             equipment_type_id = "weapon",
             is_stackable = false,
@@ -332,134 +259,117 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             base_price = 100,
             buy_price = 120,
             sell_price = 60,
-            equip_requirement = requirement,
-            weapon_profile = new WeaponProfileDef
+            equip_requirement = new EquipmentRequirementDefinition(
+                new[] { "fighter" },
+                0,
+                0,
+                new[] { new EquipmentAttributeRequirementDefinition("strength", 12) }
+            ),
+            weapon_profile = new TestWeaponProfileDefinitionBuilder
             {
                 weapon_type_id = "longsword",
                 family = "sword",
                 range_type = "melee",
                 damage_tag = "physical_slash",
                 attack_range = 1,
-                one_handed_dice = new WeaponDamageDiceDef
+                one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
                 {
                     dice_count = 1,
                     dice_sides = 8,
                 },
-                properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
                 properties = new Godot.Collections.Array<StringName> { "versatile" },
             },
         };
-        templateRaw.tags.Add("template_tag");
-        templateRaw.trait_roll_groups.Add(rollGroup);
-        templateRaw.attribute_modifiers.Add(
-            new AttributeModifier
-            {
-                attribute_id = "strength",
-                mode = "flat",
-                value = 1,
-                source_type = "item",
-                source_id = "template_sword",
-            }
+        itemRaw.tags.Add("flat_tag");
+        itemRaw.trait_roll_groups.Add(rollGroup);
+        itemRaw.attribute_modifiers.Add(
+            new AttributeModifierDefinition(
+                "strength",
+                "flat",
+                1,
+                0,
+                "item",
+                "flat_sword"
+            )
         );
 
-        ItemDef instanceRaw = new()
-        {
-            item_id = "derived_sword",
-            base_item_id = "template_sword",
-            is_stackable = false,
-            max_stack = 1,
-            sellable = true,
-        };
-        instanceRaw.tags.Add("instance_tag");
+        ItemDefinition definition = itemRaw.ToDefinition();
 
-        ItemDefinition template = templateRaw.ToDefinition();
-        ItemDefinition instance = instanceRaw.ToDefinition();
-        ItemDefinition merged = ItemDefinition.MergeWithTemplate(template, instance);
-
-        _test.Eq(merged.ItemId, new StringName("derived_sword"), "merge should keep instance id");
-        _test.Eq(merged.BaseItemId, new StringName(""), "merge should clear base item id");
-        _test.Eq(merged.DisplayName, "Template Sword", "empty instance text should inherit");
-        _test.Eq(merged.BasePrice, 100, "zero instance price should inherit");
-        _test.Eq(merged.Tags.Count, 2, "merge should union template and instance tags");
-        _test.True(
-            !ReferenceEquals(merged.WeaponProfile, template.WeaponProfile),
-            "merge should deep-copy weapon profile definition"
-        );
-        _test.True(
-            !ReferenceEquals(merged.EquipRequirement, template.EquipRequirement),
-            "merge should deep-copy equipment requirement definition"
-        );
-        _test.True(
-            !ReferenceEquals(merged.TraitRollGroups[0], template.TraitRollGroups[0]),
-            "merge should deep-copy trait roll definitions"
-        );
+        _test.Eq(definition.ItemId, new StringName("flat_sword"), "projection should keep item id");
+        _test.Eq(definition.DisplayName, "Flat Sword", "projection should keep display text");
+        _test.Eq(definition.BasePrice, 100, "projection should keep authored price");
+        _test.Eq(definition.Tags.Count, 1, "projection should keep flat tags");
+        _test.True(definition.WeaponProfile != null, "projection should keep weapon profile");
+        _test.True(definition.EquipRequirement != null, "projection should keep equipment requirement");
+        _test.Eq(definition.TraitRollGroups.Count, 1, "projection should keep trait roll groups");
         _test.Eq(
-            merged.AttributeModifiers[0].SourceId,
-            new StringName("derived_sword"),
-            "merged modifiers should rewrite source_id to final item id"
+            definition.AttributeModifiers[0].SourceId,
+            new StringName("flat_sword"),
+            "projection should preserve canonical modifier source id"
         );
 
         bool mutationRejected = false;
         try
         {
-            ((IList<StringName>)merged.Tags).Add("illegal_mutation");
+            ((IList<StringName>)definition.Tags).Add("illegal_mutation");
         }
         catch (NotSupportedException)
         {
             mutationRejected = true;
         }
         _test.True(mutationRejected, "definition lists should reject mutation");
-        _test.Eq(template.Tags.Count, 1, "merge must not mutate template definition");
-        _test.Eq(instance.Tags.Count, 1, "merge must not mutate instance definition");
+        _test.Eq(itemRaw.tags.Count, 1, "projection must not mutate the import fixture");
 
-        ItemDef invalidGroupRaw = new() { item_id = "invalid_group_template" };
-        invalidGroupRaw.trait_roll_groups.Add(new TraitRollGroupDef { group_id = "" });
-        AssertInvalidData(
-            () => ItemDefinition.MergeWithTemplate(
-                invalidGroupRaw.ToDefinition(),
-                instance
-            ),
-            "template.trait_roll_groups[0].group_id",
-            "merge must not erase an empty trait-roll group id"
+        TestItemDefinitionBuilder invalidGroupRaw = new()
+        {
+            item_id = "invalid_group_item",
+            CategoryKind = ItemCategoryKind.Equipment,
+        };
+        invalidGroupRaw.trait_roll_groups.Add(new TestTraitRollGroupDefinitionBuilder { group_id = "" });
+        List<string> invalidGroupErrors = ItemTraitContentValidator.Validate(
+            new Dictionary<StringName, ItemDefinition>
+            {
+                [invalidGroupRaw.item_id] = invalidGroupRaw.ToDefinition(),
+            },
+            new Dictionary<StringName, TraitDefinition>(),
+            "fixture_items"
+        );
+        AssertContains(
+            invalidGroupErrors,
+            "trait_roll_groups[0].group_id",
+            "must be non-empty",
+            "item trait validation must reject an empty trait-roll group id"
         );
 
-        ItemDef duplicateGroupsRaw = new() { item_id = "duplicate_group_template" };
+        TestItemDefinitionBuilder duplicateGroupsRaw = new()
+        {
+            item_id = "duplicate_group_item",
+            CategoryKind = ItemCategoryKind.Equipment,
+        };
         duplicateGroupsRaw.trait_roll_groups.Add(
-            new TraitRollGroupDef { group_id = "duplicate" }
+            new TestTraitRollGroupDefinitionBuilder { group_id = "duplicate" }
         );
         duplicateGroupsRaw.trait_roll_groups.Add(
-            new TraitRollGroupDef { group_id = "duplicate" }
+            new TestTraitRollGroupDefinitionBuilder { group_id = "duplicate" }
         );
-        AssertInvalidData(
-            () => ItemDefinition.MergeWithTemplate(
-                duplicateGroupsRaw.ToDefinition(),
-                instance
-            ),
-            "template.trait_roll_groups[1].group_id",
-            "merge must not erase duplicate trait-roll group ids"
+        List<string> duplicateGroupErrors = ItemTraitContentValidator.Validate(
+            new Dictionary<StringName, ItemDefinition>
+            {
+                [duplicateGroupsRaw.item_id] = duplicateGroupsRaw.ToDefinition(),
+            },
+            new Dictionary<StringName, TraitDefinition>(),
+            "fixture_items"
+        );
+        AssertContains(
+            duplicateGroupErrors,
+            "trait_roll_groups[1].group_id",
+            "duplicates duplicate",
+            "item trait validation must reject duplicate trait-roll group ids"
         );
     }
 
-    private void TestWeaponSubresourcesAreTypedAndInvalidDiceRemainInvalid()
+    private void TestInvalidWeaponDiceRemainInvalid()
     {
-        _test.Eq(
-            typeof(ItemDef).GetField(nameof(ItemDef.equip_requirement))?.FieldType,
-            typeof(EquipmentRequirement),
-            "item equip_requirement authoring field must reject unrelated Resource types"
-        );
-        _test.Eq(
-            typeof(ItemDef).GetField(nameof(ItemDef.weapon_profile))?.FieldType,
-            typeof(WeaponProfileDef),
-            "item weapon_profile authoring field must reject unrelated Resource types"
-        );
-        _test.True(
-            typeof(WeaponProfileDef).GetMethod("Merge", BindingFlags.Public | BindingFlags.Static)
-                == null
-                && typeof(WeaponProfileDef).GetMethod("DuplicateProfile") == null
-                && typeof(WeaponDamageDiceDef).GetMethod("DuplicateDice") == null,
-            "raw weapon Resources must not retain merge/duplicate runtime APIs"
-        );
-
         WeaponDamageDiceDefinition invalidDice = new WeaponDamageDiceDefinition(0, -2, 0);
         IReadOnlyList<string> errors = WeaponDamageDiceDefinition.ValidateDice(
             "invalid_weapon",
@@ -467,23 +377,20 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         );
         _test.Eq(errors.Count, 2, "zero/negative authored dice must fail validation");
 
-        WeaponProfileDefinition merged = WeaponProfileDefinition.Merge(
+        WeaponProfileDefinition profile = new(
+            "invalid_weapon",
+            "",
+            "melee",
+            "",
+            "physical_slash",
+            1,
+            invalidDice,
             null,
-            new WeaponProfileDefinition(
-                "invalid_weapon",
-                "",
-                "melee",
-                "",
-                "physical_slash",
-                1,
-                invalidDice,
-                null,
-                (int)WeaponProfileDefinition.PropertyMergeMode.REPLACE,
-                Array.Empty<StringName>()
-            )
+            (int)WeaponProfileDefinition.PropertyMergeMode.REPLACE,
+            Array.Empty<StringName>()
         );
-        _test.Eq(merged.OneHandedDice.DiceCount, 0, "merge must not normalize invalid dice count");
-        _test.Eq(merged.OneHandedDice.DiceSides, -2, "merge must not normalize invalid dice sides");
+        _test.Eq(profile.OneHandedDice.DiceCount, 0, "definition must not normalize invalid dice count");
+        _test.Eq(profile.OneHandedDice.DiceSides, -2, "definition must not normalize invalid dice sides");
     }
 
     private void AssertInvalidData(Action action, string pathFragment, string message)
@@ -508,24 +415,6 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         }
     }
 
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
-    {
-        var seen = new HashSet<Type>();
-        var pending = new Stack<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type type = pending.Pop();
-            if (type == null || !seen.Add(type))
-                continue;
-            yield return type;
-            if (type.HasElementType)
-                pending.Push(type.GetElementType());
-            foreach (Type argument in type.GetGenericArguments())
-                pending.Push(argument);
-        }
-    }
-
     private static string FormatErrors(IEnumerable<string> errors)
     {
         List<string> values = new();
@@ -534,36 +423,42 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
     }
 
-    private static GDictionary ProjectItemDefs(
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
-    )
+    private sealed class SingleJsonSourceReader : IContentJsonSourceReader
     {
-        GDictionary result = new();
-        if (itemDefs == null)
-            return result;
-        foreach ((StringName itemId, ItemDefinition itemDef) in itemDefs)
+        private readonly string _fileName;
+        private readonly string _json;
+
+        internal SingleJsonSourceReader(string fileName, string json)
         {
-            if (itemId == "" || itemDef == null)
-                continue;
-            result[itemId] = itemId.ToString();
+            _fileName = fileName;
+            _json = json;
         }
-        return result;
+
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(
+            string directoryPath
+        ) => new[] { new ContentJsonSourceText(_fileName, _json) };
     }
 
-    private static GDictionary ProjectRecipeDefs(
-        IReadOnlyDictionary<StringName, RecipeDefinition> recipeDefs
+    private void AssertDictionaryRejectsRemoval<TValue>(
+        IReadOnlyDictionary<StringName, TValue> definitions,
+        StringName knownKey,
+        string message
     )
     {
-        GDictionary result = new();
-        if (recipeDefs == null)
-            return result;
-        foreach ((StringName recipeId, RecipeDefinition recipeDef) in recipeDefs)
+        bool mutationRejected = definitions is not IDictionary<StringName, TValue>;
+        if (definitions is IDictionary<StringName, TValue> dictionary)
         {
-            if (recipeId == "" || recipeDef == null)
-                continue;
-            result[recipeId] = recipeId.ToString();
+            try
+            {
+                dictionary.Remove(knownKey);
+            }
+            catch (NotSupportedException)
+            {
+                mutationRejected = true;
+            }
         }
-        return result;
+        _test.True(mutationRejected, message);
+        _test.True(definitions.ContainsKey(knownKey), $"{message}，且原定义仍应存在。");
     }
 
     private static Dictionary<StringName, TraitDefinition> BuildTraitDefinitions()
@@ -623,6 +518,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
             rollValueSchema ?? System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );
@@ -635,7 +531,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
         string exclusiveGroup = ""
     )
     {
-        ItemDef itemDef = new()
+        TestItemDefinitionBuilder itemDef = new()
         {
             item_id = itemId,
             display_name = itemId,
@@ -649,7 +545,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
 
         if (rollTraits != null && rollTraits.Length > 0)
         {
-            TraitRollGroupDef group = new()
+            TestTraitRollGroupDefinitionBuilder group = new()
             {
                 group_id = "prefix",
                 roll_count = rollCount,
@@ -657,7 +553,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
             foreach (string traitId in rollTraits)
             {
                 group.entries.Add(
-                    new TraitRollGroupEntryDef
+                    new TestTraitRollGroupEntryDefinitionBuilder
                     {
                         trait_id = traitId,
                         weight = 1,
@@ -682,7 +578,7 @@ public partial class run_item_recipe_registry_typed_regression : LifecycleTestSc
     }
 
     private void AssertContains(
-        IReadOnlyList<string> errors,
+        IEnumerable<string> errors,
         string firstNeedle,
         string secondNeedle,
         string message

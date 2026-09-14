@@ -23,6 +23,12 @@ internal sealed class BattleAiQueryService
     private readonly Dictionary<StringName, List<BattleAiUnitSnapshot>> _livingSnapshotCache = new();
     private Dictionary<StringName, SkillRecord> _skillRecords = new();
     private IReadOnlyDictionary<StringName, SkillDefinition> _cachedSkillDefinitions;
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        _equipmentAbilityBindings;
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        _cachedEquipmentAbilityBindings;
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
+    private IReadOnlyDictionary<StringName, ItemDefinition> _cachedItemDefinitions;
     private ISkillCatalog _skillCatalog;
     private ISkillCatalog _cachedSkillCatalog;
     private long _cachedSkillCatalogRevision = long.MinValue;
@@ -56,7 +62,9 @@ internal sealed class BattleAiQueryService
         > actionScoreInputCallback,
         BattleMovementQueryService movementQueryService,
         Func<StringName, bool> movementBlockedCallback = null,
-        ISkillCatalog skillCatalog = null
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         _state = state;
@@ -64,6 +72,8 @@ internal sealed class BattleAiQueryService
         _actorUnitId = ProgressionDataUtils.to_string_name(actorUnitId);
         _actionScoreInputCallback = actionScoreInputCallback;
         _skillCatalog = skillCatalog;
+        _equipmentAbilityBindings = equipmentAbilityBindings;
+        _itemDefinitions = itemDefinitions;
 
         _movementQueryService = movementQueryService;
         _movementBlockedCallback = movementBlockedCallback;
@@ -77,6 +87,16 @@ internal sealed class BattleAiQueryService
         if (!ReferenceEquals(_cachedSkillDefinitions, skillDefinitions))
         {
             _cachedSkillDefinitions = skillDefinitions;
+            _skillRecordCache.Clear();
+        }
+        if (!ReferenceEquals(_cachedEquipmentAbilityBindings, equipmentAbilityBindings))
+        {
+            _cachedEquipmentAbilityBindings = equipmentAbilityBindings;
+            _skillRecordCache.Clear();
+        }
+        if (!ReferenceEquals(_cachedItemDefinitions, itemDefinitions))
+        {
+            _cachedItemDefinitions = itemDefinitions;
             _skillRecordCache.Clear();
         }
         long skillCatalogRevision = skillCatalog?.GetRevision() ?? long.MinValue;
@@ -98,7 +118,9 @@ internal sealed class BattleAiQueryService
         BattleGridService gridService,
         StringName actorUnitId,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        ISkillCatalog skillCatalog = null
+        ISkillCatalog skillCatalog = null,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings = null,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions = null
     )
     {
         Setup(
@@ -109,7 +131,9 @@ internal sealed class BattleAiQueryService
             null,
             null,
             null,
-            skillCatalog
+            skillCatalog,
+            equipmentAbilityBindings,
+            itemDefinitions
         );
     }
 
@@ -125,6 +149,10 @@ internal sealed class BattleAiQueryService
         _livingSnapshotCache.Clear();
         _skillRecords = new Dictionary<StringName, SkillRecord>();
         _cachedSkillDefinitions = null;
+        _equipmentAbilityBindings = null;
+        _cachedEquipmentAbilityBindings = null;
+        _itemDefinitions = null;
+        _cachedItemDefinitions = null;
         _skillCatalog = null;
         _cachedSkillCatalog = null;
         _cachedSkillCatalogRevision = long.MinValue;
@@ -551,23 +579,36 @@ internal sealed class BattleAiQueryService
         }
     }
 
-    private static IReadOnlyList<BattleAvailableSkillEntry> BuildActorAvailabilityEntries(
+    private IReadOnlyList<BattleAvailableSkillEntry> BuildActorAvailabilityEntries(
         BattleUnitState actor,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        BattleSkillAvailabilityService availabilityService = new(skillDefinitions);
+        BattleSkillAvailabilityService availabilityService = new(
+            _skillCatalog,
+            skillDefinitions,
+            _equipmentAbilityBindings,
+            _itemDefinitions
+        );
         BattleSkillAvailabilityView availabilityView = availabilityService.BuildView(
             new BattleSkillAvailabilityQuery
             {
                 User = actor,
                 Consumer = BattleSkillAvailabilityConsumer.AiScoring,
                 IncludeKnownSkills = true,
-                IncludeEquipmentSkills = false,
+                IncludeEquipmentSkills = true,
                 IncludeScopedAutoCast = false,
+                WorldStep = _state?.GetEnvironmentSnapshot()?.WorldStep ?? -1,
+                BattleState = _state,
             }
         );
-        return availabilityView.SkillEntries;
+        var selectableEntries = new List<BattleAvailableSkillEntry>();
+        foreach (BattleAvailableSkillEntry entry in availabilityView.SkillEntries)
+        {
+            if (entry?.IsSelectable == true)
+                selectableEntries.Add(entry);
+        }
+        return selectableEntries;
     }
 
     private static long Mix(long hash, int value)
@@ -657,18 +698,24 @@ internal sealed class BattleAiQueryService
         return record;
     }
 
-    private static int GetUnitSkillLevel(BattleUnitState unitState, StringName skillId)
+    private int GetUnitSkillLevel(BattleUnitState unitState, StringName skillId)
     {
         if (unitState == null || IsEmpty(skillId))
         {
             return 0;
         }
-        int knownSkillLevel = unitState.GetKnownSkillLevelTyped(skillId);
-        return knownSkillLevel > 0
-            ? knownSkillLevel
-            : unitState.KnowsActiveSkill(skillId)
-                ? 1
-                : 0;
+        int resolvedLevel = 0;
+        foreach (
+            BattleAvailableSkillEntry entry in BuildActorAvailabilityEntries(
+                unitState,
+                _cachedSkillDefinitions
+            )
+        )
+        {
+            if (entry?.EntryRef.SkillId == skillId)
+                resolvedLevel = Mathf.Max(resolvedLevel, entry.SkillLevel);
+        }
+        return resolvedLevel;
     }
 
     private static Vector2I NormalizeFootprint(Vector2I footprintSize)

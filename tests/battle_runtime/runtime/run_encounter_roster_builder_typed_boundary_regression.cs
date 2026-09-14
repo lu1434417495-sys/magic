@@ -75,6 +75,22 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         GArray typedUnits = typedUnitsLease.Value;
         GArray sessionUnits = sessionUnitsLease.Value;
 
+        _test.Eq(typedUnits.Count, 5, "mist_hollow stage 2 应构建 5 个敌方单位。");
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_beast"),
+            2,
+            "mist_hollow stage 2 应包含 2 只 mist_beast。"
+        );
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_harrier"),
+            2,
+            "mist_hollow stage 2 应包含 2 只 mist_harrier。"
+        );
+        _test.Eq(
+            CountUnitsByTemplate(typedUnits, "mist_weaver"),
+            1,
+            "mist_hollow stage 2 应包含 1 只 mist_weaver。"
+        );
         _test.Eq(typedUnits.Count, sessionUnits.Count, "不同 typed 输入源构建的 enemy unit 数量应一致。");
         _test.Eq(
             SummarizeUnits(typedUnits),
@@ -164,10 +180,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
     {
         using EncounterRosterBuilder builder = new();
         StringName grantedSkillId = "enemy_flame_equipment_skill";
-        ItemDef weapon = TestResourceOwnership.Own(
-            MakeWeapon("enemy_flame_blade"),
-            "EncounterRosterBuilderTypedBoundary.enemy_flame_blade"
-        );
+        TestItemDefinitionBuilder weapon = MakeWeapon("enemy_flame_blade");
         weapon.trait_ids = new GStringNameArray { "trait.weapon.flame" };
         weapon.tags = new GStringNameArray { "blade" };
         ItemDefinition weaponDefinition = weapon.ToDefinition();
@@ -197,6 +210,7 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 System.Array.Empty<StringName>(),
                 System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
                 System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+                System.Array.Empty<TraitSaveTagBonusEntryDefinition>(),
                 System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
                 System.Array.Empty<TraitRollValueSchemaEntryDefinition>()
             ),
@@ -223,21 +237,25 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
                 },
             },
         };
-        EnemyTemplateDef template = BuildEnemyTemplate("flame_enemy", weapon.item_id);
-        template.tags = new GStringNameArray { "undead" };
+        TestEnemyTemplateDefinitionBuilder templateBuilder = BuildEnemyTemplate(
+            "flame_enemy",
+            weapon.item_id
+        );
+        templateBuilder.Tags.Add("undead");
+        EnemyTemplateDefinition template = templateBuilder.Build(itemDefinitions);
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>
         {
-            [template.template_id] = template.ToDefinition(itemDefinitions),
+            [template.TemplateId] = template,
         };
         SetupSingleTemplateEncounter(
             builder,
             "flame_enemy_encounter",
-            template.template_id
+            template.TemplateId
         );
 
         using GodotProjectionLease<GArray> enemyUnitsLease =
             builder.BuildEnemyUnitsFromDefinitionsLease(
-            BuildEncounterAnchor("flame_enemy_encounter", template.template_id),
+            BuildEncounterAnchor("flame_enemy_encounter", template.TemplateId),
             new Dictionary<StringName, SkillDefinition>(),
             enemyTemplates,
             new Dictionary<StringName, EnemyAiBrainDefinition>(),
@@ -258,7 +276,8 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             return;
         }
 
-        template.tags = new GStringNameArray { "construct" };
+        templateBuilder.Tags.Clear();
+        templateBuilder.Tags.Add("construct");
         _test.True(
             BattleEquipmentAbilityProjectionService.UnitHasCreatureTypeTag(unit, "undead"),
             "creature type check 应读取 BattleUnitState.creature_type_tags，而不是回查敌人模板。"
@@ -389,6 +408,31 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             gameSession.GetItemDefsTyped()
         );
 
+        _test.Eq(plainLoot.Count, 1, "wolf_den stage 0 应聚合为一条战利品预览。");
+        if (plainLoot.Count == 1)
+        {
+            IReadOnlyDictionary<string, object> entry = plainLoot[0];
+            _test.Eq(
+                PlainString(entry, "drop_source_kind"),
+                "encounter_roster",
+                "wolf_den 战利品应标记 encounter_roster 来源。"
+            );
+            _test.Eq(
+                PlainString(entry, "drop_source_id"),
+                "wolf_den",
+                "wolf_den 战利品应保留 roster id。"
+            );
+            _test.Eq(
+                PlainString(entry, "item_id"),
+                "beast_hide",
+                "wolf_den stage 0 应预览荒狼皮掉落。"
+            );
+            _test.Eq(
+                PlainInt(entry, "quantity", 0),
+                2,
+                "wolf_den stage 0 的两只 wolf_raider 应聚合为 2 个 beast_hide。"
+            );
+        }
         _test.Eq(plainLoot.Count, explicitPlainLoot.Count, "plain loot preview 数量应一致。");
         _test.Eq(
             SummarizeLoot(plainLoot),
@@ -414,6 +458,22 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             );
         }
         return string.Join(" || ", values);
+    }
+
+    private static int CountUnitsByTemplate(GArray units, StringName templateId)
+    {
+        int count = 0;
+        foreach (Variant unitValue in units ?? new GArray())
+        {
+            if (
+                BattleUnitState.TryReadUnitPayload(unitValue, out BattleUnitState unit)
+                && unit?.enemy_template_id == templateId
+            )
+            {
+                count += 1;
+            }
+        }
+        return count;
     }
 
     private static string SummarizeLoot(
@@ -595,37 +655,33 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
         );
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplate(
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplate(
         StringName templateId,
         StringName attackEquipmentItemId
     )
     {
-        return new EnemyTemplateDef
+        var builder = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = templateId.ToString(),
-            brain_id = "",
-            cognition_kind = "sapient",
-            enemy_count = 1,
-            body_size = BattleUnitState.BodySizeMedium,
-            action_threshold = BattleUnitState.DefaultActionThreshold,
-            attack_equipment_item_id = attackEquipmentItemId,
-            skill_ids = new GStringNameArray(),
-            base_attribute_overrides = new GDictionary
-            {
-                ["strength"] = 10,
-                ["agility"] = 10,
-                ["constitution"] = 10,
-                ["perception"] = 10,
-                ["intelligence"] = 10,
-                ["willpower"] = 10,
-            },
+            TemplateId = templateId,
+            DisplayName = templateId.ToString(),
+            BrainId = "",
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+            BodySize = BattleUnitState.BodySizeMedium,
+            AttackEquipmentItemId = attackEquipmentItemId,
         };
+        builder.BaseAttributeOverrides["strength"] = 10;
+        builder.BaseAttributeOverrides["agility"] = 10;
+        builder.BaseAttributeOverrides["constitution"] = 10;
+        builder.BaseAttributeOverrides["perception"] = 10;
+        builder.BaseAttributeOverrides["intelligence"] = 10;
+        builder.BaseAttributeOverrides["willpower"] = 10;
+        return builder;
     }
 
-    private static ItemDef MakeWeapon(StringName itemId)
+    private static TestItemDefinitionBuilder MakeWeapon(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -633,15 +689,15 @@ public partial class run_encounter_roster_builder_typed_boundary_regression : Li
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             is_stackable = false,
             max_stack = 1,
-            weapon_profile = new WeaponProfileDef
+            weapon_profile = new TestWeaponProfileDefinitionBuilder
             {
                 weapon_type_id = "shortsword",
                 training_group = "martial",
                 range_type = "melee",
                 family = "sword",
-                damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+                damage_tag = TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
                 attack_range = 1,
-                one_handed_dice = new WeaponDamageDiceDef
+                one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
                 {
                     dice_count = 1,
                     dice_sides = 6,

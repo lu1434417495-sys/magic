@@ -37,7 +37,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         TestRejectsEquipmentViewBadPayload();
         TestRejectsBadWeaponDicePayloads();
         TestWeaponProjectionStrictLoadPreservesRawUntilCanonicalBoundary();
-        TestBodySizeRulesWrapperIsRemoved();
 
         DisposePayloadLeases();
         RequestTestExit(_test.Finish("Battle unit state schema regression"));
@@ -242,6 +241,11 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             "save_bonus_by_ability round-trip 应保留显式 0。"
         );
         _test.Eq(
+            restoredSaveModifiers.BonusByTag.Get("frightened", -1),
+            6,
+            "save_bonus_by_tag 应通过 flat key round-trip。"
+        );
+        _test.Eq(
             restored?.GetDamageResistanceTyped("fire").ToString() ?? "",
             "half",
             "damage_resistances 应 round-trip。"
@@ -320,6 +324,23 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
                 ?? -1,
             0,
             "malformed save_bonus_by_ability 应继续回落为空 map。"
+        );
+        GDictionary malformedSaveTagBonusPayload = Payload();
+        malformedSaveTagBonusPayload["save_bonus_by_tag"] =
+            new GDictionary { ["frightened"] = "6" };
+        BattleUnitState malformedSaveTagBonusRestored =
+            BattleUnitState.FromDictionary(malformedSaveTagBonusPayload);
+        _test.True(
+            malformedSaveTagBonusRestored != null,
+            "save_bonus_by_tag 的 malformed-map fallback 语义应保持可加载。"
+        );
+        _test.Eq(
+            malformedSaveTagBonusRestored
+                ?.GetSaveModifiersReadViewTyped()
+                .BonusByTag.Count
+                ?? -1,
+            0,
+            "malformed save_bonus_by_tag 应回落为空 map。"
         );
         using GDictionary cooldownPayload = payload["cooldowns"].AsGodotDictionary();
         _test.True(
@@ -1656,14 +1677,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
         );
     }
 
-    private void TestBodySizeRulesWrapperIsRemoved()
-    {
-        _test.True(
-            FindLoadedType("BodySizeRules") == null,
-            "BodySizeRules Godot wrapper 应删除，测试和生产路径应直接使用 BodySizeContentRules 或本地 helper。"
-        );
-    }
-
     private static BattleUnitState BuildUnit()
     {
         BattleUnitState unit = new BattleUnitState()
@@ -1700,6 +1713,10 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
             {
                 ["wisdom"] = 3,
                 ["constitution"] = 0,
+            },
+            new Dictionary<StringName, int>
+            {
+                ["frightened"] = 6,
             }
         );
         unit.SetUnlockedCombatResourceIds(
@@ -1980,17 +1997,6 @@ public partial class run_battle_unit_state_schema_contract_regression : Lifecycl
     private static string StableVector2IText(Vector2I vector)
     {
         return $"Vector2I({vector.X},{vector.Y})";
-    }
-
-    private static Type FindLoadedType(string typeName)
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type type = assembly.GetType(typeName);
-            if (type != null)
-                return type;
-        }
-        return null;
     }
 
     private static bool ThrowsInvalidOperation(Action action)

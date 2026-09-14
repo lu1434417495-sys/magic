@@ -84,6 +84,11 @@ internal static class BattlePreviewProjection
             preview.SourceRetreatPathTyped,
             "BattlePreviewProjection.source_retreat_path"
         );
+        target["source_advance_path"] = WriteArray(
+            lease,
+            preview.SourceAdvancePathTyped,
+            "BattlePreviewProjection.source_advance_path"
+        );
         target["random_chain_candidate_unit_ids"] = WriteArray(
             lease,
             preview.RandomChainCandidateUnitIdsTyped,
@@ -101,6 +106,11 @@ internal static class BattlePreviewProjection
             preview.DamagePreviewTyped,
             "BattlePreviewProjection.damage_preview"
         );
+        target["status_contribution_previews"] = WriteStatusContributionPreviews(
+            lease,
+            preview.StatusContributionPreviewsTyped,
+            "BattlePreviewProjection.status_contribution_previews"
+        );
         target["fate_preview"] = WriteFatePreview(
             lease,
             preview.FatePreviewTyped,
@@ -110,6 +120,46 @@ internal static class BattlePreviewProjection
             lease,
             preview.SaveBranchPreviewTyped,
             "BattlePreviewProjection.save_branch_preview"
+        );
+        target["equipment_ability_preview"] = WriteEquipmentAbilityPreview(
+            lease,
+            preview.EquipmentAbilityPreviewTyped,
+            "BattlePreviewProjection.equipment_ability_preview"
+        );
+        target["terrain_contact_preview"] = WriteTerrainContactPreview(
+            lease,
+            preview.TerrainContactPreviewTyped,
+            "BattlePreviewProjection.terrain_contact_preview"
+        );
+        target["shield_preview"] = WriteShieldPreview(
+            lease,
+            preview.ShieldPreviewTyped,
+            "BattlePreviewProjection.shield_preview"
+        );
+        target["equipment_durability_preview"] = WriteEquipmentDurabilityPreview(
+            lease,
+            preview.EquipmentDurabilityPreviewTyped,
+            "BattlePreviewProjection.equipment_durability_preview"
+        );
+        target["forced_move_preview"] = WriteForcedMovePreview(
+            lease,
+            preview.ForcedMovePreviewTyped,
+            "BattlePreviewProjection.forced_move_preview"
+        );
+        target["position_swap_preview"] = WritePositionSwapPreview(
+            lease,
+            preview.PositionSwapPreviewTyped,
+            "BattlePreviewProjection.position_swap_preview"
+        );
+        target["ranged_weapon_reaction_preview"] = WriteRangedWeaponReactionPreview(
+            lease,
+            preview.RangedWeaponReactionPreviewTyped,
+            "BattlePreviewProjection.ranged_weapon_reaction_preview"
+        );
+        target["chain_damage_preview"] = WriteChainDamagePreview(
+            lease,
+            preview.ChainDamagePreviewTyped,
+            "BattlePreviewProjection.chain_damage_preview"
         );
         target["special_profile_gate_result"] = WriteSpecialProfileGate(
             lease,
@@ -121,6 +171,275 @@ internal static class BattlePreviewProjection
             preview.special_profile_preview_facts,
             "BattlePreviewProjection.special_profile_preview_facts"
         );
+    }
+
+    private static GDictionary WriteChainDamagePreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleChainDamagePreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+            return result;
+        result["primary_target_unit_id"] = preview.PrimaryTargetUnitId;
+        result["normal_reached_target_count"] = preview.NormalReachedTargetCount;
+        result["summary_text"] = preview.SummaryText;
+        result["normal_hops"] = WriteChainDamageHops(
+            lease,
+            preview.NormalHops,
+            $"{reason}.normal_hops"
+        );
+        result["backlash_hops"] = WriteChainDamageHops(
+            lease,
+            preview.BacklashHops,
+            $"{reason}.backlash_hops"
+        );
+        return result;
+    }
+
+    private static GArray WriteChainDamageHops<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleChainDamagePreviewHopData> hops,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        foreach (
+            BattleChainDamagePreviewHopData hop in hops
+                ?? Array.Empty<BattleChainDamagePreviewHopData>()
+        )
+        {
+            GDictionary entry = lease.Own(
+                new GDictionary(),
+                $"{reason}[{result.Count}]"
+            );
+            entry["hop_index"] = hop.HopIndex;
+            entry["origin_unit_id"] = hop.OriginUnitId;
+            entry["origin_coord"] = hop.OriginCoord;
+            entry["target_unit_id"] = hop.TargetUnitId;
+            entry["target_coord"] = hop.TargetCoord;
+            entry["distance"] = hop.Distance;
+            entry["outgoing_range"] = hop.OutgoingRange;
+            entry["origin_was_conductive"] = hop.OriginWasConductive;
+            entry["blocked"] = hop.Blocked;
+            result.Add(entry);
+        }
+        return result;
+    }
+
+    private static GDictionary WriteRangedWeaponReactionPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleRangedWeaponReactionPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+            return result;
+        result["orb_count"] = preview.OrbCount;
+        result["duration_tu"] = preview.DurationTu;
+        result["consume_per_trigger"] = preview.ConsumePerTrigger;
+        result["attack_roll_bonus"] = preview.AttackRollBonus;
+        result["attack_defense_mode"] = preview.AttackDefenseMode;
+        result["damage_tag"] = preview.DamageTag;
+        result["trigger_on_hit"] = preview.TriggerOnHit;
+        result["trigger_on_miss"] = preview.TriggerOnMiss;
+        result["allow_critical"] = preview.AllowCritical;
+        result["summary_text"] = preview.SummaryText;
+        result["trigger_weapon_families"] = WriteArray(
+            lease,
+            preview.TriggerWeaponFamilies,
+            $"{reason}.trigger_weapon_families"
+        );
+        return result;
+    }
+
+    private static GDictionary WriteEquipmentAbilityPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleEquipmentAbilityCommandPreviewResult preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        return BattleEquipmentAbilityPreviewProjection.WriteCommand(
+            lease,
+            preview,
+            reason
+        );
+    }
+
+    private static GDictionary WriteTerrainContactPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleTerrainContactPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+        {
+            return result;
+        }
+        result["contact_mode"] = preview.ContactMode;
+        result["save_dc"] = preview.SaveDc;
+        result["save_ability"] = preview.SaveAbility;
+        result["save_ability"] = preview.SaveAbility;
+        result["effective_trigger_count"] = preview.EffectiveTriggerCount;
+        result["duration_tu"] = preview.DurationTu;
+        result["rechecks_from_inside"] = preview.RechecksFromInside;
+        result["requires_ground_contact"] = preview.RequiresGroundContact;
+        return result;
+    }
+
+    private static GDictionary WriteShieldPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleShieldPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null || !preview.HasShield)
+        {
+            return result;
+        }
+        result["min_shield_hp"] = preview.MinShieldHp;
+        result["max_shield_hp"] = preview.MaxShieldHp;
+        result["expected_shield_hp_basis_points"] = preview.ExpectedShieldHpBasisPoints;
+        result["attribute_modifier"] = preview.AttributeModifier;
+        result["duration_tu"] = preview.DurationTu;
+        result["target_count"] = preview.TargetCount;
+        result["expected_benefiting_target_count"] = preview.ExpectedBenefitingTargetCount;
+        result["expected_total_net_gain_basis_points"] =
+            preview.ExpectedTotalNetGainBasisPoints;
+        result["roll_per_target"] = preview.RollPerTarget;
+        result["shield_family"] = preview.ShieldFamily;
+        result["summary_text"] = preview.SummaryText;
+        return result;
+    }
+
+    private static GDictionary WriteEquipmentDurabilityPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleEquipmentDurabilityPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null || !preview.HasEffect)
+            return result;
+        result["has_matching_equipment"] = preview.HasMatchingEquipment;
+        result["target_unit_id"] = preview.TargetUnitId;
+        result["entry_slot_id"] = preview.EntrySlotId;
+        result["slot_id"] = preview.SlotId;
+        result["item_id"] = preview.ItemId;
+        result["item_display_name"] = preview.ItemDisplayName;
+        result["rarity"] = preview.Rarity;
+        result["current_durability"] = preview.CurrentDurability;
+        result["maximum_durability"] = preview.MaximumDurability;
+        result["durability_loss_on_failed_save"] = preview.DurabilityLossOnFailedSave;
+        result["durability_after_failed_save"] = preview.DurabilityAfterFailedSave;
+        result["save_dc"] = preview.SaveDc;
+        result["equipment_rarity_save_bonus"] = preview.EquipmentRaritySaveBonus;
+        result["save_success_probability_basis_points"] =
+            preview.SaveSuccessProbabilityBasisPoints;
+        result["save_failure_probability_basis_points"] =
+            preview.SaveFailureProbabilityBasisPoints;
+        result["expected_durability_loss_basis_points"] =
+            preview.ExpectedDurabilityLossBasisPoints;
+        result["destruction_probability_basis_points"] =
+            preview.DestructionProbabilityBasisPoints;
+        result["candidate_count"] = preview.CandidateCount;
+        result["summary_text"] = preview.SummaryText;
+        return result;
+    }
+
+    private static GDictionary WriteForcedMovePreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattleForcedMovePreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+            return result;
+        result["mode"] = preview.Mode;
+        result["target_unit_id"] = preview.TargetUnitId;
+        result["source_coord"] = preview.SourceCoord;
+        result["destination_coord"] = preview.DestinationCoord;
+        result["distance"] = preview.Distance;
+        result["maximum_distance"] = preview.MaximumDistance;
+        result["target_body_size"] = preview.TargetBodySize;
+        result["maximum_target_body_size"] = preview.MaximumTargetBodySize;
+        result["ignores_intermediate_units"] = preview.IgnoresIntermediateUnits;
+        result["ignores_height_difference"] = preview.IgnoresHeightDifference;
+        result["applies_landing_contact"] = preview.AppliesLandingContact;
+        result["applies_contact_per_entered_cell"] = preview.AppliesContactPerEnteredCell;
+        result["summary_text"] = preview.SummaryText ?? "";
+        GArray targetPreviews = lease.Own(new GArray(), $"{reason}.targets");
+        for (int index = 0; index < preview.Targets.Count; index++)
+        {
+            BattleForcedMoveTargetPreviewData targetPreview = preview.Targets[index];
+            if (targetPreview == null)
+                continue;
+            GDictionary targetPayload = lease.Own(
+                new GDictionary(),
+                $"{reason}.targets[{index}]"
+            );
+            targetPayload["target_unit_id"] = targetPreview.TargetUnitId;
+            targetPayload["target_display_name"] = targetPreview.TargetDisplayName ?? "";
+            targetPayload["source_coord"] = targetPreview.SourceCoord;
+            targetPayload["destination_coord"] = targetPreview.DestinationCoord;
+            targetPayload["distance"] = targetPreview.Distance;
+            targetPayload["maximum_distance"] = targetPreview.MaximumDistance;
+            targetPayload["target_body_size"] = targetPreview.TargetBodySize;
+            targetPayload["maximum_target_body_size"] =
+                targetPreview.MaximumTargetBodySize;
+            targetPayload["save_dc"] = targetPreview.SaveDc;
+            targetPayload["save_ability"] = targetPreview.SaveAbility;
+            targetPayload["save_tag"] = targetPreview.SaveTag;
+            targetPayload["save_success_probability_basis_points"] =
+                targetPreview.SaveSuccessProbabilityBasisPoints;
+            targetPayload["save_failure_probability_basis_points"] =
+                targetPreview.SaveFailureProbabilityBasisPoints;
+            targetPayload["can_move_on_failed_save"] = targetPreview.CanMoveOnFailedSave;
+            targetPayload["block_reason"] = targetPreview.BlockReason ?? "";
+            targetPreviews.Add(targetPayload);
+        }
+        result["targets"] = targetPreviews;
+        return result;
+    }
+
+    private static GDictionary WritePositionSwapPreview<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        BattlePositionSwapPreviewData preview,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GDictionary result = lease.Own(new GDictionary(), reason);
+        if (preview == null)
+            return result;
+        result["source_unit_id"] = preview.SourceUnitId;
+        result["target_unit_id"] = preview.TargetUnitId;
+        result["source_from"] = preview.SourceFrom;
+        result["source_to"] = preview.SourceTo;
+        result["target_from"] = preview.TargetFrom;
+        result["target_to"] = preview.TargetTo;
+        result["requires_enemy_save"] = preview.RequiresEnemySave;
+        result["save_dc"] = preview.SaveDc;
+        result["save_ability"] = preview.SaveAbility;
+        result["save_tag"] = preview.SaveTag;
+        result["save_success_probability_basis_points"] =
+            preview.SaveSuccessProbabilityBasisPoints;
+        result["swap_probability_basis_points"] = preview.SwapProbabilityBasisPoints;
+        result["summary_text"] = preview.SummaryText;
+        return result;
     }
 
     private static GDictionary WriteAttackPreview<TLeaseRoot>(
@@ -171,6 +490,22 @@ internal static class BattlePreviewProjection
             static stage => stage.PreviewText ?? "",
             $"{reason}.stage_preview_texts"
         );
+        result["stage_reach_probability_basis_points"] = WriteStageValues(
+            lease,
+            preview.Stages,
+            static stage => stage.ReachProbabilityBasisPoints,
+            $"{reason}.stage_reach_probability_basis_points"
+        );
+        result["stage_damage_multiplier_percent"] = WriteStageValues(
+            lease,
+            preview.Stages,
+            static stage => stage.DamageMultiplierPercent,
+            $"{reason}.stage_damage_multiplier_percent"
+        );
+        result["repeat_attack_expected_damage_basis_points"] =
+            preview.RepeatAttackExpectedDamageBasisPoints;
+        result["repeat_attack_potential_damage_basis_points"] =
+            preview.RepeatAttackPotentialDamageBasisPoints;
         result["attack_roll_modifier_breakdown"] = WriteModifierBreakdown(
             lease,
             preview.AttackRollModifierBreakdownTyped,
@@ -316,6 +651,45 @@ internal static class BattlePreviewProjection
                         $"{reason}[{index}]"
                     )
                 );
+        }
+        return result;
+    }
+
+    private static GArray WriteStatusContributionPreviews<TLeaseRoot>(
+        GodotProjectionLease<TLeaseRoot> lease,
+        IReadOnlyList<BattleStatusContributionPreviewData> previews,
+        string reason
+    )
+        where TLeaseRoot : class, IDisposable
+    {
+        GArray result = lease.Own(new GArray(), reason);
+        if (previews == null)
+            return result;
+        for (int index = 0; index < previews.Count; index++)
+        {
+            BattleStatusContributionPreviewData preview = previews[index];
+            if (preview == null)
+                continue;
+            GDictionary payload = lease.Own(new GDictionary(), $"{reason}[{index}]");
+            payload["target_unit_id"] = preview.TargetUnitId;
+            payload["target_display_name"] = preview.TargetDisplayName ?? "";
+            payload["status_id"] = preview.StatusId;
+            payload["source_kind"] = preview.SourceKind;
+            payload["source_definition_id"] = preview.SourceDefinitionId;
+            payload["applies_on_save_failure"] = preview.AppliesOnSaveFailure;
+            payload["adds_new_source"] = preview.AddsNewSource;
+            payload["previous_source_stacks"] = preview.PreviousSourceStacks;
+            payload["result_source_stacks"] = preview.ResultSourceStacks;
+            payload["source_stack_limit"] = preview.SourceStackLimit;
+            payload["result_aggregate_stacks"] = preview.ResultAggregateStacks;
+            payload["result_source_count"] = preview.ResultSourceCount;
+            payload["result_duration_tu"] = preview.ResultDurationTu;
+            payload["tick_interval_tu"] = preview.TickIntervalTu;
+            payload["status_display_name"] = preview.StatusDisplayName ?? "";
+            if (preview.HealMultiplierPercent is int healMultiplierPercent)
+                payload["heal_multiplier_percent"] = healMultiplierPercent;
+            payload["summary_text"] = preview.SummaryText;
+            result.Add(payload);
         }
         return result;
     }

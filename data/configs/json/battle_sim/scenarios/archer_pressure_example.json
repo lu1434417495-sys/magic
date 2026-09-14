@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "domain": "battle_sim_scenarios",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "scenario_id": "archer_pressure_example",
+      "display_name": "Archer Pressure Example",
+      "description": "用于验证压制射击、钉射、走位与 AI 评分回退行为的基础战斗模拟场景。",
+      "map_size": {
+        "x": 7,
+        "y": 5
+      },
+      "terrain_profile_id": "default",
+      "use_formal_terrain_generation": false,
+      "world_coord": {
+        "x": 0,
+        "y": 0
+      },
+      "ally_units": [
+        {
+          "unit_id": "player_a",
+          "source_member_id": "",
+          "display_name": "玩家A",
+          "faction_id": "player",
+          "control_mode": "manual",
+          "ai_brain_id": "",
+          "ai_state_id": "",
+          "coord": {
+            "x": 4,
+            "y": 2
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 0,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "action_points": 2,
+            "armor_ac_bonus": 8
+          },
+          "skill_ids": [],
+          "skill_level_map": {},
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 10,
+            "agility": 10,
+            "constitution": 12,
+            "perception": 10,
+            "intelligence": 10,
+            "willpower": 10
+          }
+        },
+        {
+          "unit_id": "player_b",
+          "source_member_id": "",
+          "display_name": "玩家B",
+          "faction_id": "player",
+          "control_mode": "manual",
+          "ai_brain_id": "",
+          "ai_state_id": "",
+          "coord": {
+            "x": 5,
+            "y": 2
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 80,
+          "current_mp": 0,
+          "current_stamina": 0,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 80,
+            "action_points": 2,
+            "armor_ac_bonus": 8
+          },
+          "skill_ids": [],
+          "skill_level_map": {},
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 10,
+            "agility": 10,
+            "constitution": 12,
+            "perception": 10,
+            "intelligence": 10,
+            "willpower": 10
+          }
+        }
+      ],
+      "enemy_units": [
+        {
+          "unit_id": "mist_harrier_sim",
+          "source_member_id": "",
+          "display_name": "雾沼猎压者",
+          "faction_id": "hostile",
+          "control_mode": "ai",
+          "ai_brain_id": "ranged_suppressor",
+          "ai_state_id": "pressure",
+          "coord": {
+            "x": 1,
+            "y": 2
+          },
+          "body_size": 2,
+          "body_size_category": "medium",
+          "current_hp": 60,
+          "current_mp": 20,
+          "current_stamina": 20,
+          "current_aura": 0,
+          "current_ap": 2,
+          "current_move_points": 2,
+          "action_threshold": 40,
+          "attribute_overrides": {
+            "hp_max": 60,
+            "mp_max": 20,
+            "stamina_max": 20,
+            "action_points": 2,
+            "attack_bonus": 6,
+            "armor_ac_bonus": 5
+          },
+          "skill_ids": [
+            "archer_suppressive_fire",
+            "archer_pinning_shot"
+          ],
+          "skill_level_map": {
+            "archer_suppressive_fire": 1,
+            "archer_pinning_shot": 1
+          },
+          "movement_tags": [],
+          "unlocked_combat_resource_ids": [],
+          "base_attributes": {
+            "strength": 10,
+            "agility": 12,
+            "constitution": 12,
+            "perception": 14,
+            "intelligence": 10,
+            "willpower": 10
+          }
+        }
+      ],
+      "cell_overrides": [],
+      "timeline_ticks_per_step": 1,
+      "tu_per_tick": 5,
+      "max_iterations": 40,
+      "manual_policy": "wait",
+      "trace_enabled": true,
+      "seeds": [
+        101,
+        102,
+        103,
+        104
+      ]
+    }
+  ]
+}

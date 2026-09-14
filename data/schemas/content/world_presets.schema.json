@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:world_presets:v1",
+  "title": "Magic world preset JSON authoring schema",
+  "description": "Strict preset metadata keyed by stable preset and generation IDs.",
+  "$ref": "#/$defs/WorldPresetJsonDocumentDto",
+  "$defs": {
+    "WorldPresetJsonDocumentDto": {
+      "description": "World preset document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "world_presets"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldPresetJsonDto__authoring_preset_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/WorldPresetJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "WorldPresetJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "preset_id": {
+          "type": "string"
+        },
+        "size_label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "generation_id",
+        "preset_id",
+        "size_label"
+      ]
+    },
+    "WorldPresetJsonDto__authoring_preset_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorldPresetJsonDto"
+        },
+        {
+          "$ref": "#/$defs/WorldPresetJsonDto__templated_preset_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "WorldPresetJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "preset_id": {
+          "type": "string"
+        },
+        "size_label": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "WorldPresetJsonDto__templated_preset_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "generation_id": {
+          "type": "string"
+        },
+        "preset_id": {
+          "type": "string"
+        },
+        "size_label": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "preset_id",
+        "template"
+      ]
+    }
+  }
+}

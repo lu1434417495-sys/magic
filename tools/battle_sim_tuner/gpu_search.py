@@ -16,7 +16,7 @@ the expensive CPU observations:
      are refined with Adam ascent on the pessimistic objective (CMA/CEM throw the
      gradient away). Many restarts handle multimodality.
 
-Outputs ranked.json + champion_score_profile.tres. These are PREDICTIONS - gate
+Outputs ranked.json + champion_score_profile.json. These are PREDICTIONS - gate
 them with promote_gate.py (real battles) before adopting.
 
 Requires CUDA + `cma` in the runtime venv. Does NOT run on import.
@@ -107,7 +107,7 @@ def main() -> None:
     except ImportError as exc:  # pragma: no cover
         raise SystemExit("missing `cma`; pip install cma into this venv.") from exc
 
-    from .export_score_profile import write_score_profile_tres
+    from .export_score_profile import write_score_profile_json
     from .gpu_surrogate import _bounds, _load_torch, _matrix, _SurrogateNet, require_cuda
     from .search_space import resolve_drop_params, score_weight_space
 
@@ -299,13 +299,13 @@ def main() -> None:
     ranked_json = os.path.join(args.output_dir, "ranked.json")
     with open(ranked_json, "w", encoding="utf-8") as fh:
         json.dump(ranked, fh, indent=2, sort_keys=True)
-    champion_tres = os.path.join(args.output_dir, "champion_score_profile.tres")
-    write_score_profile_tres(champion_tres, ranked[0]["genome"])
+    champion_json = os.path.join(args.output_dir, "champion_score_profile.json")
+    write_score_profile_json(champion_json, ranked[0]["genome"])
 
     top = ranked[0]
     print(f"\nranked {len(all_z)} unique candidates -> top {len(ranked)} ({ranked_json})")
     print(f"champion acq={top['acq']:+.4f}  pred_mean={top['pred_mean']:+.4f}  pred_std={top['pred_std']:.4f}")
-    print(f"exported: {champion_tres}")
+    print(f"exported: {champion_json}")
     print("NEXT: gate with promote_gate.py (real battles) before adopting.")
 
 

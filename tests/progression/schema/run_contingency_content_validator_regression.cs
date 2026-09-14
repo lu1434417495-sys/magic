@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_contingency_content_validator_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private const int SaveCompressionMode = (int)FileAccess.CompressionMode.Zstd;
 
     private readonly TestHarness _test = new();
@@ -21,18 +21,61 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
     {
         TestCatalogContainsRealChainContingencySkill();
         TestCatalogContainsV1StorableAutomationProfiles();
+        TestChargeMaterialItemReferencesAreValidatedBeforePublication();
         TestStoredSkillWithoutAutomationProfileIsRejected();
         TestCanBeStoredFalseIsRejected();
         TestNonPlayerLearnedSourceSkillIsRejected();
         TestMinSkillLevelGreaterThanSourceSkillLevelIsRejected();
         TestSourceSkillLevelAboveKnownLevelIsRejected();
         TestStoredCastLevelAboveKnownLevelIsRejected();
-        TestForbiddenTagIntersectionRejectsBeforeAllowlistSuccess();
+        TestForbiddenTagRejectsBeforeLaterAutomationRules();
         TestTargetResolverOutsideAllowlistIsRejected();
         TestUnsupportedParameterBindingKeyIsRejected();
         TestLoadSaveFailsWhenPersistedSetupReferencesInvalidStoredSkill();
 
         RequestTestExit(_test.Finish("Contingency content validator regression"));
+    }
+
+    private void TestChargeMaterialItemReferencesAreValidatedBeforePublication()
+    {
+        ContingencySetupTemplateDefinition validTemplate = BuildCrossDomainTemplate(
+            "known_charge_material",
+            "healing_herb"
+        );
+        IReadOnlyList<string> validErrors = ContingencyTemplateCrossDomainValidator.Validate(
+            new Dictionary<StringName, ContingencySetupTemplateDefinition>
+            {
+                [validTemplate.TemplateId] = validTemplate,
+            },
+            GameSessionTestFactory.GetProcessSnapshot().Items
+        );
+        _test.Eq(
+            validErrors.Count,
+            0,
+            "A contingency charge material present in the published item index should pass cross-domain validation."
+        );
+
+        ContingencySetupTemplateDefinition missingTemplate = BuildCrossDomainTemplate(
+            "missing_charge_material",
+            "missing_contingency_material"
+        );
+        IReadOnlyList<string> missingErrors = ContingencyTemplateCrossDomainValidator.Validate(
+            new Dictionary<StringName, ContingencySetupTemplateDefinition>
+            {
+                [missingTemplate.TemplateId] = missingTemplate,
+            },
+            GameSessionTestFactory.GetProcessSnapshot().Items
+        );
+        _test.Eq(
+            missingErrors.Count,
+            1,
+            "A missing contingency charge material should produce one stable cross-domain diagnostic."
+        );
+        _test.Eq(
+            missingErrors.Count == 1 ? missingErrors[0] : "",
+            "Contingency template missing_charge_material charge_material_costs[0].item_id references missing item missing_contingency_material.",
+            "The missing charge material diagnostic should identify the template, field index, and item id."
+        );
     }
 
     private void TestCatalogContainsRealChainContingencySkill()
@@ -271,7 +314,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         );
     }
 
-    private void TestForbiddenTagIntersectionRejectsBeforeAllowlistSuccess()
+    private void TestForbiddenTagRejectsBeforeLaterAutomationRules()
     {
         GDictionary setup = BuildSetupPayload(storedSkillId: "forbidden_tag_skill");
         PartyState partyState = BuildPartyStateWithSetup(
@@ -286,7 +329,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 SyntheticSkill(
                     "forbidden_tag_skill",
                     BuildAutomation(
-                        canBeStored: true,
+                        canBeStored: false,
                         minLevel: 1,
                         allowedResolver: "self",
                         tags: new[] { "contingency_forbidden", "defensive_self_buff" }
@@ -295,14 +338,20 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             )
         );
 
-        _test.True(errors.Count > 0, "Forbidden tag setup should produce validation errors.");
-        if (errors.Count > 0)
-        {
-            _test.True(
-                errors[0].Contains("forbidden_tag"),
-                "Forbidden tag intersection should be reported before allowlist success."
+        const string expectedError =
+            "party_state.member_states.hero_001.contingency_matrix_setups[0]"
+            + ".stored_spells[0].stored_skill_id: forbidden_tag:contingency_forbidden";
+        _test.Eq(
+            errors.Count,
+            1,
+            $"forbidden tag should short-circuit later not_storable validation. errors={string.Join(" | ", errors)}"
+        );
+        if (errors.Count == 1)
+            _test.Eq(
+                errors[0],
+                expectedError,
+                "forbidden tag should be the exact first-priority automation diagnostic."
             );
-        }
     }
 
     private void TestTargetResolverOutsideAllowlistIsRejected()
@@ -519,7 +568,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null,
             automation
         );
@@ -596,7 +645,6 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         {
             unit_id = "hero_001",
             display_name = "Content Hero",
-            character_level = 7,
             unit_base_attributes = new UnitBaseAttributes
             {
                 strength = 10,
@@ -607,6 +655,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 willpower = 12,
             },
         };
+        PromotionHistoryTestFixture.InitializeHistoricalLevel(progress, 7);
         foreach (UnitSkillProgress skill in learnedSkills)
             progress.SetSkillProgress(skill);
 
@@ -685,6 +734,48 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         };
     }
 
+    private static ContingencySetupTemplateDefinition BuildCrossDomainTemplate(
+        StringName templateId,
+        StringName itemId
+    ) =>
+        new(
+            templateId,
+            templateId.ToString(),
+            "mage_chain_contingency",
+            3,
+            2,
+            new[] { new ContingencyMaterialCostDefinition(itemId, 1) },
+            "burst_release",
+            new ContingencyTriggerDefinition(
+                "hp_below_percent",
+                "owner",
+                "after_hp_changed",
+                30,
+                true,
+                0,
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                Array.Empty<StringName>(),
+                "",
+                ""
+            ),
+            new[]
+            {
+                new ContingencyStoredSpellTemplateDefinition(
+                    "mage_mirror_image",
+                    1,
+                    1,
+                    new ContingencyTargetResolverDefinition("self", "", 0),
+                    new Dictionary<string, object>(),
+                    "skip_if_invalid"
+                ),
+            }
+        );
+
     private static GodotProjectionLease<GDictionary> BuildSavePayloadForSession(
         GameSession gameSession,
         PartyState partyState
@@ -692,7 +783,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
     {
         return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),

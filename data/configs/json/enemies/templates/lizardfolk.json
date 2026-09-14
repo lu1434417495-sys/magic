@@ -1,0 +1,62 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "guard_trident",
+      "attribute_overrides": {
+        "action_points": 2,
+        "deflection_bonus": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 10,
+        "constitution": 13,
+        "intelligence": 7,
+        "perception": 12,
+        "strength": 13,
+        "willpower": 9
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 2,
+      "damage_resistances": {},
+      "display_name": "\u8725\u8734\u4EBA",
+      "drop_entries": [
+        {
+          "drop_entry_id": "lizard_scale_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 8,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "poison"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "humanoid",
+        "reptile",
+        "lizardfolk"
+      ],
+      "target_rank": "normal",
+      "template_id": "lizardfolk"
+    }
+  ],
+  "family": "lizardfolk",
+  "schema": 1,
+  "templates": {}
+}

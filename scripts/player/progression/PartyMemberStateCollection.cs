@@ -153,9 +153,18 @@ public sealed class PartyMemberStateCollection
             if (rawValue.VariantType != Variant.Type.Dictionary)
                 throw new ArgumentException($"member_states[{memberId}] is not a save dictionary");
 
-            PartyMemberState member = PartyMemberState.FromDictionary(rawValue.AsGodotDictionary());
-            if (member == null || member.member_id != memberId)
-                throw new ArgumentException($"member_states[{memberId}] has invalid member payload");
+            PartyMemberState member = PartyMemberState.FromDictionary(
+                rawValue.AsGodotDictionary(),
+                out string memberFailure
+            );
+            if (member == null)
+                throw new ArgumentException(
+                    $"member_states[{memberId}] has invalid member payload: {memberFailure}"
+                );
+            if (member.member_id != memberId)
+                throw new ArgumentException(
+                    $"member_states[{memberId}] declares member_id '{member.member_id}'"
+                );
             result.Set(member);
         }
         return result;

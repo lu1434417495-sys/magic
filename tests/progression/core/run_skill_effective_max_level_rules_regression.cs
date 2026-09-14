@@ -1,5 +1,4 @@
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -14,17 +13,10 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
 
     private void Run()
     {
-        TestRulesNoLongerRequireGodotRegistration();
-        TestProgressionServiceNoLongerRequiresGlobalClassRegistration();
         TestAuraSlashMaxLevelUsesTransformationCount();
         TestDynamicMaxLevelUsesProfessionRankIntegerDivisor();
 
         RequestTestExit(_test.Finish("Skill effective max level rules regression"));
-    }
-
-    private void TestRulesNoLongerRequireGodotRegistration()
-    {
-        Type rulesType = typeof(SkillEffectiveMaxLevelRules);
     }
 
     private void TestAuraSlashMaxLevelUsesTransformationCount()
@@ -54,17 +46,15 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
 
         _test.True(service.SetSkillCore(skillDefinition.SkillId, true), "斗气斩应能锁定为核心。");
         service.GrantSkillMastery(skillDefinition.SkillId, 99, "training");
-        _test.Eq(skillProgress?.skill_level ?? -1, 5, "斗气斩仅指定核心但未锁定时仍应停在 non_core 上限。");
+        _test.Eq(skillProgress?.skill_level ?? -1, 5, "斗气斩仅指定核心但未完成成长时仍应停在 non_core 上限。");
 
         if (skillProgress == null)
             return;
-        skillProgress.is_level_trigger_locked = true;
-        if (!progress.HasLockedLevelTriggerSkillId(skillDefinition.SkillId))
-            progress.AddLockedLevelTriggerSkillId(skillDefinition.SkillId);
+        PromotionHistoryTestFixture.Record(progress, skillDefinition.SkillId);
         progress.SetSkillProgress(skillProgress);
         service.RefreshRuntimeState();
         service.GrantSkillMastery(skillDefinition.SkillId, 99, "training");
-        _test.Eq(skillProgress.skill_level, 7, "斗气斩锁定后默认最大等级应为 7。");
+        _test.Eq(skillProgress.skill_level, 7, "斗气斩完成成长后默认最大等级应为 7。");
 
         progress.unit_base_attributes.SetAttributeValue("aura_transformation_count", 2);
         service.RefreshRuntimeState();
@@ -112,18 +102,14 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
         _test.Eq(
             SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(skillDefinition, skillProgress, progress),
             3,
-            "奥术飞弹未锁定时仍应受 non_core 上限限制。"
+            "奥术飞弹未完成成长时仍应受 non_core 上限限制。"
         );
-        skillProgress.is_level_trigger_locked = true;
+        PromotionHistoryTestFixture.Record(progress, skillDefinition.SkillId);
         _test.Eq(
             SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(skillDefinition, skillProgress, progress),
             9,
-            "奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
+            "奥术飞弹完成成长后才应使用法师 rank/2 的动态核心上限。"
         );
-    }
-
-    private void TestProgressionServiceNoLongerRequiresGlobalClassRegistration()
-    {
     }
 
     private static SkillDefinition BuildSkillDefinition(
@@ -165,7 +151,7 @@ public partial class run_skill_effective_max_level_rules_regression : LifecycleT
             practiceTier: "",
             attributeModifiers: System.Array.Empty<AttributeModifierDefinition>(),
             levelDescriptionTemplate: "",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>(),
             combatProfile: null
         );
     }

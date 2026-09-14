@@ -169,30 +169,11 @@ internal class BattleRuntimeLootResolver
             int quantity = parsedDropEntry.Quantity;
             if (dropKind == BattleLootDropKind.RandomEquipment)
             {
-                var equipmentDropService = _runtime._equipment_drop_service;
-                if (equipmentDropService != null)
-                {
-                    var rolledInstances = equipmentDropService
-                        .RollItemInstances(itemId, quantity, normalizedDropLuck);
-                    for (
-                        int instanceIndex = 0;
-                        instanceIndex < rolledInstances.Count;
-                        instanceIndex++
-                    )
-                    {
-                        var lootEntry = _BuildEquipmentInstanceLootEntry(
-                            BattleLootSourceKind.EnemyUnit,
-                            unitState.unit_id,
-                            sourceLabel,
-                            $"{unitState.unit_id}_{dropEntryId}_{instanceIndex + 1}",
-                            rolledInstances[instanceIndex]
-                        );
-                        if (lootEntry != null)
-                            lootEntries.Add(lootEntry);
-                    }
-                    continue;
-                }
-                var fallbackEntry = _BuildFormalRandomEquipmentLootEntry(
+                // Random equipment stays as a typed request until the world transaction commits
+                // the loot. The commit owner has the unique-world pool, warehouse capacity and
+                // rollback checkpoint needed to choose between an existing unique instance and
+                // an ordinary generated instance without ever minting a duplicate unique item.
+                var randomEquipmentEntry = _BuildFormalRandomEquipmentLootEntry(
                     BattleLootSourceKind.EnemyUnit,
                     unitState.unit_id,
                     sourceLabel,
@@ -201,9 +182,9 @@ internal class BattleRuntimeLootResolver
                     quantity,
                     normalizedDropLuck
                 );
-                if (fallbackEntry == null)
+                if (randomEquipmentEntry == null)
                     continue;
-                lootEntries.Add(fallbackEntry);
+                lootEntries.Add(randomEquipmentEntry);
                 continue;
             }
             var fixedEntry = _BuildFormalLootEntry(
@@ -247,58 +228,6 @@ internal class BattleRuntimeLootResolver
         if (string.IsNullOrEmpty(text))
             return "";
         return text;
-    }
-
-    private BattleLootEntry _BuildEquipmentInstanceLootEntry(
-        BattleLootSourceKind dropSourceKind,
-        StringName dropSourceId,
-        string dropSourceLabel,
-        string dropEntrySuffix,
-        EquipmentInstanceState rolledInstance
-    )
-    {
-        var equipmentInstance = NormalizeTransientEquipmentInstance(rolledInstance);
-        if (equipmentInstance == null || equipmentInstance.item_id == "")
-            return null;
-        if (equipmentInstance.instance_id == "")
-        {
-            var allocatedInstanceId = _AllocateEquipmentInstanceId();
-            if (allocatedInstanceId == "")
-                return null;
-            equipmentInstance.instance_id = allocatedInstanceId;
-        }
-        var sourceLabel = dropSourceLabel.StripEdges();
-        if (string.IsNullOrEmpty(sourceLabel))
-            sourceLabel = dropSourceId.ToString();
-        var entrySuffix = dropEntrySuffix.StripEdges();
-        if (string.IsNullOrEmpty(entrySuffix))
-            entrySuffix = "equipment_instance";
-        return BattleLootEntry.CreateEquipmentInstance(
-            dropSourceKind,
-            dropSourceId,
-            sourceLabel,
-            $"{BattleLootIds.ToStringName(dropSourceKind)}_{dropSourceId}_{entrySuffix}",
-            equipmentInstance
-        );
-    }
-
-    private static EquipmentInstanceState NormalizeTransientEquipmentInstance(
-        EquipmentInstanceState instance
-    )
-    {
-        EquipmentInstanceState equipmentInstance = instance?.DuplicateState();
-        if (equipmentInstance == null || equipmentInstance.item_id == "")
-            return null;
-        if (!EquipmentInstanceState.IsValidRarity(equipmentInstance.rarity))
-            return null;
-        if (
-            !EquipmentDurabilityRules.IsValidCurrentDurability(
-                equipmentInstance.current_durability,
-                equipmentInstance.rarity
-            )
-        )
-            return null;
-        return equipmentInstance;
     }
 
     private int _ResolveDropLuckForKillerUnit(BattleUnitState killerUnit)
@@ -350,11 +279,6 @@ internal class BattleRuntimeLootResolver
         lootEntries.AddRange(_BuildStatusRewardLootEntries());
         lootEntries.AddRange(_BuildCalamityConversionLootEntries());
         return lootEntries;
-    }
-
-    private StringName _AllocateEquipmentInstanceId()
-    {
-        return _runtime != null ? _runtime.AllocateEquipmentInstanceId() : "";
     }
 
     private List<BattleLootEntry> _BuildStatusRewardLootEntries()

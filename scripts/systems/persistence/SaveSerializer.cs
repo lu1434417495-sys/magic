@@ -6,14 +6,15 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal sealed class SaveDecodeResult
 {
-    internal SaveDecodeResult(int error)
+    internal SaveDecodeResult(int error, string rejectionReason)
     {
         Error = error;
+        RejectionReason = rejectionReason ?? "";
         ActiveSaveMeta = new Dictionary<string, object>(StringComparer.Ordinal);
         WorldData = new Dictionary<string, object>(StringComparer.Ordinal);
         PartyState = new PartyState();
         ActiveSaveId = "";
-        GenerationConfigPath = "";
+        WorldGenerationId = "";
         PlayerFactionId = "player";
     }
 
@@ -22,28 +23,33 @@ internal sealed class SaveDecodeResult
         Dictionary<string, object> worldData,
         PartyState partyState,
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         Vector2I playerCoord,
         string playerFactionId
     )
     {
         Error = (int)Godot.Error.Ok;
+        RejectionReason = "";
         ActiveSaveMeta = activeSaveMeta
             ?? new Dictionary<string, object>(StringComparer.Ordinal);
         WorldData = worldData ?? new Dictionary<string, object>(StringComparer.Ordinal);
         PartyState = partyState ?? new PartyState();
         ActiveSaveId = activeSaveId ?? "";
-        GenerationConfigPath = generationConfigPath ?? "";
+        WorldGenerationId = worldGenerationId;
         PlayerCoord = playerCoord;
         PlayerFactionId = playerFactionId ?? "player";
     }
 
     internal int Error { get; }
+
+    /// 解码被拒时说明是哪一项检查失败（例如 save_version_mismatch）。成功时为空。
+    /// 没有它的话 15 条拒绝路径共用一个 InvalidData，"存档版本过旧"和"存档损坏"无法区分。
+    internal string RejectionReason { get; }
     internal Dictionary<string, object> ActiveSaveMeta { get; }
     internal Dictionary<string, object> WorldData { get; }
     internal PartyState PartyState { get; }
     internal string ActiveSaveId { get; }
-    internal string GenerationConfigPath { get; }
+    internal StringName WorldGenerationId { get; }
     internal Vector2I PlayerCoord { get; }
     internal string PlayerFactionId { get; }
 }
@@ -65,7 +71,7 @@ public sealed class SaveSerializer
 
     internal GodotProjectionLease<GDictionary> BuildSavePayloadLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
@@ -81,7 +87,7 @@ public sealed class SaveSerializer
         );
         return BuildSavePayloadFromWorldStateLease(
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             activeSaveMeta,
             worldState,
             partyState,
@@ -92,7 +98,7 @@ public sealed class SaveSerializer
 
     internal GodotProjectionLease<GDictionary> BuildTrustedSavePayloadLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         IReadOnlyDictionary<string, object> worldData,
         Vector2I playerCoord,
@@ -111,7 +117,7 @@ public sealed class SaveSerializer
         };
         return BuildSavePayloadFromWorldStateLease(
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             activeSaveMeta,
             worldState,
             partyState,
@@ -122,7 +128,7 @@ public sealed class SaveSerializer
 
     private GodotProjectionLease<GDictionary> BuildSavePayloadFromWorldStateLease(
         string activeSaveId,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> activeSaveMeta,
         Dictionary<string, object> worldState,
         PartyState partyState,
@@ -134,7 +140,7 @@ public sealed class SaveSerializer
         {
             ["version"] = _save_version,
             ["save_id"] = activeSaveId,
-            ["generation_config_path"] = generationConfigPath,
+            ["world_generation_id"] = worldGenerationId.ToString(),
             ["world_state"] = worldState,
             ["party_state"] = SerializePartyStatePlain(partyState),
             ["meta"] = BuildMetaPayloadPlain(savedAtUnixTime),
@@ -165,65 +171,81 @@ public sealed class SaveSerializer
 
     internal bool TryDecodePayload(
         IReadOnlyDictionary<string, object> payload,
-        string generationConfigPath,
+        StringName worldGenerationId,
         IReadOnlyDictionary<string, object> saveMeta,
         out SaveDecodeResult result
     )
     {
-        result = new SaveDecodeResult((int)Error.InvalidData);
+        result = DecodePayload(payload, worldGenerationId, saveMeta);
+        return result.Error == (int)Error.Ok;
+    }
+
+    /// 每条拒绝路径都带上自己的 reason，调用方才能区分"存档版本过旧"与"存档损坏"。
+    private static SaveDecodeResult Reject(string reason) =>
+        new((int)Error.InvalidData, reason);
+
+    private SaveDecodeResult DecodePayload(
+        IReadOnlyDictionary<string, object> payload,
+        StringName worldGenerationId,
+        IReadOnlyDictionary<string, object> saveMeta
+    )
+    {
+        if (payload == null)
+            return Reject("payload_missing");
         if (
-            payload == null
-            || !TryNormalizeSaveMetaPlain(
+            !TryNormalizeSaveMetaPlain(
                 saveMeta,
                 out Dictionary<string, object> normalizedRequestedMeta
             )
         )
-        {
-            return false;
-        }
+            return Reject("requested_save_meta_invalid");
         string[] requiredPayloadKeys =
         {
             "version",
             "save_id",
-            "generation_config_path",
+            "world_generation_id",
             "world_state",
             "party_state",
             "meta",
             "save_slot_meta",
         };
         if (!HasExactPlainKeys(payload, requiredPayloadKeys))
-            return false;
+            return Reject("payload_keys_mismatch");
+        if (!TryReadPlainInt(payload, "version", out int version))
+            return Reject("save_version_unreadable");
+        // 版本不符必须与"存档损坏"分开：开发期 SaveVersion bump 会让全部旧档走到这里，
+        // 共用一个 InvalidData 时上层无法给出"存档版本过旧"的明确提示。
+        if (version != _save_version)
+        {
+            return Reject($"save_version_mismatch:payload={version},expected={_save_version}");
+        }
+        if (!TryReadPlainString(payload, "save_id", out string activeSaveId))
+            return Reject("save_id_unreadable");
         if (
-            !TryReadPlainInt(payload, "version", out int version)
-            || version != _save_version
-            || !TryReadPlainString(payload, "save_id", out string activeSaveId)
-            || !TryReadPlainString(
+            !TryReadPlainString(
                 payload,
-                "generation_config_path",
-                out string payloadGenerationConfigPath
+                "world_generation_id",
+                out string payloadWorldGenerationId
             )
         )
-            return false;
+            return Reject("world_generation_id_unreadable");
+        if (new StringName(payloadWorldGenerationId) != worldGenerationId)
+            return Reject("world_generation_id_mismatch");
         if (
             !string.Equals(
-                payloadGenerationConfigPath,
-                generationConfigPath,
-                StringComparison.Ordinal
-            )
-            || !string.Equals(
                 activeSaveId,
                 ReadPlainString(normalizedRequestedMeta, "save_id"),
                 StringComparison.Ordinal
             )
         )
-            return false;
+            return Reject("save_id_mismatch");
         if (
             !TryReadPlainDictionary(payload, "world_state", out var worldState)
             || !TryReadPlainDictionary(payload, "party_state", out var partyPayload)
             || !TryReadPlainDictionary(payload, "meta", out var payloadMeta)
             || !TryReadPlainDictionary(payload, "save_slot_meta", out var payloadSaveMeta)
         )
-            return false;
+            return Reject("payload_section_not_dictionary");
 
         if (
             !HasExactPlainKeys(
@@ -238,12 +260,19 @@ public sealed class SaveSerializer
                 "player_faction_id",
                 out string playerFactionId
             )
-            || !TryNormalizeWorldDataPlain(rawWorldData, out Dictionary<string, object> worldData)
         )
-            return false;
+            return Reject("world_state_invalid");
+        if (
+            !TryNormalizeWorldDataPlain(
+                rawWorldData,
+                out Dictionary<string, object> worldData,
+                out string worldDataFailure
+            )
+        )
+            return Reject($"world_data_normalization_failed:{worldDataFailure}");
         playerFactionId = playerFactionId.Trim();
         if (string.IsNullOrEmpty(playerFactionId))
-            return false;
+            return Reject("player_faction_id_empty");
 
         if (
             !HasExactPlainKeys(
@@ -252,16 +281,22 @@ public sealed class SaveSerializer
             )
             || !TryReadPlainInt(payloadMeta, "saved_at_unix_time", out _)
             || !TryReadPlainString(payloadMeta, "save_format", out string saveFormat)
-            || !string.Equals(saveFormat, SaveFormat, StringComparison.Ordinal)
         )
-            return false;
+            return Reject("payload_meta_invalid");
+        if (!string.Equals(saveFormat, SaveFormat, StringComparison.Ordinal))
+        {
+            return Reject($"save_format_mismatch:payload={saveFormat},expected={SaveFormat}");
+        }
 
         if (
             !TryNormalizeSaveMetaPlain(
                 payloadSaveMeta,
                 out Dictionary<string, object> normalizedMeta
             )
-            || !string.Equals(
+        )
+            return Reject("save_slot_meta_invalid");
+        if (
+            !string.Equals(
                 ReadPlainString(normalizedMeta, "save_id"),
                 activeSaveId,
                 StringComparison.Ordinal
@@ -271,20 +306,26 @@ public sealed class SaveSerializer
                 ReadPlainString(normalizedRequestedMeta, "save_id"),
                 StringComparison.Ordinal
             )
-            || !string.Equals(
-                ReadPlainString(normalizedMeta, "generation_config_path"),
-                generationConfigPath,
+        )
+            return Reject("save_slot_meta_save_id_mismatch");
+        if (
+            !string.Equals(
+                ReadPlainString(normalizedMeta, "world_generation_id"),
+                worldGenerationId.ToString(),
                 StringComparison.Ordinal
             )
             || !string.Equals(
-                ReadPlainString(normalizedRequestedMeta, "generation_config_path"),
-                generationConfigPath,
+                ReadPlainString(normalizedRequestedMeta, "world_generation_id"),
+                worldGenerationId.ToString(),
                 StringComparison.Ordinal
             )
         )
-            return false;
+        {
+            return Reject("save_slot_meta_world_generation_id_mismatch");
+        }
 
         PartyState partyState;
+        string partyFailure = "";
         using (
             GodotProjectionLease<GDictionary> partyLease =
                 RuntimePlainPayload.ProjectDictionaryLease(
@@ -295,28 +336,27 @@ public sealed class SaveSerializer
                 )
         )
         {
-            partyState = PartyState.FromDictionary(partyLease.Value);
+            partyState = PartyState.FromDictionary(partyLease.Value, out partyFailure);
         }
         if (partyState == null)
-            return false;
+            return Reject($"party_state_decode_failed:{partyFailure}");
         partyState = NormalizeParsedPartyState(partyState);
 
-        result = new SaveDecodeResult(
+        return new SaveDecodeResult(
             normalizedMeta,
             worldData,
             partyState,
             activeSaveId,
-            generationConfigPath,
+            worldGenerationId,
             playerCoord,
             playerFactionId
         );
-        return true;
     }
 
     internal Dictionary<string, object> BuildSaveMetaPlain(
         string saveId,
         string displayName,
-        string generationConfigPath,
+        StringName worldGenerationId,
         StringName presetId,
         string presetName,
         Vector2I worldSizeCells,
@@ -330,7 +370,7 @@ public sealed class SaveSerializer
             ["display_name"] = string.IsNullOrEmpty(displayName) ? saveId ?? "" : displayName,
             ["world_preset_id"] = presetId.ToString(),
             ["world_preset_name"] = presetName ?? "",
-            ["generation_config_path"] = generationConfigPath ?? "",
+            ["world_generation_id"] = worldGenerationId.ToString(),
             ["world_size_cells"] = worldSizeCells,
             ["created_at_unix_time"] = createdAtUnixTime,
             ["updated_at_unix_time"] = updatedAtUnixTime,
@@ -352,7 +392,7 @@ public sealed class SaveSerializer
             "display_name",
             "world_preset_id",
             "world_preset_name",
-            "generation_config_path",
+            "world_generation_id",
             "world_size_cells",
             "created_at_unix_time",
             "updated_at_unix_time",
@@ -373,8 +413,8 @@ public sealed class SaveSerializer
             || !TryReadPlainString(rawMeta, "world_preset_name", out string worldPresetName)
             || !TryReadPlainString(
                 rawMeta,
-                "generation_config_path",
-                out string generationConfigPath
+                "world_generation_id",
+                out string worldGenerationId
             )
             || !TryReadPlainInt(rawMeta, "created_at_unix_time", out int createdAt)
             || !TryReadPlainInt(rawMeta, "updated_at_unix_time", out int updatedAt)
@@ -387,11 +427,11 @@ public sealed class SaveSerializer
 
         displayName = displayName.Trim();
         worldPresetName = worldPresetName.Trim();
-        generationConfigPath = generationConfigPath.Trim();
+        worldGenerationId = worldGenerationId.Trim();
         if (
             displayName.Length == 0
             || worldPresetName.Length == 0
-            || generationConfigPath.Length == 0
+            || worldGenerationId.Length == 0
             || worldSizeCells.X <= 0
             || worldSizeCells.Y <= 0
             || createdAt <= 0
@@ -407,7 +447,7 @@ public sealed class SaveSerializer
             ["display_name"] = displayName,
             ["world_preset_id"] = worldPresetId,
             ["world_preset_name"] = worldPresetName,
-            ["generation_config_path"] = generationConfigPath,
+            ["world_generation_id"] = worldGenerationId,
             ["world_size_cells"] = worldSizeCells,
             ["created_at_unix_time"] = createdAt,
             ["updated_at_unix_time"] = updatedAt,
@@ -425,7 +465,7 @@ public sealed class SaveSerializer
         {
             "version",
             "save_id",
-            "generation_config_path",
+            "world_generation_id",
             "world_state",
             "party_state",
             "meta",
@@ -439,8 +479,8 @@ public sealed class SaveSerializer
             || !TryReadPlainString(payload, "save_id", out string saveId)
             || !TryReadPlainString(
                 payload,
-                "generation_config_path",
-                out string generationConfigPath
+                "world_generation_id",
+                out string worldGenerationId
             )
             || !TryReadPlainDictionary(payload, "save_slot_meta", out var rawSaveMeta)
             || !TryNormalizeSaveMetaPlain(rawSaveMeta, out Dictionary<string, object> normalized)
@@ -450,18 +490,18 @@ public sealed class SaveSerializer
         }
 
         saveId = saveId.Trim();
-        generationConfigPath = generationConfigPath.Trim();
+        worldGenerationId = worldGenerationId.Trim();
         if (
             saveId.Length == 0
-            || generationConfigPath.Length == 0
+            || worldGenerationId.Length == 0
             || !string.Equals(
                 ReadPlainString(normalized, "save_id"),
                 saveId,
                 StringComparison.Ordinal
             )
             || !string.Equals(
-                ReadPlainString(normalized, "generation_config_path"),
-                generationConfigPath,
+                ReadPlainString(normalized, "world_generation_id"),
+                worldGenerationId,
                 StringComparison.Ordinal
             )
         )
@@ -555,6 +595,14 @@ public sealed class SaveSerializer
             if (!string.IsNullOrEmpty(fogStateError))
                 return $"Corrupt save world_data.fog_states: {fogStateError}";
         }
+        if (
+            worldData.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool)
+            && worldData[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType
+                != Variant.Type.Dictionary
+        )
+        {
+            return $"Corrupt save world_data.{WorldRuntimeSaveSchema.UniqueEquipmentPool}: expected Dictionary.";
+        }
         return "";
     }
 
@@ -588,6 +636,17 @@ public sealed class SaveSerializer
             && worldData["world_npcs"].VariantType != Variant.Type.Array
         )
             return "Corrupt save world_data.world_npcs: expected Array.";
+        if (worldData.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool))
+        {
+            using GDictionary uniqueEquipmentPool =
+                worldData[WorldRuntimeSaveSchema.UniqueEquipmentPool].AsGodotDictionary();
+            string uniqueEquipmentError =
+                WorldUniqueEquipmentPoolState.GetPayloadValidationError(uniqueEquipmentPool);
+            if (!string.IsNullOrEmpty(uniqueEquipmentError))
+            {
+                return $"Corrupt save world_data.{WorldRuntimeSaveSchema.UniqueEquipmentPool}: {uniqueEquipmentError}";
+            }
+        }
         return "";
     }
 
@@ -713,21 +772,16 @@ public sealed class SaveSerializer
 
         using GodotProjectionLease<GDictionary> payloadLease =
             partyState.ToDictionaryLease("SaveSerializer.NormalizePartyState");
-        GDictionary payload = payloadLease.Value;
-        PartyState normalized =
-            payload.Count > 0
-                ? PartyState.FromDictionary(payload)
-                : new PartyState();
-        if (normalized == null)
-            return new PartyState();
-
-        return NormalizeParsedPartyState(normalized);
+        // 往返失败只可能是运行时队伍带了非法值，或 PartyState.TO_DICT_FIELDS 与
+        // BuildSaveSnapshotPlain 漂移。两者都是缺陷。这里返回 null 让调用方按失败上报——
+        // 原先替换成空队伍会让 SetPartyState 报 Error.Ok，再把清空后的队伍写进下一次存档。
+        PartyState normalized = PartyState.FromDictionary(payloadLease.Value);
+        return normalized == null ? null : NormalizeParsedPartyState(normalized);
     }
 
     private PartyState NormalizeParsedPartyState(PartyState normalized)
     {
-        if (normalized == null)
-            return new PartyState();
+        ArgumentNullException.ThrowIfNull(normalized);
 
         var livingMemberIds = new StringNameList();
         foreach (string key in normalized.member_states.GetSortedIdStrings())
@@ -972,11 +1026,20 @@ public sealed class SaveSerializer
     internal bool TryNormalizeWorldDataPlain(
         IReadOnlyDictionary<string, object> worldData,
         out Dictionary<string, object> normalized
+    ) => TryNormalizeWorldDataPlain(worldData, out normalized, out _);
+
+    internal bool TryNormalizeWorldDataPlain(
+        IReadOnlyDictionary<string, object> worldData,
+        out Dictionary<string, object> normalized,
+        out string failureReason
     )
     {
         normalized = new Dictionary<string, object>(StringComparer.Ordinal);
         if (worldData == null)
+        {
+            failureReason = "world_data: payload is null";
             return false;
+        }
         using GodotProjectionLease<GDictionary> validationLease =
             RuntimePlainPayload.ProjectDictionaryLease(
                 worldData,
@@ -985,12 +1048,20 @@ public sealed class SaveSerializer
                 "SaveSerializer.TryNormalizeWorldDataPlain"
             );
         GDictionary validationPayload = validationLease.Value;
-        if (!string.IsNullOrEmpty(GetWorldDataValidationError(validationPayload)))
+        string validationError = GetWorldDataValidationError(validationPayload);
+        if (!string.IsNullOrEmpty(validationError))
+        {
+            failureReason = validationError;
             return false;
-        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(validationPayload);
+        }
+        WorldRuntimeData runtimeData = WorldRuntimeData.FromDictionary(
+            validationPayload,
+            out failureReason
+        );
         if (runtimeData == null)
             return false;
         normalized = runtimeData.BuildSaveSnapshotPlain();
+        failureReason = "";
         return true;
     }
 

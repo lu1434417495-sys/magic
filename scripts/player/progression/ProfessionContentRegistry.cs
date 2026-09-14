@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using Godot;
 using Godot.Collections;
 
 public class ProfessionContentRegistry : System.IDisposable
 {
-    private const string ProfessionConfigDirectory = "res://data/configs/professions";
+    private const string ProfessionConfigDirectory = ProfessionIdentityJsonDomains.ProfessionDirectory;
     private static readonly StringName GateContextUnlock = "unlock";
     private static readonly StringName GateContextRank = "rank";
 
@@ -21,7 +20,7 @@ public class ProfessionContentRegistry : System.IDisposable
 
     private readonly System.Collections.Generic.Dictionary<StringName, ProfessionDefinition>
         _professionDefinitions = new();
-    private readonly IContentResourceLoader _resourceLoader;
+    private readonly IContentJsonSourceReader _jsonSourceReader;
     private readonly List<string> _validationErrors = new();
     public Array<string> _validation_errors
     {
@@ -39,15 +38,16 @@ public class ProfessionContentRegistry : System.IDisposable
         SnapshotDefinitions<SkillDefinition>(null);
     private bool _disposed;
 
-    internal ProfessionContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal ProfessionContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
     internal ProfessionContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
+        IContentJsonSourceReader jsonSourceReader,
+        bool loadDefaultContent = true
     )
     {
-        _resourceLoader = resourceLoader ?? throw new ArgumentNullException(nameof(resourceLoader));
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new ArgumentNullException(nameof(jsonSourceReader));
         if (loadDefaultContent)
             Setup();
     }
@@ -97,7 +97,7 @@ public class ProfessionContentRegistry : System.IDisposable
     {
         _professionDefinitions.Clear();
         _validationErrors.Clear();
-        ScanDirectory(directoryPath);
+        ImportDirectory(directoryPath);
         AppendArray(_validationErrors, CollectValidationErrors());
     }
 
@@ -112,91 +112,29 @@ public class ProfessionContentRegistry : System.IDisposable
         return copy;
     }
 
-    private void ScanDirectory(string directoryPath)
+    private void ImportDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        ContentImportBatch<ProfessionImportModel> batch = ProfessionIdentityJsonImport
+            .CreateProfessionDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validationErrors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<ProfessionImportModel> entry in batch.Entries)
         {
-            _validationErrors.Add($"ProfessionContentRegistry could not find {directoryPath}.");
-            return;
-        }
-
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-        {
-            _validationErrors.Add($"ProfessionContentRegistry could not open {directoryPath}.");
-            return;
-        }
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
+            try
             {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-
-                string entryPath = $"{directoryPath}/{entryName}";
-                if (directory.CurrentIsDir())
-                {
-                    ScanDirectory(entryPath);
-                    continue;
-                }
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-                RegisterProfessionResource(entryPath);
+                ProfessionDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_professionDefinitions.TryAdd(definition.ProfessionId, definition))
+                    _validationErrors.Add($"Duplicate profession_id registered: {definition.ProfessionId}");
             }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
-    }
-
-    private void RegisterProfessionResource(string resourcePath)
-    {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add($"Failed to load profession config {resourcePath}.");
-            return;
-        }
-        if (resource is not ProfessionDef professionDef)
-        {
-            _validationErrors.Add($"Profession config {resourcePath} is not a ProfessionDef.");
-            return;
-        }
-        if (professionDef.profession_id == "")
-        {
-            _validationErrors.Add($"Profession config {resourcePath} is missing profession_id.");
-            return;
-        }
-        if (_professionDefinitions.ContainsKey(professionDef.profession_id))
-        {
-            _validationErrors.Add(
-                $"Duplicate profession_id registered: {professionDef.profession_id}"
-            );
-            return;
-        }
-
-        try
-        {
-            ProfessionDefinition professionDefinition = ProfessionDefinition.FromResource(
-                professionDef
-            );
-            _professionDefinitions.Add(
-                professionDefinition.ProfessionId,
-                professionDefinition
-            );
-        }
-        catch (InvalidDataException exception)
-        {
-            _validationErrors.Add(
-                $"Profession config {resourcePath} projection failed: {exception.Message}"
-            );
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validationErrors.Add(
+                    $"Profession JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
     }
 

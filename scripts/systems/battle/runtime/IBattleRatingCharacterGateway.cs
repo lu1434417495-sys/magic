@@ -112,7 +112,7 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
     CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     );
 
     BattleResourceCommitResult CommitBattleResources(

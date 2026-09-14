@@ -76,22 +76,21 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
                 && !ReferenceEquals(first.terrain_profiles[0], second.terrain_profiles[0]),
             "terrain profile 也应深拷贝。"
         );
-        _test.True(
-            typeof(MeteorSwarmProfileData).GetProperty(nameof(MeteorSwarmProfileData.radius))
-                ?.SetMethod == null,
-            "MeteorSwarmProfileData scalar properties 应不可写。"
-        );
-
         bool nullProfileRejected = false;
         try
         {
-            BattleSpecialProfileRuntimeView.ForMeteorSwarm("meteor_swarm", null);
+            _ = new BattleSpecialProfileRuntimeView(
+                new Dictionary<StringName, MeteorSwarmProfileData>
+                {
+                    ["meteor_swarm"] = null,
+                }
+            );
         }
-        catch (ArgumentNullException)
+        catch (ArgumentException)
         {
             nullProfileRejected = true;
         }
-        _test.True(nullProfileRejected, "typed profile projection 应对 null Resource fail-fast。");
+        _test.True(nullProfileRejected, "typed profile projection 应对 null Definition fail-fast。");
     }
 
     private void TestTargetPlanUsesSquare7x7AndEdgeClipping()
@@ -249,11 +248,20 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         BattleEventBatch validBatch = null;
         try
         {
-            setup = BuildRuntimeFixture(new Vector2I(9, 9), Array.Empty<BattleUnitState>());
-            setup.Runtime._initialize_battle_metrics();
+            BattleUnitState survivingEnemy = BuildUnit(
+                "metrics_surviving_enemy",
+                "指标存活敌人",
+                "enemy",
+                new Vector2I(8, 8),
+                160
+            );
+            setup = BuildRuntimeFixture(new Vector2I(9, 9), new[] { survivingEnemy });
+            var initializer = new BattleMetricsCollector();
+            initializer.Setup(setup.Runtime);
+            initializer.InitializeBattleMetrics();
+            initializer.Dispose();
             invalidCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(-1, -1)));
-            invalidBatch = setup.Track(new BattleEventBatch());
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, invalidCommand, invalidBatch);
+            invalidBatch = setup.Track(setup.Runtime.IssueCommand(invalidCommand));
             GDictionary casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -263,8 +271,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             _test.Eq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 0, "陨星雨运行期校验失败不应记录 skill attempt。");
 
             validCommand = setup.Track(BuildCommand(setup.Caster, new Vector2I(4, 4)));
-            validBatch = setup.Track(new BattleEventBatch());
-            setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, validBatch);
+            validBatch = setup.Track(setup.Runtime.IssueCommand(validCommand));
             casterMetrics = BattleMetricsProjection.Project(setup.Runtime.GetBattleMetricsTyped())
                 .GetValueOrDefault("units", new GDictionary())
                 .AsGodotDictionary()
@@ -522,7 +529,7 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
         ArgumentNullException.ThrowIfNull(_contentSnapshot);
 
         SkillDefinition meteorSkillDefinition = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "mage_meteor_swarm",
             "meteor_swarm_special_profile:mage_meteor_swarm"
         );
         _test.True(meteorSkillDefinition != null, "陨星雨正式技能资源应可加载。");
@@ -610,12 +617,12 @@ public partial class run_meteor_swarm_special_profile_regression : LifecycleTest
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         using var batch = new BattleEventBatch();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(

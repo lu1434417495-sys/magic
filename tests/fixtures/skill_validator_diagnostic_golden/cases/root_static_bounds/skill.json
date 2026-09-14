@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "root_static_bounds",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_root_static_bounds",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_root_static_bounds"
+      },
+      "icon_id": "diagnostic_root_static_bounds",
+      "non_core_max_level": 2,
+      "mastery_curve": [
+        10,
+        20
+      ]
+    }
+  ]
+}

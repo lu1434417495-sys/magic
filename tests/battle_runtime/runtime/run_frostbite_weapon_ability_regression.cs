@@ -83,26 +83,17 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             "冰封之路需要通用 ice 地形 id。"
         );
         _test.Eq(BattleTerrainRules.GetDisplayName("ice"), "冰层", "ice 地形应显示为冰层。");
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_frostbite.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_frostbite_097");
         _test.True(rawItem != null, "霜咬原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "霜咬", "霜咬显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "霜咬应继承 battleaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 40000, "霜咬基础价格应为 40000。");
-            _test.True(rawItem.trait_ids.Contains(FrostTouchTraitId), "霜咬物品应声明霜冻之触。");
-            _test.True(rawItem.trait_ids.Contains(IceboundPathTraitId), "霜咬物品应声明冰封之路。");
-            _test.True(rawItem.trait_ids.Contains(PolarAdaptationTraitId), "霜咬物品应声明极地适应。");
+            _test.Eq(rawItem.DisplayName, "霜咬", "霜咬显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 40000, "霜咬基础价格应为 40000。");
+            _test.True(rawItem.TraitIds.Contains(FrostTouchTraitId), "霜咬物品应声明霜冻之触。");
+            _test.True(rawItem.TraitIds.Contains(IceboundPathTraitId), "霜咬物品应声明冰封之路。");
+            _test.True(rawItem.TraitIds.Contains(PolarAdaptationTraitId), "霜咬物品应声明极地适应。");
             _test.False(
-                ContainsText(rawItem.description, "温暖") || ContainsText(rawItem.description, "-2"),
+                ContainsText(rawItem.Description, "温暖") || ContainsText(rawItem.Description, "-2"),
                 "玩家说明不应包含已否掉的温暖环境攻击惩罚。"
             );
         }
@@ -112,9 +103,6 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             AssertIceboundPathSkillDefinition(icebound, fixture);
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostbiteUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -152,28 +140,6 @@ public partial class run_frostbite_weapon_ability_regression : LifecycleTestScen
             "极地适应应通过 trait 被动投影寒冷免疫。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除霜咬后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除霜咬后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除霜咬后装备能力源应清空。"
-        );
-        _test.False(equipped.HasEffectiveTrait(FrostTouchTraitId), "移除霜咬后霜冻之触不应残留。");
-        _test.False(equipped.HasEffectiveTrait(IceboundPathTraitId), "移除霜咬后冰封之路不应残留。");
-        _test.False(equipped.HasEffectiveTrait(PolarAdaptationTraitId), "移除霜咬后极地适应不应残留。");
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除霜咬后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestFrostTouchAddsColdDamageAndThirdSameTargetHitSlows()

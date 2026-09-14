@@ -72,14 +72,22 @@ internal sealed class GameRuntimeCharacterInfoEntry
     }
 }
 
+internal enum GameRuntimeCharacterInfoSectionLayout
+{
+    Rows,
+    AttributeGrid,
+}
+
 internal sealed class GameRuntimeCharacterInfoSection
 {
     internal GameRuntimeCharacterInfoSection(
         string title,
-        IEnumerable<GameRuntimeCharacterInfoEntry> entries
+        IEnumerable<GameRuntimeCharacterInfoEntry> entries,
+        GameRuntimeCharacterInfoSectionLayout layout = GameRuntimeCharacterInfoSectionLayout.Rows
     )
     {
         Title = title ?? "";
+        Layout = layout;
         var copy = new List<GameRuntimeCharacterInfoEntry>();
         if (entries != null)
         {
@@ -93,6 +101,8 @@ internal sealed class GameRuntimeCharacterInfoSection
     }
 
     internal string Title { get; }
+
+    internal GameRuntimeCharacterInfoSectionLayout Layout { get; }
 
     internal IReadOnlyList<GameRuntimeCharacterInfoEntry> Entries { get; }
 

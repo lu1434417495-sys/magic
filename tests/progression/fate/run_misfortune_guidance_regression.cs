@@ -41,7 +41,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
     private TestResult Run()
     {
         TestMisfortuneGuidanceUnlockChainFeedsRank2To5();
-        TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef();
+        TestForgeResultRejectsMissingTypedDarkEquipmentDef();
 
         return _test.Finish("Misfortune guidance regression");
     }
@@ -207,16 +207,15 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         _test.Eq(GetCustomStat(partyState, DoomAuthorityStatId), 5, "完整 guidance 链结算后 doom_authority 应到 rank 5。");
     }
 
-    private void TestForgeResultRejectsStringKeyOnlyDarkEquipmentDef()
+    private void TestForgeResultRejectsMissingTypedDarkEquipmentDef()
     {
         using TestContext context = BuildContext();
         PartyState partyState = context.PartyState;
         MisfortuneGuidanceService guidance = context.Guidance;
         BattleRuntimeModule battleRuntime = context.BattleRuntime;
-        GDictionary itemDefs = context.ItemDefs;
         if (partyState == null || guidance == null || battleRuntime == null)
         {
-            _test.True(false, "Misfortune String-key-only item_defs regression 前置构建失败。");
+            _test.True(false, "Misfortune missing typed item definition regression 前置构建失败。");
             return;
         }
 
@@ -228,35 +227,34 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
                 includeCalamityConversionShard: true
             )
         );
-        ItemDef darkWeapon = itemDefs[ShadowHalberdId].As<ItemDef>();
-        if (darkWeapon == null)
-        {
-            _test.True(false, "Misfortune String-key-only item_defs regression 前置：应存在正式 shadow_halberd。");
-            return;
-        }
-
-        GDictionary stringKeyOnlyDefs = new()
-        {
-            [darkWeapon.item_id.ToString()] = darkWeapon,
-        };
+        var missingOutputDefinitionIndex = new Dictionary<StringName, ItemDefinition>(
+            context.ItemDefIndex
+        );
+        _test.True(
+            missingOutputDefinitionIndex.Remove(ShadowHalberdId),
+            "测试前置：正式 typed definition 索引应包含 shadow_halberd。"
+        );
+        _test.False(
+            missingOutputDefinitionIndex.ContainsKey(ShadowHalberdId),
+            "测试前置：传给 guidance 的 typed definition 索引应明确缺少 forge 输出。"
+        );
         List<StringName> unlocks = battleRuntime
             .GetFateRuntime()
             .HandleMisfortuneForgeResult(
                 HeroId,
                 BuildForgeServiceResult(ShadowHalberdId),
-                BuildItemDefIndex(stringKeyOnlyDefs)
+                missingOutputDefinitionIndex
             );
-        _test.True(unlocks.Count == 0, "forge result 只有 String key 的 dark equipment def 时不应解锁 guidance_exalted。");
+        _test.True(unlocks.Count == 0, "forge result 缺少输出物品的 typed definition 时不应解锁 guidance_exalted。");
         _test.True(
             !IsAchievementUnlocked(partyState, GuidanceExaltedId),
-            "forge result 缺正式 StringName key 时不应写入 guidance_exalted。"
+            "forge result 缺少输出物品的 typed definition 时不应写入 guidance_exalted。"
         );
     }
 
     private TestContext BuildContext()
     {
-        GDictionary itemDefs = BuildItemDefs();
-        Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefIndex(itemDefs);
+        Dictionary<StringName, ItemDefinition> itemDefIndex = BuildItemDefs();
         PartyState partyState = new()
         {
             leader_member_id = HeroId,
@@ -292,14 +290,13 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             guidance,
             faith,
             battleRuntime,
-            itemDefs,
             itemDefIndex
         );
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef darkWeapon = new()
+        TestItemDefinitionBuilder darkWeapon = new()
         {
             item_id = ShadowHalberdId,
             display_name = "Shadow Halberd",
@@ -313,7 +310,7 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             crafting_groups = new GStringNameArray { "dark", "misfortune" },
         };
 
-        ItemDef calamityShard = new()
+        TestItemDefinitionBuilder calamityShard = new()
         {
             item_id = BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
             display_name = "灾厄碎片",
@@ -324,25 +321,11 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             crafting_groups = new GStringNameArray { "misfortune" },
         };
 
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [darkWeapon.item_id] = darkWeapon,
-            [calamityShard.item_id] = calamityShard,
+            [darkWeapon.item_id] = darkWeapon.ToDefinition(),
+            [calamityShard.item_id] = calamityShard.ToDefinition(),
         };
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        var result = new Dictionary<StringName, ItemDefinition>();
-        foreach (Variant key in itemDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            ItemDef itemDef = itemDefs[key].As<ItemDef>();
-            if (itemDef != null)
-                result[key.AsStringName()] = itemDef.ToDefinition();
-        }
-        return result;
     }
 
     private static PartyMemberState BuildMemberState()
@@ -603,7 +586,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             MisfortuneGuidanceService guidance,
             FaithService faith,
             BattleRuntimeModule battleRuntime,
-            GDictionary itemDefs,
             IReadOnlyDictionary<StringName, ItemDefinition> itemDefIndex
         )
         {
@@ -612,7 +594,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
             Guidance = guidance;
             Faith = faith;
             BattleRuntime = battleRuntime;
-            ItemDefs = itemDefs;
             ItemDefIndex = itemDefIndex;
         }
 
@@ -621,7 +602,6 @@ public partial class run_misfortune_guidance_regression : LifecycleTestSceneTree
         public MisfortuneGuidanceService Guidance { get; }
         public FaithService Faith { get; }
         public BattleRuntimeModule BattleRuntime { get; }
-        public GDictionary ItemDefs { get; }
         public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefIndex { get; }
 
         public void Dispose()

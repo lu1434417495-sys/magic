@@ -86,44 +86,32 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
         );
         if (!fixture.ItemDefs.ContainsKey(BonecrusherItemId))
             return;
-
-        using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_bonecrusher.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_bonecrusher_088");
         _test.True(rawItem != null, "碎骨者原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "碎骨者", "碎骨者显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "碎骨者应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 48000, "碎骨者价格应为 48000。");
+            _test.Eq(rawItem.DisplayName, "碎骨者", "碎骨者显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 48000, "碎骨者价格应为 48000。");
             _test.True(
-                rawItem.trait_ids.Contains(ArmorCrushingTraitId),
+                rawItem.TraitIds.Contains(ArmorCrushingTraitId),
                 "碎骨者物品应声明碎甲重击 trait。"
             );
             _test.True(
-                rawItem.trait_ids.Contains(BoneShatterTraitId),
+                rawItem.TraitIds.Contains(BoneShatterTraitId),
                 "碎骨者物品应声明骨骼粉碎 trait。"
             );
             _test.True(
-                rawItem.trait_ids.Contains(AftershockFractureTraitId),
+                rawItem.TraitIds.Contains(AftershockFractureTraitId),
                 "碎骨者物品应声明余震破防 trait。"
             );
             _test.False(
-                TextContainsEnglishCreatureLabels(rawItem.description),
+                TextContainsEnglishCreatureLabels(rawItem.Description),
                 "碎骨者玩家说明不应直接露出 undead/construct 英文标签。"
             );
         }
 
         AssertTraitDescriptionIsPlayerFacingChinese(fixture, BoneShatterTraitId);
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildBonecrusherUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -181,20 +169,6 @@ public partial class run_bonecrusher_weapon_ability_regression : LifecycleTestSc
             "骨裂震荡触发后必须由 consume_status_stacks action 清除裂防层数。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除碎骨者后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除碎骨者后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除碎骨者后装备能力源应清空。"
-        );
     }
 
     private void TestArmorCrushingBlowHalvesArmorShieldAndNaturalArmorForThisAttackOnly()

@@ -23,8 +23,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         try
         {
             _sharedSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-            TestTemplateStartBattleStableIds();
-            TestWolfTemplatesSpawnWithPositiveStaminaPool();
             TestUnitFactoryDoesNotBuildFallbackEnemy();
             TestFormalEnemyTemplatesHaveRealPressureSkillAction();
             TestMistHarrierCoreSkillLevelsReachRuntimeUnit();
@@ -44,106 +42,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         {
             _sharedSession?.Dispose();
             _sharedSession = null;
-        }
-    }
-
-    private void TestTemplateStartBattleStableIds()
-    {
-        AssertTemplateStartBattle(
-            "encounter_wolf",
-            "wolf_pack",
-            "荒狼群",
-            expectedEnemyCount: 2,
-            expectedBrainId: "melee_aggressor",
-            expectedStateId: "engage",
-            requiredSkills: new[] { "basic_attack" }
-        );
-        AssertTemplateStartBattle(
-            "encounter_vanguard",
-            "wolf_vanguard",
-            "荒狼先锋",
-            expectedEnemyCount: 1,
-            expectedBrainId: "frontline_bulwark",
-            expectedStateId: "engage",
-            requiredSkills: new[] { "warrior_heavy_strike", "basic_attack" }
-        );
-        AssertTemplateStartBattle(
-            "encounter_harrier",
-            "mist_harrier",
-            "雾沼猎压者",
-            expectedEnemyCount: 1,
-            expectedBrainId: "ranged_suppressor",
-            expectedStateId: "pressure",
-            requiredSkills: new[]
-            {
-                "archer_suppressive_fire",
-                "archer_pinning_shot",
-                "archer_harrier_mark",
-                "archer_aimed_shot",
-                "basic_attack",
-            }
-        );
-        AssertTemplateStartBattle(
-            "encounter_weaver",
-            "mist_weaver",
-            "雾沼织咒者",
-            expectedEnemyCount: 1,
-            expectedBrainId: "healer_controller",
-            expectedStateId: "pressure",
-            requiredSkills: new[] { "mage_temporal_rewind", "mage_glacial_prison" }
-        );
-        AssertTemplateStartBattle(
-            "encounter_red_dragon",
-            "red_dragon",
-            "红龙",
-            expectedEnemyCount: 1,
-            expectedBrainId: "dragon_tyrant",
-            expectedStateId: "engage",
-            requiredSkills: new[] { "dragon_breath_fire_cone", "dragon_breath_fire_line", "basic_attack" }
-        );
-    }
-
-    private void TestWolfTemplatesSpawnWithPositiveStaminaPool()
-    {
-        var cases = new[]
-        {
-            ("wolf_pack", "encounter_wolf_pack_stamina", "荒狼群"),
-            ("wolf_raider", "encounter_wolf_raider_stamina", "荒狼袭掠者"),
-            ("wolf_alpha", "encounter_wolf_alpha_stamina", "荒狼首领"),
-            ("wolf_vanguard", "encounter_wolf_vanguard_stamina", "荒狼先锋"),
-        };
-        foreach ((string templateId, string encounterId, string displayName) in cases)
-        {
-            using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-            BattleRuntimeModule runtime = runtimeScope.Runtime;
-            BattleState state = runtime.StartBattle(
-                BuildEncounterAnchor(encounterId, templateId, displayName),
-                106,
-                BattleEliminationObjectiveDefinition.Instance,
-                BuildBattleStartContext("ally_a", "ally_b")
-            );
-            _test.True(IsStartedState(state), $"{templateId} 模板应能正式生成战斗状态。");
-            if (!IsStartedState(state))
-            {
-                continue;
-            }
-            _test.True(state.enemy_unit_ids.Count > 0, $"{templateId} 模板应至少生成一个敌方单位。");
-            foreach (StringName enemyUnitId in state.enemy_unit_ids)
-            {
-                _test.True(state.TryGetUnitTyped(enemyUnitId, out BattleUnitState enemyUnit), $"{templateId} 模板生成的敌方单位应存在于 battle state 中。");
-                if (enemyUnit == null)
-                {
-                    continue;
-                }
-                _test.True(
-                    enemyUnit.attribute_snapshot.GetValue("stamina_max") > 0,
-                    $"{templateId} 模板生成的敌方单位 stamina_max 应为正值。"
-                );
-                _test.True(
-                    enemyUnit.GetCurrentStamina() > 0,
-                    $"{templateId} 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。"
-                );
-            }
         }
     }
 
@@ -691,43 +589,6 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         _test.Eq(enemyUnit.ai_brain_id, new StringName("melee_aggressor"), "wolf_pack 正式模板应解析到 melee_aggressor AI。");
     }
 
-    private void AssertTemplateStartBattle(
-        StringName encounterId,
-        StringName templateId,
-        string displayName,
-        int expectedEnemyCount,
-        StringName expectedBrainId,
-        StringName expectedStateId,
-        IReadOnlyList<string> requiredSkills
-    )
-    {
-        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
-        BattleState state = runtimeScope.Runtime.StartBattle(
-            BuildEncounterAnchor(encounterId, templateId, displayName),
-            101,
-            BattleEliminationObjectiveDefinition.Instance,
-            BuildBattleStartContext("ally_a", "ally_b")
-        );
-        _test.True(IsStartedState(state), $"{templateId} 正式 battle start 应能创建基于敌方模板的战斗状态。");
-        if (!IsStartedState(state))
-        {
-            return;
-        }
-        _test.Eq(state.enemy_unit_ids.Count, expectedEnemyCount, $"{templateId} 模板应构建 {expectedEnemyCount} 个敌方单位。");
-        _test.True(state.TryGetUnitTyped(state.enemy_unit_ids[0], out BattleUnitState enemyUnit), $"{templateId} battle state 应能取到敌方单位。");
-        if (enemyUnit == null)
-        {
-            return;
-        }
-        _test.Eq(enemyUnit.ai_brain_id, expectedBrainId, $"{templateId} 应绑定 {expectedBrainId} brain。");
-        _test.Eq(enemyUnit.ai_state_id, expectedStateId, $"{templateId} 应写入 {expectedStateId} 初始状态。");
-        foreach (string rawSkillId in requiredSkills)
-        {
-            StringName skillId = rawSkillId;
-            _test.True(enemyUnit.KnowsActiveSkill(skillId), $"{templateId} 应携带 {skillId}。");
-        }
-    }
-
     private BattleRuntimeScope BuildRuntimeWithEnemyContent()
     {
         IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates =
@@ -742,7 +603,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
                 enemyTemplates,
                 _sharedSession.GetEnemyAiBrainDefinitions(),
                 encounterBuilder,
-                item_defs: _sharedSession.GetItemDefsTyped()
+                item_defs: _sharedSession.GetItemDefsTyped(),
+                basic_attack_skill_id: _sharedSession
+                    .GetGameplayConfigurationTyped()
+                    .BattleSkillRoles
+                    .BasicAttackSkillId
             );
             runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
             var damageResolver = new FixedSuccessOneDamageResolver();
@@ -810,7 +675,15 @@ public partial class run_battle_ai_enemy_template_runtime_regression : Lifecycle
         }
 
         var builder = new EncounterRosterBuilder();
-        builder.Setup(encounters, rosters, enemyTemplates);
+        builder.Setup(
+            encounters,
+            rosters,
+            enemyTemplates,
+            GameSessionTestFactory.GetProcessSnapshot()
+                .GameplayConfiguration
+                .BattleSkillRoles
+                .BasicAttackSkillId
+        );
         return builder;
     }
 

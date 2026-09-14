@@ -201,7 +201,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         fixture.State.timeline.current_tu = 10;
         fixture.State.timeline.ready_unit_ids.Add(unit.unit_id);
 
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        ActivateNextReadyUnit(fixture.Runtime);
 
         _test.Eq(
             fixture.State.active_unit_id,
@@ -225,6 +225,11 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         Fixture fixture = BuildFixture();
         BattleUnitState slowUnit = fixture.AddUnit("slow_unit", "enemy", new Vector2I(1, 1));
         BattleUnitState controlUnit = fixture.AddUnit("fast_unit", "enemy", new Vector2I(2, 2));
+        // 本用例考的是速率轴的余数累加，不是阈值跨越：显式钉一个高于累计进度的阈值，
+        // 免得单位在观测期内触发行动把进度清掉。早期这里依赖默认阈值 120 的隐含前提，
+        // 行动节奏敏捷派生把默认值降到 40 之后该前提不再成立。
+        slowUnit.SetActionThresholdTyped(600);
+        controlUnit.SetActionThresholdTyped(600);
         ApplyTimeSlow(slowUnit, 600);
 
         fixture.Step(5);
@@ -335,7 +340,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         stasisUnit.SetActionProgressTyped(0);
         fixture.State.timeline.ready_unit_ids.Add(stasisUnit.unit_id);
 
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        ActivateNextReadyUnit(fixture.Runtime);
 
         _test.Eq(
             fixture.State.active_unit_id,
@@ -370,13 +375,12 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             power: 1,
             durationTu: 60,
             effectTags: new[] { TemporalTag },
-            parameters: new Dictionary<string, object>
-            {
-                ["save_bonus_by_tag"] = new Dictionary<string, object>
+            payload: new StatusEffectPayloadDefinition(
+                saveBonusByTag: new Dictionary<StringName, int>
                 {
-                    [TemporalTag.ToString()] = 4,
-                },
-            }
+                    [TemporalTag] = 4,
+                }
+            )
         );
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             effectDef,
@@ -407,13 +411,12 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
             statusId: "string_key_probe",
             power: 1,
             durationTu: 60,
-            parameters: new Dictionary<string, object>
-            {
-                ["save_bonus_by_tag"] = new Dictionary<string, object>
+            payload: new StatusEffectPayloadDefinition(
+                saveBonusByTag: new Dictionary<StringName, int>
                 {
                     ["temporal"] = 4,
-                },
-            }
+                }
+            )
         );
         BattleStatusEffectState stringKeyEntry = BattleStatusSemanticTable.MergeStatus(
             stringKeyDef,
@@ -423,7 +426,7 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
         _test.Eq(
             stringKeyEntry?.save_bonus_by_tag.GetValueOrDefault(TemporalTag, 0) ?? -1,
             4,
-            "save_bonus_by_tag 的 canonical string key 应恢复进 typed map。"
+            "typed save_bonus_by_tag 应保留 StringName 键。"
         );
     }
 
@@ -649,7 +652,27 @@ public partial class run_temporal_status_semantics_regression : LifecycleTestSce
 
         internal void Step(int tuDelta)
         {
-            Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), tuDelta);
+            BattleRuntimeModule runtime = Runtime;
+            using var batch = new BattleEventBatch();
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                BattleEffectOrigin.Timeline("timeline_tick"),
+                () => runtime._timeline_driver.ApplyTimelineStep(batch, tuDelta)
+            );
         }
+    }
+
+    private static void ActivateNextReadyUnit(
+        BattleRuntimeModule runtime
+    )
+    {
+        using var batch = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.Timeline("ready_unit_activation"),
+            () => runtime._timeline_driver.ActivateNextReadyUnit(batch)
+        );
     }
 }

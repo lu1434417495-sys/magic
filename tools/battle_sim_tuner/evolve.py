@@ -42,7 +42,7 @@ def _format_genome(genome: Mapping[str, float], specs: Sequence[ParamSpec]) -> s
 
 def evolve(
     specs: Sequence[ParamSpec],
-    scenario_res: str,
+    scenario_id: str,
     *,
     win_faction: str,
     generations: int = 6,
@@ -92,7 +92,7 @@ def evolve(
             fit = evaluate(
                 candidate,
                 dims,
-                scenario_res,
+                scenario_id,
                 win_faction=win_faction,
                 workers=workers,
                 profile_id=f"g{gen}_c{idx}",

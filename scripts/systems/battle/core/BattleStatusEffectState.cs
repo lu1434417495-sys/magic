@@ -24,6 +24,7 @@ public class BattleStatusEffectState
         "display_label",
         "tick_interval_tu",
         "next_tick_at_tu",
+        "source_contributions",
         "timeline_damage_dice_count",
         "timeline_damage_dice_sides",
         "timeline_damage_flat_bonus",
@@ -50,6 +51,7 @@ public class BattleStatusEffectState
         "heal_multiplier_percent",
         "shield_gain_multiplier_percent",
         "attack_roll_penalty",
+        "armor_class_bonus_per_stack",
         "source_bound_attack_roll_penalty",
         "source_bound_attack_roll_penalty_min_stacks",
         "source_bound_incoming_attack_roll_bonus_per_stack",
@@ -103,6 +105,13 @@ public class BattleStatusEffectState
         "save_immunity_tags",
         "status_tags",
         "save_bonus_by_tag",
+        "skip_turn",
+        "break_on_positive_damage",
+        "on_removed_status_id",
+        "on_removed_status_save_immunity_tags",
+        "on_removed_status_undispellable",
+        "on_removed_status_consume_after_normal_turn",
+        "consume_after_normal_turn",
     };
 
     public StringName status_id { get; set; } = "";
@@ -110,6 +119,7 @@ public class BattleStatusEffectState
     public StringName source_profile_id { get; set; } = "";
     public StringName source_layer_id { get; set; } = "";
     public StringName source_skill_id { get; set; } = "";
+    private readonly List<BattleStatusSourceContributionState> _sourceContributions = new();
     public StringName stack_behavior { get; set; } = "";
     public int stack_limit { get; set; }
     public int power { get; set; }
@@ -126,6 +136,7 @@ public class BattleStatusEffectState
     public int? heal_multiplier_percent { get; set; }
     public int? shield_gain_multiplier_percent { get; set; }
     public int attack_roll_penalty { get; set; } = -1;
+    public int armor_class_bonus_per_stack { get; set; }
     public int source_bound_attack_roll_penalty { get; set; }
     public int source_bound_attack_roll_penalty_min_stacks { get; set; } = 1;
     public int source_bound_incoming_attack_roll_bonus_per_stack { get; set; }
@@ -185,6 +196,13 @@ public class BattleStatusEffectState
     public bool lock_guard { get; set; }
     public bool lock_dodge_bonus { get; set; }
     public bool lock_crit { get; set; }
+    public bool skip_turn { get; set; }
+    public bool break_on_positive_damage { get; set; }
+    public StringName on_removed_status_id { get; set; } = "";
+    public List<StringName> on_removed_status_save_immunity_tags { get; set; } = new();
+    public bool on_removed_status_undispellable { get; set; }
+    public bool on_removed_status_consume_after_normal_turn { get; set; }
+    public bool consume_after_normal_turn { get; set; }
     public int save_bonus { get; set; }
     public int control_save_bonus { get; set; }
     public int passive_reduction { get; set; }
@@ -197,6 +215,17 @@ public class BattleStatusEffectState
     public List<StringName> save_immunity_tags { get; set; } = new();
     public List<StringName> status_tags { get; set; } = new();
     public Dictionary<StringName, int> save_bonus_by_tag { get; set; } = new();
+
+    // §8.7 opt-in source-bound buff 清除：apply_status 装备动作在投影状态时记录
+    // typed provenance（battle-local，不进入字典 codec / 世界存档）。
+    // remove_on_source_deactivated 为 authoring 显式 opt-in；provenance 精确匹配
+    // 失效 source（kind + effective key + binding）时才允许清理。
+    public bool remove_on_source_deactivated { get; set; }
+    public StringName source_provenance_unit_id { get; set; } = "";
+    public StringName source_provenance_source_kind { get; set; } = "";
+    public StringName source_provenance_effective_key { get; set; } = "";
+    public StringName source_provenance_binding_id { get; set; } = "";
+    public StringName source_provenance_action_id { get; set; } = "";
 
     public bool IsEmpty()
     {
@@ -251,6 +280,207 @@ public class BattleStatusEffectState
         return existingEntry?.DuplicateState() ?? new BattleStatusEffectState();
     }
 
+    internal bool HasSourceContributionsTyped() => _sourceContributions.Count > 0;
+
+    internal IReadOnlyList<BattleStatusSourceContributionState> GetSourceContributionsTyped() =>
+        _sourceContributions;
+
+    internal BattleStatusSourceContributionState GetSourceContributionTyped(
+        BattleStatusSourceIdentity identity
+    )
+    {
+        if (!identity.IsValid)
+            return null;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (contribution?.Identity == identity)
+                return contribution;
+        }
+        return null;
+    }
+
+    internal int GetSourceContributionStacksTyped(BattleStatusSourceIdentity identity) =>
+        System.Math.Max(GetSourceContributionTyped(identity)?.Stacks ?? 0, 0);
+
+    internal int GetSourceContributionStacksForUnitTyped(StringName sourceUnitId)
+    {
+        StringName normalizedSourceUnitId = ProgressionDataUtils.to_string_name(sourceUnitId);
+        int total = 0;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (
+                contribution?.IsValid != true
+                || contribution.Identity.SourceUnitId != normalizedSourceUnitId
+            )
+            {
+                continue;
+            }
+            total = total > int.MaxValue - contribution.Stacks
+                ? int.MaxValue
+                : total + contribution.Stacks;
+        }
+        return total;
+    }
+
+    internal void SetSourceContributionTyped(
+        BattleStatusSourceContributionState contribution
+    )
+    {
+        if (contribution?.IsValid != true)
+            throw new System.ArgumentException("A valid source contribution is required.");
+        for (int index = 0; index < _sourceContributions.Count; index++)
+        {
+            if (_sourceContributions[index].Identity != contribution.Identity)
+                continue;
+            _sourceContributions[index] = contribution;
+            SortSourceContributions();
+            return;
+        }
+        _sourceContributions.Add(contribution);
+        SortSourceContributions();
+    }
+
+    internal bool RemoveSourceContributionTyped(BattleStatusSourceIdentity identity)
+    {
+        for (int index = 0; index < _sourceContributions.Count; index++)
+        {
+            if (_sourceContributions[index].Identity != identity)
+                continue;
+            _sourceContributions.RemoveAt(index);
+            return true;
+        }
+        return false;
+    }
+
+    internal void ReplaceSourceContributionsTyped(
+        IEnumerable<BattleStatusSourceContributionState> contributions
+    )
+    {
+        _sourceContributions.Clear();
+        var identities = new HashSet<BattleStatusSourceIdentity>();
+        foreach (
+            BattleStatusSourceContributionState contribution in contributions
+                ?? System.Array.Empty<BattleStatusSourceContributionState>()
+        )
+        {
+            if (contribution?.IsValid != true || !identities.Add(contribution.Identity))
+                throw new System.ArgumentException("Source contributions must be valid and unique.");
+            _sourceContributions.Add(contribution.Duplicate());
+        }
+        SortSourceContributions();
+    }
+
+    internal List<Dictionary<string, object>> BuildSourceContributionSnapshotsPlain()
+    {
+        var result = new List<Dictionary<string, object>>(_sourceContributions.Count);
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            if (contribution?.IsValid == true)
+                result.Add(contribution.BuildSnapshotPlain());
+        }
+        return result;
+    }
+
+    internal void RebuildSourceContributionAggregateTyped()
+    {
+        if (_sourceContributions.Count == 0)
+        {
+            power = 0;
+            stacks = 0;
+            duration = 0;
+            tick_interval_tu = 0;
+            next_tick_at_tu = 0;
+            timeline_damage_dice_count = 0;
+            timeline_damage_dice_sides = 0;
+            timeline_damage_flat_bonus = 0;
+            source_unit_id = "";
+            source_skill_id = "";
+            damage_tag = "";
+            return;
+        }
+
+        int aggregatePower = 0;
+        int aggregateStacks = 0;
+        int aggregateDuration = 0;
+        bool indefiniteDuration = false;
+        int aggregateTickInterval = 0;
+        int aggregateNextTick = 0;
+        StringName commonSourceUnitId = _sourceContributions[0].Identity.SourceUnitId;
+        StringName commonSkillId =
+            _sourceContributions[0].Identity.Kind == BattleStatusSourceKind.Skill
+                ? _sourceContributions[0].Identity.SourceDefinitionId
+                : new StringName("");
+        StringName commonDamageTag = _sourceContributions[0].DamageTag;
+        foreach (BattleStatusSourceContributionState contribution in _sourceContributions)
+        {
+            aggregatePower = System.Math.Max(aggregatePower, contribution.Power);
+            aggregateStacks = aggregateStacks > int.MaxValue - contribution.Stacks
+                ? int.MaxValue
+                : aggregateStacks + contribution.Stacks;
+            if (contribution.DurationTu < 0)
+                indefiniteDuration = true;
+            else
+                aggregateDuration = System.Math.Max(aggregateDuration, contribution.DurationTu);
+            if (
+                contribution.TickIntervalTu > 0
+                && (aggregateTickInterval <= 0 || contribution.TickIntervalTu < aggregateTickInterval)
+            )
+            {
+                aggregateTickInterval = contribution.TickIntervalTu;
+            }
+            if (
+                contribution.NextTickAtTu > 0
+                && (aggregateNextTick <= 0 || contribution.NextTickAtTu < aggregateNextTick)
+            )
+            {
+                aggregateNextTick = contribution.NextTickAtTu;
+            }
+            if (contribution.Identity.SourceUnitId != commonSourceUnitId)
+                commonSourceUnitId = "";
+            if (
+                contribution.Identity.Kind != BattleStatusSourceKind.Skill
+                || contribution.Identity.SourceDefinitionId != commonSkillId
+            )
+            {
+                commonSkillId = "";
+            }
+            if (contribution.DamageTag != commonDamageTag)
+                commonDamageTag = "";
+        }
+
+        power = aggregatePower;
+        stacks = aggregateStacks;
+        duration = indefiniteDuration ? -1 : aggregateDuration;
+        tick_interval_tu = aggregateTickInterval;
+        next_tick_at_tu = aggregateNextTick;
+        source_unit_id = commonSourceUnitId;
+        source_skill_id = commonSkillId;
+        damage_tag = commonDamageTag;
+        if (_sourceContributions.Count == 1)
+        {
+            BattleStatusSourceContributionState only = _sourceContributions[0];
+            timeline_damage_dice_count = only.TimelineDamageDiceCount;
+            timeline_damage_dice_sides = only.TimelineDamageDiceSides;
+            timeline_damage_flat_bonus = only.TimelineDamageFlatBonus;
+        }
+        else
+        {
+            timeline_damage_dice_count = 0;
+            timeline_damage_dice_sides = 0;
+            timeline_damage_flat_bonus = 0;
+        }
+    }
+
+    private void SortSourceContributions()
+    {
+        _sourceContributions.Sort(
+            (left, right) => System.StringComparer.Ordinal.Compare(
+                left.Identity.StableKey,
+                right.Identity.StableKey
+            )
+        );
+    }
+
     public BattleStatusEffectState DuplicateState()
     {
         var duplicate = new BattleStatusEffectState
@@ -268,6 +498,7 @@ public class BattleStatusEffectState
             heal_multiplier_percent = heal_multiplier_percent,
             shield_gain_multiplier_percent = shield_gain_multiplier_percent,
             attack_roll_penalty = attack_roll_penalty,
+            armor_class_bonus_per_stack = armor_class_bonus_per_stack,
             source_bound_attack_roll_penalty = source_bound_attack_roll_penalty,
             source_bound_attack_roll_penalty_min_stacks =
                 source_bound_attack_roll_penalty_min_stacks,
@@ -333,6 +564,16 @@ public class BattleStatusEffectState
             lock_guard = lock_guard,
             lock_dodge_bonus = lock_dodge_bonus,
             lock_crit = lock_crit,
+            skip_turn = skip_turn,
+            break_on_positive_damage = break_on_positive_damage,
+            on_removed_status_id = on_removed_status_id,
+            on_removed_status_save_immunity_tags = BuildStringNameList(
+                on_removed_status_save_immunity_tags
+            ),
+            on_removed_status_undispellable = on_removed_status_undispellable,
+            on_removed_status_consume_after_normal_turn =
+                on_removed_status_consume_after_normal_turn,
+            consume_after_normal_turn = consume_after_normal_turn,
             save_bonus = save_bonus,
             control_save_bonus = control_save_bonus,
             passive_reduction = passive_reduction,
@@ -345,8 +586,15 @@ public class BattleStatusEffectState
             save_immunity_tags = BuildStringNameList(save_immunity_tags),
             status_tags = BuildStringNameList(status_tags),
             save_bonus_by_tag = BuildStringNameIntMap(save_bonus_by_tag),
+            remove_on_source_deactivated = remove_on_source_deactivated,
+            source_provenance_unit_id = source_provenance_unit_id,
+            source_provenance_source_kind = source_provenance_source_kind,
+            source_provenance_effective_key = source_provenance_effective_key,
+            source_provenance_binding_id = source_provenance_binding_id,
+            source_provenance_action_id = source_provenance_action_id,
         };
         duplicate.SetParamsTyped(_params);
+        duplicate.ReplaceSourceContributionsTyped(_sourceContributions);
         return duplicate;
     }
 
@@ -361,6 +609,10 @@ public class BattleStatusEffectState
             DuplicateNullableStringNameListExact(save_disadvantage_tags);
         duplicate.save_immunity_tags =
             DuplicateNullableStringNameListExact(save_immunity_tags);
+        duplicate.on_removed_status_save_immunity_tags =
+            DuplicateNullableStringNameListExact(
+                on_removed_status_save_immunity_tags
+            );
         duplicate.status_tags = DuplicateNullableStringNameListExact(status_tags);
         duplicate.save_bonus_by_tag =
             DuplicateNullableStringNameIntMapExact(save_bonus_by_tag);
@@ -392,6 +644,10 @@ public class BattleStatusEffectState
         if (next_tick_at_tu > 0)
         {
             payload["next_tick_at_tu"] = next_tick_at_tu;
+        }
+        if (_sourceContributions.Count > 0)
+        {
+            payload["source_contributions"] = BuildSourceContributionSnapshotsPlain();
         }
         if (timeline_damage_dice_count > 0 || timeline_damage_dice_sides > 0)
         {
@@ -515,6 +771,33 @@ public class BattleStatusEffectState
             )
             {
                 return null;
+            }
+        }
+
+        var sourceContributions = new List<BattleStatusSourceContributionState>();
+        if (effectDict.ContainsKey("source_contributions"))
+        {
+            Variant rawContributions = effectDict["source_contributions"];
+            if (rawContributions.VariantType != Variant.Type.Array)
+                return null;
+            GArray contributionPayloads = rawContributions.AsGodotArray();
+            if (contributionPayloads.Count == 0)
+                return null;
+            var identities = new HashSet<BattleStatusSourceIdentity>();
+            foreach (Variant rawContribution in contributionPayloads)
+            {
+                if (
+                    rawContribution.VariantType != Variant.Type.Dictionary
+                    || !BattleStatusSourceContributionState.TryFromDictionary(
+                        rawContribution.AsGodotDictionary(),
+                        out BattleStatusSourceContributionState contribution
+                    )
+                    || !identities.Add(contribution.Identity)
+                )
+                {
+                    return null;
+                }
+                sourceContributions.Add(contribution);
             }
         }
 
@@ -685,6 +968,8 @@ public class BattleStatusEffectState
                 "shield_gain_multiplier_percent"
             ),
             attack_roll_penalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            armor_class_bonus_per_stack =
+                ReadOptionalIntParam(parameters, "armor_class_bonus_per_stack") ?? 0,
             source_bound_attack_roll_penalty =
                 ReadOptionalIntParam(parameters, "source_bound_attack_roll_penalty") ?? 0,
             source_bound_attack_roll_penalty_min_stacks =
@@ -781,9 +1066,53 @@ public class BattleStatusEffectState
             lock_guard = lockGuardValue,
             lock_dodge_bonus = lockDodgeBonusValue,
             lock_crit = lockCritValue,
+            skip_turn = ReadOptionalBoolParam(parameters, "skip_turn"),
+            break_on_positive_damage = ReadOptionalBoolParam(
+                parameters,
+                "break_on_positive_damage"
+            ),
+            on_removed_status_id = ReadOptionalStringNameParam(
+                parameters,
+                "on_removed_status_id"
+            ),
+            on_removed_status_save_immunity_tags = ReadStringNameListParam(
+                parameters,
+                "on_removed_status_save_immunity_tags"
+            ),
+            on_removed_status_undispellable = ReadOptionalBoolParam(
+                parameters,
+                "on_removed_status_undispellable"
+            ),
+            on_removed_status_consume_after_normal_turn = ReadOptionalBoolParam(
+                parameters,
+                "on_removed_status_consume_after_normal_turn"
+            ),
+            consume_after_normal_turn = ReadOptionalBoolParam(
+                parameters,
+                "consume_after_normal_turn"
+            ),
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
         state.SetParamsTyped(CopyResidualParamsPlain(parameters));
+        if (sourceContributions.Count > 0)
+        {
+            state.ReplaceSourceContributionsTyped(sourceContributions);
+            state.RebuildSourceContributionAggregateTyped();
+            if (
+                state.source_unit_id != new StringName(sourceUnitId)
+                || state.power != power
+                || state.stacks != stacks
+                || state.duration != durationValue
+                || state.tick_interval_tu != tickIntervalValue
+                || state.next_tick_at_tu != nextTickAtValue
+                || state.timeline_damage_dice_count != timelineDamageDiceCountValue
+                || state.timeline_damage_dice_sides != timelineDamageDiceSidesValue
+                || state.timeline_damage_flat_bonus != timelineDamageFlatBonusValue
+            )
+            {
+                return null;
+            }
+        }
         return state;
     }
 
@@ -829,6 +1158,10 @@ public class BattleStatusEffectState
         if (attack_roll_penalty >= 0)
         {
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        }
+        if (armor_class_bonus_per_stack > 0)
+        {
+            projected["armor_class_bonus_per_stack"] = armor_class_bonus_per_stack;
         }
         if (source_bound_attack_roll_penalty > 0)
         {
@@ -1024,6 +1357,8 @@ public class BattleStatusEffectState
             projected["shield_gain_multiplier_percent"] = shield_gain_multiplier_percent.Value;
         if (attack_roll_penalty >= 0)
             projected["attack_roll_penalty"] = attack_roll_penalty;
+        if (armor_class_bonus_per_stack > 0)
+            projected["armor_class_bonus_per_stack"] = armor_class_bonus_per_stack;
         if (source_bound_attack_roll_penalty > 0)
         {
             projected["source_bound_attack_roll_penalty"] = source_bound_attack_roll_penalty;
@@ -1114,6 +1449,23 @@ public class BattleStatusEffectState
             projected["save_immunity_tags"] = BuildPlainStringList(save_immunity_tags);
         if ((status_tags?.Count ?? 0) > 0)
             projected["status_tags"] = BuildPlainStringList(status_tags);
+        if (skip_turn)
+            projected["skip_turn"] = true;
+        if (break_on_positive_damage)
+            projected["break_on_positive_damage"] = true;
+        if (on_removed_status_id != "")
+            projected["on_removed_status_id"] = on_removed_status_id;
+        if ((on_removed_status_save_immunity_tags?.Count ?? 0) > 0)
+        {
+            projected["on_removed_status_save_immunity_tags"] =
+                BuildPlainStringList(on_removed_status_save_immunity_tags);
+        }
+        if (on_removed_status_undispellable)
+            projected["on_removed_status_undispellable"] = true;
+        if (on_removed_status_consume_after_normal_turn)
+            projected["on_removed_status_consume_after_normal_turn"] = true;
+        if (consume_after_normal_turn)
+            projected["consume_after_normal_turn"] = true;
         if ((save_bonus_by_tag?.Count ?? 0) > 0)
         {
             var projectedBonusByTag = new Dictionary<StringName, int>();

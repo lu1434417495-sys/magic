@@ -11,44 +11,63 @@ public partial class run_text_command_script : LifecycleTestSceneTree
 
     public override void _Initialize()
     {
+        RunAfterProcessStartup(Run);
+    }
+
+    private void Run()
+    {
         var runner = new GameTextCommandRunner();
-        runner.initialize();
-
-        string scenarioPath = DefaultScenarioPath;
-        string[] userArgs = OS.GetCmdlineUserArgs();
-        if (userArgs.Length > 0)
-            scenarioPath = userArgs[0];
-
-        string[] lines;
-        Error readError = ReadScenarioLines(scenarioPath, out lines);
-        if (readError != Error.Ok)
+        try
         {
-            _test.Fail($"Failed to read scenario: {scenarioPath}");
-            runner.Dispose();
-            RequestTestExit(_test.Finish("Text command script"));
-            return;
-        }
+            runner.initialize();
 
-        int executedCount = 0;
-        for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-        {
-            GameTextCommandResult result = runner.ExecuteLine(lines[lineIndex]);
-            if (result.skipped)
-                continue;
-            executedCount += 1;
-            ConsoleProcessOutput.WriteStandard($"LINE {lineIndex + 1}\n{result.Render()}");
-            if (!result.ok)
+            string scenarioPath = DefaultScenarioPath;
+            string[] userArgs = OS.GetCmdlineUserArgs();
+            if (userArgs.Length > 0)
+                scenarioPath = userArgs[0];
+
+            string[] lines;
+            Error readError = ReadScenarioLines(scenarioPath, out lines);
+            if (readError != Error.Ok)
             {
-                _test.Fail($"Scenario failed at line {lineIndex + 1}: {lines[lineIndex]}");
-                runner.Dispose();
-                RequestTestExit(_test.Finish("Text command script"));
+                _test.Fail($"Failed to read scenario: {scenarioPath}");
                 return;
             }
-        }
 
-        ConsoleProcessOutput.WriteStandard($"Executed {executedCount} command(s)");
-        runner.Dispose();
-        RequestTestExit(_test.Finish("Text command script"));
+            int executedCount = 0;
+            for (int lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+            {
+                GameTextCommandResult result = runner.ExecuteLine(lines[lineIndex]);
+                if (result.skipped)
+                    continue;
+                executedCount += 1;
+                ConsoleProcessOutput.WriteStandard($"LINE {lineIndex + 1}\n{result.Render()}");
+                if (!result.ok)
+                {
+                    _test.Fail(
+                        $"Scenario failed at line {lineIndex + 1}: {lines[lineIndex]}"
+                    );
+                    return;
+                }
+            }
+
+            if (executedCount == 0)
+            {
+                _test.Fail($"Scenario has no executable commands: {scenarioPath}");
+                return;
+            }
+
+            ConsoleProcessOutput.WriteStandard($"Executed {executedCount} command(s)");
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled text command script failure: {exception}");
+        }
+        finally
+        {
+            runner.Dispose(true);
+            RequestTestExit(_test.Finish("Text command script"));
+        }
     }
 
     private static Error ReadScenarioLines(string scenarioPath, out string[] lines)

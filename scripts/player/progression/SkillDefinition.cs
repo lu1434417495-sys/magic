@@ -1,6 +1,21 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using Godot;
+
+public enum SkillRuntimeBehaviorKind
+{
+    None = 0,
+    Unknown,
+    BlackContractPush,
+    DoomShift,
+    BlackCrownSeal,
+    BlackStarBrand,
+    CrownBreak,
+    DoomSentence,
+    MisstepToScheme,
+}
 
 internal static class SkillDefinitionCollectionFreeze
 {
@@ -31,16 +46,12 @@ internal static class SkillDefinitionCollectionFreeze
 
 public sealed class SkillDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
     private static readonly IReadOnlyList<AttributeModifierDefinition> EmptyAttributeModifiers =
         System.Array.Empty<AttributeModifierDefinition>();
     private static readonly IReadOnlyDictionary<StringName, int> EmptyStringNameIntMap =
         new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>());
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelDescriptionConfigs =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
-            new Dictionary<int, IReadOnlyDictionary<string, object>>()
-        );
+    private static readonly IReadOnlyDictionary<int, SkillDescriptionVariables> EmptyLevelDescriptionConfigs =
+        SkillTypedLevelValueMaps.Freeze<SkillDescriptionVariables>(null);
 
     public SkillDefinition(
         StringName skillId,
@@ -71,9 +82,10 @@ public sealed class SkillDefinition
         StringName practiceTier,
         IReadOnlyList<AttributeModifierDefinition> attributeModifiers,
         string levelDescriptionTemplate,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelDescriptionConfigs,
+        IReadOnlyDictionary<int, SkillDescriptionVariables> levelDescriptionConfigs,
         CombatSkillDefinition combatProfile,
-        ContingencyAutomationDefinition contingencyAutomationProfile = null
+        ContingencyAutomationDefinition contingencyAutomationProfile = null,
+        SkillRuntimeBehaviorKind runtimeBehaviorKind = SkillRuntimeBehaviorKind.None
     )
     {
         SkillId = skillId;
@@ -116,12 +128,10 @@ public sealed class SkillDefinition
         PracticeTier = practiceTier;
         AttributeModifiers = SkillDefinitionCollectionFreeze.List(attributeModifiers);
         LevelDescriptionTemplate = levelDescriptionTemplate ?? "";
-        LevelDescriptionConfigs = FreezeLevelValueMap(
-            levelDescriptionConfigs,
-            "SkillDefinition.LevelDescriptionConfigs"
-        );
+        LevelDescriptionConfigs = SkillTypedLevelValueMaps.Freeze(levelDescriptionConfigs);
         CombatProfile = combatProfile;
         ContingencyAutomationProfile = contingencyAutomationProfile;
+        RuntimeBehaviorKind = runtimeBehaviorKind;
     }
 
     public StringName SkillId { get; }
@@ -152,9 +162,10 @@ public sealed class SkillDefinition
     public StringName PracticeTier { get; }
     public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
     public string LevelDescriptionTemplate { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelDescriptionConfigs { get; }
+    public IReadOnlyDictionary<int, SkillDescriptionVariables> LevelDescriptionConfigs { get; }
     public CombatSkillDefinition CombatProfile { get; }
     public ContingencyAutomationDefinition ContingencyAutomationProfile { get; }
+    public SkillRuntimeBehaviorKind RuntimeBehaviorKind { get; }
     internal SkillTypeKind SkillTypeKind => SkillContentRules.ToSkillType(SkillType);
     internal SkillLearnSourceKind LearnSourceKind => SkillContentRules.ToLearnSource(LearnSource);
     internal SkillUnlockMode UnlockModeKind => SkillContentRules.ToUnlockMode(UnlockMode);
@@ -197,7 +208,8 @@ public sealed class SkillDefinition
             LevelDescriptionTemplate,
             LevelDescriptionConfigs,
             combatProfile,
-            ContingencyAutomationProfile
+            ContingencyAutomationProfile,
+            RuntimeBehaviorKind
         );
 
     internal static SkillPracticeTierKind ToPracticeTier(StringName value) =>
@@ -234,53 +246,32 @@ public sealed class SkillDefinition
         return false;
     }
 
-    internal static SkillDefinition FromResource(SkillDef source)
+    internal static SkillDefinition FromDiagnosticFixture(SkillDef source)
     {
         if (source == null)
             return null;
-        string skillPath = $"skill.{source.skill_id}";
-        return new SkillDefinition(
-            source.skill_id,
-            source.display_name,
-            source.icon_id == "" && source.skill_id != "" ? source.skill_id : source.icon_id,
-            source.description,
-            source.skill_type,
-            source.max_level,
-            source.non_core_max_level,
-            source.dynamic_max_level_stat_id,
-            source.dynamic_max_level_base,
-            source.dynamic_max_level_per_stat,
-            CopyIntArray(source.mastery_curve),
-            CopyStringNames(source.TagsTyped),
-            source.learn_source,
-            CopyStringNames(source.LearnRequirementsTyped),
-            source.unlock_mode,
-            CopyStringNames(source.KnowledgeRequirementsTyped),
-            CopyStringNameIntMap(source.SkillLevelRequirementsTyped),
-            CopyStringNameIntMap(source.AttributeRequirementsTyped),
-            CopyStringNames(source.AchievementRequirementsTyped),
-            CopyStringNames(source.UpgradeSourceSkillIdsTyped),
-            source.retain_source_skills_on_unlock,
-            source.core_skill_transition_mode,
-            CopyStringNames(source.MasterySourcesTyped),
-            source.growth_tier,
-            CopyStringNameIntMap(source.AttributeGrowthProgressTyped),
-            source.practice_tier,
-            ProjectAttributeModifiers(source.AttributeModifiersTyped),
-            source.level_description_template,
-            ProjectLevelDescriptionConfigs(
-                source.LevelDescriptionConfigsProjectionBorrowed,
-                $"{skillPath}.level_description_configs"
-            ),
-            CombatSkillDefinition.FromResource(
-                source.combat_profile,
-                source.skill_id,
-                $"{skillPath}.combat_profile"
-            ),
-            ContingencyAutomationDefinition.FromResource(
-                source.contingency_automation_profile,
-                $"{skillPath}.contingency_automation_profile"
-            )
+        string sourceLabel = $"<SkillDiagnosticFixture:{source.skill_id}>";
+        var context = new JsonContentEntryContext(
+            SkillContentJsonAuthoringDomain.DomainId,
+            source.skill_id.ToString(),
+            sourceLabel,
+            "/entries/0"
+        );
+        ContentImportStageResult<SkillImportModel> adapted =
+            SkillDiagnosticFixtureProjection.TryProject(context, source);
+        if (adapted.HasValue)
+            return SkillDefinitionProjector.Project(adapted.Value);
+
+        var details = new List<string>(adapted.Diagnostics.Count);
+        foreach (ContentJsonDiagnostic diagnostic in adapted.Diagnostics)
+        {
+            details.Add(
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+        throw new InvalidDataException(
+            $"Skill diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
+                + string.Join(" | ", details)
         );
     }
 
@@ -295,126 +286,17 @@ public sealed class SkillDefinition
         var result = new Dictionary<StringName, SkillDefinition>(source.Count);
         foreach ((StringName skillId, SkillDef skillDef) in source)
         {
-            SkillDefinition definition = FromResource(skillDef);
+            SkillDefinition definition = FromDiagnosticFixture(skillDef);
             if (definition != null && skillId != "")
                 result[skillId] = definition;
         }
         return new ReadOnlyDictionary<StringName, SkillDefinition>(result);
     }
 
-    private static IReadOnlyList<int> CopyIntArray(int[] values)
-    {
-        if (values == null || values.Length == 0)
-            return System.Array.Empty<int>();
-        int[] result = new int[values.Length];
-        System.Array.Copy(values, result, values.Length);
-        return result;
-    }
-
-    internal static IReadOnlyList<StringName> CopyStringNames(IReadOnlyList<StringName> values)
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNames;
-        return new ReadOnlyCollection<StringName>(new List<StringName>(values));
-    }
-
-    internal static IReadOnlyDictionary<StringName, int> CopyStringNameIntMap(
-        IReadOnlyDictionary<StringName, int> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNameIntMap;
-        return new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>(values));
-    }
-
-    private static IReadOnlyList<AttributeModifierDefinition> ProjectAttributeModifiers(
-        IReadOnlyList<AttributeModifier> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyAttributeModifiers;
-        var result = new List<AttributeModifierDefinition>(values.Count);
-        foreach (AttributeModifier modifier in values)
-        {
-            AttributeModifierDefinition definition = modifier?.ToDefinition();
-            if (definition != null)
-                result.Add(definition);
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<AttributeModifierDefinition>(result)
-            : EmptyAttributeModifiers;
-    }
-
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelDescriptionConfigs(
-        Godot.Collections.Dictionary source,
-        string path
-    )
-    {
-        if (source == null || source.Count == 0)
-            return EmptyLevelDescriptionConfigs;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(source.Count);
-        int keyIndex = 0;
-        foreach (Variant rawKey in source.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.String)
-            {
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary at '{path}' requires string level keys; key[{keyIndex}] has {rawKey.VariantType}."
-                );
-            }
-            string key = rawKey.AsString();
-            if (!int.TryParse(key, out int level))
-            {
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary key at '{path}.{key}' must be an integer level."
-                );
-            }
-            if (result.ContainsKey(level))
-            {
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
-                );
-            }
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
-            {
-                throw new System.IO.InvalidDataException(
-                    $"Content value at '{path}.{key}' must be a Dictionary, got {rawValue.VariantType}."
-                );
-            }
-            using Godot.Collections.Dictionary config = rawValue.AsGodotDictionary();
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                config,
-                $"{path}.{key}"
-            );
-            keyIndex++;
-        }
-        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
-    }
-
-    internal static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelValueMap(
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values,
-        string path
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyLevelDescriptionConfigs;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>(values.Count);
-        foreach ((int level, IReadOnlyDictionary<string, object> config) in values)
-        {
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                config,
-                $"{path}[{level}]"
-            );
-        }
-        return new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result);
-    }
 }
 
 public sealed class ContingencyAutomationDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
     private static readonly IReadOnlyDictionary<string, object> EmptyBindings =
         new ReadOnlyDictionary<string, object>(new Dictionary<string, object>());
 
@@ -470,40 +352,6 @@ public sealed class ContingencyAutomationDefinition
         return AllowedParameterBindings.ContainsKey(bindingKey.ToString());
     }
 
-    internal static ContingencyAutomationDefinition FromResource(
-        ContingencyAutomationDef source,
-        string path
-    )
-    {
-        if (source == null)
-            return null;
-        return new ContingencyAutomationDefinition(
-            source.can_be_stored_in_contingency,
-            source.min_contingency_skill_level,
-            source.effect_category,
-            CopyStringNameArray(source.tags),
-            source.contingency_load_override,
-            CopyStringNameArray(source.allowed_target_resolvers),
-            source.requires_manual_targeting,
-            ContentValueNormalizer.NormalizeDictionary(
-                source.allowed_parameter_bindings,
-                $"{path}.allowed_parameter_bindings"
-            )
-        );
-    }
-
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNames;
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-            result.Add(value);
-        return new ReadOnlyCollection<StringName>(result);
-    }
-
 }
 
 public sealed class CombatWindupDefinition
@@ -515,8 +363,8 @@ public sealed class CombatWindupDefinition
         IReadOnlyList<int> baseWeaponDiceMultipliers
     )
     {
-        StaminaCostPerTier = Mathf.Max(staminaCostPerTier, 0);
-        WeaponDicePerTier = Mathf.Max(weaponDicePerTier, 0);
+        StaminaCostPerTier = staminaCostPerTier;
+        WeaponDicePerTier = weaponDicePerTier;
         SkillLevelTierCaps = SkillDefinitionCollectionFreeze.List(skillLevelTierCaps);
         BaseWeaponDiceMultipliers = SkillDefinitionCollectionFreeze.List(
             baseWeaponDiceMultipliers
@@ -534,18 +382,6 @@ public sealed class CombatWindupDefinition
     public int GetBaseWeaponDiceMultiplier(int skillLevel) =>
         Mathf.Max(ReadCurveValue(BaseWeaponDiceMultipliers, skillLevel, 1), 1);
 
-    internal static CombatWindupDefinition FromResource(CombatWindupDef source)
-    {
-        if (source == null)
-            return null;
-        return new CombatWindupDefinition(
-            source.stamina_cost_per_tier,
-            source.weapon_dice_per_tier,
-            CopyIntArray(source.skill_level_tier_caps),
-            CopyIntArray(source.base_weapon_dice_multipliers)
-        );
-    }
-
     private static int ReadCurveValue(
         IReadOnlyList<int> curve,
         int skillLevel,
@@ -557,28 +393,141 @@ public sealed class CombatWindupDefinition
         return curve[Mathf.Clamp(skillLevel, 0, curve.Count - 1)];
     }
 
-    private static IReadOnlyList<int> CopyIntArray(int[] values)
+}
+
+public sealed class CombatSpellReactionDefinition
+{
+    public CombatSpellReactionDefinition(
+        StringName triggerDeliveryCategory,
+        StringName reactionSkillId,
+        StringName readinessStatusId,
+        StringName requiredWeaponFamily,
+        StringName saveAbility,
+        StringName saveTag,
+        int baseSaveDc,
+        int hpDamageDivisor,
+        IReadOnlyList<int> attackRollBonusBySkillLevel,
+        IReadOnlyList<int> saveDcBonusBySkillLevel,
+        bool requireHpDamage,
+        bool consumeOnTrigger,
+        bool expireOnOwnerTurnStart
+    )
     {
-        if (values == null || values.Length == 0)
-            return System.Array.Empty<int>();
-        int[] result = new int[values.Length];
-        System.Array.Copy(values, result, values.Length);
-        return result;
+        TriggerDeliveryCategory = ProgressionDataUtils.to_string_name(triggerDeliveryCategory);
+        ReactionSkillId = ProgressionDataUtils.to_string_name(reactionSkillId);
+        ReadinessStatusId = ProgressionDataUtils.to_string_name(readinessStatusId);
+        RequiredWeaponFamily = ProgressionDataUtils.to_string_name(requiredWeaponFamily);
+        SaveAbility = ProgressionDataUtils.to_string_name(saveAbility);
+        SaveTag = ProgressionDataUtils.to_string_name(saveTag);
+        BaseSaveDc = baseSaveDc;
+        HpDamageDivisor = hpDamageDivisor;
+        AttackRollBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            attackRollBonusBySkillLevel
+        );
+        SaveDcBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            saveDcBonusBySkillLevel
+        );
+        RequireHpDamage = requireHpDamage;
+        ConsumeOnTrigger = consumeOnTrigger;
+        ExpireOnOwnerTurnStart = expireOnOwnerTurnStart;
     }
+
+    public StringName TriggerDeliveryCategory { get; }
+    public StringName ReactionSkillId { get; }
+    public StringName ReadinessStatusId { get; }
+    public StringName RequiredWeaponFamily { get; }
+    public StringName SaveAbility { get; }
+    public StringName SaveTag { get; }
+    public int BaseSaveDc { get; }
+    public int HpDamageDivisor { get; }
+    public IReadOnlyList<int> AttackRollBonusBySkillLevel { get; }
+    public IReadOnlyList<int> SaveDcBonusBySkillLevel { get; }
+    public bool RequireHpDamage { get; }
+    public bool ConsumeOnTrigger { get; }
+    public bool ExpireOnOwnerTurnStart { get; }
+
+    public int GetAttackRollBonus(int skillLevel) =>
+        ReadCurveValue(AttackRollBonusBySkillLevel, skillLevel);
+
+    public int GetSaveDcBonus(int skillLevel) =>
+        ReadCurveValue(SaveDcBonusBySkillLevel, skillLevel);
+
+    private static int ReadCurveValue(IReadOnlyList<int> values, int skillLevel)
+    {
+        if (values == null || values.Count == 0)
+            return 0;
+        return values[Mathf.Clamp(skillLevel, 0, values.Count - 1)];
+    }
+
+}
+
+public sealed class CombatRangedWeaponReactionDefinition
+{
+    public CombatRangedWeaponReactionDefinition(
+        StringName readinessStatusId,
+        IReadOnlyList<StringName> triggerWeaponFamilies,
+        StringName damageTag,
+        StringName attackDefenseMode,
+        IReadOnlyList<int> attackRollBonusBySkillLevel,
+        int consumeStatusStacks,
+        bool triggerOnHit,
+        bool triggerOnMiss,
+        bool allowCritical
+    )
+    {
+        ReadinessStatusId = ProgressionDataUtils.to_string_name(readinessStatusId);
+        TriggerWeaponFamilies = SkillDefinitionCollectionFreeze.List(triggerWeaponFamilies);
+        DamageTag = ProgressionDataUtils.to_string_name(damageTag);
+        AttackDefenseMode = ProgressionDataUtils.to_string_name(attackDefenseMode);
+        AttackRollBonusBySkillLevel = SkillDefinitionCollectionFreeze.List(
+            attackRollBonusBySkillLevel
+        );
+        ConsumeStatusStacks = consumeStatusStacks;
+        TriggerOnHit = triggerOnHit;
+        TriggerOnMiss = triggerOnMiss;
+        AllowCritical = allowCritical;
+    }
+
+    public StringName ReadinessStatusId { get; }
+    public IReadOnlyList<StringName> TriggerWeaponFamilies { get; }
+    public StringName DamageTag { get; }
+    public StringName AttackDefenseMode { get; }
+    public IReadOnlyList<int> AttackRollBonusBySkillLevel { get; }
+    public int ConsumeStatusStacks { get; }
+    public bool TriggerOnHit { get; }
+    public bool TriggerOnMiss { get; }
+    public bool AllowCritical { get; }
+
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind =>
+        CombatSkillContentRules.ToAttackDefenseMode(AttackDefenseMode);
+
+    public int GetAttackRollBonus(int skillLevel)
+    {
+        if (AttackRollBonusBySkillLevel == null || AttackRollBonusBySkillLevel.Count == 0)
+            return 0;
+        return AttackRollBonusBySkillLevel[
+            Mathf.Clamp(skillLevel, 0, AttackRollBonusBySkillLevel.Count - 1)
+        ];
+    }
+
+    public bool SupportsWeaponFamily(StringName weaponFamily)
+    {
+        foreach (StringName configuredFamily in TriggerWeaponFamilies)
+        {
+            if (configuredFamily == weaponFamily)
+                return true;
+        }
+        return false;
+    }
+
 }
 
 public sealed class CombatSkillDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
-    private static readonly IReadOnlyList<CombatEffectDefinition> EmptyEffectDefinitions =
-        System.Array.Empty<CombatEffectDefinition>();
     private static readonly IReadOnlyList<CombatCastVariantDefinition> EmptyCastVariants =
         System.Array.Empty<CombatCastVariantDefinition>();
-    private static readonly IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> EmptyLevelOverrides =
-        new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(
-            new Dictionary<int, IReadOnlyDictionary<string, object>>()
-        );
+    private static readonly IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> EmptyLevelOverrides =
+        SkillTypedLevelValueMaps.Freeze<CombatSkillLevelOverrideImportModel>(null);
 
     public CombatSkillDefinition(
         StringName skillId,
@@ -600,7 +549,7 @@ public sealed class CombatSkillDefinition
         int attackRollBonus,
         StringName attackResolutionMode,
         int auraCost,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides,
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides,
         StringName masteryTriggerMode,
         StringName masteryAmountMode,
         StringName spellFateMode,
@@ -640,7 +589,23 @@ public sealed class CombatSkillDefinition
         IReadOnlyList<StringName> requiredWeaponTypeIds = null,
         bool allowsNaturalWeapon = false,
         CombatWindupDefinition windup = null,
-        bool requiresHeavyWeapon = false
+        bool requiresHeavyWeapon = false,
+        StringName attackDefenseMode = default,
+        CombatSpellReactionDefinition spellReaction = null,
+        int rangeMovePointCapacityMultiplier = 0,
+        CombatDirectionalPiercingDefinition directionalPiercing = null,
+        bool groundEffectRequireFullArea = false,
+        bool groundEffectRequireEmpty = false,
+        bool groundEffectRequireTraversable = false,
+        CombatApproachAttackDefinition approachAttack = null,
+        CombatLineThroughAttackDefinition lineThroughAttack = null,
+        int masteryBaseAmount = 1,
+        CombatRangedWeaponReactionDefinition rangedWeaponReaction = null,
+        CombatSequentialLineHitDefinition sequentialLineHit = null,
+        StringName unitTargetResolutionMode = default,
+        int mpCostPerTargetSlot = 0,
+        int staminaCostPerTargetSlot = 0,
+        IReadOnlyList<StringName> excludedTargetCreatureTypeTags = null
     )
     {
         SkillId = skillId;
@@ -665,13 +630,14 @@ public sealed class CombatSkillDefinition
         LevelOverrides = FreezeLevelOverrides(levelOverrides);
         MasteryTriggerMode = masteryTriggerMode;
         MasteryAmountMode = masteryAmountMode;
+        MasteryBaseAmount = masteryBaseAmount;
         SpellFateMode = spellFateMode;
         SpellCriticalMode = spellCriticalMode;
-        SpellCriticalMpRefundPercent = Mathf.Clamp(spellCriticalMpRefundPercent, 0, 100);
+        SpellCriticalMpRefundPercent = spellCriticalMpRefundPercent;
         FumbleProtectionCurve = SkillDefinitionCollectionFreeze.List(
             fumbleProtectionCurve
         );
-        FumbleProtectionExtraMpPercent = Mathf.Max(fumbleProtectionExtraMpPercent, 0);
+        FumbleProtectionExtraMpPercent = fumbleProtectionExtraMpPercent;
         BacklashMode = backlashMode;
         BacklashTargetFilter = backlashTargetFilter;
         BacklashOffsetRadius = backlashOffsetRadius;
@@ -717,6 +683,23 @@ public sealed class CombatSkillDefinition
         RandomChainContinueOnMiss = randomChainContinueOnMiss;
         Windup = windup;
         RequiresHeavyWeapon = requiresHeavyWeapon;
+        AttackDefenseMode = attackDefenseMode;
+        SpellReaction = spellReaction;
+        RangedWeaponReaction = rangedWeaponReaction;
+        RangeMovePointCapacityMultiplier = rangeMovePointCapacityMultiplier;
+        DirectionalPiercing = directionalPiercing;
+        GroundEffectRequireFullArea = groundEffectRequireFullArea;
+        GroundEffectRequireEmpty = groundEffectRequireEmpty;
+        GroundEffectRequireTraversable = groundEffectRequireTraversable;
+        ApproachAttack = approachAttack;
+        LineThroughAttack = lineThroughAttack;
+        SequentialLineHit = sequentialLineHit;
+        UnitTargetResolutionMode = unitTargetResolutionMode;
+        MpCostPerTargetSlot = mpCostPerTargetSlot;
+        StaminaCostPerTargetSlot = staminaCostPerTargetSlot;
+        ExcludedTargetCreatureTypeTags = SkillDefinitionCollectionFreeze.List(
+            excludedTargetCreatureTypeTags
+        );
     }
 
     public StringName SkillId { get; }
@@ -724,13 +707,21 @@ public sealed class CombatSkillDefinition
     public StringName TargetTeamFilter { get; }
     public StringName RangePattern { get; }
     public int RangeValue { get; }
+    public int RangeMovePointCapacityMultiplier { get; }
     public StringName WeaponRangePolicy { get; }
+    internal CombatWeaponRangePolicy WeaponRangePolicyKind =>
+        CombatWeaponRangePolicyRules.ToPolicy(WeaponRangePolicy);
     public StringName AreaPattern { get; }
     public int AreaValue { get; }
     public bool RequiresLos { get; }
+    public bool GroundEffectRequireFullArea { get; }
+    public bool GroundEffectRequireEmpty { get; }
+    public bool GroundEffectRequireTraversable { get; }
     public int ApCost { get; }
     public int MpCost { get; }
     public int StaminaCost { get; }
+    public int MpCostPerTargetSlot { get; }
+    public int StaminaCostPerTargetSlot { get; }
     public int CooldownTu { get; }
     public int CastingTimeTu { get; }
     public int CastingMaintenanceDc { get; }
@@ -738,10 +729,18 @@ public sealed class CombatSkillDefinition
     public StringName PendingCastBindingMode { get; }
     public int AttackRollBonus { get; }
     public StringName AttackResolutionMode { get; }
+    public StringName AttackDefenseMode { get; }
+    public CombatSpellReactionDefinition SpellReaction { get; }
+    public CombatRangedWeaponReactionDefinition RangedWeaponReaction { get; }
+    public CombatDirectionalPiercingDefinition DirectionalPiercing { get; }
+    public CombatApproachAttackDefinition ApproachAttack { get; }
+    public CombatLineThroughAttackDefinition LineThroughAttack { get; }
+    public CombatSequentialLineHitDefinition SequentialLineHit { get; }
     public int AuraCost { get; }
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> LevelOverrides { get; }
+    public IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> LevelOverrides { get; }
     public StringName MasteryTriggerMode { get; }
     public StringName MasteryAmountMode { get; }
+    public int MasteryBaseAmount { get; }
     public StringName SpellFateMode { get; }
     public StringName SpellCriticalMode { get; }
     public int SpellCriticalMpRefundPercent { get; }
@@ -762,6 +761,7 @@ public sealed class CombatSkillDefinition
     public int MinTargetCount { get; }
     public int MaxTargetCount { get; }
     public bool AllowRepeatTarget { get; }
+    public StringName UnitTargetResolutionMode { get; }
     public int MaxHitsPerTarget { get; }
     public int RandomChainAttackCount { get; }
     public bool RandomChainContinueOnMiss { get; }
@@ -776,6 +776,7 @@ public sealed class CombatSkillDefinition
     public IReadOnlyList<StringName> RequiredWeaponTypeIds { get; }
     public IReadOnlyList<StringName> ExcludedWeaponFamilies { get; }
     public IReadOnlyList<StringName> ExcludedWeaponTypeIds { get; }
+    public IReadOnlyList<StringName> ExcludedTargetCreatureTypeTags { get; }
     public bool RequiresEquippedShield { get; }
     public int MasteryLowHpBonusMultiplier { get; }
     public int MasteryLowHpThresholdPercent { get; }
@@ -785,6 +786,8 @@ public sealed class CombatSkillDefinition
         BattleTypedNames.ToTargetSelectionMode(TargetSelectionMode);
     internal BattleTargetSelectionOrderMode SelectionOrderModeKind =>
         BattleTypedNames.ToTargetSelectionOrderMode(SelectionOrderMode);
+    internal CombatUnitTargetResolutionMode UnitTargetResolutionModeKind =>
+        CombatUnitTargetResolutionContentRules.ToMode(UnitTargetResolutionMode);
     internal PendingCastBindingModeKind PendingCastBindingModeKind =>
         BattleTypedNames.ToPendingCastBindingMode(PendingCastBindingMode);
     internal CombatSkillMasteryTriggerMode MasteryTriggerModeKind =>
@@ -797,12 +800,33 @@ public sealed class CombatSkillDefinition
         CombatSkillContentRules.ToAttackResolutionMode(AttackResolutionMode);
     internal CombatSkillAttackResolutionMode GetEffectiveAttackResolutionMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("attack_resolution_mode", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? CombatSkillContentRules.ToAttackResolutionMode(value)
-            : AttackResolutionModeKind;
+        return BuildLevelOverride(skillLevel)?.AttackResolutionMode switch
+        {
+            CombatSkillLevelOverrideAttackResolutionMode.Auto =>
+                CombatSkillAttackResolutionMode.Auto,
+            CombatSkillLevelOverrideAttackResolutionMode.DirectEffect =>
+                CombatSkillAttackResolutionMode.DirectEffect,
+            CombatSkillLevelOverrideAttackResolutionMode.FateAttack =>
+                CombatSkillAttackResolutionMode.FateAttack,
+            CombatSkillLevelOverrideAttackResolutionMode.ForceHitNoCrit =>
+                CombatSkillAttackResolutionMode.ForceHitNoCrit,
+            _ => AttackResolutionModeKind,
+        };
+    }
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind =>
+        CombatSkillContentRules.ToAttackDefenseMode(AttackDefenseMode);
+    internal CombatSkillAttackDefenseMode GetEffectiveAttackDefenseMode(int skillLevel)
+    {
+        return BuildLevelOverride(skillLevel)?.AttackDefenseMode switch
+        {
+            CombatSkillLevelOverrideAttackDefenseMode.Normal =>
+                CombatSkillAttackDefenseMode.Normal,
+            CombatSkillLevelOverrideAttackDefenseMode.Touch =>
+                CombatSkillAttackDefenseMode.Touch,
+            CombatSkillLevelOverrideAttackDefenseMode.FlatFooted =>
+                CombatSkillAttackDefenseMode.FlatFooted,
+            _ => AttackDefenseModeKind,
+        };
     }
     internal CombatProjectileKind ProjectileKindTyped =>
         CombatProjectileContentRules.ToProjectileKind(ProjectileKind);
@@ -817,81 +841,67 @@ public sealed class CombatSkillDefinition
 
     public CombatSkillResourceCosts GetEffectiveResourceCostValues(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
+        CombatSkillLevelOverrideImportModel overrides = BuildLevelOverride(skillLevel);
         return new CombatSkillResourceCosts(
-            TryReadIntOverride(overrides, "ap_cost", out int effectiveApCost)
-                ? effectiveApCost
-                : ApCost,
-            TryReadIntOverride(overrides, "mp_cost", out int effectiveMpCost)
-                ? effectiveMpCost
-                : MpCost,
-            TryReadIntOverride(overrides, "stamina_cost", out int effectiveStaminaCost)
-                ? effectiveStaminaCost
-                : StaminaCost,
-            TryReadIntOverride(overrides, "aura_cost", out int effectiveAuraCost)
-                ? effectiveAuraCost
-                : AuraCost,
-            TryReadIntOverride(overrides, "cooldown_tu", out int effectiveCooldownTu)
-                ? effectiveCooldownTu
-                : CooldownTu
+            overrides?.ApCost ?? ApCost,
+            overrides?.MpCost ?? MpCost,
+            overrides?.StaminaCost ?? StaminaCost,
+            overrides?.AuraCost ?? AuraCost,
+            overrides?.CooldownTu ?? CooldownTu
         );
     }
 
+    public int GetEffectiveMpCostPerTargetSlot(int skillLevel) =>
+        BuildLevelOverride(skillLevel)?.MpCostPerTargetSlot ?? MpCostPerTargetSlot;
+
+    public int GetEffectiveStaminaCostPerTargetSlot(int skillLevel) =>
+        BuildLevelOverride(skillLevel)?.StaminaCostPerTargetSlot ?? StaminaCostPerTargetSlot;
+
     public int GetEffectiveAttackRollBonus(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "attack_roll_bonus", AttackRollBonus);
+        BuildLevelOverride(skillLevel)?.AttackRollBonus ?? AttackRollBonus;
 
     public int GetEffectiveCastingTimeTu(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "casting_time_tu", CastingTimeTu);
+        BuildLevelOverride(skillLevel)?.CastingTimeTu ?? CastingTimeTu;
 
     public int GetEffectiveCastingMaintenanceDc(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "casting_maintenance_dc",
-            CastingMaintenanceDc
-        );
+        BuildLevelOverride(skillLevel)?.CastingMaintenanceDc ?? CastingMaintenanceDc;
 
     public int GetEffectiveCastingSpellControlDc(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "casting_spell_control_dc",
-            CastingSpellControlDc
-        );
+        BuildLevelOverride(skillLevel)?.CastingSpellControlDc ?? CastingSpellControlDc;
 
     public PendingCastBindingModeKind GetEffectivePendingCastBindingMode(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("pending_cast_binding_mode", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? BattleTypedNames.ToPendingCastBindingMode(value)
-            : PendingCastBindingModeKind;
+        return BuildLevelOverride(skillLevel)?.PendingCastBindingMode
+            ?? PendingCastBindingModeKind;
     }
 
     public StringName GetEffectiveAreaPattern(int skillLevel)
     {
-        IReadOnlyDictionary<string, object> overrides = BuildLevelOverride(skillLevel);
-        return overrides != null
-            && overrides.TryGetValue("area_pattern", out object rawValue)
-            && TryReadStringName(rawValue, out StringName value)
-            ? value
-            : AreaPattern;
+        CombatSkillLevelOverrideAreaPattern? areaPattern =
+            BuildLevelOverride(skillLevel)?.AreaPattern;
+        return areaPattern.HasValue ? ToAreaPatternName(areaPattern.Value) : AreaPattern;
     }
 
     public int GetEffectiveAreaValue(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "area_value", AreaValue);
+        BuildLevelOverride(skillLevel)?.AreaValue ?? AreaValue;
 
     public int GetEffectiveRangeValue(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "range_value", RangeValue);
+        BuildLevelOverride(skillLevel)?.RangeValue ?? RangeValue;
+
+    public int GetEffectiveRangeValue(int skillLevel, int movePointCapacity)
+    {
+        if (RangeMovePointCapacityMultiplier <= 0)
+            return GetEffectiveRangeValue(skillLevel);
+        long dynamicRange =
+            (long)System.Math.Max(movePointCapacity, 0) * RangeMovePointCapacityMultiplier;
+        return dynamicRange >= int.MaxValue ? int.MaxValue : (int)dynamicRange;
+    }
 
     public int GetEffectiveMaxTargetCount(int skillLevel) =>
-        ReadIntOverride(BuildLevelOverride(skillLevel), "max_target_count", MaxTargetCount);
+        BuildLevelOverride(skillLevel)?.MaxTargetCount ?? MaxTargetCount;
 
     public int GetEffectiveRandomChainAttackCount(int skillLevel) =>
-        ReadIntOverride(
-            BuildLevelOverride(skillLevel),
-            "random_chain_attack_count",
-            RandomChainAttackCount
-        );
+        BuildLevelOverride(skillLevel)?.RandomChainAttackCount ?? RandomChainAttackCount;
 
     public bool HasCastingTime(int skillLevel) => GetEffectiveCastingTimeTu(skillLevel) > 0;
 
@@ -958,7 +968,23 @@ public sealed class CombatSkillDefinition
             RequiredWeaponTypeIds,
             AllowsNaturalWeapon,
             Windup,
-            RequiresHeavyWeapon
+            RequiresHeavyWeapon,
+            AttackDefenseMode,
+            SpellReaction,
+            RangeMovePointCapacityMultiplier,
+            DirectionalPiercing,
+            GroundEffectRequireFullArea,
+            GroundEffectRequireEmpty,
+            GroundEffectRequireTraversable,
+            ApproachAttack,
+            LineThroughAttack,
+            MasteryBaseAmount,
+            RangedWeaponReaction,
+            SequentialLineHit,
+            UnitTargetResolutionMode,
+            MpCostPerTargetSlot,
+            StaminaCostPerTargetSlot,
+            ExcludedTargetCreatureTypeTags
         );
 
     internal CombatSkillDefinition WithArea(StringName areaPattern, int areaValue) =>
@@ -1022,7 +1048,23 @@ public sealed class CombatSkillDefinition
             RequiredWeaponTypeIds,
             AllowsNaturalWeapon,
             Windup,
-            RequiresHeavyWeapon
+            RequiresHeavyWeapon,
+            AttackDefenseMode,
+            SpellReaction,
+            RangeMovePointCapacityMultiplier,
+            DirectionalPiercing,
+            GroundEffectRequireFullArea,
+            GroundEffectRequireEmpty,
+            GroundEffectRequireTraversable,
+            ApproachAttack,
+            LineThroughAttack,
+            MasteryBaseAmount,
+            RangedWeaponReaction,
+            SequentialLineHit,
+            UnitTargetResolutionMode,
+            MpCostPerTargetSlot,
+            StaminaCostPerTargetSlot,
+            ExcludedTargetCreatureTypeTags
         );
 
     public int GetFumbleProtectionLimit(int skillLevel)
@@ -1051,7 +1093,7 @@ public sealed class CombatSkillDefinition
             : EmptyCastVariants;
     }
 
-    internal static CombatSkillDefinition FromResource(
+    internal static CombatSkillDefinition FromDiagnosticFixture(
         CombatSkillDef source,
         StringName fallbackSkillId,
         string path
@@ -1059,283 +1101,91 @@ public sealed class CombatSkillDefinition
     {
         if (source == null)
             return null;
-        return new CombatSkillDefinition(
-            source.skill_id == "" ? fallbackSkillId : source.skill_id,
-            source.target_mode,
-            source.target_team_filter,
-            source.range_pattern,
-            source.range_value,
-            source.area_pattern,
-            source.area_value,
-            source.requires_los,
-            source.ap_cost,
-            source.mp_cost,
-            source.stamina_cost,
-            source.cooldown_tu,
-            source.casting_time_tu,
-            source.casting_maintenance_dc,
-            source.casting_spell_control_dc,
-            source.pending_cast_binding_mode,
-            source.attack_roll_bonus,
-            source.attack_resolution_mode,
-            source.aura_cost,
-            ProjectLevelOverrides(source.level_overrides, $"{path}.level_overrides"),
-            source.mastery_trigger_mode,
-            source.mastery_amount_mode,
-            source.spell_fate_mode,
-            source.spell_critical_mode,
-            source.spell_critical_mp_refund_percent,
-            CopyIntArray(source.fumble_protection_curve),
-            source.fumble_protection_extra_mp_percent,
-            source.backlash_mode,
-            source.backlash_target_filter,
-            source.backlash_offset_radius,
-            source.area_origin_mode,
-            source.area_direction_mode,
-            CopyStringNameArray(source.ai_tags),
-            CopyStringNameArray(source.delivery_categories),
-            source.special_resolution_profile_id,
-            source.target_selection_mode,
-            source.min_target_count,
-            source.max_target_count,
-            source.allow_repeat_target,
-            source.max_hits_per_target,
-            source.selection_order_mode,
-            ProjectEffectDefinitions(source.effect_defs, $"{path}.effect_defs"),
-            ProjectEffectDefinitions(
-                source.passive_effect_defs,
-                $"{path}.passive_effect_defs"
-            ),
-            ProjectCastVariants(source.cast_variants, $"{path}.cast_variants"),
-            CopyStringNameArray(source.required_weapon_families),
-            CopyStringNameArray(source.excluded_weapon_families),
-            CopyStringNameArray(source.excluded_weapon_type_ids),
-            source.requires_equipped_shield,
-            source.mastery_low_hp_bonus_multiplier,
-            source.mastery_low_hp_threshold_percent,
-            source.weapon_range_policy,
-            source.projectile_kind,
-            source.attack_roll_bonus_status_id,
-            source.attack_roll_bonus_status_stack_divisor,
-            source.random_chain_attack_count,
-            source.random_chain_continue_on_miss,
-            CopyStringNameArray(source.required_weapon_type_ids),
-            source.allows_natural_weapon,
-            CombatWindupDefinition.FromResource(source.windup_profile),
-            source.requires_heavy_weapon
+        string sourceLabel = string.IsNullOrWhiteSpace(path)
+            ? $"<CombatSkillDef:{fallbackSkillId}>"
+            : path;
+        var context = new JsonContentEntryContext(
+            SkillContentJsonAuthoringDomain.DomainId,
+            fallbackSkillId.ToString(),
+            sourceLabel,
+            "/entries/0"
+        );
+        ContentImportStageResult<CombatSkillImportModel> adapted =
+            SkillDiagnosticFixtureProjection.TryProjectCombat(context, source, fallbackSkillId);
+        if (adapted.HasValue)
+        {
+            return SkillDefinitionProjector.ProjectCombat(
+                adapted.Value,
+                adapted.Value.SkillId
+            );
+        }
+        throw BuildAdaptationFailure(sourceLabel, adapted.Diagnostics);
+    }
+
+    private static InvalidDataException BuildAdaptationFailure(
+        string sourceLabel,
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics
+    )
+    {
+        var details = new List<string>(diagnostics.Count);
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics)
+        {
+            details.Add(
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+        return new InvalidDataException(
+            $"Combat skill diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
+                + string.Join(" | ", details)
         );
     }
 
-    private IReadOnlyDictionary<string, object> BuildLevelOverride(int skillLevel)
+    private CombatSkillLevelOverrideImportModel BuildLevelOverride(int skillLevel)
     {
         if (LevelOverrides.Count == 0)
-            return ContentValueNormalizer.NormalizeDictionary(
-                (IReadOnlyDictionary<string, object>)null,
-                "CombatSkillDefinition.LevelOverrides"
-            );
-        var merged = new Dictionary<string, object>();
-        var eligible = new List<int>();
-        foreach (int level in LevelOverrides.Keys)
+            return null;
+        CombatSkillLevelOverrideImportModel merged = null;
+        foreach ((int level, CombatSkillLevelOverrideImportModel levelOverride) in LevelOverrides)
         {
-            if (level >= 0 && level <= skillLevel)
-                eligible.Add(level);
+            if (level < 0)
+                continue;
+            if (level > skillLevel)
+                break;
+            merged = merged == null ? levelOverride : merged.Overlay(levelOverride);
         }
-        eligible.Sort();
-        foreach (int level in eligible)
-        {
-            foreach ((string key, object value) in LevelOverrides[level])
-                merged[key] = value;
-        }
-        return new ReadOnlyDictionary<string, object>(merged);
+        return merged;
     }
 
-    private static int ReadIntOverride(
-        IReadOnlyDictionary<string, object> overrides,
-        string key,
-        int fallback
-    )
+    private static IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> FreezeLevelOverrides(
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> values
+    ) => SkillTypedLevelValueMaps.Freeze(values);
+
+    private static StringName ToAreaPatternName(CombatSkillLevelOverrideAreaPattern value)
     {
-        return TryReadIntOverride(overrides, key, out int value) ? value : fallback;
+        return value switch
+        {
+            CombatSkillLevelOverrideAreaPattern.Single => "single",
+            CombatSkillLevelOverrideAreaPattern.Self => "self",
+            CombatSkillLevelOverrideAreaPattern.Diamond => "diamond",
+            CombatSkillLevelOverrideAreaPattern.Square => "square",
+            CombatSkillLevelOverrideAreaPattern.Radius => "radius",
+            CombatSkillLevelOverrideAreaPattern.Cross => "cross",
+            CombatSkillLevelOverrideAreaPattern.Line => "line",
+            CombatSkillLevelOverrideAreaPattern.Cone => "cone",
+            CombatSkillLevelOverrideAreaPattern.NarrowCone => "narrow_cone",
+            CombatSkillLevelOverrideAreaPattern.FrontArc => "front_arc",
+            _ => "",
+        };
     }
 
-    private static bool TryReadIntOverride(
-        IReadOnlyDictionary<string, object> overrides,
-        string key,
-        out int value
-    )
-    {
-        if (overrides != null && overrides.TryGetValue(key, out object rawValue))
-        {
-            if (TryReadIntValue(rawValue, out value))
-            {
-                return true;
-            }
-        }
-        value = 0;
-        return false;
-    }
+}
 
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> ProjectLevelOverrides(
-        Godot.Collections.Dictionary source,
-        string path
-    )
-    {
-        if (source == null || source.Count == 0)
-            return EmptyLevelOverrides;
-        var result = new Dictionary<int, IReadOnlyDictionary<string, object>>();
-        foreach (Variant rawKey in source.Keys)
-        {
-            if (!TryReadLevelKey(rawKey, out int level))
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary key at '{path}' must be an integral level, got {rawKey.VariantType}."
-                );
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Dictionary)
-                throw new System.IO.InvalidDataException(
-                    $"Content value at '{path}[{level}]' must be a Dictionary, got {rawValue.VariantType}."
-                );
-            if (result.ContainsKey(level))
-                throw new System.IO.InvalidDataException(
-                    $"Content dictionary at '{path}' contains duplicate normalized level key '{level}'."
-                );
-            using Godot.Collections.Dictionary dictionary = rawValue.AsGodotDictionary();
-            result[level] = ContentValueNormalizer.NormalizeDictionary(
-                dictionary,
-                $"{path}[{level}]"
-            );
-        }
-        return result.Count > 0
-            ? new ReadOnlyDictionary<int, IReadOnlyDictionary<string, object>>(result)
-            : EmptyLevelOverrides;
-    }
-
-    private static bool TryReadLevelKey(Variant rawKey, out int level)
-    {
-        if (rawKey.VariantType == Variant.Type.Int)
-        {
-            level = rawKey.AsInt32();
-            return true;
-        }
-        if (rawKey.VariantType == Variant.Type.Float)
-        {
-            double rawLevel = rawKey.AsDouble();
-            int normalized = (int)System.Math.Floor(rawLevel);
-            if (Mathf.IsEqualApprox((float)rawLevel, normalized))
-            {
-                level = normalized;
-                return true;
-            }
-        }
-        level = 0;
-        return false;
-    }
-
-    private static IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> FreezeLevelOverrides(
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> values
-    ) => SkillDefinition.FreezeLevelValueMap(values, "CombatSkillDefinition.LevelOverrides");
-
-    private static bool TryReadIntValue(object value, out int result)
-    {
-        if (value is long longValue && longValue >= int.MinValue && longValue <= int.MaxValue)
-        {
-            result = (int)longValue;
-            return true;
-        }
-        if (
-            value is double doubleValue
-            && doubleValue >= int.MinValue
-            && doubleValue <= int.MaxValue
-        )
-        {
-            result = (int)doubleValue;
-            return true;
-        }
-        result = 0;
-        return false;
-    }
-
-    private static bool TryReadStringName(object value, out StringName result)
-    {
-        if (value is StringName stringName)
-        {
-            result = stringName;
-            return true;
-        }
-        if (value is string text)
-        {
-            result = new StringName(text);
-            return true;
-        }
-        result = default;
-        return false;
-    }
-
-    private static IReadOnlyList<int> CopyIntArray(int[] values)
-    {
-        if (values == null || values.Length == 0)
-            return System.Array.Empty<int>();
-        int[] result = new int[values.Length];
-        System.Array.Copy(values, result, values.Length);
-        return result;
-    }
-
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNames;
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-            result.Add(value);
-        return new ReadOnlyCollection<StringName>(result);
-    }
-
-    private static IReadOnlyList<CombatCastVariantDefinition> ProjectCastVariants(
-        Godot.Collections.Array<CombatCastVariantDef> values,
-        string path
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyCastVariants;
-        var result = new List<CombatCastVariantDefinition>(values.Count);
-        for (int index = 0; index < values.Count; index++)
-        {
-            CombatCastVariantDef variant = values[index];
-            CombatCastVariantDefinition definition = CombatCastVariantDefinition.FromResource(
-                variant,
-                $"{path}[{index}]"
-            );
-            if (definition != null)
-                result.Add(definition);
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<CombatCastVariantDefinition>(result)
-            : EmptyCastVariants;
-    }
-
-    private static IReadOnlyList<CombatEffectDefinition> ProjectEffectDefinitions(
-        Godot.Collections.Array<CombatEffectDef> values,
-        string path
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyEffectDefinitions;
-        var result = new List<CombatEffectDefinition>(values.Count);
-        for (int index = 0; index < values.Count; index++)
-        {
-            CombatEffectDef effect = values[index];
-            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
-                effect,
-                $"{path}[{index}]"
-            );
-            if (definition != null)
-                result.Add(definition);
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<CombatEffectDefinition>(result)
-            : EmptyEffectDefinitions;
-    }
+public enum CombatCastSquare2CornerKind
+{
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
 }
 
 public sealed class CombatCastVariantDefinition
@@ -1350,7 +1200,7 @@ public sealed class CombatCastVariantDefinition
         int requiredCoordCount,
         IReadOnlyList<StringName> allowedBaseTerrains,
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        IReadOnlyDictionary<string, object> parameters,
+        CombatCastSquare2CornerKind? square2Corner = null,
         StringName projectileKindOverride = default
     )
     {
@@ -1366,10 +1216,9 @@ public sealed class CombatCastVariantDefinition
         );
         EffectDefinitions = SkillDefinitionCollectionFreeze.List(effectDefinitions);
         ProjectileKindOverride = projectileKindOverride;
-        Parameters = ContentValueNormalizer.NormalizeDictionary(
-            parameters,
-            "CombatCastVariantDefinition.Parameters"
-        );
+        if (square2Corner.HasValue && !Enum.IsDefined(square2Corner.Value))
+            throw new ArgumentOutOfRangeException(nameof(square2Corner));
+        Square2Corner = square2Corner;
     }
 
     public StringName VariantId { get; }
@@ -1382,80 +1231,17 @@ public sealed class CombatCastVariantDefinition
     public IReadOnlyList<StringName> AllowedBaseTerrains { get; }
     public IReadOnlyList<CombatEffectDefinition> EffectDefinitions { get; }
     public StringName ProjectileKindOverride { get; }
-    public IReadOnlyDictionary<string, object> Parameters { get; }
+    public CombatCastSquare2CornerKind? Square2Corner { get; }
     internal BattleTargetMode TargetModeKind => BattleTypedNames.ToTargetMode(TargetMode);
     internal CombatCastFootprintPattern FootprintPatternKind =>
         CombatSkillTargetingContentRules.ToFootprintPattern(FootprintPattern);
     internal CombatProjectileKind ProjectileKindOverrideTyped =>
         CombatProjectileContentRules.ToProjectileKind(ProjectileKindOverride);
 
-    internal static CombatCastVariantDefinition FromResource(
-        CombatCastVariantDef source,
-        string path
-    )
-    {
-        if (source == null)
-            return null;
-        return new CombatCastVariantDefinition(
-            source.variant_id,
-            source.display_name,
-            source.description,
-            source.min_skill_level,
-            source.target_mode,
-            source.footprint_pattern,
-            source.required_coord_count,
-            CopyStringNameArray(source.allowed_base_terrains),
-            CopyEffectDefinitions(source.effect_defs, $"{path}.effect_defs"),
-            ContentValueNormalizer.NormalizeDictionary(
-                source.@params,
-                $"{path}.params"
-            ),
-            source.projectile_kind_override
-        );
-    }
-
-    private static IReadOnlyList<CombatEffectDefinition> CopyEffectDefinitions(
-        Godot.Collections.Array<CombatEffectDef> values,
-        string path
-    )
-    {
-        if (values == null || values.Count == 0)
-            return System.Array.Empty<CombatEffectDefinition>();
-        var result = new List<CombatEffectDefinition>(values.Count);
-        for (int index = 0; index < values.Count; index++)
-        {
-            CombatEffectDef effect = values[index];
-            CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
-                effect,
-                $"{path}[{index}]"
-            );
-            if (definition != null)
-                result.Add(definition);
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<CombatEffectDefinition>(result)
-            : System.Array.Empty<CombatEffectDefinition>();
-    }
-
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return System.Array.Empty<StringName>();
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-            result.Add(value);
-        return new ReadOnlyCollection<StringName>(result);
-    }
-
 }
 
 public sealed class CombatDamageSegmentDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
-
     public CombatDamageSegmentDefinition(
         StringName damageTag,
         int power,
@@ -1465,11 +1251,12 @@ public sealed class CombatDamageSegmentDefinition
         double preResistanceDamageMultiplier,
         IReadOnlyList<StringName> damageTags = null,
         IReadOnlyList<StringName> mitigationBypassDamageTags = null,
-        IReadOnlyList<StringName> mitigationBypassTiers = null
+        IReadOnlyList<StringName> mitigationBypassTiers = null,
+        bool doubleDiceOnCritical = false
     )
     {
         DamageTag = damageTag;
-        Power = System.Math.Max(power, 0);
+        Power = power;
         DiceCount = diceCount;
         DiceSides = diceSides;
         DiceBonus = diceBonus;
@@ -1481,6 +1268,7 @@ public sealed class CombatDamageSegmentDefinition
         MitigationBypassTiers = SkillDefinitionCollectionFreeze.List(
             mitigationBypassTiers
         );
+        DoubleDiceOnCritical = doubleDiceOnCritical;
     }
 
     public StringName DamageTag { get; }
@@ -1492,74 +1280,12 @@ public sealed class CombatDamageSegmentDefinition
     public IReadOnlyList<StringName> DamageTags { get; }
     public IReadOnlyList<StringName> MitigationBypassDamageTags { get; }
     public IReadOnlyList<StringName> MitigationBypassTiers { get; }
+    public bool DoubleDiceOnCritical { get; }
 
-    internal static IReadOnlyList<CombatDamageSegmentDefinition> ProjectArray(
-        Godot.Collections.Array<CombatDamageSegmentDef> values
-    )
-    {
-        if (values == null || values.Count == 0)
-        {
-            return System.Array.Empty<CombatDamageSegmentDefinition>();
-        }
-        var result = new List<CombatDamageSegmentDefinition>();
-        foreach (CombatDamageSegmentDef value in values)
-        {
-            CombatDamageSegmentDefinition definition = FromResource(value);
-            if (definition != null)
-            {
-                result.Add(definition);
-            }
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<CombatDamageSegmentDefinition>(result)
-            : System.Array.Empty<CombatDamageSegmentDefinition>();
-    }
-
-    private static CombatDamageSegmentDefinition FromResource(CombatDamageSegmentDef source)
-    {
-        return source == null
-            ? null
-            : new CombatDamageSegmentDefinition(
-                source.damage_tag,
-                source.power,
-                source.dice_count,
-                source.dice_sides,
-                source.dice_bonus,
-                source.pre_resistance_damage_multiplier,
-                CopyStringNameArray(source.damage_tags),
-                CopyStringNameArray(source.mitigation_bypass_damage_tags),
-                CopyStringNameArray(source.mitigation_bypass_tiers)
-            );
-    }
-
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-        {
-            return EmptyStringNames;
-        }
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != "")
-            {
-                result.Add(normalized);
-            }
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<StringName>(result)
-            : EmptyStringNames;
-    }
 }
 
 public sealed class CombatTargetDamageMultiplierRuleDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
-
     public CombatTargetDamageMultiplierRuleDefinition(
         IReadOnlyList<StringName> anyCreatureTypeTags,
         IReadOnlyList<StringName> allCreatureTypeTags,
@@ -1618,74 +1344,29 @@ public sealed class CombatTargetDamageMultiplierRuleDefinition
         return false;
     }
 
-    internal static IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> ProjectArray(
-        Godot.Collections.Array<CombatTargetDamageMultiplierRuleDef> values
+}
+
+public sealed class CombatWeightedStatusOutcomeDefinition
+{
+    public CombatWeightedStatusOutcomeDefinition(
+        StringName outcomeId,
+        int weight,
+        CombatEffectDefinition statusEffect
     )
     {
-        if (values == null || values.Count == 0)
-        {
-            return System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
-        }
-        var result = new List<CombatTargetDamageMultiplierRuleDefinition>();
-        foreach (CombatTargetDamageMultiplierRuleDef value in values)
-        {
-            CombatTargetDamageMultiplierRuleDefinition definition = FromResource(value);
-            if (definition != null)
-            {
-                result.Add(definition);
-            }
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<CombatTargetDamageMultiplierRuleDefinition>(result)
-            : System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
+        OutcomeId = ProgressionDataUtils.to_string_name(outcomeId);
+        Weight = weight;
+        StatusEffect = statusEffect;
     }
 
-    private static CombatTargetDamageMultiplierRuleDefinition FromResource(
-        CombatTargetDamageMultiplierRuleDef source
-    )
-    {
-        return source == null
-            ? null
-            : new CombatTargetDamageMultiplierRuleDefinition(
-                CopyStringNameArray(source.any_creature_type_tags),
-                CopyStringNameArray(source.all_creature_type_tags),
-                CopyStringNameArray(source.excluded_creature_type_tags),
-                source.multiplier_percent
-            );
-    }
+    public StringName OutcomeId { get; }
+    public int Weight { get; }
+    public CombatEffectDefinition StatusEffect { get; }
 
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-        {
-            return EmptyStringNames;
-        }
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != "" && !result.Contains(normalized))
-            {
-                result.Add(normalized);
-            }
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<StringName>(result)
-            : EmptyStringNames;
-    }
 }
 
 public sealed class CombatEffectDefinition
 {
-    private static readonly IReadOnlyList<StringName> EmptyStringNames =
-        System.Array.Empty<StringName>();
-    private static readonly IReadOnlyList<CombatDamageSegmentDefinition> EmptyDamageSegments =
-        System.Array.Empty<CombatDamageSegmentDefinition>();
-    private static readonly IReadOnlyList<CombatTargetDamageMultiplierRuleDefinition> EmptyTargetDamageMultiplierRules =
-        System.Array.Empty<CombatTargetDamageMultiplierRuleDefinition>();
-
     public CombatEffectDefinition(
         StringName effectType,
         StringName effectTargetTeamFilter,
@@ -1742,7 +1423,7 @@ public sealed class CombatEffectDefinition
         int diceSidesBase = 0,
         int diceSidesPerConstitutionMod = 0,
         int diceSidesPerWillpowerMod = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        ICombatEffectPayloadDefinition payload = null,
         IReadOnlyList<StringName> effectCategories = null,
         bool allowRepeatHitsAcrossSteps = false,
         StringName tickEffectType = default,
@@ -1850,7 +1531,35 @@ public sealed class CombatEffectDefinition
         StringName requiredTargetCreatureTypeTag = default,
         BattleCognitionKind requiredTargetMinCognition =
             BattleCognitionKind.Unknown,
-        int sourceRetreatDistance = 0
+        int sourceRetreatDistance = 0,
+        int grappleMaxHeightGain = 0,
+        int healToHpPercentFloor = 0,
+        int healMissingHpPercent = 0,
+        int maxAffectedTargets = 0,
+        bool excludeSource = false,
+        StringName targetOrder = default,
+        StringName terrainContactMode = default,
+        int terrainEffectiveTriggerCount = 0,
+        bool terrainRequiresGroundContact = false,
+        bool terrainRecheckFromInside = false,
+        int terrainMaxActiveInstancesPerSource = 0,
+        bool terrainReplaceExistingFromSource = false,
+        StringName shieldFamily = default,
+        StringName shieldAttributeModifierId = default,
+        bool shieldRollPerTarget = false,
+        int followUpDamageMultiplierPercent = 100,
+        IReadOnlyList<int> followUpAttackRollBonusCurve = null,
+        int forcedMoveMaxTargetBodySize = 0,
+        IReadOnlyList<CombatWeightedStatusOutcomeDefinition> saveFailureStatusOutcomes = null,
+        CombatChainDamageDefinition chainDamage = null,
+        int saveDcBonus = 0,
+        bool skipTurn = false,
+        bool breakOnPositiveDamage = false,
+        StringName onRemovedStatusId = default,
+        IReadOnlyList<StringName> onRemovedStatusSaveImmunityTags = null,
+        bool onRemovedStatusUndispellable = false,
+        bool onRemovedStatusConsumeAfterNormalTurn = false,
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
     )
     {
         EffectType = effectType;
@@ -1862,20 +1571,30 @@ public sealed class CombatEffectDefinition
             requiredTargetMinCognition;
         StatusId = statusId;
         SaveFailureStatusId = saveFailureStatusId;
+        SaveFailureStatusOutcomes = SkillDefinitionCollectionFreeze.List(
+            saveFailureStatusOutcomes
+        );
         TerrainEffectId = terrainEffectId;
+        TerrainContactMode = terrainContactMode;
+        TerrainEffectiveTriggerCount = terrainEffectiveTriggerCount;
+        TerrainRequiresGroundContact = terrainRequiresGroundContact;
+        TerrainRecheckFromInside = terrainRecheckFromInside;
+        TerrainMaxActiveInstancesPerSource = terrainMaxActiveInstancesPerSource;
+        TerrainReplaceExistingFromSource = terrainReplaceExistingFromSource;
         TerrainReplaceTo = terrainReplaceTo;
         HeightDelta = heightDelta;
         RequiresWeapon = requiresWeapon;
         AddWeaponDice = addWeaponDice;
         PreventRepeatTarget = preventRepeatTarget;
+        ChainDamage = chainDamage;
         ForcedMoveMode = forcedMoveMode;
         MinSkillLevel = minSkillLevel;
         MaxSkillLevel = maxSkillLevel;
         DamageTag = damageTag;
         DamageRatioPercent = damageRatioPercent;
         PreResistanceDamageMultiplier = preResistanceDamageMultiplier;
-        WeaponDiceMultiplier = System.Math.Max(weaponDiceMultiplier, 1);
-        BonusWeaponDiceMultiplier = System.Math.Max(bonusWeaponDiceMultiplier, 0);
+        WeaponDiceMultiplier = weaponDiceMultiplier;
+        BonusWeaponDiceMultiplier = bonusWeaponDiceMultiplier;
         BonusCondition = bonusCondition;
         BonusConditionCreatureTypeTag = bonusConditionCreatureTypeTag;
         HpRatioThresholdPercent = hpRatioThresholdPercent;
@@ -1888,26 +1607,27 @@ public sealed class CombatEffectDefinition
         BonusDamageDiceSides = bonusDamageDiceSides;
         BonusDamageDiceBonus = bonusDamageDiceBonus;
         BonusDamageSeparateEvent = bonusDamageSeparateEvent;
-        MeleeComboStackGainBonus = System.Math.Max(meleeComboStackGainBonus, 0);
+        MeleeComboStackGainBonus = meleeComboStackGainBonus;
         ComboAttackBonusStatusId = ProgressionDataUtils.to_string_name(
             comboAttackBonusStatusId
         );
-        ComboAttackBonusStackDivisor = System.Math.Max(comboAttackBonusStackDivisor, 0);
+        ComboAttackBonusStackDivisor = comboAttackBonusStackDivisor;
         UpkeepResource = ProgressionDataUtils.to_string_name(upkeepResource);
-        UpkeepIntervalTu = System.Math.Max(upkeepIntervalTu, 0);
-        UpkeepBaseCost = System.Math.Max(upkeepBaseCost, 0);
-        UpkeepEscalationIntervalTu = System.Math.Max(upkeepEscalationIntervalTu, 0);
-        UpkeepCostMultiplier = System.Math.Max(upkeepCostMultiplier, 1);
+        UpkeepIntervalTu = upkeepIntervalTu;
+        UpkeepBaseCost = upkeepBaseCost;
+        UpkeepEscalationIntervalTu = upkeepEscalationIntervalTu;
+        UpkeepCostMultiplier = upkeepCostMultiplier;
         BreakOnHardControl = breakOnHardControl;
         TerminationStatusId = ProgressionDataUtils.to_string_name(terminationStatusId);
-        TerminationStatusDurationTu = System.Math.Max(terminationStatusDurationTu, 0);
-        TerminationAttackRollPenalty = System.Math.Max(terminationAttackRollPenalty, 0);
-        TerminationCooldownTu = System.Math.Max(terminationCooldownTu, 0);
+        TerminationStatusDurationTu = terminationStatusDurationTu;
+        TerminationAttackRollPenalty = terminationAttackRollPenalty;
+        TerminationCooldownTu = terminationCooldownTu;
         SourceBoundWeaponBonusDamageDiceCount = sourceBoundWeaponBonusDamageDiceCount;
         SourceBoundWeaponBonusDamageDiceSides = sourceBoundWeaponBonusDamageDiceSides;
         SourceBoundWeaponBonusDamageDiceBonus = sourceBoundWeaponBonusDamageDiceBonus;
         ChargeTrapImmunityMinSkillLevel = chargeTrapImmunityMinSkillLevel;
         SaveDc = saveDc;
+        SaveDcBonus = saveDcBonus;
         SaveDcMode = saveDcMode;
         SaveDcSourceAbility = saveDcSourceAbility;
         SaveAbility = saveAbility;
@@ -1927,9 +1647,16 @@ public sealed class CombatEffectDefinition
         EffectTags = SkillDefinitionCollectionFreeze.List(effectTags);
         TriggerCondition = triggerCondition;
         Power = power;
+        HealToHpPercentFloor = healToHpPercentFloor;
+        HealMissingHpPercent = healMissingHpPercent;
+        MaxAffectedTargets = maxAffectedTargets;
+        ExcludeSource = excludeSource;
+        TargetOrder = ProgressionDataUtils.to_string_name(targetOrder);
         RangeBonus = rangeBonus;
         ForcedMoveDistance = forcedMoveDistance;
-        SourceRetreatDistance = System.Math.Max(sourceRetreatDistance, 0);
+        ForcedMoveMaxTargetBodySize = forcedMoveMaxTargetBodySize;
+        GrappleMaxHeightGain = grappleMaxHeightGain;
+        SourceRetreatDistance = sourceRetreatDistance;
         JumpBaseBudget = jumpBaseBudget;
         JumpStrScale = jumpStrScale;
         JumpArcRatio = jumpArcRatio;
@@ -1937,10 +1664,15 @@ public sealed class CombatEffectDefinition
         DiceSidesBase = diceSidesBase;
         DiceSidesPerConstitutionMod = diceSidesPerConstitutionMod;
         DiceSidesPerWillpowerMod = diceSidesPerWillpowerMod;
-        Parameters = ContentValueNormalizer.NormalizeDictionary(
-            parameters,
-            "CombatEffectDefinition.Parameters"
+        ShieldFamily = ProgressionDataUtils.to_string_name(shieldFamily);
+        ShieldAttributeModifierId = ProgressionDataUtils.to_string_name(
+            shieldAttributeModifierId
         );
+        ShieldAttributeModifierKind = AttributeSnapshot.ToIdKind(
+            ShieldAttributeModifierId
+        );
+        ShieldRollPerTarget = shieldRollPerTarget;
+        Payload = payload ?? EmptyCombatEffectPayloadDefinition.Instance;
         EffectCategories = SkillDefinitionCollectionFreeze.List(effectCategories);
         AllowRepeatHitsAcrossSteps = allowRepeatHitsAcrossSteps;
         TickEffectType = tickEffectType;
@@ -1966,6 +1698,10 @@ public sealed class CombatEffectDefinition
         StopOnMiss = stopOnMiss;
         StopOnTargetDown = stopOnTargetDown;
         FixedAttackCount = fixedAttackCount;
+        FollowUpDamageMultiplierPercent = followUpDamageMultiplierPercent;
+        FollowUpAttackRollBonusCurve = SkillDefinitionCollectionFreeze.List(
+            followUpAttackRollBonusCurve
+        );
         RemoveHarmful = removeHarmful;
         RemoveHarmfulFromAllies = removeHarmfulFromAllies;
         RemoveBeneficial = removeBeneficial;
@@ -1997,7 +1733,7 @@ public sealed class CombatEffectDefinition
         TriggerStatusId = triggerStatusId;
         ConsumedStatusId = consumedStatusId;
         RequiredTargetStatusId = requiredTargetStatusId;
-        RequiredTargetStatusMinStacks = System.Math.Max(requiredTargetStatusMinStacks, 0);
+        RequiredTargetStatusMinStacks = requiredTargetStatusMinStacks;
         DicePerConsumedStack = dicePerConsumedStack;
         DiceSidesPerStack = diceSidesPerStack;
         ApGain = apGain;
@@ -2008,6 +1744,15 @@ public sealed class CombatEffectDefinition
         LockGuard = lockGuard;
         LockDodgeBonus = lockDodgeBonus;
         LockCrit = lockCrit;
+        SkipTurn = skipTurn;
+        BreakOnPositiveDamage = breakOnPositiveDamage;
+        OnRemovedStatusId = ProgressionDataUtils.to_string_name(onRemovedStatusId);
+        OnRemovedStatusSaveImmunityTags = SkillDefinitionCollectionFreeze.List(
+            onRemovedStatusSaveImmunityTags
+        );
+        OnRemovedStatusUndispellable = onRemovedStatusUndispellable;
+        OnRemovedStatusConsumeAfterNormalTurn = onRemovedStatusConsumeAfterNormalTurn;
+        SourceStatusGrantOnHit = sourceStatusGrantOnHit;
         SaveBonus = saveBonus;
         ControlSaveBonus = controlSaveBonus;
         PassiveReduction = passiveReduction;
@@ -2049,12 +1794,22 @@ public sealed class CombatEffectDefinition
     public BattleCognitionKind RequiredTargetMinCognition { get; }
     public StringName StatusId { get; }
     public StringName SaveFailureStatusId { get; }
+    public IReadOnlyList<CombatWeightedStatusOutcomeDefinition> SaveFailureStatusOutcomes { get; }
     public StringName TerrainEffectId { get; }
+    public StringName TerrainContactMode { get; }
+    internal CombatTerrainContactMode TerrainContactModeKind =>
+        CombatTerrainContactModeRules.ToMode(TerrainContactMode);
+    public int TerrainEffectiveTriggerCount { get; }
+    public bool TerrainRequiresGroundContact { get; }
+    public bool TerrainRecheckFromInside { get; }
+    public int TerrainMaxActiveInstancesPerSource { get; }
+    public bool TerrainReplaceExistingFromSource { get; }
     public StringName TerrainReplaceTo { get; }
     public int HeightDelta { get; }
     public bool RequiresWeapon { get; }
     public bool AddWeaponDice { get; }
     public bool PreventRepeatTarget { get; }
+    public CombatChainDamageDefinition ChainDamage { get; }
     public StringName ForcedMoveMode { get; }
     public int MinSkillLevel { get; }
     public int MaxSkillLevel { get; }
@@ -2093,6 +1848,7 @@ public sealed class CombatEffectDefinition
     public int SourceBoundWeaponBonusDamageDiceBonus { get; }
     public int ChargeTrapImmunityMinSkillLevel { get; }
     public int SaveDc { get; }
+    public int SaveDcBonus { get; }
     public StringName SaveDcMode { get; }
     public StringName SaveDcSourceAbility { get; }
     public StringName SaveAbility { get; }
@@ -2112,8 +1868,15 @@ public sealed class CombatEffectDefinition
     public IReadOnlyList<StringName> EffectTags { get; }
     public StringName TriggerCondition { get; }
     public int Power { get; }
+    public int HealToHpPercentFloor { get; }
+    public int HealMissingHpPercent { get; }
+    public int MaxAffectedTargets { get; }
+    public bool ExcludeSource { get; }
+    public StringName TargetOrder { get; }
     public int RangeBonus { get; }
     public int ForcedMoveDistance { get; }
+    public int ForcedMoveMaxTargetBodySize { get; }
+    public int GrappleMaxHeightGain { get; }
     public int SourceRetreatDistance { get; }
     public int JumpBaseBudget { get; }
     public double JumpStrScale { get; }
@@ -2122,11 +1885,21 @@ public sealed class CombatEffectDefinition
     public int DiceSidesBase { get; }
     public int DiceSidesPerConstitutionMod { get; }
     public int DiceSidesPerWillpowerMod { get; }
-    public IReadOnlyDictionary<string, object> Parameters { get; }
+    public StringName ShieldFamily { get; }
+    public StringName ShieldAttributeModifierId { get; }
+    internal AttributeSnapshotIdKind ShieldAttributeModifierKind { get; }
+    public bool ShieldRollPerTarget { get; }
+    public ICombatEffectPayloadDefinition Payload { get; }
     public IReadOnlyList<StringName> EffectCategories { get; }
     public bool AllowRepeatHitsAcrossSteps { get; }
     public StringName TickEffectType { get; }
+    internal BattleEffectKind TickEffectKind =>
+        BattleTypedNames.ToEffectKind(TickEffectType);
+    internal BattleTerrainEffectRuntimeKind TerrainTickEffectKind =>
+        BattleTypedNames.ToTerrainEffectRuntimeKind(TickEffectType);
     public StringName LifetimePolicy { get; }
+    internal CombatEffectLifetimePolicy LifetimePolicyKind =>
+        CombatEffectContentRules.ToLifetimePolicy(LifetimePolicy);
     public int MoveCostDelta { get; }
     public StringName RenderOverlayId { get; }
     public int OverlayPriority { get; }
@@ -2144,6 +1917,8 @@ public sealed class CombatEffectDefinition
     public bool StopOnMiss { get; }
     public bool StopOnTargetDown { get; }
     public int FixedAttackCount { get; }
+    public int FollowUpDamageMultiplierPercent { get; }
+    public IReadOnlyList<int> FollowUpAttackRollBonusCurve { get; }
     public bool RemoveHarmful { get; }
     public bool RemoveHarmfulFromAllies { get; }
     public bool RemoveBeneficial { get; }
@@ -2187,6 +1962,13 @@ public sealed class CombatEffectDefinition
     public bool LockGuard { get; }
     public bool LockDodgeBonus { get; }
     public bool LockCrit { get; }
+    public bool SkipTurn { get; }
+    public bool BreakOnPositiveDamage { get; }
+    public StringName OnRemovedStatusId { get; }
+    public IReadOnlyList<StringName> OnRemovedStatusSaveImmunityTags { get; }
+    public bool OnRemovedStatusUndispellable { get; }
+    public bool OnRemovedStatusConsumeAfterNormalTurn { get; }
+    public CombatSourceStatusGrantDefinition SourceStatusGrantOnHit { get; }
     public int SaveBonus { get; }
     public int ControlSaveBonus { get; }
     public int PassiveReduction { get; }
@@ -2217,63 +1999,27 @@ public sealed class CombatEffectDefinition
         CombatEffectContentRules.ToTriggerCondition(TriggerCondition);
     internal CombatEffectTriggerEvent TriggerEventKind =>
         CombatEffectContentRules.ToTriggerEvent(TriggerEvent);
+    internal CombatEffectTargetOrder TargetOrderKind =>
+        CombatEffectContentRules.ToTargetOrder(TargetOrder);
     internal BattleForcedMoveMode ForcedMoveModeKind =>
         BattleTypedNames.ToForcedMoveMode(ForcedMoveMode);
+    internal bool IsUnlockedAtSkillLevel(int skillLevel)
+    {
+        int normalizedLevel = System.Math.Max(skillLevel, 0);
+        return normalizedLevel >= System.Math.Max(MinSkillLevel, 0)
+            && (MaxSkillLevel < 0 || normalizedLevel <= MaxSkillLevel);
+    }
+    internal int GetFollowUpAttackRollBonus(int skillLevel)
+    {
+        if (FollowUpAttackRollBonusCurve == null || FollowUpAttackRollBonusCurve.Count == 0)
+        {
+            return 0;
+        }
+        int index = Mathf.Clamp(skillLevel, 0, FollowUpAttackRollBonusCurve.Count - 1);
+        return System.Math.Max(FollowUpAttackRollBonusCurve[index], 0);
+    }
     internal BattleSaveDcMode SaveDcModeKind =>
         BattleSaveContentRules.ToSaveDcMode(SaveDcMode);
-
-    internal int GetIntParamTyped(string key, int fallback = 0)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (
-            Parameters.TryGetValue(key, out object value)
-            && value is long intValue
-            && intValue >= int.MinValue
-            && intValue <= int.MaxValue
-        )
-            return (int)intValue;
-        return fallback;
-    }
-
-    internal StringName GetStringNameParamTyped(string key, StringName fallback = default)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            StringName normalized = value switch
-            {
-                StringName stringName => stringName,
-                string text => new StringName(text),
-                _ => default,
-            };
-            return normalized != "" ? normalized : fallback;
-        }
-        return fallback;
-    }
-
-    internal double GetFloatParamTyped(string key, double fallback = 0.0)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return fallback;
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            return value switch
-            {
-                long intValue => intValue,
-                double floatValue => floatValue,
-                _ => fallback,
-            };
-        }
-        return fallback;
-    }
 
     internal bool HasEffectTagTyped(StringName tag)
     {
@@ -2289,64 +2035,6 @@ public sealed class CombatEffectDefinition
             }
         }
         return false;
-    }
-
-    internal IReadOnlyList<StringName> GetStringNameListParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return System.Array.Empty<StringName>();
-        }
-        if (Parameters.TryGetValue(key, out object value))
-        {
-            if (value is not IReadOnlyList<object> values)
-                return System.Array.Empty<StringName>();
-            var result = new List<StringName>(values.Count);
-            foreach (object entry in values)
-            {
-                StringName normalized = entry switch
-                {
-                    StringName stringName => stringName,
-                    string text => new StringName(text),
-                    _ => default,
-                };
-                if (normalized != "")
-                    result.Add(normalized);
-            }
-            return result.Count == 0
-                ? System.Array.Empty<StringName>()
-                : new ReadOnlyCollection<StringName>(result);
-        }
-        return System.Array.Empty<StringName>();
-    }
-
-    internal IReadOnlyDictionary<StringName, int> GetStringNameIntMapParamTyped(string key)
-    {
-        if (string.IsNullOrEmpty(key) || Parameters == null)
-        {
-            return new Dictionary<StringName, int>();
-        }
-        if (
-            !Parameters.TryGetValue(key, out object value)
-            || value is not IReadOnlyDictionary<string, object> dictionary
-        )
-        {
-            return new Dictionary<StringName, int>();
-        }
-        var result = new Dictionary<StringName, int>();
-        foreach ((string rawKey, object rawValue) in dictionary)
-        {
-            StringName id = new(rawKey);
-            if (id == "")
-                continue;
-            if (
-                rawValue is long intValue
-                && intValue >= int.MinValue
-                && intValue <= int.MaxValue
-            )
-                result[id] = (int)intValue;
-        }
-        return result;
     }
 
     internal CombatEffectDefinition WithEffectType(StringName effectType)
@@ -2407,7 +2095,7 @@ public sealed class CombatEffectDefinition
             DiceSidesBase,
             DiceSidesPerConstitutionMod,
             DiceSidesPerWillpowerMod,
-            Parameters,
+            Payload,
             EffectCategories,
             AllowRepeatHitsAcrossSteps,
             TickEffectType,
@@ -2515,7 +2203,36 @@ public sealed class CombatEffectDefinition
             requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
-            sourceRetreatDistance: SourceRetreatDistance
+            sourceRetreatDistance: SourceRetreatDistance,
+            grappleMaxHeightGain: GrappleMaxHeightGain,
+            healToHpPercentFloor: HealToHpPercentFloor,
+            healMissingHpPercent: HealMissingHpPercent,
+            maxAffectedTargets: MaxAffectedTargets,
+            excludeSource: ExcludeSource,
+            targetOrder: TargetOrder,
+            terrainContactMode: TerrainContactMode,
+            terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
+            terrainRequiresGroundContact: TerrainRequiresGroundContact,
+            terrainRecheckFromInside: TerrainRecheckFromInside,
+            terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource,
+            shieldFamily: ShieldFamily,
+            shieldAttributeModifierId: ShieldAttributeModifierId,
+            shieldRollPerTarget: ShieldRollPerTarget,
+            followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
+            forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes,
+            chainDamage: ChainDamage,
+            saveDcBonus: SaveDcBonus,
+            skipTurn: SkipTurn,
+            breakOnPositiveDamage: BreakOnPositiveDamage,
+            onRemovedStatusId: OnRemovedStatusId,
+            onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
+            onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
+            onRemovedStatusConsumeAfterNormalTurn:
+                OnRemovedStatusConsumeAfterNormalTurn,
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit
         );
     }
 
@@ -2586,7 +2303,7 @@ public sealed class CombatEffectDefinition
             DiceSidesBase,
             DiceSidesPerConstitutionMod,
             DiceSidesPerWillpowerMod,
-            Parameters,
+            Payload,
             EffectCategories,
             AllowRepeatHitsAcrossSteps,
             TickEffectType,
@@ -2695,258 +2412,85 @@ public sealed class CombatEffectDefinition
             requiredTargetCreatureTypeTag: RequiredTargetCreatureTypeTag,
             requiredTargetMinCognition:
                 RequiredTargetMinCognition,
-            sourceRetreatDistance: SourceRetreatDistance
+            sourceRetreatDistance: SourceRetreatDistance,
+            grappleMaxHeightGain: GrappleMaxHeightGain,
+            healToHpPercentFloor: HealToHpPercentFloor,
+            healMissingHpPercent: HealMissingHpPercent,
+            maxAffectedTargets: MaxAffectedTargets,
+            excludeSource: ExcludeSource,
+            targetOrder: TargetOrder,
+            terrainContactMode: TerrainContactMode,
+            terrainEffectiveTriggerCount: TerrainEffectiveTriggerCount,
+            terrainRequiresGroundContact: TerrainRequiresGroundContact,
+            terrainRecheckFromInside: TerrainRecheckFromInside,
+            terrainMaxActiveInstancesPerSource: TerrainMaxActiveInstancesPerSource,
+            terrainReplaceExistingFromSource: TerrainReplaceExistingFromSource,
+            shieldFamily: ShieldFamily,
+            shieldAttributeModifierId: ShieldAttributeModifierId,
+            shieldRollPerTarget: ShieldRollPerTarget,
+            followUpDamageMultiplierPercent: FollowUpDamageMultiplierPercent,
+            followUpAttackRollBonusCurve: FollowUpAttackRollBonusCurve,
+            forcedMoveMaxTargetBodySize: ForcedMoveMaxTargetBodySize,
+            saveFailureStatusOutcomes: SaveFailureStatusOutcomes,
+            chainDamage: ChainDamage,
+            saveDcBonus: SaveDcBonus,
+            skipTurn: SkipTurn,
+            breakOnPositiveDamage: BreakOnPositiveDamage,
+            onRemovedStatusId: OnRemovedStatusId,
+            onRemovedStatusSaveImmunityTags: OnRemovedStatusSaveImmunityTags,
+            onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
+            onRemovedStatusConsumeAfterNormalTurn:
+                OnRemovedStatusConsumeAfterNormalTurn,
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit
         );
     }
 
-    internal static CombatEffectDefinition FromResource(
+    internal static CombatEffectDefinition FromDiagnosticFixture(
         CombatEffectDef source,
-        string path
+        string path,
+        bool includeSaveFailureStatusOutcomes = true
     )
     {
-        return source == null
-            ? null
-            : new CombatEffectDefinition(
-                source.effect_type,
-                source.effect_target_team_filter,
-                source.status_id,
-                source.save_failure_status_id,
-                source.terrain_effect_id,
-                source.terrain_replace_to,
-                source.height_delta,
-                source.requires_weapon,
-                source.add_weapon_dice,
-                source.prevent_repeat_target,
-                source.forced_move_mode,
-                source.min_skill_level,
-                source.max_skill_level,
-                source.damage_tag,
-                source.damage_ratio_percent,
-                source.pre_resistance_damage_multiplier,
-                source.bonus_condition,
-                source.hp_ratio_threshold_percent,
-                source.damage_category,
-                source.dr_bypass_tag,
-                source.dice_count,
-                source.dice_sides,
-                source.dice_bonus,
-                source.bonus_damage_dice_count,
-                source.bonus_damage_dice_sides,
-                source.bonus_damage_dice_bonus,
-                source.save_dc,
-                source.save_dc_mode,
-                source.save_dc_source_ability,
-                source.save_ability,
-                source.save_partial_on_success,
-                source.save_tag,
-                source.threshold_base_value,
-                source.threshold_level_anchor,
-                source.threshold_level_bonus_per_delta,
-                source.threshold_max_hp_ratio_percent,
-                source.threshold_cap_max_hp_ratio_percent,
-                source.soul_fracture_duration_tu,
-                source.heal_multiplier_percent,
-                source.shield_gain_multiplier_percent,
-                source.applied_status_duration_tu,
-                source.duration_tu,
-                source.tick_interval_tu,
-                CopyStringNameArray(source.effect_tags),
-                source.trigger_condition,
-                source.power,
-                source.range_bonus,
-                source.forced_move_distance,
-                source.jump_base_budget,
-                source.jump_str_scale,
-                source.jump_arc_ratio,
-                source.jump_range_multiplier,
-                source.dice_sides_base,
-                source.dice_sides_per_constitution_mod,
-                source.dice_sides_per_willpower_mod,
-                ContentValueNormalizer.NormalizeDictionary(
-                    source.@params,
-                    $"{path}.params"
-                ),
-                CopyStringNameArray(source.effect_categories),
-                source.allow_repeat_hits_across_steps,
-                source.tick_effect_type,
-                source.lifetime_policy,
-                source.move_cost_delta,
-                source.render_overlay_id,
-                source.overlay_priority,
-                source.display_name,
-                source.accuracy_modifier_spec,
-                source.does_not_stack_with_status_id,
-                CopyStringNameArray(source.does_not_stack_with_status_ids),
-                CopyStringNameArray(source.damage_tags),
-                source.use_weapon_physical_damage_tag,
-                source.resolve_as_weapon_attack,
-                source.stop_on_miss,
-                source.stop_on_target_down,
-                source.remove_harmful,
-                source.remove_harmful_from_allies,
-                source.remove_beneficial,
-                source.remove_beneficial_from_enemies,
-                source.require_damage_applied,
-                source.max_status_removed,
-                source.min_hp_after_damage,
-                source.death_prevention_priority,
-                source.attack_roll_penalty,
-                source.undispellable,
-                source.dispellable_magic,
-                source.dispellable_harmful_magic,
-                source.dispellable_beneficial_magic,
-                source.mitigation_tier,
-                source.secondary_hit_dc_base,
-                source.debuff_count_threshold,
-                source.base_heal,
-                source.heal_per_level,
-                source.con_mod_base,
-                source.con_mod_per_2_levels,
-                source.body_size_category,
-                source.stack_behavior,
-                source.stack_limit,
-                source.trigger_event,
-                source.trigger_status_id,
-                source.consumed_status_id,
-                source.required_target_status_id,
-                source.required_target_status_min_stacks,
-                source.dice_per_consumed_stack,
-                source.dice_sides_per_stack,
-                source.ap_gain,
-                source.free_move_points_gain,
-                source.counts_as_debuff_override,
-                source.counts_as_debuff,
-                source.lock_counterattack,
-                source.lock_guard,
-                source.lock_dodge_bonus,
-                source.lock_crit,
-                source.save_bonus,
-                source.control_save_bonus,
-                source.passive_reduction,
-                source.content_dr,
-                source.guard_block,
-                source.main_skill_lock_other_debuff_count,
-                CopyStringNameArray(source.save_advantage_tags),
-                CopyStringNameArray(source.save_disadvantage_tags),
-                CopyStringNameArray(source.save_immunity_tags),
-                ProjectEquipmentDurabilitySlotWeights(
-                    source.equipment_durability_slot_weights
-                ),
-                source.required_target_status_source_selector,
-                source.bonus_condition_creature_type_tag,
-                CopyStringNameArray(source.mitigation_bypass_damage_tags),
-                CopyStringNameArray(source.mitigation_bypass_tiers),
-                CombatDamageSegmentDefinition.ProjectArray(source.extra_damage_segments),
-                CombatTargetDamageMultiplierRuleDefinition.ProjectArray(
-                    source.target_damage_multiplier_rules
-                ),
-                attackRollBonus: source.attack_roll_bonus,
-                attackRollAdvantage: source.attack_roll_advantage,
-                consumeOnNextAttackCheck: source.consume_on_next_attack_check,
-                consumeOnNextSave: source.consume_on_next_save,
-                sourceBoundWeaponBonusDamageDiceCount:
-                    source.source_bound_weapon_bonus_damage_dice_count,
-                sourceBoundWeaponBonusDamageDiceSides:
-                    source.source_bound_weapon_bonus_damage_dice_sides,
-                sourceBoundWeaponBonusDamageDiceBonus:
-                    source.source_bound_weapon_bonus_damage_dice_bonus,
-                chargeTrapImmunityMinSkillLevel:
-                    source.charge_trap_immunity_min_skill_level,
-                pathStepAreaPattern: source.path_step_area_pattern,
-                pathStepRadius: source.path_step_radius,
-                pathStepLogLabel: source.path_step_log_label,
-                repeatHitStatusId: source.repeat_hit_status_id,
-                repeatHitStatusThreshold: source.repeat_hit_status_threshold,
-                repeatHitStatusMinSkillLevel: source.repeat_hit_status_min_skill_level,
-                repeatHitStatusPower: source.repeat_hit_status_power,
-                repeatHitStatusDurationTu: source.repeat_hit_status_duration_tu,
-                repeatHitStatusLogTemplate: source.repeat_hit_status_log_template,
-                fixedAttackCount: source.fixed_attack_count,
-                weaponDiceMultiplier: source.weapon_dice_multiplier,
-                bonusWeaponDiceMultiplier: source.bonus_weapon_dice_multiplier,
-                bonusDamageSeparateEvent: source.bonus_damage_separate_event,
-                meleeComboStackGainBonus: source.melee_combo_stack_gain_bonus,
-                comboAttackBonusStatusId: source.combo_attack_bonus_status_id,
-                comboAttackBonusStackDivisor: source.combo_attack_bonus_stack_divisor,
-                upkeepResource: source.upkeep_resource,
-                upkeepIntervalTu: source.upkeep_interval_tu,
-                upkeepBaseCost: source.upkeep_base_cost,
-                upkeepEscalationIntervalTu: source.upkeep_escalation_interval_tu,
-                upkeepCostMultiplier: source.upkeep_cost_multiplier,
-                breakOnHardControl: source.break_on_hard_control,
-                terminationStatusId: source.termination_status_id,
-                terminationStatusDurationTu: source.termination_status_duration_tu,
-                terminationAttackRollPenalty: source.termination_attack_roll_penalty,
-                terminationCooldownTu: source.termination_cooldown_tu,
-                requiredTargetCreatureTypeTag: source.required_target_creature_type_tag,
-                requiredTargetMinCognition:
-                    BattleCognitionContentRules.ToKind(
-                        source.required_target_min_cognition
-                    ),
-                sourceRetreatDistance: source.source_retreat_distance
+        if (source == null)
+            return null;
+        _ = includeSaveFailureStatusOutcomes;
+        string sourceLabel = string.IsNullOrWhiteSpace(path)
+            ? "<CombatEffectDef>"
+            : path;
+        var context = new JsonContentEntryContext(
+            SkillContentJsonAuthoringDomain.DomainId,
+            "skill_definition_diagnostic_fixture",
+            sourceLabel,
+            "/entries/0"
+        );
+        ContentImportStageResult<CombatEffectImportModel> adapted =
+            SkillDiagnosticFixtureProjection.TryProjectEffect(
+                context,
+                source,
+                "skill_definition_diagnostic_fixture"
             );
+        if (adapted.HasValue)
+            return SkillDefinitionProjector.ProjectEffect(adapted.Value);
+        throw BuildAdaptationFailure(sourceLabel, adapted.Diagnostics);
     }
 
-    private static IReadOnlyList<EquipmentSlotWeightDefinition> ProjectEquipmentDurabilitySlotWeights(
-        Godot.Collections.Array<CombatEffectSlotWeightDef> values
+    private static InvalidDataException BuildAdaptationFailure(
+        string sourceLabel,
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics
     )
     {
-        if (values == null || values.Count == 0)
+        var details = new List<string>(diagnostics.Count);
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics)
         {
-            return System.Array.Empty<EquipmentSlotWeightDefinition>();
-        }
-        var result = new List<EquipmentSlotWeightDefinition>();
-        foreach (CombatEffectSlotWeightDef value in values)
-        {
-            if (value == null)
-            {
-                continue;
-            }
-            StringName slotId = ProgressionDataUtils.to_string_name(value.slot_id);
-            int weight = value.weight;
-            if (slotId == "" || weight <= 0)
-            {
-                continue;
-            }
-            result.Add(
-                new EquipmentSlotWeightDefinition
-                {
-                    SlotId = slotId,
-                    Weight = weight,
-                }
+            details.Add(
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
             );
         }
-        return result.Count > 0
-            ? new ReadOnlyCollection<EquipmentSlotWeightDefinition>(result)
-            : System.Array.Empty<EquipmentSlotWeightDefinition>();
+        return new InvalidDataException(
+            $"Combat effect diagnostic fixture '{sourceLabel}' cannot enter the canonical import model: "
+                + string.Join(" | ", details)
+        );
     }
 
-    private static IReadOnlyList<StringName> CopyStringNameArray(
-        Godot.Collections.Array<StringName> values
-    )
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNames;
-        var result = new List<StringName>(values.Count);
-        foreach (StringName value in values)
-            result.Add(value);
-        return new ReadOnlyCollection<StringName>(result);
-    }
-
-    private static IReadOnlyList<StringName> CopyStringNameArray(Godot.Collections.Array values)
-    {
-        if (values == null || values.Count == 0)
-            return EmptyStringNames;
-        var result = new List<StringName>(values.Count);
-        foreach (object value in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (normalized != "")
-                result.Add(normalized);
-        }
-        return result.Count > 0
-            ? new ReadOnlyCollection<StringName>(result)
-            : EmptyStringNames;
-    }
 
 }

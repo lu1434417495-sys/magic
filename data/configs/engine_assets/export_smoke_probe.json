@@ -1,0 +1,8 @@
+{
+  "probe_id": "engine_asset_export_smoke_v1",
+  "required_asset_ids": [
+    "battle.terrain.marker_preview",
+    "battle.board.prop_scene",
+    "ui.skill_icon.grayscale_shader"
+  ]
+}

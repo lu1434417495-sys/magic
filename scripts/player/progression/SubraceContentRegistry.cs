@@ -1,28 +1,27 @@
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public class SubraceContentRegistry : IdentityContentRegistryBase
 {
-    private const string SUBRACE_CONFIG_DIRECTORY = "res://data/configs/subraces";
+    private const string SubraceJsonDirectory = ProfessionIdentityJsonDomains.SubraceDirectory;
 
     private readonly Dictionary<StringName, SubraceDefinition> _subrace_defs = new();
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal SubraceContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal SubraceContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal SubraceContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
-        : base(resourceLoader)
+    internal SubraceContentRegistry(IContentJsonSourceReader jsonSourceReader, bool loadDefaultContent = true)
+        : base()
     {
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
         _registry_label = "SubraceContentRegistry";
         if (loadDefaultContent)
             Rebuild();
     }
 
-    public void Rebuild() => LoadFromDirectory(SUBRACE_CONFIG_DIRECTORY);
+    public void Rebuild() => LoadFromDirectory(SubraceJsonDirectory);
 
     public void LoadFromDirectory(string directoryPath)
     {
@@ -35,7 +34,7 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
         _validation_errors.Clear();
 
         foreach (var directoryPath in directoryPaths)
-            _scan_directory(directoryPath);
+            ImportDirectory(directoryPath);
 
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
@@ -49,45 +48,29 @@ public class SubraceContentRegistry : IdentityContentRegistryBase
         _subrace_defs.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ImportDirectory(string directoryPath)
     {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        ContentImportBatch<SubraceImportModel> batch = ProfessionIdentityJsonImport
+            .CreateSubraceDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validation_errors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<SubraceImportModel> entry in batch.Entries)
         {
-            _validation_errors.Add($"Failed to load subrace config {resourcePath}.");
-            return;
-        }
-        if (resource is not SubraceDef subraceDef)
-        {
-            _validation_errors.Add($"Subrace config {resourcePath} is not a SubraceDef.");
-            return;
-        }
-
-        if (subraceDef.subrace_id == "")
-        {
-            _validation_errors.Add($"Subrace config {resourcePath} is missing subrace_id.");
-            return;
-        }
-
-        if (_subrace_defs.ContainsKey(subraceDef.subrace_id))
-        {
-            _validation_errors.Add($"Duplicate subrace_id registered: {subraceDef.subrace_id}");
-            return;
-        }
-
-        try
-        {
-            SubraceDefinition definition = SubraceDefinition.FromResource(
-                subraceDef,
-                $"subrace.{subraceDef.subrace_id}"
-            );
-            _subrace_defs.Add(definition.SubraceId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Subrace config {resourcePath} projection failed: {exception.Message}"
-            );
+            try
+            {
+                SubraceDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_subrace_defs.TryAdd(definition.SubraceId, definition))
+                    _validation_errors.Add($"Duplicate subrace_id registered: {definition.SubraceId}");
+            }
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validation_errors.Add(
+                    $"Subrace JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
     }
 

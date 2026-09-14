@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_reject_schema_mana_cost",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_schema_mana_cost",
+      "display_name": "错误法力字段",
+      "description": "故意使用生成方常见的 mana_cost 幻觉字段。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "combat_profile": {
+        "skill_id": "mage_generated_schema_mana_cost",
+        "target_mode": "unit",
+        "target_team_filter": "enemy",
+        "range_value": 3,
+        "ap_cost": 1,
+        "mana_cost": 30,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 3,
+            "dice_sides": 4
+          }
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      }
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -23,7 +22,6 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             AssertStringNameKeyedSnapshotsRoundTrip();
             AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff();
             AssertFormalTerrainSkipsExplicitCellParsing();
-            AssertRuntimeSignaturesRejectAuthoredResources();
         }
         catch (Exception exception)
         {
@@ -36,7 +34,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
     private void AssertAuthoringProjectionIsDetachedAndSchemaStable()
     {
         StringName skillId = "definition_probe_skill";
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_probe_unit",
             display_name = "Definition Probe",
@@ -45,14 +43,13 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             skill_ids = new GArray { skillId },
             skill_level_map = new GDictionary { [skillId] = 3 },
         };
-        var allies = new GArray { unitSpec };
-        allies.Add(default(Variant));
+        var allies = new List<object> { unitSpec };
         var cellOverride = new GDictionary
         {
             ["coord"] = new Vector2I(0, 0),
             ["base_height"] = 8,
         };
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "definition_probe",
             display_name = "Definition Probe Scenario",
@@ -61,8 +58,8 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             terrain_profile_id = "definition_terrain",
             world_coord = new Vector2I(4, 5),
             ally_units = allies,
-            enemy_units = new GArray(),
-            cell_overrides = new Godot.Collections.Array<GDictionary> { cellOverride },
+            enemy_units = new List<object>(),
+            cell_overrides = new List<GDictionary> { cellOverride },
             timeline_ticks_per_step = 2,
             tu_per_tick = 7,
             max_iterations = 19,
@@ -81,11 +78,11 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
         unitSpec.skill_level_map[skillId] = 99;
         cellOverride["base_height"] = 99;
 
-        _test.Eq(definition.ScenarioId.ToString(), "definition_probe", "scenario id should be detached from its authored Resource");
+        _test.Eq(definition.ScenarioId.ToString(), "definition_probe", "scenario id should be detached from its import model");
         _test.Eq(definition.Seeds.Count, 2, "scenario seeds should preserve authored cardinality");
         _test.Eq(definition.Seeds[0], 17, "scenario seeds should be copied at projection time");
-        _test.Eq(definition.AuthoringAllyUnitCount, 2, "report schema should retain the raw authored ally count, including Nil entries");
-        _test.Eq(definition.AllyUnits.Count, 1, "runtime unit definitions should still skip authored Nil entries");
+        _test.Eq(definition.AuthoringAllyUnitCount, 1, "strict import schema should retain the authored ally count");
+        _test.Eq(definition.AllyUnits.Count, 1, "runtime unit definitions should preserve strict imported entries");
 
         BattleUnitState firstState = definition.AllyUnits[0].UnitDefinition.CreateRuntimeState();
         firstState.unit_id = "mutated_runtime_copy";
@@ -108,16 +105,16 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
         Dictionary<string, object> fileFacts =
             BattleSimFilePayloadProjection.BuildScenarioFacts(definition);
-        _test.Eq(Convert.ToInt32(fileFacts["ally_unit_count"]), 2, "file projection should preserve the authored ally count schema");
+        _test.Eq(Convert.ToInt32(fileFacts["ally_unit_count"]), 1, "file projection should preserve the authored ally count schema");
         using GodotProjectionLease<GDictionary> reportLease =
             BattleSimReportProjection.BuildScenarioLease(definition);
-        _test.Eq(reportLease.Value["ally_unit_count"].AsInt32(), 2, "Godot report projection should preserve the authored ally count schema");
+        _test.Eq(reportLease.Value["ally_unit_count"].AsInt32(), 1, "Godot report projection should preserve the authored ally count schema");
     }
 
     private void AssertStringNameKeyedSnapshotsRoundTrip()
     {
         StringName skillId = "definition_cooldown_probe";
-        using var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_cooldown_unit",
             display_name = "Definition Cooldown Unit",
@@ -143,13 +140,13 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
     private void AssertRuntimeOnlyEquipmentProjectionSurvivesScenarioRosterHandoff()
     {
-        using var allySpec = new BattleSimUnitSpec
+        var allySpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_temporal_projection_unit",
             display_name = "Definition Temporal Projection Unit",
             coord = new Vector2I(1, 1),
         };
-        using var enemySpec = new BattleSimUnitSpec
+        var enemySpec = new BattleSimTestUnitBuilder
         {
             unit_id = "definition_temporal_projection_enemy",
             display_name = "Definition Temporal Projection Enemy",
@@ -337,7 +334,7 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
 
     private void AssertFormalTerrainSkipsExplicitCellParsing()
     {
-        var scenario = new BattleSimScenarioDef
+        var scenario = new BattleSimTestScenarioBuilder
         {
             scenario_id = "formal_terrain_probe",
             use_formal_terrain_generation = true,
@@ -357,69 +354,6 @@ public partial class run_battle_sim_scenario_definition_regression : LifecycleTe
             new Vector2I(5, 4),
             "formal terrain projection should preserve battle_map_size"
         );
-    }
-
-    private void AssertRuntimeSignaturesRejectAuthoredResources()
-    {
-        Type[] runtimeOwners =
-        {
-            typeof(BattleSimScenarioDefinition),
-            typeof(BattleSimUnitDefinition),
-            typeof(BattleSimScenarioUnitEntry),
-            typeof(BattleSimScenarioReport),
-            typeof(BattleSimExecutionLoop),
-            typeof(BattleSimRunner),
-            typeof(BattleSimReportProjection),
-            typeof(BattleSimFilePayloadProjection),
-        };
-
-        foreach (Type owner in runtimeOwners)
-            AssertNoAuthoredResourceSignature(owner);
-    }
-
-    private void AssertNoAuthoredResourceSignature(Type owner)
-    {
-        const BindingFlags flags = BindingFlags.Instance
-            | BindingFlags.Static
-            | BindingFlags.Public
-            | BindingFlags.NonPublic
-            | BindingFlags.DeclaredOnly;
-
-        foreach (FieldInfo field in owner.GetFields(flags))
-            AssertNotAuthoredType(field.FieldType, $"{owner.Name}.{field.Name}");
-        foreach (PropertyInfo property in owner.GetProperties(flags))
-        {
-            AssertNotAuthoredType(property.PropertyType, $"{owner.Name}.{property.Name}");
-            foreach (ParameterInfo parameter in property.GetIndexParameters())
-                AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.{property.Name}[index]");
-        }
-        foreach (ConstructorInfo constructor in owner.GetConstructors(flags))
-        foreach (ParameterInfo parameter in constructor.GetParameters())
-            AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.ctor({parameter.Name})");
-        foreach (MethodInfo method in owner.GetMethods(flags))
-        {
-            AssertNotAuthoredType(method.ReturnType, $"{owner.Name}.{method.Name} return");
-            foreach (ParameterInfo parameter in method.GetParameters())
-                AssertNotAuthoredType(parameter.ParameterType, $"{owner.Name}.{method.Name}({parameter.Name})");
-        }
-    }
-
-    private void AssertNotAuthoredType(Type type, string path)
-    {
-        if (type == null)
-            return;
-        Type normalized = type.IsByRef || type.IsPointer || type.IsArray
-            ? type.GetElementType()
-            : type;
-        if (normalized == typeof(BattleSimScenarioDef) || normalized == typeof(BattleSimUnitSpec))
-        {
-            _test.Fail($"{path} must not retain an authored simulation Resource signature");
-            return;
-        }
-        if (normalized?.IsGenericType != true)
-            return;
-        foreach (Type argument in normalized.GetGenericArguments())
-            AssertNotAuthoredType(argument, path);
     }
 
     private void AssertPlainGraph(object value, string path)

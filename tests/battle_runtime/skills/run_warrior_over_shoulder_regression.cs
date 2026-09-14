@@ -161,14 +161,14 @@ public partial class run_warrior_over_shoulder_regression : LifecycleTestSceneTr
         BattleUnitState caster = BuildReadyCaster("vault_wall_caster", new Vector2I(1, 1));
         BattleUnitState target = BuildUnit("vault_wall_target", "enemy", new Vector2I(2, 1));
         using BattleTestFixture fixture = CreateFixture(skill, caster, target);
-        fixture.Runtime
-            .GetGridService()
-            .SetEdgeFeature(
-                fixture.State,
-                target.GetAnchorCoord(),
-                Vector2I.Right,
-                BattleEdgeFeatureState.MakeWall()
-            );
+        _test.True(
+            fixture.State.PutTemporaryEdgeFeature(
+                BuildTemporaryWall(target.GetAnchorCoord(), Vector2I.Right),
+                refreshExisting: false,
+                maxActiveEdges: 0
+            ),
+            "测试前提：临时墙体应可写入。"
+        );
 
         AssertRejectedWithoutCost(fixture.Runtime, caster, target, "目标与落点之间有墙时");
     }
@@ -216,6 +216,23 @@ public partial class run_warrior_over_shoulder_regression : LifecycleTestSceneTr
         BattleTestFixture.DisposeBattleCommand(command);
     }
 
+    private static BattleTemporaryEdgeFeatureState BuildTemporaryWall(
+        Vector2I originCoord,
+        Vector2I direction
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = originCoord,
+            Direction = direction,
+            BindingId = "over_shoulder_test_wall",
+            ActionId = "over_shoulder_test_wall",
+            CreatedAtTu = 0,
+            ExpiresAtTu = 100,
+            Feature = BattleEdgeFeatureState.MakeWall(),
+        };
+    }
+
     private static BattleTestFixture CreateFixture(
         SkillDefinition skill,
         BattleUnitState caster,
@@ -238,7 +255,7 @@ public partial class run_warrior_over_shoulder_regression : LifecycleTestSceneTr
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_over_shoulder.tres",
+            "warrior_over_shoulder",
             "warrior_over_shoulder_regression"
         );
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -57,7 +57,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
             "CenterContainer/Panel/MarginContainer/Content/Header/HeaderText/MetaLabel"
         );
         _choiceCards = GetNode<HBoxContainer>(
-            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceCards"
+            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceScroll/ChoiceCards"
         );
         _detailsLabel = GetNode<RichTextLabel>(
             "CenterContainer/Panel/MarginContainer/Content/Body/DetailsLabel"
@@ -68,6 +68,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
         _cancelButton = GetNode<Button>(
             "CenterContainer/Panel/MarginContainer/Content/Footer/CancelButton"
         );
+        _cancelButton.Text = "暂缓晋升";
 
         _cardStyleNormal = SelectionCardBuilder.MakeStyle(false);
         _cardStyleSelected = SelectionCardBuilder.MakeStyle(true);
@@ -104,7 +105,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
 
         Visible = true;
         _titleLabel.Text = "职业晋升";
-        _metaLabel.Text = $"{_memberName} 触发了新的职业晋升选择。";
+        _metaLabel.Text = $"{_memberName} · 选择本次成长技能与职业，也可以稍后再决定。";
         _rebuild_choice_cards();
         _select_choice(_choices.Count > 0 ? 0 : -1);
     }
@@ -148,16 +149,10 @@ public partial class PromotionChoiceWindow : ModalWindowShell
 
     private PanelContainer _create_card(int index, PromotionChoiceEntry choice)
     {
-        var skillStrings = new List<object>();
-        foreach (StringName skillId in choice.GrantedSkillIds)
-            skillStrings.Add(skillId.ToString());
-
         var cardPayload = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["title"] = choice.DisplayName,
             ["summary"] = choice.Summary,
-            ["chip_header"] = skillStrings.Count > 0 ? "授予技能" : "",
-            ["chips"] = skillStrings,
         };
         using GodotProjectionLease<GDictionary> cardLease =
             RuntimePlainPayload.ProjectDictionaryLease(
@@ -167,6 +162,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
                 "PromotionChoiceWindow.choice.card"
             );
         PanelContainer card = SelectionCardBuilder.BuildCard(cardLease.Value);
+        card.CustomMinimumSize = new Vector2(280, 156);
         card.GuiInput += @event => _on_card_gui_input(@event, index);
         return card;
     }
@@ -198,16 +194,10 @@ public partial class PromotionChoiceWindow : ModalWindowShell
 
         PromotionChoiceEntry choiceData = _choices[_selectedIndex];
 
-        var skillNames = new List<string>();
-        foreach (StringName skillId in choiceData.GrantedSkillIds)
-            skillNames.Add(skillId.ToString());
         string displayNameText = _escape_bbcode(choiceData.DisplayName);
         string descriptionText = !string.IsNullOrEmpty(choiceData.Description)
             ? _escape_bbcode(choiceData.Description)
             : "[i]暂无描述[/i]";
-        string skillsText = _escape_bbcode(
-            skillNames.Count > 0 ? string.Join(", ", skillNames) : "暂无"
-        );
         string selectionHintText = _escape_bbcode(choiceData.SelectionHint);
 
         _detailsLabel.Text = string.Join(
@@ -218,8 +208,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
                 "",
                 descriptionText,
                 "",
-                $"[color=#a3c1ee]授予技能：[/color]{skillsText}",
-                $"[color=#a3c1ee]说明：[/color][i]{selectionHintText}[/i]",
+                selectionHintText,
             }
         );
         _confirmButton.Disabled = false;
@@ -393,6 +382,7 @@ public partial class PromotionChoiceWindow : ModalWindowShell
             || !HasArray(data, "granted_skill_ids")
             || !HasNonEmptyString(data, "selection_hint")
             || !HasDictionary(data, "selection")
+            || PromotionCommitRequest.FromPlainPayload(DictDictionary(data, "selection")) == null
         )
             return false;
         foreach (object skillId in DictArray(data, "granted_skill_ids"))

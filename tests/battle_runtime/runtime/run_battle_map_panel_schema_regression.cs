@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 
 public partial class run_battle_map_panel_schema_regression : LifecycleTestSceneTree
@@ -10,21 +9,49 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         "res://scenes/ui/battle_map_panel.tscn"
     );
 
-    public override async void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private async void Run()
     {
-        await TestBattleMapPanelAppliesFormalSnapshot();
-        await TestBattleMapPanelAppliesCommandDock();
-        await TestBattleMapPanelViewportControlsAndFateRow();
-        await TestBattleMapPanelReleasesPendingBattlePayload();
-        RequestTestExit(_test.Finish("Battle map panel schema regression"));
+        try
+        {
+            await TestBattleMapPanelAppliesFormalSnapshot();
+            await TestScaledViewportAndSkillHitTargets();
+            await TestEquipmentModalReceivesClicksAboveLaterHud();
+            await TestBattleMapPanelAppliesCommandDock();
+            await TestBattleMapPanelViewportControlsAndFateRow();
+            await TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle map panel schema regression"));
+        }
     }
 
-    private async System.Threading.Tasks.Task TestBattleMapPanelReleasesPendingBattlePayload()
+    private async System.Threading.Tasks.Task TestBattleMapPanelRevealUsesDetachedSnapshotAndCancelsCleanly()
     {
         var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
         Root.AddChild(panel);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+
+        var loadingEvents = new List<(bool IsLoading, float Progress)>();
+        int readySignalCount = 0;
+        void OnLoadingStateChanged(bool isLoading, float progress) =>
+            RecordLoadingEvent(isLoading, progress);
+        void RecordLoadingEvent(bool isLoading, float progress)
+        {
+            loadingEvents.Add((isLoading, progress));
+            if (!isLoading && Mathf.IsEqualApprox(progress, 100.0f))
+            {
+                readySignalCount += 1;
+            }
+        }
+        panel.battle_loading_state_changed += OnLoadingStateChanged;
 
         BattleUnitState ally = BattleTestFixture.BuildUnit(
             "panel_pending_ally",
@@ -43,80 +70,52 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             new[] { enemy }
         );
 
+        string projectedAllyName = ally.display_name;
         ShowPendingBattle(panel, fixture.State);
-        for (
-            int frame = 0;
-            frame < 5 && ReadPrivateField<bool>(panel, "_has_pending_show_battle_payload");
-            frame++
-        )
-        {
-            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-        }
-        AssertPendingBattlePayloadCleared(panel, "应用完成后");
-        ShowPendingBattle(panel, fixture.State);
-        AssertPendingBattlePayloadCleared(panel, "同一 battle reveal 更新后");
-
-        panel.HideBattle();
-        ShowPendingBattle(panel, fixture.State);
-        BattleBoardRenderSnapshot pendingSnapshot =
-            ReadPrivateField<BattleBoardRenderSnapshot>(panel, "_pending_board_snapshot");
         _test.True(
-            pendingSnapshot != null
-                && pendingSnapshot.BattleId == fixture.State.battle_id
-                && pendingSnapshot.MapSize == fixture.State.map_size,
-            "HideBattle 前应持有 detached board snapshot。"
+            panel.Visible && panel.IsLoadingBattle() && panel.GetLoadingProgress() > 0.0f,
+            "首次 ShowBattle 应公开进入可见 loading 状态。"
         );
+        ally.display_name = "mutated_after_snapshot";
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.Eq(
+            panel.unit_name_label.Text,
+            projectedAllyName,
+            "异步 reveal 应应用调用时生成的 detached HUD snapshot，而不是随后改写的 live unit。"
+        );
+
         panel.HideBattle();
-        AssertPendingBattlePayloadCleared(panel, "HideBattle 后");
+        _test.False(panel.Visible, "HideBattle 应立即隐藏 panel。");
+        _test.False(panel.IsLoadingBattle(), "HideBattle 应取消进行中的 reveal。");
+        _test.Eq(panel.GetLoadingProgress(), 0.0f, "HideBattle 应把 loading progress 归零。");
+        _test.Eq(panel.unit_name_label.Text, "待命", "HideBattle 应恢复占位 HUD，而非保留上场快照。");
+        _test.True(
+            loadingEvents.Count > 0
+                && !loadingEvents[^1].IsLoading
+                && Mathf.IsEqualApprox(loadingEvents[^1].Progress, 0.0f),
+            "HideBattle 应通过公开 loading signal 发布取消和归零。"
+        );
+
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.False(panel.Visible, "已取消的异步 reveal 不应在后续 frame 重新显示 panel。");
+        _test.Eq(
+            panel.unit_name_label.Text,
+            "待命",
+            "已取消的异步 reveal 不应在后续 frame 写回旧 HUD snapshot。"
+        );
 
         ShowPendingBattle(panel, fixture.State);
-        panel.UpdateHoverPreview(
-            fixture.State,
-            Vector2I.Zero,
-            Array.Empty<Vector2I>(),
-            "",
-            ""
-        );
-        _test.Eq(
-            ReadPrivateField<Vector2I>(panel, "_hover_preview_coord"),
-            Vector2I.Zero,
-            "_ExitTree 前 hover preview 只应保留展示坐标。"
-        );
-        int revealTicketBeforeExit = ReadPrivateField<int>(panel, "_battle_reveal_ticket");
+        _test.True(panel.IsLoadingBattle(), "再次 ShowBattle 应启动新的 reveal 生命周期。");
+        int readySignalCountBeforeExit = readySignalCount;
         panel.QueueFree();
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        AssertPendingBattlePayloadCleared(panel, "_ExitTree 后");
         _test.Eq(
-            ReadPrivateField<Vector2I>(panel, "_hover_preview_coord"),
-            BattleMapPanel.INVALID_HOVER_COORD(),
-            "_ExitTree 应清空 hover preview 展示坐标。"
-        );
-        _test.True(
-            ReadPrivateField<int>(panel, "_battle_reveal_ticket") > revealTicketBeforeExit,
-            "_ExitTree 应使仍在等待的 battle reveal ticket 失效。"
-        );
-        _test.Eq(
-            ReadPrivateField<float>(panel, "_battle_loading_progress"),
-            0.0f,
-            "_ExitTree 应在不发布 UI signal 的情况下归零 loading progress。"
-        );
-    }
-
-    private void AssertPendingBattlePayloadCleared(BattleMapPanel panel, string stage)
-    {
-        _test.False(
-            ReadPrivateField<bool>(panel, "_has_pending_show_battle_payload"),
-            $"{stage}不应保留 pending payload flag。"
-        );
-        _test.True(
-            ReadPrivateField<BattleBoardRenderSnapshot>(panel, "_pending_board_snapshot") == null,
-            $"{stage}不应保留 pending board snapshot。"
-        );
-        _test.True(
-            ReadPrivateField<BattleHudSnapshot>(panel, "_pending_hud_snapshot") == null,
-            $"{stage}不应保留 pending HUD snapshot。"
+            readySignalCount,
+            readySignalCountBeforeExit,
+            "_ExitTree 应静默失效等待中的 reveal，不得在节点退出后发布迟到的 ready 信号。"
         );
     }
 
@@ -133,17 +132,6 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             Array.Empty<StringName>(),
             ""
         );
-
-    private static T ReadPrivateField<T>(BattleMapPanel panel, string fieldName)
-    {
-        FieldInfo field =
-            typeof(BattleMapPanel).GetField(
-                fieldName,
-                BindingFlags.Instance | BindingFlags.NonPublic
-            )
-            ?? throw new MissingFieldException(typeof(BattleMapPanel).FullName, fieldName);
-        return (T)field.GetValue(panel);
-    }
 
     private async System.Threading.Tasks.Task TestBattleMapPanelViewportControlsAndFateRow()
     {
@@ -254,6 +242,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
                     2,
                     3,
                     5,
+                    BattleHudReactionBudgetSnapshot.Hidden,
                     StatusEffects: new[]
                     {
                         new BattleHudStatusEffectSnapshot(
@@ -300,6 +289,56 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
+    private async System.Threading.Tasks.Task TestEquipmentModalReceivesClicksAboveLaterHud()
+    {
+        Vector2I originalSize = Root.Size;
+        Vector2I originalContentSize = Root.ContentScaleSize;
+        Window.ContentScaleModeEnum originalMode = Root.ContentScaleMode;
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        var laterHud = new Control { Name = "LaterHud", MouseFilter = Control.MouseFilterEnum.Stop };
+        int interceptedClicks = 0;
+        laterHud.GuiInput += input =>
+        {
+            if (input is InputEventMouseButton { Pressed: true }) interceptedClicks++;
+        };
+        try
+        {
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+            Root.AddChild(panel);
+            panel.Show();
+            panel._apply_snapshot(BuildSnapshot());
+            Root.AddChild(laterHud);
+            var input = new E2eInputDriver(this, new E2eWait(this));
+            await ToSignal(this, SignalName.ProcessFrame);
+            Button open = panel.equipment_button_slot.GetNode<Button>("BattleEquipmentButton");
+            await input.ClickAsync(open);
+            Control overlay = panel.GetNode<Control>("HudRoot/BattleEquipmentOverlay");
+            Button close = overlay.GetNode<Button>(
+                "ModalCanvas/BattleEquipmentCenter/BattleEquipmentPanel/BattleEquipmentContent/BattleEquipmentHeader/BattleEquipmentCloseButton");
+            _test.True(overlay.Visible, "真实点击战中背包入口应打开弹窗。");
+            laterHud.Position = close.GlobalPosition;
+            laterHud.Size = close.Size;
+            await input.ClickAsync(close);
+            _test.False(overlay.Visible, "后加入的 HUD 与关闭按钮重叠时，鼠标仍应关闭最前面的弹窗。");
+            _test.Eq(interceptedClicks, 0, "背包弹窗内的点击不得穿透到日志等 HUD。");
+            await input.ClickAsync(laterHud);
+            _test.Eq(interceptedClicks, 1, "背包关闭后应恢复底层 HUD 的鼠标操作。");
+            await input.ClickAsync(open);
+            panel.HideBattle();
+            await input.ClickAsync(laterHud);
+            _test.Eq(interceptedClicks, 2, "隐藏战斗时应同时释放背包的独立输入层。");
+        }
+        finally
+        {
+            panel.QueueFree();
+            laterHud.QueueFree();
+            await ToSignal(this, SignalName.ProcessFrame);
+            Root.ContentScaleMode = originalMode;
+            Root.ContentScaleSize = originalContentSize;
+            Root.Size = originalSize;
+        }
+    }
+
     private static BattleHudSnapshot BuildSnapshot(
         BattleHudRoundBadgeSnapshot roundBadge = null,
         BattleHudFocusUnitSnapshot focusUnit = null,
@@ -313,7 +352,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         string hintText = "",
         IEnumerable<string> recentLogLines = null,
         BattleHudCommandDockSnapshot commandDock = null,
-        BattleHudObjectiveProgressSnapshot objectiveProgress = null
+        BattleHudObjectiveProgressSnapshot objectiveProgress = null,
+        IEnumerable<BattleHudSkillSlotSnapshot> skillSlots = null
     ) =>
         new(
             "战斗地图",
@@ -325,7 +365,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             "技能矩阵",
             selectedSkillVariantName,
             skillSubtitle,
-            Array.Empty<BattleHudSkillSlotSnapshot>(),
+            skillSlots ?? Array.Empty<BattleHudSkillSlotSnapshot>(),
             "",
             "",
             BattlePresentationPayload.Empty,
@@ -392,5 +432,82 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
     {
         BattleHudResourceLineSnapshot line = new(0, 1, 0.0f, "", true);
         return new BattleHudResourceInfoSnapshot(line, line, line, line, line, line);
+    }
+
+    private async System.Threading.Tasks.Task TestScaledViewportAndSkillHitTargets()
+    {
+        Vector2I originalSize = Root.Size;
+        Vector2I originalContentSize = Root.ContentScaleSize;
+        Window.ContentScaleModeEnum originalMode = Root.ContentScaleMode;
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        try
+        {
+            Root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(3840, 2160), false), Root);
+            Root.AddChild(panel);
+            panel.Visible = true;
+            panel._apply_snapshot(BuildSnapshot(skillSlots: new[]
+            {
+                new BattleHudSkillSlotSnapshot(0, true),
+                new BattleHudSkillSlotSnapshot(4, false, displayName: "测试技能", shortName: "测试", hotkey: "5", accentColor: Colors.Purple),
+                new BattleHudSkillSlotSnapshot(5, true),
+            }));
+            for (int i = 0; i < 5; i++)
+                await ToSignal(this, SignalName.ProcessFrame);
+            _test.Eq(Root.ContentScaleSize, new Vector2I(1920, 1080), "4K 应保持可读的逻辑 UI 尺寸。");
+            _test.Eq(panel.skill_grid.GetChildCount(), 1, "空槽不应占据操作区。");
+            Control slot = panel.skill_grid.GetChild<Control>(0);
+            ColorRect glow = null;
+            BattleSkillSlotButton button = null;
+            foreach (Node node in slot.FindChildren("*", "Control", true, false))
+            {
+                if (node is ColorRect rect && rect.Name == "FateGlow") glow = rect;
+                if (node is BattleSkillSlotButton target) button = target;
+            }
+            _test.True(glow != null && glow.Size.Y <= 3.1f, "技能色条必须保持底部细线，不能覆盖图标。");
+            _test.True(glow != null && glow.GetGlobalRect().End.Y <= slot.GetGlobalRect().End.Y + 1, "色条应位于槽内。");
+            int selectedIndex = -1;
+            panel.battle_skill_slot_selected += index => selectedIndex = index;
+            var wait = new E2eWait(this);
+            var input = new E2eInputDriver(this, wait);
+            await input.ClickAsync(button);
+            _test.Eq(selectedIndex, 4, "隐藏空槽后，真实鼠标点击仍应提交原始技能索引。");
+
+            Control host = panel.GetNode<Control>("%MapViewportHost");
+            SubViewport map = panel.map_viewport_container.GetNode<SubViewport>("MapSubViewport");
+            Vector2 scale = Root.GetStretchTransform().Scale;
+            _test.True(Mathf.Abs(map.Size.X - host.Size.X * scale.X) <= 1, "地图渲染宽度应使用物理像素。");
+            _test.True(Mathf.Abs(panel.map_viewport_container.GetGlobalRect().Size.X - host.Size.X) <= 1, "地图显示和鼠标命中范围应与逻辑宿主一致。");
+            _test.True(panel.map_frame.GetGlobalRect().End.Y <= panel.bottom_panel.GlobalPosition.Y, "操作区不得覆盖地图可点击范围。");
+            BattleUnitState ally = BattleTestFixture.BuildUnit("scaled_ally", "player", Vector2I.Zero);
+            BattleUnitState enemy = BattleTestFixture.BuildUnit("scaled_enemy", "enemy", new Vector2I(2, 0));
+            using (BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+                "scaled_hit_test", new Vector2I(3, 2), new[] { ally }, new[] { enemy }))
+            {
+                ShowPendingBattle(panel, fixture.State);
+                for (int i = 0; i < 8; i++) await ToSignal(this, SignalName.ProcessFrame);
+                Vector2I clickedCoord = new(-1, -1);
+                Vector2I expectedCoord = new(1, 1);
+                panel.battle_cell_clicked += coord => clickedCoord = coord;
+                await input.ClickAtAsync(panel.map_viewport_container, panel._battle_board.CoordToViewportPosition(expectedCoord));
+                _test.Eq(clickedCoord, expectedCoord, "4K 地图缩放后，真实点击必须命中原来的格子。");
+                new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+                for (int i = 0; i < 5; i++) await ToSignal(this, SignalName.ProcessFrame);
+                _test.True(new Rect2(Vector2.Zero, map.Size).HasPoint(panel._battle_board.CoordToViewportPosition(Vector2I.Zero)),
+                    "从 4K 缩回 720p 后焦点单位应继续位于视口内。");
+                panel.HideBattle();
+            }
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+            for (int i = 0; i < 5; i++) await ToSignal(this, SignalName.ProcessFrame);
+            _test.True(Mathf.Abs(map.Size.X - host.Size.X) <= 1, "缩回 720p 后地图不能保留 4K 最小尺寸。");
+        }
+        finally
+        {
+            panel.QueueFree();
+            await ToSignal(this, SignalName.ProcessFrame);
+            Root.ContentScaleMode = originalMode;
+            Root.ContentScaleSize = originalContentSize;
+            Root.Size = originalSize;
+        }
     }
 }

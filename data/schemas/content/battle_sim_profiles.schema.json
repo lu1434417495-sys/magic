@@ -1,0 +1,883 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:battle_sim_profiles:v1",
+  "title": "Magic BattleSim profile JSON authoring schema",
+  "description": "Strict profile and closed override-patch contract.",
+  "$ref": "#/$defs/BattleSimProfileJsonDocumentDto",
+  "$defs": {
+    "BattleAiScoreProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_base_scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "ap_cost_weight": {
+          "type": "integer"
+        },
+        "aura_cost_weight": {
+          "type": "integer"
+        },
+        "aura_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "aura_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "aura_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "bucket_priorities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "chain_enemy_target_weight": {
+          "type": "integer"
+        },
+        "control_weight": {
+          "type": "integer"
+        },
+        "cooldown_weight": {
+          "type": "integer"
+        },
+        "damage_weight": {
+          "type": "integer"
+        },
+        "default_bucket_priority": {
+          "type": "integer"
+        },
+        "delayed_resolution_cost_per_5_tu": {
+          "type": "integer"
+        },
+        "enemy_target_count_weight": {
+          "type": "integer"
+        },
+        "execute_bonus_weight": {
+          "type": "integer"
+        },
+        "execute_target_hp_threshold_bp": {
+          "type": "integer"
+        },
+        "focus_fire_wounded_target_weight": {
+          "type": "integer"
+        },
+        "friendly_control_target_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_damage_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_target_weight": {
+          "type": "integer"
+        },
+        "friendly_lethal_target_weight": {
+          "type": "integer"
+        },
+        "ground_control_weight": {
+          "type": "integer"
+        },
+        "heal_weight": {
+          "type": "integer"
+        },
+        "height_weight": {
+          "type": "integer"
+        },
+        "hit_rate_reliability_weight": {
+          "type": "integer"
+        },
+        "incoming_threat_relief_weight": {
+          "type": "integer"
+        },
+        "lethal_survival_risk_penalty": {
+          "type": "integer"
+        },
+        "lethal_target_weight": {
+          "type": "integer"
+        },
+        "lethal_threat_target_weight": {
+          "type": "integer"
+        },
+        "low_hp_urgency_threshold_bp": {
+          "type": "integer"
+        },
+        "low_hp_urgency_weight": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_profile": {
+          "type": "string"
+        },
+        "meteor_friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_damage_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_target_priority_score": {
+          "type": "integer"
+        },
+        "meteor_high_priority_threat_multiplier_bp": {
+          "type": "integer"
+        },
+        "meteor_top_threat_rank": {
+          "type": "integer"
+        },
+        "movement_cost_weight": {
+          "type": "integer"
+        },
+        "mp_cost_weight": {
+          "type": "integer"
+        },
+        "mp_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "mp_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "mp_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "overkill_damage_penalty_weight": {
+          "type": "integer"
+        },
+        "position_base_score": {
+          "type": "integer"
+        },
+        "position_distance_step": {
+          "type": "integer"
+        },
+        "position_objective_weight": {
+          "type": "integer"
+        },
+        "position_overshoot_penalty": {
+          "type": "integer"
+        },
+        "position_undershoot_penalty": {
+          "type": "integer"
+        },
+        "post_action_threat_count_weight": {
+          "type": "integer"
+        },
+        "post_action_threat_damage_weight": {
+          "type": "integer"
+        },
+        "resource_conservation_weight": {
+          "type": "integer"
+        },
+        "role_threat_distance_window": {
+          "type": "integer"
+        },
+        "role_threat_in_range_score_step": {
+          "type": "integer"
+        },
+        "role_threat_max_approach_distance": {
+          "type": "integer"
+        },
+        "role_threat_max_contact_range": {
+          "type": "integer"
+        },
+        "role_threat_min_effective_range": {
+          "type": "integer"
+        },
+        "safe_distance_adherence_weight": {
+          "type": "integer"
+        },
+        "save_reliable_damage_weight": {
+          "type": "integer"
+        },
+        "shield_absorbed_weight": {
+          "type": "integer"
+        },
+        "stamina_cost_weight": {
+          "type": "integer"
+        },
+        "stamina_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "stamina_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "stamina_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "status_redundancy_penalty": {
+          "type": "integer"
+        },
+        "status_weight": {
+          "type": "integer"
+        },
+        "survival_margin_gain_weight": {
+          "type": "integer"
+        },
+        "target_count_weight": {
+          "type": "integer"
+        },
+        "terrain_weight": {
+          "type": "integer"
+        },
+        "threat_control_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_healer_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_multiplier_cap_basis_points": {
+          "type": "integer"
+        },
+        "threat_range_step_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_ranged_bias_basis_points": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action_base_scores",
+        "ap_cost_weight",
+        "aura_cost_weight",
+        "aura_reserve_breach_penalty",
+        "aura_reserve_floor_bp",
+        "aura_reserve_pressure_weight",
+        "bucket_priorities",
+        "chain_enemy_target_weight",
+        "control_weight",
+        "cooldown_weight",
+        "damage_weight",
+        "default_bucket_priority",
+        "delayed_resolution_cost_per_5_tu",
+        "enemy_target_count_weight",
+        "execute_bonus_weight",
+        "execute_target_hp_threshold_bp",
+        "focus_fire_wounded_target_weight",
+        "friendly_control_target_weight",
+        "friendly_fire_damage_weight",
+        "friendly_fire_target_weight",
+        "friendly_lethal_target_weight",
+        "ground_control_weight",
+        "heal_weight",
+        "height_weight",
+        "hit_rate_reliability_weight",
+        "incoming_threat_relief_weight",
+        "lethal_survival_risk_penalty",
+        "lethal_target_weight",
+        "lethal_threat_target_weight",
+        "low_hp_urgency_threshold_bp",
+        "low_hp_urgency_weight",
+        "meteor_friendly_fire_hard_expected_hp_percent",
+        "meteor_friendly_fire_hard_worst_case_hp_percent",
+        "meteor_friendly_fire_profile",
+        "meteor_friendly_fire_soft_expected_hp_percent",
+        "meteor_high_priority_damage_hp_percent",
+        "meteor_high_priority_target_priority_score",
+        "meteor_high_priority_threat_multiplier_bp",
+        "meteor_top_threat_rank",
+        "movement_cost_weight",
+        "mp_cost_weight",
+        "mp_reserve_breach_penalty",
+        "mp_reserve_floor_bp",
+        "mp_reserve_pressure_weight",
+        "overkill_damage_penalty_weight",
+        "position_base_score",
+        "position_distance_step",
+        "position_objective_weight",
+        "position_overshoot_penalty",
+        "position_undershoot_penalty",
+        "post_action_threat_count_weight",
+        "post_action_threat_damage_weight",
+        "resource_conservation_weight",
+        "role_threat_distance_window",
+        "role_threat_in_range_score_step",
+        "role_threat_max_approach_distance",
+        "role_threat_max_contact_range",
+        "role_threat_min_effective_range",
+        "safe_distance_adherence_weight",
+        "save_reliable_damage_weight",
+        "shield_absorbed_weight",
+        "stamina_cost_weight",
+        "stamina_reserve_breach_penalty",
+        "stamina_reserve_floor_bp",
+        "stamina_reserve_pressure_weight",
+        "status_redundancy_penalty",
+        "status_weight",
+        "survival_margin_gain_weight",
+        "target_count_weight",
+        "terrain_weight",
+        "threat_control_bias_basis_points",
+        "threat_healer_bias_basis_points",
+        "threat_multiplier_cap_basis_points",
+        "threat_range_step_bias_basis_points",
+        "threat_ranged_bias_basis_points"
+      ]
+    },
+    "BattleAiScoreProfileJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_base_scores": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "ap_cost_weight": {
+          "type": "integer"
+        },
+        "aura_cost_weight": {
+          "type": "integer"
+        },
+        "aura_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "aura_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "aura_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "bucket_priorities": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "chain_enemy_target_weight": {
+          "type": "integer"
+        },
+        "control_weight": {
+          "type": "integer"
+        },
+        "cooldown_weight": {
+          "type": "integer"
+        },
+        "damage_weight": {
+          "type": "integer"
+        },
+        "default_bucket_priority": {
+          "type": "integer"
+        },
+        "delayed_resolution_cost_per_5_tu": {
+          "type": "integer"
+        },
+        "enemy_target_count_weight": {
+          "type": "integer"
+        },
+        "execute_bonus_weight": {
+          "type": "integer"
+        },
+        "execute_target_hp_threshold_bp": {
+          "type": "integer"
+        },
+        "focus_fire_wounded_target_weight": {
+          "type": "integer"
+        },
+        "friendly_control_target_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_damage_weight": {
+          "type": "integer"
+        },
+        "friendly_fire_target_weight": {
+          "type": "integer"
+        },
+        "friendly_lethal_target_weight": {
+          "type": "integer"
+        },
+        "ground_control_weight": {
+          "type": "integer"
+        },
+        "heal_weight": {
+          "type": "integer"
+        },
+        "height_weight": {
+          "type": "integer"
+        },
+        "hit_rate_reliability_weight": {
+          "type": "integer"
+        },
+        "incoming_threat_relief_weight": {
+          "type": "integer"
+        },
+        "lethal_survival_risk_penalty": {
+          "type": "integer"
+        },
+        "lethal_target_weight": {
+          "type": "integer"
+        },
+        "lethal_threat_target_weight": {
+          "type": "integer"
+        },
+        "low_hp_urgency_threshold_bp": {
+          "type": "integer"
+        },
+        "low_hp_urgency_weight": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_friendly_fire_profile": {
+          "type": "string"
+        },
+        "meteor_friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_damage_hp_percent": {
+          "type": "integer"
+        },
+        "meteor_high_priority_target_priority_score": {
+          "type": "integer"
+        },
+        "meteor_high_priority_threat_multiplier_bp": {
+          "type": "integer"
+        },
+        "meteor_top_threat_rank": {
+          "type": "integer"
+        },
+        "movement_cost_weight": {
+          "type": "integer"
+        },
+        "mp_cost_weight": {
+          "type": "integer"
+        },
+        "mp_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "mp_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "mp_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "overkill_damage_penalty_weight": {
+          "type": "integer"
+        },
+        "position_base_score": {
+          "type": "integer"
+        },
+        "position_distance_step": {
+          "type": "integer"
+        },
+        "position_objective_weight": {
+          "type": "integer"
+        },
+        "position_overshoot_penalty": {
+          "type": "integer"
+        },
+        "position_undershoot_penalty": {
+          "type": "integer"
+        },
+        "post_action_threat_count_weight": {
+          "type": "integer"
+        },
+        "post_action_threat_damage_weight": {
+          "type": "integer"
+        },
+        "resource_conservation_weight": {
+          "type": "integer"
+        },
+        "role_threat_distance_window": {
+          "type": "integer"
+        },
+        "role_threat_in_range_score_step": {
+          "type": "integer"
+        },
+        "role_threat_max_approach_distance": {
+          "type": "integer"
+        },
+        "role_threat_max_contact_range": {
+          "type": "integer"
+        },
+        "role_threat_min_effective_range": {
+          "type": "integer"
+        },
+        "safe_distance_adherence_weight": {
+          "type": "integer"
+        },
+        "save_reliable_damage_weight": {
+          "type": "integer"
+        },
+        "shield_absorbed_weight": {
+          "type": "integer"
+        },
+        "stamina_cost_weight": {
+          "type": "integer"
+        },
+        "stamina_reserve_breach_penalty": {
+          "type": "integer"
+        },
+        "stamina_reserve_floor_bp": {
+          "type": "integer"
+        },
+        "stamina_reserve_pressure_weight": {
+          "type": "integer"
+        },
+        "status_redundancy_penalty": {
+          "type": "integer"
+        },
+        "status_weight": {
+          "type": "integer"
+        },
+        "survival_margin_gain_weight": {
+          "type": "integer"
+        },
+        "target_count_weight": {
+          "type": "integer"
+        },
+        "terrain_weight": {
+          "type": "integer"
+        },
+        "threat_control_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_healer_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_multiplier_cap_basis_points": {
+          "type": "integer"
+        },
+        "threat_range_step_bias_basis_points": {
+          "type": "integer"
+        },
+        "threat_ranged_bias_basis_points": {
+          "type": "integer"
+        }
+      }
+    },
+    "BattleSimActionPatchPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "type": "string"
+        },
+        "brain_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "state_id": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Object"
+        }
+      },
+      "required": [
+        "action_id",
+        "brain_id",
+        "path",
+        "state_id",
+        "value"
+      ]
+    },
+    "BattleSimOverridePatchJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSimOverridePatchJsonDto__action"
+        },
+        {
+          "$ref": "#/$defs/BattleSimOverridePatchJsonDto__ai_score_profile"
+        },
+        {
+          "$ref": "#/$defs/BattleSimOverridePatchJsonDto__brain"
+        },
+        {
+          "$ref": "#/$defs/BattleSimOverridePatchJsonDto__faction_ai_score_profile"
+        },
+        {
+          "$ref": "#/$defs/BattleSimOverridePatchJsonDto__skill"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "action": "#/$defs/BattleSimOverridePatchJsonDto__action",
+          "ai_score_profile": "#/$defs/BattleSimOverridePatchJsonDto__ai_score_profile",
+          "brain": "#/$defs/BattleSimOverridePatchJsonDto__brain",
+          "faction_ai_score_profile": "#/$defs/BattleSimOverridePatchJsonDto__faction_ai_score_profile",
+          "skill": "#/$defs/BattleSimOverridePatchJsonDto__skill"
+        }
+      }
+    },
+    "BattleSimOverridePatchJsonDto__action": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "action"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleSimActionPatchPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSimOverridePatchJsonDto__ai_score_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ai_score_profile"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleSimScorePatchPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSimOverridePatchJsonDto__brain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "brain"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleSimTargetPatchPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSimOverridePatchJsonDto__faction_ai_score_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "faction_ai_score_profile"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleSimTargetPatchPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSimOverridePatchJsonDto__skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "skill"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleSimTargetPatchPayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSimProfileJsonDocumentDto": {
+      "description": "BattleSim profile document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "battle_sim_profiles"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BattleSimProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BattleSimProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ai_score_profile": {
+          "$ref": "#/$defs/BattleAiScoreProfileJsonDto"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "override_patches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimOverridePatchJsonDto"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ai_score_profile",
+        "description",
+        "display_name",
+        "override_patches",
+        "profile_id"
+      ]
+    },
+    "BattleSimProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSimProfileJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BattleSimProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BattleSimProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ai_score_profile": {
+          "$ref": "#/$defs/BattleAiScoreProfileJsonDto__partial"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "override_patches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimOverridePatchJsonDto"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BattleSimProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ai_score_profile": {
+          "$ref": "#/$defs/BattleAiScoreProfileJsonDto__partial"
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "override_patches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSimOverridePatchJsonDto"
+          }
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    },
+    "BattleSimScorePatchPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Object"
+        }
+      },
+      "required": [
+        "path",
+        "value"
+      ]
+    },
+    "BattleSimTargetPatchPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/Object"
+        }
+      },
+      "required": [
+        "path",
+        "target_id",
+        "value"
+      ]
+    },
+    "Object": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {}
+    }
+  }
+}

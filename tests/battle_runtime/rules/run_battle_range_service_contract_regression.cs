@@ -99,9 +99,9 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
             "ground_outer_reach_contract",
             "narrow_cone",
             5,
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, CombatSkillLevelOverrideImportModel>
             {
-                [7] = new Dictionary<string, object> { ["area_value"] = 6 },
+                [7] = new CombatSkillLevelOverrideImportModel(areaValue: 6),
             }
         );
         BattleUnitState caster = BuildUnit("ground_outer_reach_caster");
@@ -177,7 +177,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
 
     private void TestAimedShotAllowsBowAndNaturalWeaponButRejectsUnarmed()
     {
-        using ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using ProgressionContentRegistry registry = new();
         bool foundSkill = registry.GetSkillDefinitionsTyped().TryGetValue(
             "archer_aimed_shot",
             out SkillDefinition aimedShot
@@ -309,7 +309,7 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         StringName skillId,
         StringName areaPattern,
         int areaValue,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> levelOverrides = null
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> levelOverrides = null
     )
     {
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
@@ -346,35 +346,6 @@ public partial class run_battle_range_service_contract_regression : LifecycleTes
         );
         unit.SetAnchorCoord(Vector2I.Zero);
         return unit;
-    }
-
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || IsGodotCollectionType(type);
-
-    private static bool IsGodotCollectionType(Type type)
-    {
-        if (type == null || type.IsGenericParameter)
-        {
-            return false;
-        }
-        if (type.Namespace == "Godot.Collections")
-        {
-            return type.Name.StartsWith("Dictionary", StringComparison.Ordinal)
-                || type.Name.StartsWith("Array", StringComparison.Ordinal);
-        }
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-        foreach (Type genericArgument in type.GetGenericArguments())
-        {
-            if (IsGodotCollectionType(genericArgument))
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
 }

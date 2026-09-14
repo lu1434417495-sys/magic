@@ -30,13 +30,17 @@ public sealed class GameContentCatalog
     private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipmentAbilityBindings;
     private IReadOnlyDictionary<StringName, BarrierProfileDefinition> _barrierProfileDefinitions;
     private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions;
+    private IReadOnlyDictionary<StringName, GearSetDefinition> _gearSetDefinitions;
     private IReadOnlyDictionary<StringName, RecipeDefinition> _recipeDefinitions;
+    private IReadOnlyDictionary<StringName, WorldPresetDefinition> _worldPresets;
+    private IReadOnlyDictionary<StringName, WorldGenerationDefinition> _worldGenerations;
     private IReadOnlyDictionary<StringName, EnemyTemplateDefinition> _enemyTemplateDefinitions;
     private IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> _enemyBrainDefinitions;
     private IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> _encounterRosterDefinitions;
     private IReadOnlyDictionary<StringName, BattleEncounterDefinition> _battleEncounterDefinitions;
     private IReadOnlyDictionary<StringName, BattleSimProfileDefinition> _battleSimProfiles;
     private IBattleSpecialProfileView _battleSpecialProfileView;
+    private GameplayConfigurationDefinition _gameplayConfiguration;
 
     public GameContentCatalog()
     {
@@ -78,13 +82,17 @@ public sealed class GameContentCatalog
         _equipmentAbilityBindings = snapshot.EquipmentAbilityBindings;
         _barrierProfileDefinitions = snapshot.BarrierProfiles;
         _itemDefinitions = snapshot.Items;
+        _gearSetDefinitions = snapshot.GearSets;
         _recipeDefinitions = snapshot.Recipes;
+        _worldPresets = snapshot.WorldPresets;
+        _worldGenerations = snapshot.WorldGenerations;
         _enemyTemplateDefinitions = snapshot.EnemyTemplates;
         _enemyBrainDefinitions = snapshot.EnemyBrains;
         _encounterRosterDefinitions = snapshot.EncounterRosters;
         _battleEncounterDefinitions = snapshot.BattleEncounters;
         _battleSimProfiles = snapshot.BattleSimProfiles;
         _battleSpecialProfileView = snapshot.BattleSpecialProfiles;
+        _gameplayConfiguration = snapshot.GameplayConfiguration;
         _revision++;
     }
 
@@ -102,13 +110,17 @@ public sealed class GameContentCatalog
         _equipmentAbilityBindings = EmptyTyped<EquipmentAbilityBindingDefinition>();
         _barrierProfileDefinitions = EmptyTyped<BarrierProfileDefinition>();
         _itemDefinitions = EmptyTyped<ItemDefinition>();
+        _gearSetDefinitions = EmptyTyped<GearSetDefinition>();
         _recipeDefinitions = EmptyTyped<RecipeDefinition>();
+        _worldPresets = EmptyTyped<WorldPresetDefinition>();
+        _worldGenerations = EmptyTyped<WorldGenerationDefinition>();
         _enemyTemplateDefinitions = EmptyTyped<EnemyTemplateDefinition>();
         _enemyBrainDefinitions = EmptyTyped<EnemyAiBrainDefinition>();
         _encounterRosterDefinitions = EmptyTyped<WildEncounterRosterDefinition>();
         _battleEncounterDefinitions = EmptyTyped<BattleEncounterDefinition>();
         _battleSimProfiles = EmptyTyped<BattleSimProfileDefinition>();
         _battleSpecialProfileView = BattleSpecialProfileRuntimeView.Empty;
+        _gameplayConfiguration = null;
     }
 
     /// <summary>catalog 绑定版本号；每次 snapshot bind 或 <see cref="ClearSessionBinding"/>
@@ -176,8 +188,17 @@ public sealed class GameContentCatalog
     public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsTyped() =>
         _itemDefinitions;
 
+    public IReadOnlyDictionary<StringName, GearSetDefinition> GetGearSetDefinitionsTyped() =>
+        _gearSetDefinitions;
+
     public IReadOnlyDictionary<StringName, RecipeDefinition> GetRecipeDefsTyped() =>
         _recipeDefinitions;
+
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> GetWorldPresets() =>
+        _worldPresets;
+
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> GetWorldGenerations() =>
+        _worldGenerations;
 
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> GetEnemyTemplateDefinitions() =>
         _enemyTemplateDefinitions;
@@ -196,6 +217,9 @@ public sealed class GameContentCatalog
 
     internal IBattleSpecialProfileView GetBattleSpecialProfileView() =>
         _battleSpecialProfileView ?? BattleSpecialProfileRuntimeView.Empty;
+
+    public GameplayConfigurationDefinition GetGameplayConfigurationTyped() =>
+        _gameplayConfiguration;
 
     private static IReadOnlyDictionary<StringName, T> EmptyTyped<T>()
     {

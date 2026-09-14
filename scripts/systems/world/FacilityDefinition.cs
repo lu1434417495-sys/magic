@@ -50,37 +50,4 @@ public sealed class FacilityDefinition
             (value ?? string.Empty).Replace('_', ' ')
         );
 
-    internal static FacilityDefinition FromResource(FacilityConfig source, string path)
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new FacilityDefinition(
-            WorldDefinitionProjection.RequireString(
-                source.facility_id,
-                path + ".facility_id"
-            ).Trim(),
-            WorldDefinitionProjection.RequireString(
-                source.display_name,
-                path + ".display_name"
-            ),
-            WorldDefinitionProjection.RequireString(source.category, path + ".category"),
-            source.min_settlement_tier,
-            WorldDefinitionProjection.CopyStrings(
-                source.AllowedSlotTagsProjectionBorrowed,
-                path + ".allowed_slot_tags"
-            ),
-            WorldDefinitionProjection.ProjectResources<
-                FacilityNpcConfig,
-                FacilityNpcDefinition
-            >(
-                source.BoundServiceNpcsProjectionBorrowed,
-                path + ".bound_service_npcs",
-                FacilityNpcDefinition.FromResource
-            ),
-            WorldDefinitionProjection.RequireString(
-                source.interaction_type,
-                path + ".interaction_type"
-            )
-        );
-    }
 }

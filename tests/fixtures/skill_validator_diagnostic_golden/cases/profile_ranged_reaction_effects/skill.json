@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_ranged_reaction_effects",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_ranged_reaction_effects",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_ranged_reaction_effects",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire"
+          },
+          {
+            "effect_type": "status",
+            "payload": {},
+            "status_id": "ready"
+          }
+        ],
+        "ranged_weapon_reaction_profile": {
+          "readiness_status_id": "ready",
+          "trigger_weapon_families": [
+            "bow"
+          ],
+          "attack_defense_mode": "normal",
+          "attack_roll_bonus_by_skill_level": [
+            0,
+            0
+          ]
+        }
+      },
+      "icon_id": "diagnostic_ranged_reaction_effects",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

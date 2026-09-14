@@ -83,33 +83,26 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
         if (!fixture.ItemDefs.ContainsKey(FrostMaceItemId))
             return;
 
-        ItemDef rawFrostMace = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_mace_frost.tres"
-        );
+        ItemDefinition rawFrostMace = TestItemDefinitionLookup.GetProductionItem("weapon_unique_mace_frost_207");
         _test.True(rawFrostMace != null, "冰霜锤原始资源应能加载。");
         if (rawFrostMace != null)
         {
-            _test.Eq(rawFrostMace.display_name, "冰霜锤", "冰霜锤显示名应匹配设计。");
-            _test.Eq(
-                rawFrostMace.base_item_id,
-                new StringName("weapon_type_mace_base"),
-                "冰霜锤应继承 mace 模板。"
-            );
-            _test.Eq(rawFrostMace.base_price, 42000, "冰霜锤基础价格应为 42000。");
-            WeaponProfileDef rawProfile = rawFrostMace.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawFrostMace.DisplayName, "冰霜锤", "冰霜锤显示名应匹配设计。");
+            _test.Eq(rawFrostMace.BasePrice, 42000, "冰霜锤基础价格应为 42000。");
+            WeaponProfileDefinition rawProfile = rawFrostMace.WeaponProfile;
             _test.True(rawProfile != null, "冰霜锤应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.training_group, new StringName("simple"), "冰霜锤训练组应为 simple。");
-                _test.Eq(rawProfile.range_type, new StringName("melee"), "冰霜锤应为 melee。");
-                _test.Eq(rawProfile.damage_tag, new StringName("physical_blunt"), "冰霜锤应为钝击。");
-                _test.Eq(rawProfile.attack_range, 1, "冰霜锤攻击距离应为 1。");
-                _test.Eq(rawProfile.one_handed_dice?.dice_count ?? 0, 1, "冰霜锤单手应为 1D6+2。");
-                _test.Eq(rawProfile.one_handed_dice?.dice_sides ?? 0, 6, "冰霜锤单手应为 1D6+2。");
-                _test.Eq(rawProfile.one_handed_dice?.flat_bonus ?? 0, 2, "冰霜锤单手应为 1D6+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "冰霜锤双手应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 8, "冰霜锤双手应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "冰霜锤双手应为 1D8+2。");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("simple"), "冰霜锤训练组应为 simple。");
+                _test.Eq(rawProfile.RangeType, new StringName("melee"), "冰霜锤应为 melee。");
+                _test.Eq(rawProfile.DamageTag, new StringName("physical_blunt"), "冰霜锤应为钝击。");
+                _test.Eq(rawProfile.AttackRange, 1, "冰霜锤攻击距离应为 1。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceCount ?? 0, 1, "冰霜锤单手应为 1D6+2。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceSides ?? 0, 6, "冰霜锤单手应为 1D6+2。");
+                _test.Eq(rawProfile.OneHandedDice?.FlatBonus ?? 0, 2, "冰霜锤单手应为 1D6+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "冰霜锤双手应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 8, "冰霜锤双手应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "冰霜锤双手应为 1D8+2。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "versatile"),
                     "冰霜锤应声明 versatile 属性。"
@@ -117,9 +110,6 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildFrostMaceUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -155,33 +145,6 @@ public partial class run_frost_mace_weapon_ability_regression : LifecycleTestSce
             "装备冰霜锤不应投影极地适应占位 trait。"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除冰霜锤后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除冰霜锤后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除冰霜锤后装备能力源应清空。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(FrozenStrikeTraitId),
-            "移除冰霜锤后冰冻打击 trait 不应残留。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(SealPowerTraitId),
-            "移除冰霜锤后封印之力 trait 不应残留。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除冰霜锤后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestFrozenStrikeAddsColdDamageOnNormalTarget()

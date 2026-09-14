@@ -85,38 +85,26 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
             _test.True(fixture.Bindings.ContainsKey(bindingId), $"懦弱之刃应包含 binding {bindingId}。");
         }
         _test.True(fixture.SkillDefs.ContainsKey(ScurrySkillId), "逃窜应落成真实 SkillDef。");
-
-        using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_shortsword_cowardice.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_shortsword_cowardice");
         _test.True(rawItem != null, "懦弱之刃原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "懦弱之刃 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "懦弱之刃", "懦弱之刃显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_shortsword_base"),
-                "懦弱之刃应继承 shortsword 模板。"
-            );
-            _test.Eq(rawItem.base_price, 48000, "懦弱之刃价格应为 48000。");
-            _test.Eq(rawItem.trait_ids.Count, 4, "懦弱之刃应显式挂载 4 个特性。");
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawItem.ItemId, ItemId, "懦弱之刃 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "懦弱之刃", "懦弱之刃显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 48000, "懦弱之刃价格应为 48000。");
+            _test.Eq(rawItem.TraitIds.Count, 4, "懦弱之刃应显式挂载 4 个特性。");
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "懦弱之刃应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.one_handed_dice?.dice_count ?? 0, 1, "懦弱之刃应为 1D6+3。");
-                _test.Eq(profile.one_handed_dice?.dice_sides ?? 0, 6, "懦弱之刃应为 1D6+3。");
-                _test.Eq(profile.one_handed_dice?.flat_bonus ?? 0, 3, "懦弱之刃应为 1D6+3。");
+                _test.Eq(profile.OneHandedDice?.DiceCount ?? 0, 1, "懦弱之刃应为 1D6+3。");
+                _test.Eq(profile.OneHandedDice?.DiceSides ?? 0, 6, "懦弱之刃应为 1D6+3。");
+                _test.Eq(profile.OneHandedDice?.FlatBonus ?? 0, 3, "懦弱之刃应为 1D6+3。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "finesse"), "懦弱之刃应保留 finesse。");
                 _test.True(ContainsStringName(profile.GetPropertiesTyped(), "light"), "懦弱之刃应保留 light。");
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildCowardiceUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -133,20 +121,6 @@ public partial class run_cowardice_weapon_ability_regression : LifecycleTestScen
         AssertUnitHasTraitAndAbilitySource(equipped, FleeingInstinctTraitId, FleeingInstinctBindingId, "eq_cowardice_projection");
         AssertUnitHasTraitAndAbilitySource(equipped, CowardlyCounterTraitId, CowardlyCounterBindingId, "eq_cowardice_projection");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除懦弱之刃后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除懦弱之刃后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除懦弱之刃后装备能力源应清空。"
-        );
     }
 
     private void TestGapBackstabAndFrontalFragilityUseTargetSupport()

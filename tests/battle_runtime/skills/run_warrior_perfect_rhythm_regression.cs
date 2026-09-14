@@ -59,7 +59,8 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             levelZero,
             BuildUnit("perfect_rhythm_target_0", "enemy"),
             new[] { weaponDamage },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.Eq(
             levelZero.GetStatusEffect(MeleeComboStatusId)?.stacks ?? 0,
@@ -74,7 +75,8 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             levelSeven,
             BuildUnit("perfect_rhythm_target_7", "enemy"),
             new[] { weaponDamage },
-            BuildAttackCheck()
+            BuildAttackCheck(),
+            new AttackContext()
         );
         _test.Eq(
             levelSeven.GetStatusEffect(MeleeComboStatusId)?.stacks ?? 0,
@@ -108,11 +110,11 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
     {
         SkillDefinition rhythm = LoadSkill();
         SkillDefinition basicAttack = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/basic_attack.tres",
+            "basic_attack",
             "warrior_perfect_rhythm_regression"
         );
         SkillDefinition spell = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_arcane_missile.tres",
+            "mage_arcane_missile",
             "warrior_perfect_rhythm_regression"
         );
         BattleUnitState source = BuildUnit("perfect_rhythm_attack_bonus");
@@ -271,7 +273,7 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_perfect_rhythm.tres",
+            "warrior_perfect_rhythm",
             "warrior_perfect_rhythm_regression"
         );
 
@@ -336,7 +338,7 @@ public partial class run_warrior_perfect_rhythm_regression : LifecycleTestSceneT
             requires_weapon = true,
             use_weapon_physical_damage_tag = true,
         };
-        return CombatEffectDefinition.FromResource(
+        return CombatEffectDefinition.FromDiagnosticFixture(
             effect,
             "warrior_perfect_rhythm_regression.weapon_damage"
         );

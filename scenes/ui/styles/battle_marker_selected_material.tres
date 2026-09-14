@@ -1,0 +1,7 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+[ext_resource type="Shader" path="res://assets/shaders/battle_tactical_marker.gdshader" id="1"]
+[resource]
+shader = ExtResource("1")
+shader_parameter/marker_color = Color(0.50, 0.95, 1, 1)
+shader_parameter/fill_alpha = 0.25
+shader_parameter/line_width_px = 3.6

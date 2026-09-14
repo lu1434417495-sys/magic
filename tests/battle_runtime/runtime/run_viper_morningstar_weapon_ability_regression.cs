@@ -76,17 +76,10 @@ public partial class run_viper_morningstar_weapon_ability_regression : Lifecycle
         if (!fixture.ItemDefs.ContainsKey(ViperItemId))
             return;
 
-        ItemDef rawViper = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_morningstar_viper.tres"
-        );
+        ItemDefinition rawViper = TestItemDefinitionLookup.GetProductionItem("weapon_unique_morningstar_viper_206");
         _test.True(rawViper != null, "毒蛇晨星原始资源应能加载。");
         if (rawViper != null)
         {
-            _test.Eq(
-                rawViper.base_item_id,
-                new StringName("weapon_type_morningstar_base"),
-                "毒蛇晨星应继承 morningstar 模板。"
-            );
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");

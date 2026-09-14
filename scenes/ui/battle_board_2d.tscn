@@ -9,7 +9,7 @@
 ; Root node and primary scene tree.
 [node name="BattleBoard2D" type="Node2D"]
 y_sort_enabled = false
-texture_filter = 1
+texture_filter = 2
 script = ExtResource("1_board2d")
 
 ; Input pickup layer used for board hit detection.
@@ -273,4 +273,111 @@ unique_name_in_owner = true
 y_sort_enabled = true
 
 [node name="TargetHighlightLayer" type="Node2D" parent="."]
+unique_name_in_owner = true
+
+; Signed terrain bands support skill-created depressions below height zero.
+
+[node name="TopH-5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="TopH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="TopH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="TopH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="TopH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallEastH-5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallEastH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallEastH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallEastH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallEastH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallSouthH-5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallSouthH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallSouthH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallSouthH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="WallSouthH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="OverlayH-5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="OverlayH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="OverlayH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="OverlayH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="OverlayH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MarkerH-5" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MarkerH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MarkerH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MarkerH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MarkerH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropEastH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropEastH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropEastH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropEastH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropEastH0" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropSouthH-4" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropSouthH-3" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropSouthH-2" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropSouthH-1" type="TileMapLayer" parent="."]
+unique_name_in_owner = true
+
+[node name="EdgeDropSouthH0" type="TileMapLayer" parent="."]
 unique_name_in_owner = true

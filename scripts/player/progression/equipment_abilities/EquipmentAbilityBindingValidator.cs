@@ -22,7 +22,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     internal void ValidateBinding(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> loadedBindings,
         List<string> errors
@@ -99,8 +99,13 @@ internal sealed class EquipmentAbilityBindingValidator
         }
 
         ValidateSourceKinds(binding, errors);
+        ValidateRequiredEffectiveTraits(binding, context, errors);
+        ValidateActivationSource(binding, context, errors);
         HashSet<StringName> declaredStateKeys = ValidateStateSchemas(binding, errors);
         ValidateReactions(binding, context, declaredStateKeys, errors);
+        ValidateFatalIntercepts(binding, context, declaredStateKeys, errors);
+        ValidateMitigationAuras(binding, errors);
+        ValidateMovementTrails(binding, context, errors);
         ValidateGrantedActions(binding, context, errors);
         ValidateTemporalProgressModifiers(binding, errors);
         ValidateCognitionCeilingModifiers(binding, errors);
@@ -108,8 +113,57 @@ internal sealed class EquipmentAbilityBindingValidator
         ValidateWorldEffects(binding, context, declaredStateKeys, errors);
     }
 
+    private static void ValidateRequiredEffectiveTraits(
+        EquipmentAbilityBindingImportModel binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        if (binding?.required_effective_trait_ids == null)
+            return;
+
+        string path = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seen = new HashSet<StringName>();
+        for (int index = 0; index < binding.required_effective_trait_ids.Count; index++)
+        {
+            StringName traitId = ProgressionDataUtils.to_string_name(
+                binding.required_effective_trait_ids[index]
+            );
+            string traitPath = $"{path}.required_effective_trait_ids[{index}]";
+            if (traitId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REQUIRED_EFFECTIVE_TRAIT_EMPTY",
+                    traitPath,
+                    "required effective trait id must not be empty"
+                );
+                continue;
+            }
+            if (!seen.Add(traitId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REQUIRED_EFFECTIVE_TRAIT_DUPLICATE",
+                    traitPath,
+                    $"required effective trait {traitId} must not be duplicated"
+                );
+                continue;
+            }
+            if (!EquipmentAbilityContentRegistry.ContainsValue(context.KnownTraitIds, traitId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_REFERENCE_MISSING_REQUIRED_EFFECTIVE_TRAIT",
+                    traitPath,
+                    $"required effective trait {traitId} is not known"
+                );
+            }
+        }
+    }
+
     private static void ValidateSourceKinds(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
@@ -117,7 +171,11 @@ internal sealed class EquipmentAbilityBindingValidator
         foreach (StringName sourceKind in binding.allowed_source_kinds)
         {
             TraitSourceKind parsed = TraitContentRules.ToSourceKind(sourceKind);
-            if (parsed != TraitSourceKind.EquipmentFixed && parsed != TraitSourceKind.EquipmentRoll)
+            if (
+                parsed != TraitSourceKind.EquipmentFixed
+                && parsed != TraitSourceKind.EquipmentRoll
+                && parsed != TraitSourceKind.GearSetThreshold
+            )
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -129,14 +187,48 @@ internal sealed class EquipmentAbilityBindingValidator
         }
     }
 
+    private static void ValidateActivationSource(
+        EquipmentAbilityBindingImportModel binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        if (binding == null || binding.activation_status_id == "")
+            return;
+        ValidateStatusReference(
+            binding.activation_status_id,
+            context,
+            $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.activation_status_id",
+            errors
+        );
+        if (binding.granted_actions?.Count > 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ACTIVATION_GRANTED_ACTION_UNSUPPORTED",
+                $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.granted_actions",
+                "status-activated bindings cannot grant command actions"
+            );
+        }
+        if (binding.world_effects?.Count > 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_STATUS_ACTIVATION_WORLD_EFFECT_UNSUPPORTED",
+                $"{EquipmentAbilityContentRegistry.BindingPath(binding)}.world_effects",
+                "status-activated bindings cannot project persistent world effects"
+            );
+        }
+    }
+
     private static HashSet<StringName> ValidateStateSchemas(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var keys = new HashSet<StringName>();
-        foreach (EquipmentAbilityStateSchemaDef schema in binding.state_schemas)
+        foreach (EquipmentAbilityStateSchemaImportModel schema in binding.state_schemas)
         {
             if (schema == null)
                 continue;
@@ -173,13 +265,13 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
             }
         }
-        foreach (EquipmentAbilityStateSchemaDef schema in binding.state_schemas)
+        foreach (EquipmentAbilityStateSchemaImportModel schema in binding.state_schemas)
             ValidateStateSchemaSync(schema, keys, path, errors);
         return keys;
     }
 
     private static void ValidateStateSchemaSync(
-        EquipmentAbilityStateSchemaDef schema,
+        EquipmentAbilityStateSchemaImportModel schema,
         HashSet<StringName> declaredStateKeys,
         string bindingPath,
         List<string> errors
@@ -267,13 +359,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateTemporalProgressModifiers(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
-        foreach (EquipmentTemporalProgressModifierDef modifier in binding.temporal_progress_modifiers)
+        foreach (EquipmentTemporalProgressModifierImportModel modifier in binding.temporal_progress_modifiers)
         {
             if (modifier == null)
                 continue;
@@ -333,11 +425,27 @@ internal sealed class EquipmentAbilityBindingValidator
                     "temporal progress modifier rates must be positive percentages"
                 );
             }
+            else if (
+                modifier.success_rate_percent
+                    > ActionCadenceContentRules.MaxTemporalProgressRatePercent
+                || modifier.failure_rate_percent
+                    > ActionCadenceContentRules.MaxTemporalProgressRatePercent
+            )
+            {
+                // 超过上限会让最快阈值的单位在单 step 内跨两次阈值，吞掉一次行动。
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_TEMPORAL_PROGRESS_MODIFIER_RATE_TOO_HIGH",
+                    modifierPath,
+                    $"temporal progress modifier rates must not exceed "
+                        + $"{ActionCadenceContentRules.MaxTemporalProgressRatePercent}%"
+                );
+            }
         }
     }
 
     private static void ValidateCognitionCeilingModifiers(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         List<string> errors
     )
     {
@@ -345,7 +453,7 @@ internal sealed class EquipmentAbilityBindingValidator
             EquipmentAbilityContentRegistry.BindingPath(binding);
         var seenIds = new HashSet<StringName>();
         foreach (
-            EquipmentCognitionCeilingModifierDef modifier
+            EquipmentCognitionCeilingModifierImportModel modifier
             in binding.cognition_ceiling_modifiers
         )
         {
@@ -396,13 +504,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateReactions(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
         List<string> errors
     )
     {
-        foreach (EquipmentAbilityReactionDef reaction in binding.reactions)
+        foreach (EquipmentAbilityReactionImportModel reaction in binding.reactions)
         {
             if (reaction == null)
                 continue;
@@ -446,7 +554,7 @@ internal sealed class EquipmentAbilityBindingValidator
             );
             ValidateProjectedEffectCategories(reaction, path, errors);
 
-            foreach (EquipmentAbilityActionDef action in reaction.actions)
+            foreach (EquipmentAbilityActionImportModel action in reaction.actions)
             {
                 ValidateAction(action, path, context, declaredStateKeys, trigger, errors);
             }
@@ -462,7 +570,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void ValidateProjectedEffectCategories(
-        EquipmentAbilityReactionDef reaction,
+        EquipmentAbilityReactionImportModel reaction,
         string path,
         List<string> errors
     )
@@ -513,7 +621,10 @@ internal sealed class EquipmentAbilityBindingValidator
 
         var required = new HashSet<StringName>();
         AppendRequiredProjectedEffectCategories(reaction.actions, required);
-        foreach (EquipmentOutcomeEntryDef entry in reaction.outcome_table?.entries ?? new())
+        foreach (
+            EquipmentOutcomeEntryImportModel entry
+            in reaction.outcome_table?.entries ?? Array.Empty<EquipmentOutcomeEntryImportModel>()
+        )
             AppendRequiredProjectedEffectCategories(entry?.actions, required);
         foreach (StringName category in required)
         {
@@ -529,15 +640,15 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private static void AppendRequiredProjectedEffectCategories(
-        IEnumerable<EquipmentAbilityActionDef> actions,
+        IEnumerable<EquipmentAbilityActionImportModel> actions,
         HashSet<StringName> required
     )
     {
         if (actions == null || required == null)
             return;
-        foreach (EquipmentAbilityActionDef action in actions)
+        foreach (EquipmentAbilityActionImportModel action in actions)
         {
-            if (action?.payload is AddDamageDiceActionPayloadDef bonusDamage)
+            if (action?.payload is AddDamageDiceActionPayloadImportModel bonusDamage)
             {
                 AppendRequiredProjectedDamageCategories(
                     bonusDamage.damage_type,
@@ -545,7 +656,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     required
                 );
             }
-            else if (action?.payload is DealDamageActionPayloadDef directDamage)
+            else if (action?.payload is DealDamageActionPayloadImportModel directDamage)
             {
                 AppendRequiredProjectedDamageCategories(
                     directDamage.damage_type,
@@ -553,7 +664,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     required
                 );
             }
-            else if (action?.payload is ApplyStatusActionPayloadDef status)
+            else if (action?.payload is ApplyStatusActionPayloadImportModel status)
             {
                 AppendRequiredProjectedCategories("", status.save_tag, required);
             }
@@ -562,12 +673,12 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void AppendRequiredProjectedDamageCategories(
         StringName damageType,
-        IEnumerable<StringName> damageTags,
+        IEnumerable<string> damageTags,
         HashSet<StringName> required
     )
     {
         AppendRequiredProjectedCategories(damageType, "", required);
-        foreach (StringName damageTag in damageTags ?? Array.Empty<StringName>())
+        foreach (string damageTag in damageTags ?? Array.Empty<string>())
             AppendRequiredProjectedCategories(damageTag, "", required);
     }
 
@@ -591,7 +702,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateConditionGroup(
-        EquipmentAbilityConditionGroupDef group,
+        EquipmentAbilityConditionGroupImportModel group,
         string path,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
@@ -599,7 +710,7 @@ internal sealed class EquipmentAbilityBindingValidator
     {
         if (group == null)
             return;
-        foreach (EquipmentAbilityConditionDef condition in group.conditions)
+        foreach (EquipmentAbilityConditionImportModel condition in group.conditions)
         {
             if (condition == null)
                 continue;
@@ -614,7 +725,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
                 continue;
             }
-            if (condition.payload == null || !spec.PayloadResourceType.IsInstanceOfType(condition.payload))
+            if (condition.payload == null || !spec.PayloadImportModelType.IsInstanceOfType(condition.payload))
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
@@ -624,7 +735,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
                 continue;
             }
-            if (condition.payload is HasStatusConditionPayloadDef statusPayload)
+            if (condition.payload is HasStatusConditionPayloadImportModel statusPayload)
             {
                 ValidateStatusReference(
                     statusPayload.status_id,
@@ -633,7 +744,7 @@ internal sealed class EquipmentAbilityBindingValidator
                     errors
                 );
             }
-            else if (condition.payload is CompareFactConditionPayloadDef comparePayload)
+            else if (condition.payload is CompareFactConditionPayloadImportModel comparePayload)
             {
                 ValidateFactQuery(
                     comparePayload.left,
@@ -649,15 +760,15 @@ internal sealed class EquipmentAbilityBindingValidator
                 );
             }
         }
-        foreach (Resource childResource in group.groups)
+        foreach (EquipmentAbilityConditionGroupImportModel child in group.groups)
         {
-            if (childResource is not EquipmentAbilityConditionGroupDef child)
+            if (child == null)
             {
                 EquipmentAbilityContentRegistry.AddError(
                     errors,
                     "EQA_CONDITION_GROUP_TYPE_INVALID",
                     $"{path}.groups",
-                    "nested condition group must use EquipmentAbilityConditionGroupDef"
+                    "nested condition group must not be null"
                 );
                 continue;
             }
@@ -666,7 +777,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateAction(
-        EquipmentAbilityActionDef action,
+        EquipmentAbilityActionImportModel action,
         string reactionPath,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
@@ -687,7 +798,7 @@ internal sealed class EquipmentAbilityBindingValidator
             );
             return;
         }
-        if (action.payload == null || !spec.PayloadResourceType.IsInstanceOfType(action.payload))
+        if (action.payload == null || !spec.PayloadImportModelType.IsInstanceOfType(action.payload))
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,
@@ -698,99 +809,101 @@ internal sealed class EquipmentAbilityBindingValidator
             return;
         }
         ValidateStateAccessContracts(spec.StateAccess, action.payload, declaredStateKeys, path, errors);
-        if (trigger == EquipmentAbilityTriggerKind.OnBattleEnd && spec.MutationPolicy == EquipmentAbilityMutationPolicyKind.Mutating)
-        {
-            EquipmentAbilityContentRegistry.AddError(
-                errors,
-                "EQA_BATTLE_END_MUTATION_UNSUPPORTED",
-                path,
-                "on_battle_end mutating actions require staged commit fields not present in the V1 static gate"
-            );
-        }
 
         switch (action.payload)
         {
-            case AddDamageDiceActionPayloadDef payload:
+            case AddDamageDiceActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAddDamageDicePayload(payload, context, path, errors);
+                if (
+                    EquipmentAbilityDamageTypeModeContentRules.ToKind(payload.damage_type_mode)
+                        == EquipmentAbilityDamageTypeModeKind.InheritPrimary
+                    && trigger != EquipmentAbilityTriggerKind.OnDamageRoll
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_DAMAGE_TYPE_MODE_INHERIT_TRIGGER_UNSUPPORTED",
+                        $"{path}.payload.damage_type_mode",
+                        "add_damage_dice damage_type_mode inherit_primary requires the on_damage_roll trigger (main direct effect origin)"
+                    );
+                }
                 break;
-            case ImmediateWeaponAttackActionPayloadDef payload:
+            case ImmediateWeaponAttackActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(payload, context, path, errors);
                 break;
-            case DealDamageActionPayloadDef payload:
+            case DealDamageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDealDamagePayload(payload, context, path, errors);
                 break;
-            case HealActionPayloadDef payload:
+            case HealActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateHealPayload(payload, path, errors);
                 break;
-            case HealFromFactActionPayloadDef payload:
+            case HealFromFactActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateHealFromFactPayload(payload, context, path, errors);
                 break;
-            case AttackRollBonusActionPayloadDef payload:
+            case AttackRollBonusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackRollBonusPayload(payload, path, errors);
                 break;
-            case AttackRollAdvantageActionPayloadDef payload:
+            case AttackRollAdvantageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackRollAdvantagePayload(payload, path, errors);
                 break;
-            case CriticalHitOverrideActionPayloadDef payload:
+            case CriticalHitOverrideActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateCriticalHitOverridePayload(payload, path, errors);
                 break;
-            case EquipmentAttackDefenseModifierDef payload:
+            case EquipmentAttackDefenseModifierImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateAttackDefenseModifierPayload(payload, path, errors);
                 break;
-            case DamageRollModeOverrideActionPayloadDef payload:
+            case DamageRollModeOverrideActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageRollModeOverridePayload(payload, path, errors);
                 break;
-            case DamageReductionActionPayloadDef payload:
+            case DamageReductionActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDamageReductionPayload(payload, context, path, errors);
                 break;
-            case LootQuantityMultiplierActionPayloadDef payload:
+            case GrantMitigationTierActionPayloadImportModel payload:
+                EquipmentAbilityPayloadValidators.ValidateGrantMitigationTierPayload(payload, context, path, errors);
+                break;
+            case LootQuantityMultiplierActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateLootQuantityMultiplierPayload(payload, path, errors);
                 break;
-            case ApplyStatusActionPayloadDef payload:
+            case ApplyStatusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyStatusPayload(payload, context, path, errors);
                 break;
-            case ModifyActionPointsActionPayloadDef payload:
+            case ModifyActionPointsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateModifyActionPointsPayload(payload, context, path, errors);
                 break;
-            case ScheduleAreaEffectActionPayloadDef payload:
+            case ScheduleAreaEffectActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateScheduleAreaEffectPayload(payload, context, path, errors);
                 break;
-            case ApplyBattleTerrainEffectAfterCheckActionPayloadDef payload:
+            case ApplyBattleTerrainEffectAfterCheckActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyBattleTerrainEffectAfterCheckPayload(payload, path, errors);
                 break;
-            case ApplyEdgeFeatureActionPayloadDef payload:
+            case ApplyEdgeFeatureActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateApplyEdgeFeaturePayload(payload, path, errors);
                 break;
-            case ModifyAbilityStateActionPayloadDef payload:
+            case ModifyAbilityStateActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateModifyAbilityStatePayload(payload, path, errors);
                 break;
-            case MarkTargetActionPayloadDef payload:
+            case MarkTargetActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateMarkTargetPayload(payload, context, path, errors);
                 break;
-            case ClearStatusActionPayloadDef payload:
+            case ClearStatusActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateClearStatusPayload(payload, context, path, errors);
                 break;
-            case TriggerSkillActionPayloadDef payload:
+            case TriggerSkillActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateTriggerSkillPayload(payload, context, path, errors);
                 break;
-            case GrantSkillActionPayloadDef payload:
-                ValidateSkillReference(payload.skill_id, context, $"{path}.payload.skill_id", errors);
-                if (payload.skill_id == "" || payload.skill_level <= 0)
-                    EquipmentAbilityContentRegistry.AddError(errors, "EQA_ACTION_REQUIRED_FIELD_MISSING", path, "grant_skill requires skill_id and positive skill_level");
-                break;
-            case SummonUnitsActionPayloadDef payload:
+            case SummonUnitsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateSummonUnitsPayload(payload, context, path, errors);
                 break;
-            case ConsumeSummonedUnitsActionPayloadDef payload:
+            case ConsumeSummonedUnitsActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateConsumeSummonedUnitsPayload(payload, path, errors);
                 break;
-            case ConsumeStatusStacksActionPayloadDef payload:
+            case ConsumeStatusStacksActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateConsumeStatusStacksPayload(payload, context, path, errors);
                 break;
-            case SummonedUnitAttackRollModifierActionPayloadDef payload:
+            case SummonedUnitAttackRollModifierActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateSummonedUnitAttackRollModifierPayload(payload, path, errors);
                 break;
-            case EquipmentDurabilityDamageActionPayloadDef payload:
+            case EquipmentDurabilityDamageActionPayloadImportModel payload:
                 EquipmentAbilityPayloadValidators.ValidateDurabilityPayload(payload, context, path, errors);
                 break;
         }
@@ -798,7 +911,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateOutcomeTable(
-        EquipmentOutcomeTableDef table,
+        EquipmentOutcomeTableImportModel table,
         string path,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
@@ -809,7 +922,7 @@ internal sealed class EquipmentAbilityBindingValidator
         if (table == null)
             return;
         int index = 0;
-        foreach (EquipmentOutcomeEntryDef entry in table.entries)
+        foreach (EquipmentOutcomeEntryImportModel entry in table.entries)
         {
             if (entry == null)
             {
@@ -817,7 +930,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 continue;
             }
             string entryPath = $"{path}.entries[{index}]";
-            foreach (EquipmentAbilityActionDef action in entry.actions)
+            foreach (EquipmentAbilityActionImportModel action in entry.actions)
                 ValidateAction(action, entryPath, context, declaredStateKeys, trigger, errors);
             index++;
         }
@@ -825,7 +938,7 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void ValidateStateAccessContracts(
         EquipmentAbilityStateAccessSpec stateAccess,
-        Resource payload,
+        IEquipmentAbilityPayloadImportModel payload,
         HashSet<StringName> declaredStateKeys,
         string path,
         List<string> errors
@@ -841,7 +954,7 @@ internal sealed class EquipmentAbilityBindingValidator
 
     private static void ValidateStateAccessContracts(
         IReadOnlyList<EquipmentAbilityStateContract> contracts,
-        Resource payload,
+        IEquipmentAbilityPayloadImportModel payload,
         HashSet<StringName> declaredStateKeys,
         string path,
         List<string> errors
@@ -862,15 +975,473 @@ internal sealed class EquipmentAbilityBindingValidator
         }
     }
 
+    private void ValidateFatalIntercepts(
+        EquipmentAbilityBindingImportModel binding,
+        EquipmentAbilityContentValidationContext context,
+        HashSet<StringName> declaredStateKeys,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        var seenOrders = new HashSet<int>();
+        foreach (
+            EquipmentFatalInterceptImportModel intercept
+            in binding.fatal_intercepts ?? Array.Empty<EquipmentFatalInterceptImportModel>()
+        )
+        {
+            if (intercept == null)
+                continue;
+            StringName interceptId = ProgressionDataUtils.to_string_name(intercept.intercept_id);
+            string path = $"{bindingPath}.fatal_intercepts[{interceptId}]";
+            if (interceptId == "")
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ID_MISSING",
+                    path,
+                    "fatal intercept requires intercept_id"
+                );
+            }
+            else if (!seenIds.Add(interceptId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ID_DUPLICATE",
+                    path,
+                    $"fatal intercept {interceptId} is duplicated"
+                );
+            }
+
+            if (intercept.resolution_order < 0 || !seenOrders.Add(intercept.resolution_order))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_ORDER_INVALID",
+                    $"{path}.resolution_order",
+                    "resolution_order must be non-negative and unique within the binding"
+                );
+            }
+            if (intercept.protection_priority <= 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_PRIORITY_INVALID",
+                    $"{path}.protection_priority",
+                    "protection_priority must be positive"
+                );
+            }
+
+            bool usageParsed = EquipmentAbilityUsagePeriodKinds.TryParse(
+                intercept.usage_period_kind,
+                out EquipmentAbilityUsagePeriodKind usagePeriodKind
+            );
+            if (
+                !usageParsed
+                || (
+                    usagePeriodKind != EquipmentAbilityUsagePeriodKind.PerBattle
+                    && !EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(
+                        usagePeriodKind
+                    )
+                )
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_USAGE_PERIOD_UNSUPPORTED",
+                    $"{path}.usage_period_kind",
+                    "fatal intercept usage_period_kind must be per_battle, per_world_day, or per_world_month"
+                );
+            }
+            else if (
+                binding.activation_status_id != ""
+                && EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(usagePeriodKind)
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_STATUS_FATAL_PERSISTENT_USAGE_UNSUPPORTED",
+                    $"{path}.usage_period_kind",
+                    "status-activated fatal intercepts require per_battle usage"
+                );
+            }
+            if (intercept.max_attempts_per_period <= 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_USAGE_LIMIT_INVALID",
+                    $"{path}.max_attempts_per_period",
+                    "max_attempts_per_period must be positive"
+                );
+            }
+
+            ValidateFatalInterceptRollGate(intercept.roll_gate, $"{path}.roll_gate", errors);
+            bool recoveryParsed = EquipmentAbilityDefinitionProjection.TryParseFatalInterceptRecoveryKind(
+                intercept.recovery_kind,
+                out EquipmentFatalInterceptRecoveryKind recoveryKind
+            );
+            if (!recoveryParsed)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_RECOVERY_KIND_UNSUPPORTED",
+                    $"{path}.recovery_kind",
+                    "recovery_kind must be hp_dice or max_hp_percent"
+                );
+                continue;
+            }
+
+            if (recoveryKind == EquipmentFatalInterceptRecoveryKind.HpDice)
+            {
+                ValidateFatalInterceptDice(
+                    intercept.recovery_dice,
+                    $"{path}.recovery_dice",
+                    errors
+                );
+                if (intercept.recovery_percent_basis_points != 0)
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_SHAPE_INVALID",
+                        path,
+                        "hp_dice recovery must not declare recovery_percent_basis_points"
+                    );
+                }
+            }
+            else
+            {
+                if (intercept.recovery_dice != null)
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_SHAPE_INVALID",
+                        path,
+                        "max_hp_percent recovery must not declare recovery_dice"
+                    );
+                }
+                if (
+                    intercept.recovery_percent_basis_points <= 0
+                    || intercept.recovery_percent_basis_points > 10000
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_RECOVERY_PERCENT_INVALID",
+                        $"{path}.recovery_percent_basis_points",
+                        "recovery_percent_basis_points must be within 1..10000"
+                    );
+                }
+            }
+
+            int actionIndex = 0;
+            foreach (
+                EquipmentAbilityActionImportModel action
+                in intercept.success_actions
+                    ?? Array.Empty<EquipmentAbilityActionImportModel>()
+            )
+            {
+                string actionPath = $"{path}.success_actions[{actionIndex}]";
+                if (
+                    action != null
+                    && action.kind != "apply_status"
+                    && action.kind != "trigger_skill"
+                )
+                {
+                    EquipmentAbilityContentRegistry.AddError(
+                        errors,
+                        "EQA_FATAL_INTERCEPT_SUCCESS_ACTION_UNSUPPORTED",
+                        actionPath,
+                        "fatal intercept success actions support apply_status or trigger_skill"
+                    );
+                }
+                ValidateAction(
+                    action,
+                    $"{path}.success_actions",
+                    context,
+                    declaredStateKeys,
+                    EquipmentAbilityTriggerKind.OnDamageTakenFinalized,
+                    errors
+                );
+                actionIndex++;
+            }
+        }
+    }
+
+    private static void ValidateMitigationAuras(
+        EquipmentAbilityBindingImportModel binding,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            EquipmentMitigationAuraImportModel aura
+            in binding.mitigation_auras
+                ?? Array.Empty<EquipmentMitigationAuraImportModel>()
+        )
+        {
+            if (aura == null)
+                continue;
+            StringName auraId = ProgressionDataUtils.to_string_name(aura.aura_id);
+            string path = $"{bindingPath}.mitigation_auras[{auraId}]";
+            if (auraId == "" || !seenIds.Add(auraId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_ID_INVALID",
+                    $"{path}.aura_id",
+                    "mitigation aura requires a unique non-empty aura_id"
+                );
+            }
+            if (aura.radius < 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_RADIUS_INVALID",
+                    $"{path}.radius",
+                    "mitigation aura radius must be non-negative"
+                );
+            }
+            if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(aura.target_team_filter))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_TARGET_FILTER_INVALID",
+                    $"{path}.target_team_filter",
+                    $"mitigation aura target_team_filter must be one of {CombatTargetTeamContentRules.ValidSkillTargetTeamFilterLabel()}"
+                );
+            }
+            if (DamageTagContentRules.ToDamageTagKind(aura.damage_tag) == DamageTagKind.Unknown)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tag",
+                    $"mitigation aura damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}"
+                );
+            }
+            DamageMitigationTierKind tier = DamageTagContentRules.ToMitigationTierKind(
+                aura.mitigation_tier
+            );
+            if (
+                tier == DamageMitigationTierKind.Unknown
+                || tier == DamageMitigationTierKind.Normal
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MITIGATION_AURA_TIER_INVALID",
+                    $"{path}.mitigation_tier",
+                    "mitigation aura tier must be half, double, or immune"
+                );
+            }
+        }
+    }
+
+    private static void ValidateMovementTrails(
+        EquipmentAbilityBindingImportModel binding,
+        EquipmentAbilityContentValidationContext context,
+        List<string> errors
+    )
+    {
+        string bindingPath = EquipmentAbilityContentRegistry.BindingPath(binding);
+        var seenIds = new HashSet<StringName>();
+        foreach (
+            EquipmentMovementTrailImportModel trail
+            in binding.movement_trails
+                ?? Array.Empty<EquipmentMovementTrailImportModel>()
+        )
+        {
+            if (trail == null)
+                continue;
+            StringName trailId = ProgressionDataUtils.to_string_name(trail.trail_id);
+            string path = $"{bindingPath}.movement_trails[{trailId}]";
+            if (trailId == "" || !seenIds.Add(trailId))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_ID_INVALID",
+                    $"{path}.trail_id",
+                    "movement trail requires a unique non-empty trail_id"
+                );
+            }
+            if (trail.priority < 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_PRIORITY_INVALID",
+                    $"{path}.priority",
+                    "movement trail priority must be non-negative"
+                );
+            }
+            if (trail.duration_tu <= 0 || trail.duration_tu % 5 != 0)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DURATION_INVALID",
+                    $"{path}.duration_tu",
+                    "movement trail duration_tu must be positive and aligned to 5 TU"
+                );
+            }
+            if (!CombatTargetTeamContentRules.IsValidSkillTargetTeamFilter(trail.target_team_filter))
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_TARGET_FILTER_INVALID",
+                    $"{path}.target_team_filter",
+                    $"movement trail target_team_filter must be one of {CombatTargetTeamContentRules.ValidSkillTargetTeamFilterLabel()}"
+                );
+            }
+            ValidateFatalInterceptDice(trail.damage_dice, $"{path}.damage_dice", errors);
+            if (trail.damage_dice?.terms?.Count != 1)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DICE_INVALID",
+                    $"{path}.damage_dice",
+                    "movement trail damage requires exactly one fixed dice term"
+                );
+            }
+            if (DamageTagContentRules.ToDamageTagKind(trail.damage_tag) == DamageTagKind.Unknown)
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tag",
+                    $"movement trail damage_tag must be one of {DamageTagContentRules.ValidDamageTagLabel()}"
+                );
+            }
+            foreach (
+                string damageTag
+                in trail.damage_tags ?? Array.Empty<string>()
+            )
+            {
+                if (DamageTagContentRules.ToDamageTagKind(damageTag) != DamageTagKind.Unknown)
+                    continue;
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_MOVEMENT_TRAIL_DAMAGE_TAG_INVALID",
+                    $"{path}.damage_tags[{damageTag}]",
+                    $"movement trail damage tag {damageTag} is not known"
+                );
+            }
+            if (trail.required_skill_id != "")
+            {
+                ValidateSkillReference(
+                    trail.required_skill_id,
+                    context,
+                    $"{path}.required_skill_id",
+                    errors
+                );
+            }
+        }
+    }
+
+    private static void ValidateFatalInterceptRollGate(
+        EquipmentRollGateImportModel rollGate,
+        string path,
+        List<string> errors
+    )
+    {
+        if (rollGate == null)
+            return;
+        if (ProgressionDataUtils.to_string_name(rollGate.rng_stream) == "")
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_ROLL_GATE_INVALID",
+                $"{path}.rng_stream",
+                "fatal intercept roll_gate requires rng_stream"
+            );
+        }
+        ValidateFatalInterceptDice(rollGate.roll, $"{path}.roll", errors);
+        StringName compare = ProgressionDataUtils.to_string_name(rollGate.compare);
+        if (
+            compare != "lte"
+            && compare != "lt"
+            && compare != "gte"
+            && compare != "gt"
+            && compare != "eq"
+        )
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_ROLL_GATE_INVALID",
+                $"{path}.compare",
+                "fatal intercept roll_gate compare must be lte, lt, gte, gt, or eq"
+            );
+        }
+    }
+
+    private static void ValidateFatalInterceptDice(
+        DiceExpressionImportModel dice,
+        string path,
+        List<string> errors
+    )
+    {
+        if (dice == null || dice.terms == null || dice.terms.Count == 0)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice requires at least one term"
+            );
+            return;
+        }
+        if (dice.flat_bonus < 0 || ProgressionDataUtils.to_string_name(dice.preview_policy) != "")
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice requires non-negative flat_bonus and no preview_policy"
+            );
+        }
+        long totalDice = 0;
+        long maximum = Math.Max(dice.flat_bonus, 0);
+        foreach (DiceExpressionTermImportModel term in dice.terms)
+        {
+            if (
+                term == null
+                || term.dice_count <= 0
+                || term.dice_sides <= 0
+                || term.count_bonus_fact != null
+                || term.count_bonus_multiplier != 0.0f
+                || term.max_dice_count != 0
+            )
+            {
+                EquipmentAbilityContentRegistry.AddError(
+                    errors,
+                    "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                    path,
+                    "fatal intercept dice terms require fixed positive count/sides without fact scaling"
+                );
+                continue;
+            }
+            totalDice += term.dice_count;
+            maximum += (long)term.dice_count * term.dice_sides;
+        }
+        if (totalDice > 64L || maximum > 10000L)
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FATAL_INTERCEPT_DICE_INVALID",
+                path,
+                "fatal intercept dice must not exceed 64 dice or a maximum total of 10000"
+            );
+        }
+    }
+
     private void ValidateGrantedActions(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
         var seen = new HashSet<StringName>();
-        foreach (EquipmentGrantedActionDef grant in binding.granted_actions)
+        foreach (EquipmentGrantedActionImportModel grant in binding.granted_actions)
         {
             if (grant == null)
                 continue;
@@ -950,13 +1521,13 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateWeaponProfileOverlays(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
-        foreach (EquipmentWeaponProfileOverlayDef overlay in binding.weapon_profile_overlays)
+        foreach (EquipmentWeaponProfileOverlayImportModel overlay in binding.weapon_profile_overlays)
         {
             if (overlay == null)
                 continue;
@@ -971,14 +1542,14 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     private void ValidateWorldEffects(
-        EquipmentAbilityBindingDef binding,
+        EquipmentAbilityBindingImportModel binding,
         EquipmentAbilityContentValidationContext context,
         HashSet<StringName> declaredStateKeys,
         List<string> errors
     )
     {
         string path = EquipmentAbilityContentRegistry.BindingPath(binding);
-        foreach (EquipmentWorldEffectDef effect in binding.world_effects)
+        foreach (EquipmentWorldEffectImportModel effect in binding.world_effects)
         {
             if (effect == null)
                 continue;
@@ -1011,7 +1582,7 @@ internal sealed class EquipmentAbilityBindingValidator
                 context,
                 errors
             );
-            foreach (EquipmentAbilityActionDef action in effect.actions)
+            foreach (EquipmentAbilityActionImportModel action in effect.actions)
                 ValidateAction(action, effectPath, context, declaredStateKeys, trigger, errors);
         }
     }
@@ -1035,7 +1606,7 @@ internal sealed class EquipmentAbilityBindingValidator
     }
 
     internal static void ValidateFactQuery(
-        EquipmentAbilityFactQueryDef query,
+        EquipmentAbilityFactQueryImportModel query,
         EquipmentAbilityContentValidationContext context,
         string path,
         List<string> errors
@@ -1043,6 +1614,53 @@ internal sealed class EquipmentAbilityBindingValidator
     {
         if (query == null)
             return;
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactQueryKind(query.query_kind))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_QUERY_KIND_UNKNOWN",
+                $"{path}.query_kind",
+                $"fact query kind {query.query_kind} is not registered"
+            );
+            return;
+        }
+        if (query.query_kind == "fact" && !EquipmentAbilityClosedVocabulary.IsKnownFactId(query.fact_id))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_ID_UNKNOWN",
+                $"{path}.fact_id",
+                $"fact_id {query.fact_id} is not registered"
+            );
+            return;
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactSubject(query.subject))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_SUBJECT_UNKNOWN",
+                $"{path}.subject",
+                $"fact subject {query.subject} is not registered"
+            );
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactAggregation(query.aggregation))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_AGGREGATION_UNKNOWN",
+                $"{path}.aggregation",
+                $"fact aggregation {query.aggregation} is not registered"
+            );
+        }
+        if (!EquipmentAbilityClosedVocabulary.IsKnownFactValueKind(query.value_kind))
+        {
+            EquipmentAbilityContentRegistry.AddError(
+                errors,
+                "EQA_FACT_VALUE_KIND_UNKNOWN",
+                $"{path}.value_kind",
+                $"fact value kind {query.value_kind} is not registered"
+            );
+        }
         if (query.fact_id == "status_stacks" || query.fact_id == "source_status_total_stacks")
         {
             ValidateStatusReference(query.status_id, context, $"{path}.status_id", errors);
@@ -1066,7 +1684,10 @@ internal sealed class EquipmentAbilityBindingValidator
         List<string> errors
     )
     {
-        if (skillId == "" || !context.KnownSkillIds.Contains(skillId))
+        if (
+            skillId == ""
+            || !context.KnownSkillDefinitions.ContainsKey(skillId)
+        )
         {
             EquipmentAbilityContentRegistry.AddError(
                 errors,

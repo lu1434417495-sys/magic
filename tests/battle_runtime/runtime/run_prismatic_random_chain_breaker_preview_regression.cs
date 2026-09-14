@@ -244,12 +244,12 @@ public partial class run_prismatic_random_chain_breaker_preview_regression
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
 
     private static BattleUnitState BuildUnit(

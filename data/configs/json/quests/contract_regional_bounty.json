@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "contract_regional_bounty",
+      "display_name": "地区悬赏",
+      "description": "由悬赏署单独发放的区域通缉，用来验证多 provider 任务板的过滤边界。",
+      "provider_kind": "service_bounty_registry",
+      "provider_interaction_id": "service_bounty_registry",
+      "listing_channels": [
+        "bounty_registry"
+      ],
+      "listing_settlement_ids": [
+        "template_town",
+        "template_city",
+        "template_capital",
+        "template_world_stronghold",
+        "template_metropolis"
+      ],
+      "tags": [
+        "contract",
+        "bounty"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 2,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_enemy_once",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "",
+            "target_value": 1
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 120
+          }
+        }
+      ]
+    }
+  ]
+}

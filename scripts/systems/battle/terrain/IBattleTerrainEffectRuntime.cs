@@ -44,4 +44,11 @@ internal interface IBattleTerrainEffectRuntime
         BattleUnitState targetUnit,
         IReadOnlyList<StringName> statusEffectIds
     );
+
+    void GrantTerrainEffectiveTriggerMastery(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName skillId,
+        BattleEventBatch batch
+    );
 }

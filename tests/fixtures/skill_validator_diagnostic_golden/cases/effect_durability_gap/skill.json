@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_durability_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_durability_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_durability_gap",
+        "effect_defs": [
+          {
+            "effect_type": "equipment_durability_damage",
+            "power": 1,
+            "payload": {
+              "max_damaged_items": 2,
+              "target_slots": []
+            },
+            "require_damage_applied": true,
+            "save_dc": 10,
+            "save_ability": "strength",
+            "equipment_durability_slot_weights": [
+              {
+                "slot_id": "main_hand",
+                "weight": 1
+              },
+              {
+                "slot_id": "main_hand",
+                "weight": 1
+              },
+              {
+                "slot_id": "head",
+                "weight": 1
+              },
+              {
+                "slot_id": "head",
+                "weight": 1
+              }
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_durability_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -458,67 +458,91 @@ public partial class PartyState
         }
     }
 
-    public static PartyState FromDictionary(Godot.Collections.Dictionary data)
+    public static PartyState FromDictionary(Godot.Collections.Dictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪个字段让解码失败（成功时为空）。
+    /// 只回 null 的话，读档失败时连"坏在 member_states 还是 active_quests"都查不出来。
+    public static PartyState FromDictionary(
+        Godot.Collections.Dictionary data,
+        out string failureReason
+    )
     {
+        failureReason = DecodeInto(data, out PartyState result);
+        return result;
+    }
+
+    /// 返回空字符串表示解码成功；否则返回失败字段的说明。
+    private static string DecodeInto(
+        Godot.Collections.Dictionary data,
+        out PartyState result
+    )
+    {
+        result = null;
         if (data.Count == 0)
-            return null;
+            return "party_state: payload dictionary is empty";
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
-            return null;
-        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 9)
-            return null;
+            return "party_state: field set does not match the current schema";
+        if (data["version"].VariantType != Variant.Type.Int)
+            return "version: expected Int, got " + data["version"].VariantType;
+        // 版本不符单独成一条：它是开发期最常见的弃档原因，不该和字段损坏混在一起。
+        if (data["version"].AsInt32() != 9)
+            return $"version: expected 9, got {data["version"].AsInt32()}";
         if (data["world_renown"].VariantType != Variant.Type.Int)
-            return null;
+            return "world_renown: expected Int, got " + data["world_renown"].VariantType;
         long parsedWorldRenown = data["world_renown"].AsInt64();
         if (!SocialStandingRules.IsValidWorldRenown(parsedWorldRenown))
-            return null;
+            return $"world_renown: {parsedWorldRenown} is out of range";
         if (data["country_reputations"].VariantType != Variant.Type.Dictionary)
-            return null;
+            return "country_reputations: expected Dictionary, got " + data["country_reputations"].VariantType;
         if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
-            return null;
+            return "warehouse_state: expected Dictionary, got " + data["warehouse_state"].VariantType;
         if (data["member_states"].VariantType != Variant.Type.Dictionary)
-            return null;
+            return "member_states: expected Dictionary, got " + data["member_states"].VariantType;
         if (data["pending_character_rewards"].VariantType != Variant.Type.Array)
-            return null;
+            return "pending_character_rewards: expected Array, got " + data["pending_character_rewards"].VariantType;
         if (data["active_quests"].VariantType != Variant.Type.Array)
-            return null;
+            return "active_quests: expected Array, got " + data["active_quests"].VariantType;
         if (data["claimable_quests"].VariantType != Variant.Type.Array)
-            return null;
+            return "claimable_quests: expected Array, got " + data["claimable_quests"].VariantType;
         if (data["failed_quests"].VariantType != Variant.Type.Array)
-            return null;
+            return "failed_quests: expected Array, got " + data["failed_quests"].VariantType;
         if (data["completed_quest_ids"].VariantType != Variant.Type.Array)
-            return null;
+            return "completed_quest_ids: expected Array, got " + data["completed_quest_ids"].VariantType;
         if (data["fate_run_flags"].VariantType != Variant.Type.Dictionary)
-            return null;
+            return "fate_run_flags: expected Dictionary, got " + data["fate_run_flags"].VariantType;
         if (data["meta_flags"].VariantType != Variant.Type.Dictionary)
-            return null;
-        if (data["gold"].VariantType != Variant.Type.Int || data["gold"].AsInt32() < 0)
-            return null;
+            return "meta_flags: expected Dictionary, got " + data["meta_flags"].VariantType;
+        if (data["gold"].VariantType != Variant.Type.Int)
+            return "gold: expected Int, got " + data["gold"].VariantType;
+        if (data["gold"].AsInt32() < 0)
+            return $"gold: {data["gold"].AsInt32()} must not be negative";
         if (data["active_member_ids"].VariantType != Variant.Type.Array)
-            return null;
+            return "active_member_ids: expected Array, got " + data["active_member_ids"].VariantType;
         if (data["reserve_member_ids"].VariantType != Variant.Type.Array)
-            return null;
+            return "reserve_member_ids: expected Array, got " + data["reserve_member_ids"].VariantType;
 
         var leaderMemberId = _parse_required_string_name(
             data["leader_member_id"],
             out bool leaderOk
         );
         if (!leaderOk)
-            return null;
+            return "leader_member_id: not a usable string name";
         var mainCharacterMemberId = _parse_required_string_name(
             data["main_character_member_id"],
             out bool mainOk
         );
         if (!mainOk)
-            return null;
+            return "main_character_member_id: not a usable string name";
 
         var parsedFateRunFlags = _parse_boolean_flag_dict(
             data["fate_run_flags"].AsGodotDictionary()
         );
         if (parsedFateRunFlags == null)
-            return null;
+            return "fate_run_flags: not a boolean flag map";
         var parsedMetaFlags = _parse_boolean_flag_dict(data["meta_flags"].AsGodotDictionary());
         if (parsedMetaFlags == null)
-            return null;
+            return "meta_flags: not a boolean flag map";
         CountryReputationState parsedCountryReputations;
         try
         {
@@ -526,26 +550,26 @@ public partial class PartyState
                 data["country_reputations"].AsGodotDictionary()
             );
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            return null;
+            return $"country_reputations: {exception.Message}";
         }
         var parsedActiveMemberIds = _parse_unique_string_name_array(
             data["active_member_ids"].AsGodotArray()
         );
         if (parsedActiveMemberIds == null)
-            return null;
+            return "active_member_ids: not a unique string-name array";
         var parsedReserveMemberIds = _parse_unique_string_name_array(
             data["reserve_member_ids"].AsGodotArray()
         );
         if (parsedReserveMemberIds == null)
-            return null;
+            return "reserve_member_ids: not a unique string-name array";
 
         var warehouseState = WarehouseState.FromDictionary(
             data["warehouse_state"].AsGodotDictionary()
         );
         if (warehouseState == null)
-            return null;
+            return "warehouse_state: decode failed";
 
         PartyMemberStateCollection parsedMemberStates;
         try
@@ -554,9 +578,9 @@ public partial class PartyState
                 data["member_states"].AsGodotDictionary()
             );
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
-            return null;
+            return $"member_states: {exception.Message}";
         }
 
         var partyState = new PartyState
@@ -576,35 +600,36 @@ public partial class PartyState
         };
 
         if (!_has_unique_equipment_instance_ids(partyState))
-            return null;
-        if (
-            partyState.leader_member_id == ""
-            || !partyState.HasMemberState(partyState.leader_member_id)
-        )
-            return null;
+            return "member_states: equipment instance ids are not unique across the party";
+        if (partyState.leader_member_id == "")
+            return "leader_member_id: must not be empty";
+        if (!partyState.HasMemberState(partyState.leader_member_id))
+            return $"leader_member_id: '{partyState.leader_member_id}' has no member state";
 
         var rosterSeenIds = new HashSet<StringName>();
         foreach (var memberId in partyState.active_member_ids)
         {
             if (!partyState.HasMemberState(memberId))
-                return null;
+                return $"active_member_ids: '{memberId}' has no member state";
             rosterSeenIds.Add(memberId);
         }
         foreach (var memberId in partyState.reserve_member_ids)
         {
-            if (!rosterSeenIds.Add(memberId) || !partyState.HasMemberState(memberId))
-                return null;
+            if (!rosterSeenIds.Add(memberId))
+                return $"reserve_member_ids: '{memberId}' is already on the roster";
+            if (!partyState.HasMemberState(memberId))
+                return $"reserve_member_ids: '{memberId}' has no member state";
         }
 
         foreach (var rewardValue in data["pending_character_rewards"].AsGodotArray())
         {
             if (rewardValue.VariantType != Variant.Type.Dictionary)
-                return null;
+                return "pending_character_rewards: entry is not a dictionary";
             var reward = PendingCharacterRewardPayload.ReadSavePayload(
                 rewardValue.AsGodotDictionary()
             );
             if (reward == null || reward.IsEmpty())
-                return null;
+                return "pending_character_rewards: entry decoded to an empty reward";
             partyState.pending_character_rewards.Add(reward);
         }
 
@@ -612,71 +637,82 @@ public partial class PartyState
         foreach (var questValue in data["active_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
-                return null;
-            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
-            if (
-                questState == null
-                || questState.quest_id == ""
-                || !seenQuestIds.Add(questState.quest_id)
-            )
-                return null;
+                return "active_quests: entry is not a dictionary";
+            var questState = QuestState.FromDictionary(
+                questValue.AsGodotDictionary(),
+                out string questFailureActive
+            );
+            if (questState == null)
+                return $"active_quests: {questFailureActive}";
+            if (questState.quest_id == "")
+                return "active_quests: entry has an empty quest_id";
+            if (!seenQuestIds.Add(questState.quest_id))
+                return $"active_quests: '{questState.quest_id}' duplicates another quest entry";
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Active))
-                return null;
+                return $"active_quests: '{questState.quest_id}' has status '{questState.status_id}'";
             if (!partyState.SetActiveQuestState(questState))
-                return null;
+                return $"active_quests: '{questState.quest_id}' was rejected";
         }
 
         foreach (var questValue in data["claimable_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
-                return null;
-            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
-            if (
-                questState == null
-                || questState.quest_id == ""
-                || !seenQuestIds.Add(questState.quest_id)
-            )
-                return null;
+                return "claimable_quests: entry is not a dictionary";
+            var questState = QuestState.FromDictionary(
+                questValue.AsGodotDictionary(),
+                out string questFailureClaimable
+            );
+            if (questState == null)
+                return $"claimable_quests: {questFailureClaimable}";
+            if (questState.quest_id == "")
+                return "claimable_quests: entry has an empty quest_id";
+            if (!seenQuestIds.Add(questState.quest_id))
+                return $"claimable_quests: '{questState.quest_id}' duplicates another quest entry";
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Completed))
-                return null;
+                return $"claimable_quests: '{questState.quest_id}' has status '{questState.status_id}'";
             if (!partyState.SetClaimableQuestState(questState))
-                return null;
+                return $"claimable_quests: '{questState.quest_id}' was rejected";
         }
 
         foreach (var questValue in data["failed_quests"].AsGodotArray())
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
-                return null;
-            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
-            if (
-                questState == null
-                || questState.quest_id == ""
-                || !seenQuestIds.Add(questState.quest_id)
-            )
-                return null;
+                return "failed_quests: entry is not a dictionary";
+            var questState = QuestState.FromDictionary(
+                questValue.AsGodotDictionary(),
+                out string questFailureFailed
+            );
+            if (questState == null)
+                return $"failed_quests: {questFailureFailed}";
+            if (questState.quest_id == "")
+                return "failed_quests: entry has an empty quest_id";
+            if (!seenQuestIds.Add(questState.quest_id))
+                return $"failed_quests: '{questState.quest_id}' duplicates another quest entry";
             if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Failed))
-                return null;
+                return $"failed_quests: '{questState.quest_id}' has status '{questState.status_id}'";
             if (!partyState.SetFailedQuestState(questState))
-                return null;
+                return $"failed_quests: '{questState.quest_id}' was rejected";
         }
 
         var parsedCompletedQuestIds = _parse_completed_quest_ids(
             data["completed_quest_ids"].AsGodotArray()
         );
         if (parsedCompletedQuestIds == null)
-            return null;
+            return "completed_quest_ids: not a unique string-name array";
         foreach (StringName questId in parsedCompletedQuestIds)
         {
-            if (!seenQuestIds.Add(questId) || !partyState.AddCompletedQuestId(questId))
-                return null;
+            if (!seenQuestIds.Add(questId))
+                return $"completed_quest_ids: '{questId}' duplicates another quest entry";
+            if (!partyState.AddCompletedQuestId(questId))
+                return $"completed_quest_ids: '{questId}' was rejected";
         }
-        if (
-            partyState.main_character_member_id == ""
-            || !partyState.HasMemberState(partyState.main_character_member_id)
-        )
-            return null;
+        if (partyState.main_character_member_id == "")
+            return "main_character_member_id: must not be empty";
+        if (!partyState.HasMemberState(partyState.main_character_member_id))
+            return $"main_character_member_id: '{partyState.main_character_member_id}' has no member state";
 
-        return partyState;
+        result = partyState;
+        return "";
     }
 
     private static Dictionary<StringName, bool> DuplicateBoolMap(

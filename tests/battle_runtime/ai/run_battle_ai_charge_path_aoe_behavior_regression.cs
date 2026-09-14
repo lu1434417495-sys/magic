@@ -119,16 +119,13 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargePathAoeAction
-        {
-            action_id = "whirlwind_path_aoe_probe",
-            target_selector = "nearest_enemy",
-            minimum_hit_count = 2,
-            },
-            "battle_ai_charge_path_aoe.action"
-        );
-        action.skill_ids.Add("warrior_whirlwind_slash");
+        UseChargePathAoeActionDefinition action =
+            TestEnemyDefinitionFactory.UseChargePathAoe(
+                "whirlwind_path_aoe_probe",
+                new StringName[] { "warrior_whirlwind_slash" },
+                targetSelector: "nearest_enemy",
+                minimumHitCount: 2
+            );
 
         BattleAiContext context = BuildAiContext(runtime, spinner);
         context.trace_enabled = true;
@@ -144,7 +141,7 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
             "旋风斩 AI 夹具不应被正式技能施放门槛阻挡。"
         );
         BattleAiDecision decision = new BattleAiChargePathAoeActionEvaluator().Evaluate(
-            (UseChargePathAoeActionDefinition)action.ToDefinition(),
+            action,
             context
         );
         AiActionTrace trace =
@@ -206,19 +203,14 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         AddUnitToState(runtime, state, largeTarget, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseChargePathAoeAction
-            {
-                action_id = "whirlwind_trace_exception",
-                target_selector = "nearest_enemy",
-                minimum_hit_count = 2,
-            },
-            "battle_ai_charge_path_aoe.trace_exception_action"
-        );
-        action.skill_ids.Add("warrior_whirlwind_slash");
-        BattleAiContext context = BuildAiContext(runtime, spinner);
         UseChargePathAoeActionDefinition definition =
-            (UseChargePathAoeActionDefinition)action.ToDefinition();
+            TestEnemyDefinitionFactory.UseChargePathAoe(
+                "whirlwind_trace_exception",
+                new StringName[] { "warrior_whirlwind_slash" },
+                targetSelector: "nearest_enemy",
+                minimumHitCount: 2
+            );
+        BattleAiContext context = BuildAiContext(runtime, spinner);
 
         BattleAiTraceExceptionProbe.AssertPreservedAndBalanced(
             _test,
@@ -315,21 +307,27 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         CombatCastVariantDefinition variant = whirlwind.CombatProfile.CastVariants[0];
         using var masteryService = new BattleSkillMasteryService();
         var chargeResolver = new BattleChargeResolver();
-        chargeResolver.Setup(runtime, masteryService);
+        chargeResolver.Setup(runtime._moduleBorrowers.ChargeBridge, masteryService);
         using var batch = new BattleEventBatch();
 
-        bool executed = chargeResolver.handle_charge_skill_command_result(
-            spinner,
-            whirlwind,
-            variant,
-            BattleGroundSkillValidationResult.AllowedResult(
-                "可施放。",
-                new[] { new Vector2I(3, 2) },
-                direction: Vector2I.Right,
-                distance: 2,
-                resolvedAnchorCoord: new Vector2I(3, 2)
-            ),
-            batch
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            () =>
+                executed = chargeResolver.handle_charge_skill_command_result(
+                    spinner,
+                    whirlwind,
+                    variant,
+                    BattleGroundSkillValidationResult.AllowedResult(
+                        "可施放。",
+                        new[] { new Vector2I(3, 2) },
+                        direction: Vector2I.Right,
+                        distance: 2,
+                        resolvedAnchorCoord: new Vector2I(3, 2)
+                    ),
+                    batch
+                )
         );
 
         _test.True(executed, "旋风斩熟练度回归应成功执行两格路径冲锋。");
@@ -349,18 +347,24 @@ public partial class run_battle_ai_charge_path_aoe_behavior_regression : Lifecyc
         maxDamageResolver.SetSkillDefinitions(runtime.GetSkillDefinitionIndexTyped());
         runtime.ConfigureDamageResolverForTests(maxDamageResolver);
         using var hitBatch = new BattleEventBatch();
-        bool hitExecuted = chargeResolver.handle_charge_skill_command_result(
-            spinner,
-            whirlwind,
-            variant,
-            BattleGroundSkillValidationResult.AllowedResult(
-                "可施放。",
-                new[] { new Vector2I(3, 2) },
-                direction: Vector2I.Right,
-                distance: 2,
-                resolvedAnchorCoord: new Vector2I(3, 2)
-            ),
-            hitBatch
+        bool hitExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            hitBatch,
+            () =>
+                hitExecuted = chargeResolver.handle_charge_skill_command_result(
+                    spinner,
+                    whirlwind,
+                    variant,
+                    BattleGroundSkillValidationResult.AllowedResult(
+                        "可施放。",
+                        new[] { new Vector2I(3, 2) },
+                        direction: Vector2I.Right,
+                        distance: 2,
+                        resolvedAnchorCoord: new Vector2I(3, 2)
+                    ),
+                    hitBatch
+                )
         );
         _test.True(hitExecuted, "旋风斩熟练度命中夹具应成功执行。");
         _test.True(

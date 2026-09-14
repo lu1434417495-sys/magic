@@ -16,7 +16,11 @@ public sealed class AttackContext
     public bool ForceHitAllowCrit;
     public BattleEventBatch EventBatch;
     public int AttackRollOverride;
+    // 伤害生产者入口显式标注的 DamageOriginKind；默认 Unknown 即 fail-closed，
+    // 主技能/攻击路径必须显式标 main_direct_effect，equipment/terrain 等来源各自标注。
+    internal BattleDamageOriginKind DamageOriginKind = BattleDamageOriginKind.Unknown;
     public IReadOnlyList<int> SaveRollOverrides => _saveRollOverrides;
+    internal BattleAttackActionContext Action { get; init; }
 
     public AttackContext() { }
 

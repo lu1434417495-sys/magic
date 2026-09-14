@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_sequential_line_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_sequential_line_profile_gap",
+      "display_name": "Sequential-line profile diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 0,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_sequential_line_profile_gap",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "sequential_line_hit_profile": {},
+        "attack_resolution_mode": "direct_effect",
+        "special_resolution_profile_id": "invalid",
+        "target_selection_mode": "multi_unit",
+        "min_target_count": 0,
+        "allow_repeat_target": true,
+        "max_hits_per_target": 2,
+        "cast_variants": [
+          {
+            "variant_id": "invalid"
+          }
+        ],
+        "required_weapon_families": [
+          "sword"
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "diagnostic_sequential_line_profile_gap",
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

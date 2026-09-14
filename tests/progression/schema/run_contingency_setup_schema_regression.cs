@@ -279,7 +279,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         Dictionary<string, object> saveMeta = serializer.BuildSaveMetaPlain(
             "save_contingency_schema",
             "Schema Test",
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             "default",
             "Default",
             new Vector2I(8, 8),
@@ -290,7 +290,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         using GodotProjectionLease<GDictionary> payloadLease =
             serializer.BuildSavePayloadLease(
             "save_contingency_schema",
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             saveMeta,
             RuntimePlainPayload.RestoreSaveDictionary(worldData, "test.world_data"),
             Vector2I.Zero,
@@ -305,7 +305,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         payload["version"] = 10;
         bool decoded = serializer.TryDecodePayload(
             payload,
-            "res://data/configs/world_map/default_world_generation.tres",
+            "default",
             saveMeta,
             out SaveDecodeResult decodeResult
         );
@@ -453,7 +453,6 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         {
             unit_id = "hero_001",
             display_name = "Schema Hero",
-            character_level = 7,
             unit_base_attributes = new UnitBaseAttributes
             {
                 strength = 10,
@@ -464,6 +463,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
                 willpower = 12,
             },
         };
+        PromotionHistoryTestFixture.InitializeHistoricalLevel(progress, 7);
         PartyMemberState memberState = new()
         {
             member_id = "hero_001",

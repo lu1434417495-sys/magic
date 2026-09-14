@@ -61,6 +61,21 @@ internal sealed class BattleEquipmentAttackModifierResolver
             BattleEquipmentAbilityDamageReductionContext context
         ) => CollectDamageReductions(context);
 
+    IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult>
+        IBattleEquipmentDamageQuery.CollectMitigationAuras(
+            BattleEquipmentAbilityMitigationAuraContext context
+        ) => CollectMitigationAuras(context);
+
+    IReadOnlyList<BattleEquipmentAbilityMitigationTierResult>
+        IBattleEquipmentDamageQuery.CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        ) => CollectMitigationTiers(context);
+
+    IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+        IBattleEquipmentDamageQuery.CollectBonusDamageDiceForEffect(
+            BattleEquipmentAbilityDirectDamageContext context
+        ) => CollectBonusDamageDiceForEffect(context);
+
     internal List<BattleAttackRollModifierSpec> CollectAttackRollModifierCandidates(
         BattleAttackCheckPolicyContext context
     )
@@ -677,6 +692,78 @@ internal sealed class BattleEquipmentAttackModifierResolver
         return result;
     }
 
+    // §8.4：每次主直接伤害结算的通用加骰 query。只扫描 on_damage_roll/before_damage
+    // reaction 中的 add_damage_dice action；on_hit/after_hit 的旧 weapon-hit query 保持原
+    // 语义。origin 防递归：非 main_direct_effect（timeline/terrain/reflection/self/
+    // equipment bonus/direct reaction/trigger-skill）fail-closed 返回空；
+    // HasAttackCheck && !AttackSucceeded 不触发；无攻击检定的豁免型主直接伤害仍触发。
+    // query 纯读取：不消费 once scope、不推进 usage、不保存任何跨段去重状态。
+    internal IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult> CollectBonusDamageDiceForEffect(
+        BattleEquipmentAbilityDirectDamageContext context
+    )
+    {
+        var result = new List<BattleEquipmentAbilityBonusDamageDiceResult>();
+        if (
+            context == null
+            || context.SourceUnit == null
+            || context.TargetUnit == null
+            || context.DamageOriginKind != BattleDamageOriginKind.MainDirectEffect
+            || (context.HasAttackCheck && !context.AttackSucceeded)
+        )
+        {
+            return result;
+        }
+
+        EquipmentAbilityFactContext factContext =
+            EquipmentAbilityFactContext.FromDirectDamage(context);
+        foreach (BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding in _owner.CollectActiveBindings(context.SourceUnit))
+        {
+            EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+            if (binding?.Reactions == null)
+                continue;
+            foreach (EquipmentAbilityReactionDefinition reaction in binding.Reactions)
+            {
+                if (
+                    reaction == null
+                    || reaction.Trigger != EquipmentAbilityTriggerKind.OnDamageRoll
+                    || reaction.Timing != EquipmentAbilityTimingKind.BeforeDamage
+                    || !BattleEquipmentDirectEffectActionResolver.HasAddDamageDiceAction(reaction)
+                    || !_conditionEvaluator.ConditionGroupPasses(
+                        reaction.ConditionGroup,
+                        context.SourceUnit,
+                        context.TargetUnit,
+                        factContext,
+                        activeBinding
+                    )
+                )
+                {
+                    continue;
+                }
+                if (
+                    !_owner.RollGatePasses(
+                        reaction.RollGate,
+                        binding.BindingId,
+                        reaction.ReactionId,
+                        "",
+                        forcedRollValue: 0,
+                        result: null
+                    )
+                )
+                {
+                    continue;
+                }
+                _directEffectActionResolver.CollectBonusDamageDiceForEffectActions(
+                    activeBinding,
+                    reaction,
+                    context,
+                    factContext,
+                    result
+                );
+            }
+        }
+        return result;
+    }
+
     internal StringName ResolveDamageRollModeOverride(
         BattleEquipmentAbilityDamageRollModeContext context
     )
@@ -842,6 +929,246 @@ internal sealed class BattleEquipmentAttackModifierResolver
         return result;
     }
 
+    internal IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+        BattleEquipmentAbilityMitigationTierContext context
+    )
+    {
+        var result = new List<BattleEquipmentAbilityMitigationTierResult>();
+        StringName damageTag = ProgressionDataUtils.to_string_name(
+            context?.DamageTag ?? new StringName("")
+        );
+        if (
+            context == null
+            || context.SourceUnit == null
+            || context.TargetUnit == null
+            || context.BattleState == null
+            || damageTag == ""
+            || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+        )
+        {
+            return result;
+        }
+
+        EquipmentAbilityFactContext factContext =
+            EquipmentAbilityFactContext.FromMitigationTier(context);
+        BattleUnitState holder = context.TargetUnit;
+        BattleUnitState attacker = context.SourceUnit;
+        foreach (BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding in _owner.CollectActiveBindings(holder))
+        {
+            EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+            if (binding?.Reactions == null)
+                continue;
+            foreach (EquipmentAbilityReactionDefinition reaction in binding.Reactions)
+            {
+                if (
+                    reaction == null
+                    || reaction.Trigger != EquipmentAbilityTriggerKind.OnDamageRoll
+                    || reaction.Timing != EquipmentAbilityTimingKind.BeforeDamage
+                    || !_conditionEvaluator.ConditionGroupPasses(
+                        reaction.ConditionGroup,
+                        holder,
+                        attacker,
+                        factContext,
+                        activeBinding
+                    )
+                    || !_owner.RollGatePasses(
+                        reaction.RollGate,
+                        binding.BindingId,
+                        reaction.ReactionId,
+                        "",
+                        forcedRollValue: 0,
+                        result: null
+                    )
+                )
+                {
+                    continue;
+                }
+
+                foreach (EquipmentAbilityActionDefinition action in reaction.Actions ?? Array.Empty<EquipmentAbilityActionDefinition>())
+                {
+                    if (
+                        action == null
+                        || action.Kind != BattleEquipmentAbilityRuntimeService.ActionKindGrantMitigationTier
+                        || action.PayloadDefinition is not GrantMitigationTierActionPayloadDefinition payload
+                        || !DamageReductionPayloadSelectorMatches(payload.TargetSelector)
+                        || !DamageTagListMatches(payload.DamageTags, damageTag)
+                        || DamageTagContentRules.ToMitigationTierKind(payload.MitigationTier)
+                            is DamageMitigationTierKind.Unknown
+                                or DamageMitigationTierKind.Normal
+                        || !_conditionEvaluator.ConditionGroupPasses(
+                            action.ConditionGroup,
+                            holder,
+                            attacker,
+                            factContext,
+                            activeBinding
+                        )
+                        || !_owner.RollGatePasses(
+                            action.RollGate,
+                            binding.BindingId,
+                            reaction.ReactionId,
+                            action.ActionId,
+                            forcedRollValue: 0,
+                            result: null
+                        )
+                    )
+                    {
+                        continue;
+                    }
+
+                    result.Add(
+                        new BattleEquipmentAbilityMitigationTierResult
+                        {
+                            BindingId = binding.BindingId,
+                            ActionId = action.ActionId,
+                            MitigationTier = ProgressionDataUtils.to_string_name(
+                                payload.MitigationTier
+                            ),
+                            Label = payload.Label ?? "",
+                        }
+                    );
+                }
+            }
+        }
+        result.Sort(CompareMitigationTierResults);
+        return result;
+    }
+
+    private static int CompareMitigationTierResults(
+        BattleEquipmentAbilityMitigationTierResult left,
+        BattleEquipmentAbilityMitigationTierResult right
+    )
+    {
+        int compare = string.CompareOrdinal(
+            left?.BindingId.ToString() ?? "",
+            right?.BindingId.ToString() ?? ""
+        );
+        if (compare != 0)
+            return compare;
+        return string.CompareOrdinal(
+            left?.ActionId.ToString() ?? "",
+            right?.ActionId.ToString() ?? ""
+        );
+    }
+
+    internal IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
+        BattleEquipmentAbilityMitigationAuraContext context
+    )
+    {
+        var result = new List<BattleEquipmentAbilityMitigationAuraResult>();
+        BattleState state = context?.BattleState;
+        BattleUnitState targetUnit = context?.TargetUnit;
+        StringName damageTag = ProgressionDataUtils.to_string_name(
+            context?.DamageTag ?? new StringName("")
+        );
+        if (
+            _owner == null
+            || state == null
+            || targetUnit == null
+            || !targetUnit.IsAlive()
+            || DamageTagContentRules.ToDamageTagKind(damageTag) == DamageTagKind.Unknown
+        )
+        {
+            return result;
+        }
+
+        var seen = new HashSet<(StringName SourceUnitId, StringName BindingId, StringName AuraId)>();
+        foreach (StringName sourceUnitId in state.GetUnitIdsTyped(sorted: true))
+        {
+            if (
+                !state.TryGetUnitTyped(sourceUnitId, out BattleUnitState sourceUnit)
+                || sourceUnit == null
+                || !sourceUnit.IsAlive()
+            )
+            {
+                continue;
+            }
+
+            foreach (
+                BattleEquipmentAbilityRuntimeService.ActiveEquipmentAbilityBinding activeBinding
+                    in _owner.CollectActiveBindings(sourceUnit)
+            )
+            {
+                EquipmentAbilityBindingDefinition binding = activeBinding.Binding;
+                foreach (
+                    EquipmentMitigationAuraDefinition aura
+                        in binding?.MitigationAuras
+                            ?? Array.Empty<EquipmentMitigationAuraDefinition>()
+                )
+                {
+                    StringName auraDamageTag = ProgressionDataUtils.to_string_name(
+                        aura?.DamageTag ?? new StringName("")
+                    );
+                    StringName mitigationTier = ProgressionDataUtils.to_string_name(
+                        aura?.MitigationTier ?? new StringName("")
+                    );
+                    DamageMitigationTierKind mitigationTierKind =
+                        DamageTagContentRules.ToMitigationTierKind(mitigationTier);
+                    if (
+                        aura == null
+                        || aura.AuraId == ""
+                        || aura.Radius < 0
+                        || auraDamageTag != damageTag
+                        || mitigationTierKind
+                            is DamageMitigationTierKind.Unknown
+                                or DamageMitigationTierKind.Normal
+                        || !BattleTargetTeamRules.IsUnitValidForFilter(
+                            sourceUnit,
+                            targetUnit,
+                            aura.TargetTeamFilter
+                        )
+                        || BattleGridDistanceService.GetDistanceBetweenUnits(
+                            sourceUnit,
+                            targetUnit
+                        ) > aura.Radius
+                        || !seen.Add((sourceUnit.unit_id, binding.BindingId, aura.AuraId))
+                    )
+                    {
+                        continue;
+                    }
+
+                    result.Add(
+                        new BattleEquipmentAbilityMitigationAuraResult
+                        {
+                            BindingId = binding.BindingId,
+                            AuraId = aura.AuraId,
+                            SourceUnitId = sourceUnit.unit_id,
+                            MitigationTier = mitigationTier,
+                            Label = string.IsNullOrWhiteSpace(aura.Label)
+                                ? aura.AuraId.ToString()
+                                : aura.Label,
+                        }
+                    );
+                }
+            }
+        }
+
+        result.Sort(CompareMitigationAuraResults);
+        return result;
+    }
+
+    private static int CompareMitigationAuraResults(
+        BattleEquipmentAbilityMitigationAuraResult left,
+        BattleEquipmentAbilityMitigationAuraResult right
+    )
+    {
+        int compare = string.CompareOrdinal(
+            left?.SourceUnitId.ToString() ?? "",
+            right?.SourceUnitId.ToString() ?? ""
+        );
+        if (compare != 0)
+            return compare;
+        compare = string.CompareOrdinal(
+            left?.BindingId.ToString() ?? "",
+            right?.BindingId.ToString() ?? ""
+        );
+        if (compare != 0)
+            return compare;
+        return string.CompareOrdinal(
+            left?.AuraId.ToString() ?? "",
+            right?.AuraId.ToString() ?? ""
+        );
+    }
+
     private static bool DamageReductionPayloadSelectorMatches(StringName targetSelector)
     {
         StringName selector = ProgressionDataUtils.to_string_name(targetSelector);
@@ -855,11 +1182,16 @@ internal sealed class BattleEquipmentAttackModifierResolver
     private static bool DamageReductionMatchesTag(
         DamageReductionActionPayloadDefinition payload,
         StringName damageTag
+    ) => DamageTagListMatches(payload?.DamageTags, damageTag);
+
+    private static bool DamageTagListMatches(
+        IReadOnlyList<StringName> damageTags,
+        StringName damageTag
     )
     {
-        if (payload?.DamageTags == null || payload.DamageTags.Count == 0 || damageTag == "")
+        if (damageTags == null || damageTags.Count == 0 || damageTag == "")
             return false;
-        foreach (StringName value in payload.DamageTags)
+        foreach (StringName value in damageTags)
         {
             if (ProgressionDataUtils.to_string_name(value) == damageTag)
                 return true;

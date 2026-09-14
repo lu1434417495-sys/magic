@@ -73,18 +73,16 @@ internal static class AiHotspotsFormatter
         $"=== AI Profile · {scenarioId} · godot={godotVersion} · commit={gitCommit} ===\n"
         + $"ai_turns={aiTurns}  total_self_usec={totalSelfUsec / 1000.0:F3} ms  sort={sortBy}\n";
 
-    public static bool WriteCsv(string path, GDictionary funcStats)
+    public static BattleSimAnalysisArtifactWriteResult WriteCsv(
+        string path,
+        GDictionary funcStats,
+        BattleSimAnalysisArtifactFileWriter artifactWriter = null
+    )
     {
-        if (string.IsNullOrEmpty(path))
-            return false;
-        string dirPath = path.GetBaseDir();
-        if (!DirAccess.DirExistsAbsolute(dirPath))
-            DirAccess.MakeDirRecursiveAbsolute(dirPath);
-        using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
-        if (file == null)
-            return false;
-
-        file.StoreLine("function,ncalls,self_usec,total_usec,max_usec,self_per_call_usec,total_per_call_usec");
+        var lines = new List<string>
+        {
+            "function,ncalls,self_usec,total_usec,max_usec,self_per_call_usec,total_per_call_usec",
+        };
         var names = new List<Variant>();
         foreach (Variant name in funcStats?.Keys ?? new GArray())
             names.Add(name);
@@ -103,27 +101,30 @@ internal static class AiHotspotsFormatter
             long maxUsec = DictLong(stats, "max_usec");
             double selfPerCall = nCalls > 0 ? selfUsec / (double)nCalls : 0.0;
             double totalPerCall = nCalls > 0 ? totalUsec / (double)nCalls : 0.0;
-            file.StoreLine(
+            lines.Add(
                 $"{Csv(name.AsString())},{nCalls},{selfUsec},{totalUsec},{maxUsec},{selfPerCall:F2},{totalPerCall:F2}"
             );
         }
-        return true;
+        return (artifactWriter ?? new BattleSimAnalysisArtifactFileWriter()).WriteText(
+            BattleSimAnalysisArtifactKind.Profile,
+            path,
+            "ai-profile-functions-csv",
+            string.Join("\n", lines) + "\n"
+        );
     }
 
-    public static bool WriteTextReport(string path, string header, string body)
-    {
-        if (string.IsNullOrEmpty(path))
-            return false;
-        string dirPath = path.GetBaseDir();
-        if (!DirAccess.DirExistsAbsolute(dirPath))
-            DirAccess.MakeDirRecursiveAbsolute(dirPath);
-        using FileAccess file = FileAccess.Open(path, FileAccess.ModeFlags.Write);
-        if (file == null)
-            return false;
-        file.StoreString(header ?? "");
-        file.StoreString(body ?? "");
-        return true;
-    }
+    public static BattleSimAnalysisArtifactWriteResult WriteTextReport(
+        string path,
+        string header,
+        string body,
+        BattleSimAnalysisArtifactFileWriter artifactWriter = null
+    ) =>
+        (artifactWriter ?? new BattleSimAnalysisArtifactFileWriter()).WriteText(
+            BattleSimAnalysisArtifactKind.Profile,
+            path,
+            "ai-profile-hotspots-text",
+            (header ?? "") + (body ?? "")
+        );
 
     public static long TotalSelfUsec(GDictionary funcStats)
     {

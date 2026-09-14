@@ -20,6 +20,19 @@ public static class SkillLevelDescriptionFormatter
         Godot.Collections.Dictionary runtimeContext = null
     )
     {
+        if (skillDefinition == null || skillDefinition.LevelDescriptionTemplate.Length == 0)
+            return "";
+        return BuildLevelDescriptionTyped(skillDefinition, level, runtimeContext == null ? null
+            : ContentValueNormalizer.NormalizeDictionary(runtimeContext,
+                "SkillLevelDescriptionFormatter.runtime_context"));
+    }
+
+    internal static string BuildLevelDescriptionTyped(
+        SkillDefinition skillDefinition,
+        int level,
+        IReadOnlyDictionary<string, object> runtimeContext = null
+    )
+    {
         if (
             skillDefinition == null
             || skillDefinition.LevelDescriptionTemplate.Length == 0
@@ -32,14 +45,7 @@ public static class SkillLevelDescriptionFormatter
         _merge_matching_effect_typed_fields(config, skillDefinition, level);
         _merge_level_overrides(config, skillDefinition, level);
         if (runtimeContext != null)
-            MergePlainMap(
-                config,
-                ContentValueNormalizer.NormalizeDictionary(
-                    runtimeContext,
-                    "SkillLevelDescriptionFormatter.runtime_context"
-                ),
-                overwrite: true
-            );
+            MergePlainMap(config, runtimeContext, overwrite: true);
         _apply_description_derived_fields(config);
         if (config.Count == 0)
             return "";
@@ -123,6 +129,22 @@ public static class SkillLevelDescriptionFormatter
         }
     }
 
+    private static void MergePlainMap(
+        Dictionary<string, object> target,
+        SkillDescriptionVariables source,
+        bool overwrite
+    )
+    {
+        if (source == null)
+            return;
+        foreach ((string key, string value) in source)
+        {
+            if (!overwrite && target.ContainsKey(key))
+                continue;
+            target[key] = value;
+        }
+    }
+
     private static bool _is_optional_value_visible(Dictionary<string, object> config, string key)
     {
         object value = config[key];
@@ -155,13 +177,71 @@ public static class SkillLevelDescriptionFormatter
             level
         ))
         {
-            if (effectDefinition?.Parameters == null)
+            if (effectDefinition == null)
                 continue;
-            foreach ((string paramKey, object value) in effectDefinition.Parameters)
-            {
-                if (!config.ContainsKey(paramKey))
-                    config[paramKey] = value;
-            }
+            _merge_effect_payload(config, effectDefinition.Payload);
+        }
+    }
+
+    private static void _merge_effect_payload(
+        Dictionary<string, object> config,
+        ICombatEffectPayloadDefinition payload
+    )
+    {
+        switch (payload)
+        {
+            case StatusEffectPayloadDefinition value:
+                _set_if_missing(config, "breaks_barrier_layer", value.BreaksBarrierLayer.ToString());
+                _set_if_missing(config, "source_skill_id", value.SourceSkillId.ToString());
+                break;
+            case HealEffectPayloadDefinition value:
+                _set_if_missing(config, "con_mod_heal", value.ConModHeal);
+                break;
+            case EquipmentDurabilityDamageEffectPayloadDefinition value:
+                _set_if_missing(config, "max_damaged_items", value.MaxDamagedItems);
+                _set_if_missing(config, "target_slots", value.TargetSlots);
+                break;
+            case RepeatAttackUntilFailEffectPayloadDefinition value:
+                _set_if_missing(config, "base_attack_bonus", value.BaseAttackBonus);
+                _set_if_missing(config, "cost_resource", value.CostResource.ToString());
+                _set_if_missing(config, "follow_up_cost_addition", value.FollowUpCostAddition);
+                _set_if_missing(config, "follow_up_cost_multiplier", value.FollowUpCostMultiplier);
+                _set_if_missing(config, "follow_up_attack_penalty", value.FollowUpAttackPenalty);
+                _set_if_missing(config, "penalty_free_stages_by_level", value.PenaltyFreeStagesByLevel);
+                _set_if_missing(config, "same_target_only", value.SameTargetOnly);
+                _set_if_missing(config, "follow_up_fixed_cost", value.FollowUpFixedCost);
+                _set_if_missing(config, "exponential_penalty", value.ExponentialPenalty);
+                _set_if_missing(config, "stop_on_insufficient_resource", value.StopOnInsufficientResource);
+                break;
+            case LayeredBarrierEffectPayloadDefinition value:
+                _set_if_missing(config, "area_pattern", value.AreaPattern.ToString());
+                _set_if_missing(config, "profile_id", value.ProfileId.ToString());
+                _set_if_missing(config, "radius_cells", value.RadiusCells);
+                _set_if_missing(config, "save_dc", value.SaveDc);
+                break;
+            case GradedSaveExecuteEffectPayloadDefinition value:
+                _set_if_missing(config, "critical_failure_damage_dice_count", value.CriticalFailureDamageDiceCount);
+                _set_if_missing(config, "critical_failure_damage_dice_sides", value.CriticalFailureDamageDiceSides);
+                _set_if_missing(config, "critical_failure_execute_threshold_max_hp_percent", value.CriticalFailureExecuteThresholdMaxHpPercent);
+                _set_if_missing(config, "critical_failure_frightened_duration_tu", value.CriticalFailureFrightenedDurationTu);
+                _set_if_missing(config, "critical_failure_stunned_duration_tu", value.CriticalFailureStunnedDurationTu);
+                _set_if_missing(config, "failure_damage_dice_count", value.FailureDamageDiceCount);
+                _set_if_missing(config, "failure_damage_dice_sides", value.FailureDamageDiceSides);
+                _set_if_missing(config, "failure_execute_threshold_fixed", value.FailureExecuteThresholdFixed);
+                _set_if_missing(config, "failure_execute_threshold_max_hp_percent", value.FailureExecuteThresholdMaxHpPercent);
+                _set_if_missing(config, "failure_frightened_duration_tu", value.FailureFrightenedDurationTu);
+                _set_if_missing(config, "failure_reaction_lock_duration_tu", value.FailureReactionLockDurationTu);
+                _set_if_missing(config, "profile_id", value.ProfileId.ToString());
+                _set_if_missing(config, "success_aftershock_duration_tu", value.SuccessAftershockDurationTu);
+                break;
+            case DispelMagicEffectPayloadDefinition value:
+                _set_if_missing(config, "breaks_barrier_layer", value.BreaksBarrierLayer.ToString());
+                break;
+            case OnKillGainResourcesEffectPayloadDefinition value:
+                _set_if_missing(config, "grant_scope", value.GrantScope.ToString());
+                _set_if_missing(config, "require_target_defeated_by_same_skill", value.RequireTargetDefeatedBySameSkill);
+                _set_if_missing(config, "stack_on_multiple_kills", value.StackOnMultipleKills);
+                break;
         }
     }
 
@@ -196,6 +276,8 @@ public static class SkillLevelDescriptionFormatter
                 if (ed.ForcedMoveDistance > 0)
                     _set_if_missing(config, "forced_move_distance", ed.ForcedMoveDistance);
             }
+            else if (effectKind == BattleEffectKind.ChainDamage)
+                _merge_chain_damage_typed_fields(config, ed.ChainDamage);
         }
     }
 
@@ -311,6 +393,34 @@ public static class SkillLevelDescriptionFormatter
         _merge_save_fields(config, statusId, ed);
     }
 
+    private static void _merge_chain_damage_typed_fields(
+        Dictionary<string, object> config,
+        CombatChainDamageDefinition chain
+    )
+    {
+        if (chain == null)
+            return;
+        _set_if_missing(config, "chain_base_hop_range", chain.BaseHopRange);
+        _set_if_missing(
+            config,
+            "chain_conductive_hop_range",
+            chain.ConductiveHopRange
+        );
+        if (chain.HasTargetLimit)
+            _set_if_missing(
+                config,
+                "chain_max_total_targets",
+                chain.MaxTotalTargets
+            );
+        else
+            _set_if_missing(config, "chain_max_total_targets", "不限");
+        _set_if_missing(
+            config,
+            "chain_backlash_hop_range_bonus",
+            chain.BacklashHopRangeBonus
+        );
+    }
+
     private static void _merge_save_fields(
         Dictionary<string, object> config,
         string prefix,
@@ -400,6 +510,16 @@ public static class SkillLevelDescriptionFormatter
             config[key] = value;
     }
 
+    private static void _set_if_missing(
+        Dictionary<string, object> config,
+        string key,
+        object value
+    )
+    {
+        if (!config.ContainsKey(key))
+            config[key] = value;
+    }
+
     private static void _merge_level_overrides(
         Dictionary<string, object> config,
         SkillDefinition skillDefinition,
@@ -415,6 +535,14 @@ public static class SkillLevelDescriptionFormatter
             { "ap_cost", costs.ApCost },
             { "mp_cost", costs.MpCost },
             { "stamina_cost", costs.StaminaCost },
+            {
+                "mp_cost_per_target_slot",
+                profile.GetEffectiveMpCostPerTargetSlot(level)
+            },
+            {
+                "stamina_cost_per_target_slot",
+                profile.GetEffectiveStaminaCostPerTargetSlot(level)
+            },
             { "cooldown_tu", costs.CooldownTu },
             { "attack_roll_bonus", profile.GetEffectiveAttackRollBonus(level) },
             { "aura_cost", costs.AuraCost },

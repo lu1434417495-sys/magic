@@ -10,6 +10,7 @@ internal interface IGameRuntimeBattleSelectionPort
     BattleUnitState GetRuntimeBattleUnitById(StringName unitId);
     BattleState GetBattleState();
     BattleGridService GetBattleGridService();
+    BattleLayeredBarrierService GetBattleLayeredBarrierService() => null;
     ISkillCatalog GetSkillCatalog();
     IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
         GetEquipmentAbilityBindings();

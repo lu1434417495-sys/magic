@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "domain": "gameplay_configuration",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "configuration_id": "production",
+      "achievements": [
+        {
+          "achievement_id": "battle_won_first",
+          "display_name": "首战归来",
+          "description": "亲自完成一次战斗胜利，证明自己已经能从正式交战中平安归来。",
+          "event_type": "battle_won",
+          "subject_id": "",
+          "threshold": 1,
+          "rewards": [
+            { "reward_type": "attribute_delta", "target_id": "hp_max", "target_label": "生命上限", "amount": 8, "reason_text": "首战后的胆气与耐力提升。" }
+          ]
+        },
+        {
+          "achievement_id": "settlement_wayfarer",
+          "display_name": "行路借火",
+          "description": "在据点完成一次事务，学会把旅途见闻整理成可反复回想的经验。",
+          "event_type": "settlement_action_completed",
+          "subject_id": "",
+          "threshold": 1,
+          "rewards": [
+            { "reward_type": "knowledge_unlock", "target_id": "wayfarer_notes", "target_label": "旅途见闻", "amount": 1, "reason_text": "据点经历转化成了可保留的见闻。" }
+          ]
+        },
+        {
+          "achievement_id": "enemy_defeated_apprentice",
+          "display_name": "开刃",
+          "description": "累计击倒 3 名敌人，开始掌握主动突进的节奏。",
+          "event_type": "enemy_defeated",
+          "subject_id": "",
+          "threshold": 3,
+          "rewards": [
+            { "reward_type": "skill_unlock", "target_id": "charge", "target_label": "冲锋", "amount": 1, "reason_text": "连战后的脚步更敢向前。" }
+          ]
+        },
+        { "achievement_id": "near_death_unbroken", "display_name": "濒死未倒", "description": "在生命低于三分之一时承受重击仍存活，证明自身已经能在生死边缘守住形神。", "event_type": "near_death_unbroken_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        {
+          "achievement_id": "warrior_heavy_strike_practice",
+          "display_name": "重击热身",
+          "description": "累计施放 5 次重击，挥砍节奏进一步稳定。",
+          "event_type": "skill_used",
+          "subject_id": "warrior_heavy_strike",
+          "threshold": 5,
+          "rewards": [
+            { "reward_type": "skill_mastery", "target_id": "warrior_heavy_strike", "target_label": "重击", "amount": 10, "reason_text": "熟能生巧。" }
+          ]
+        },
+        {
+          "achievement_id": "profession_promoted_first",
+          "display_name": "迈向正职",
+          "description": "完成首次职业晋升，体魄和力量都得到巩固。",
+          "event_type": "profession_promoted",
+          "subject_id": "",
+          "threshold": 1,
+          "rewards": [
+            { "reward_type": "attribute_delta", "target_id": "strength", "target_label": "力量", "amount": 1, "reason_text": "正式晋升让动作更加扎实。" },
+            { "reward_type": "attribute_delta", "target_id": "hp_max", "target_label": "生命上限", "amount": 5, "reason_text": "长期训练开始反映到体魄上。" }
+          ]
+        },
+        {
+          "achievement_id": "skill_learned_guard_break",
+          "display_name": "添一门手段",
+          "description": "学会裂甲斩，开始愿意把近战手段拓展到不同战术用途。",
+          "event_type": "skill_learned",
+          "subject_id": "warrior_guard_break",
+          "threshold": 1,
+          "rewards": [
+            { "reward_type": "attribute_delta", "target_id": "perception", "target_label": "感知", "amount": 1, "reason_text": "换用不同兵器后，对出手距离和节奏的判断更敏锐。" }
+          ]
+        },
+        {
+          "achievement_id": "knowledge_learned_field_manual",
+          "display_name": "把见闻记下来",
+          "description": "学会《野外手册》，开始把零散经历整理成能反复调用的知识。",
+          "event_type": "knowledge_learned",
+          "subject_id": "field_manual",
+          "threshold": 1,
+          "rewards": [
+            { "reward_type": "attribute_delta", "target_id": "willpower", "target_label": "意志", "amount": 1, "reason_text": "把经验写成规则后，行动会更有把握。" }
+          ]
+        },
+        {
+          "achievement_id": "skill_mastery_charge_stride",
+          "display_name": "冲锋起步",
+          "description": "累计获得 20 点冲锋熟练度，开始掌握直线突进的起手节奏。",
+          "event_type": "skill_mastery_gained",
+          "subject_id": "charge",
+          "threshold": 20,
+          "rewards": [
+            { "reward_type": "attribute_delta", "target_id": "agility", "target_label": "敏捷", "amount": 1, "reason_text": "反复练习冲锋后，脚步转换更利落。" }
+          ]
+        },
+        { "achievement_id": "fortuna_guidance_true", "display_name": "Fortuna Guidance I", "description": "已被 Fortuna 标记后，再次对 elite 或 boss 触发一次劣势大成功。", "event_type": "fortuna_guidance_true_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "fortuna_guidance_devout", "display_name": "Fortuna Guidance II", "description": "已信 Fortuna 的角色在低血且承受强 debuff 的逆境中活下来并赢下战斗。", "event_type": "fortuna_guidance_devout_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "fortuna_guidance_exalted", "display_name": "Fortuna Guidance III", "description": "已信 Fortuna 的角色用高位威胁区间而非门骰，对 elite 或 boss 打出一次大成功。", "event_type": "fortuna_guidance_exalted_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "fortuna_guidance_blessed", "display_name": "Fortuna Guidance IV", "description": "完成一个章节且无人永久死亡，并且该角色在本章内至少经历过一次 Fortuna 相关战斗事件。", "event_type": "fortuna_guidance_blessed_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "misfortune_guidance_true", "display_name": "Misfortune Guidance I", "description": "已被黑冕标记后，成功用 Misfortune 的封印链终结一次 elite 或 boss。", "event_type": "misfortune_guidance_true_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "misfortune_guidance_devout", "display_name": "Misfortune Guidance II", "description": "同一战斗内曾遭遇大失败或强 debuff，随后再用封印链赢下 elite 或 boss。", "event_type": "misfortune_guidance_devout_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "misfortune_guidance_exalted", "display_name": "Misfortune Guidance III", "description": "把同一战斗中未用完的 calamity 结算成 shard，并用固定黑冕材料打造第一件黑暗装备。", "event_type": "misfortune_guidance_exalted_manual", "subject_id": "", "threshold": 1, "rewards": [] },
+        { "achievement_id": "misfortune_guidance_blessed", "display_name": "Misfortune Guidance IV", "description": "用 doom_sentence 的宣判击杀完成一次 boss 终结。", "event_type": "misfortune_guidance_blessed_manual", "subject_id": "", "threshold": 1, "rewards": [] }
+      ],
+      "settlement_shops": [
+        {
+          "interaction_script_id": "service_basic_supply", "shop_id": "village_basic_supply", "title": "临时补给", "refresh_interval_steps": 12, "max_random_items": 2, "unique_equipment_offer_chance_percent": 5, "default_price_basis_points": 10000,
+          "guaranteed_items": [
+            { "item_id": "healing_herb", "min_quantity": 2, "max_quantity": 4, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "travel_ration", "min_quantity": 2, "max_quantity": 4, "weight": 0, "price_basis_points": 10000 }
+          ],
+          "random_pool": [
+            { "item_id": "bandage_roll", "min_quantity": 1, "max_quantity": 3, "weight": 6, "price_basis_points": 10000 },
+            { "item_id": "torch_bundle", "min_quantity": 1, "max_quantity": 3, "weight": 5, "price_basis_points": 10000 },
+            { "item_id": "antidote_herb", "min_quantity": 1, "max_quantity": 2, "weight": 4, "price_basis_points": 11000 },
+            { "item_id": "iron_ore", "min_quantity": 1, "max_quantity": 2, "weight": 2, "price_basis_points": 10000 }
+          ]
+        },
+        {
+          "interaction_script_id": "service_local_trade", "shop_id": "town_local_trade", "title": "镇集交易", "refresh_interval_steps": 10, "max_random_items": 4, "unique_equipment_offer_chance_percent": 5, "default_price_basis_points": 10000,
+          "guaranteed_items": [
+            { "item_id": "healing_herb", "min_quantity": 3, "max_quantity": 6, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "bandage_roll", "min_quantity": 2, "max_quantity": 4, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "travel_ration", "min_quantity": 2, "max_quantity": 5, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "beast_hide", "min_quantity": 2, "max_quantity": 4, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "bronze_sword", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "militia_axe", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "leather_cap", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "leather_jerkin", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 }
+          ],
+          "random_pool": [
+            { "item_id": "torch_bundle", "min_quantity": 1, "max_quantity": 3, "weight": 4, "price_basis_points": 10000 },
+            { "item_id": "antidote_herb", "min_quantity": 1, "max_quantity": 3, "weight": 4, "price_basis_points": 10000 },
+            { "item_id": "iron_ore", "min_quantity": 2, "max_quantity": 4, "weight": 3, "price_basis_points": 10000 },
+            { "item_id": "scout_charm", "min_quantity": 1, "max_quantity": 1, "weight": 2, "price_basis_points": 11000 },
+            { "item_id": "iron_greatsword", "min_quantity": 1, "max_quantity": 1, "weight": 1, "price_basis_points": 11500 }
+          ]
+        },
+        {
+          "interaction_script_id": "service_city_market", "shop_id": "city_market", "title": "城市市场", "refresh_interval_steps": 8, "max_random_items": 4, "unique_equipment_offer_chance_percent": 5, "default_price_basis_points": 10000,
+          "guaranteed_items": [
+            { "item_id": "bronze_sword", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "militia_axe", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "watchman_mace", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "leather_cap", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "leather_jerkin", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "scout_charm", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "iron_greatsword", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10000 },
+            { "item_id": "antidote_herb", "min_quantity": 2, "max_quantity": 4, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "hardwood_lumber", "min_quantity": 3, "max_quantity": 6, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "linen_cloth", "min_quantity": 3, "max_quantity": 6, "weight": 0, "price_basis_points": 9500 }
+          ],
+          "random_pool": [
+            { "item_id": "bandage_roll", "min_quantity": 2, "max_quantity": 4, "weight": 5, "price_basis_points": 9500 },
+            { "item_id": "travel_ration", "min_quantity": 2, "max_quantity": 5, "weight": 4, "price_basis_points": 9000 },
+            { "item_id": "torch_bundle", "min_quantity": 1, "max_quantity": 3, "weight": 3, "price_basis_points": 9500 },
+            { "item_id": "iron_ore", "min_quantity": 3, "max_quantity": 6, "weight": 2, "price_basis_points": 9500 }
+          ]
+        },
+        {
+          "interaction_script_id": "service_military_supply", "shop_id": "capital_military_supply", "title": "军需总署", "refresh_interval_steps": 6, "max_random_items": 3, "unique_equipment_offer_chance_percent": 5, "default_price_basis_points": 10000,
+          "guaranteed_items": [
+            { "item_id": "iron_greatsword", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 9500 },
+            { "item_id": "leather_jerkin", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 9000 },
+            { "item_id": "bandage_roll", "min_quantity": 3, "max_quantity": 5, "weight": 0, "price_basis_points": 9000 }
+          ],
+          "random_pool": [
+            { "item_id": "bronze_sword", "min_quantity": 1, "max_quantity": 1, "weight": 2, "price_basis_points": 9000 },
+            { "item_id": "scout_charm", "min_quantity": 1, "max_quantity": 1, "weight": 3, "price_basis_points": 9500 },
+            { "item_id": "antidote_herb", "min_quantity": 2, "max_quantity": 4, "weight": 5, "price_basis_points": 9000 }
+          ]
+        },
+        {
+          "interaction_script_id": "service_grand_auction", "shop_id": "metropolis_grand_auction", "title": "大拍卖行", "refresh_interval_steps": 5, "max_random_items": 4, "unique_equipment_offer_chance_percent": 5, "default_price_basis_points": 10000,
+          "guaranteed_items": [
+            { "item_id": "iron_greatsword", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 11000 },
+            { "item_id": "scout_charm", "min_quantity": 1, "max_quantity": 1, "weight": 0, "price_basis_points": 10500 }
+          ],
+          "random_pool": [
+            { "item_id": "bronze_sword", "min_quantity": 1, "max_quantity": 1, "weight": 1, "price_basis_points": 10000 },
+            { "item_id": "leather_jerkin", "min_quantity": 1, "max_quantity": 1, "weight": 1, "price_basis_points": 10000 },
+            { "item_id": "antidote_herb", "min_quantity": 2, "max_quantity": 4, "weight": 3, "price_basis_points": 10000 },
+            { "item_id": "torch_bundle", "min_quantity": 2, "max_quantity": 4, "weight": 2, "price_basis_points": 10000 }
+          ]
+        }
+      ],
+      "new_game_party": {
+        "gold": 180,
+        "leader_member_id": "player_sword_01",
+        "main_character_member_id": "player_sword_01",
+        "active_member_ids": ["player_sword_01"],
+        "reserve_member_ids": [],
+        "members": [
+          {
+            "member_id": "player_sword_01",
+            "display_name": "剑士",
+            "faction_id": "player",
+            "portrait_id": "portrait_sword",
+            "control_mode": "manual",
+            "race_id": "human",
+            "subrace_id": "common_human",
+            "age_years": 24,
+            "age_profile_id": "human_age_profile",
+            "natural_age_stage_id": "adult",
+            "effective_age_stage_id": "adult",
+            "body_size_category": "medium",
+            "current_mp": 0,
+            "storage_space": 12,
+            "base_attributes": { "strength": 4, "agility": 2, "constitution": 3, "perception": 1, "intelligence": 1, "willpower": 1 },
+            "starting_skill_ids": ["warrior_heavy_strike"]
+          }
+        ],
+        "starting_weapon_rules": [
+          { "required_skill_tags_any": ["crossbow"], "item_id": "militia_light_crossbow" },
+          { "required_skill_tags_any": ["archer", "bow"], "item_id": "ash_shortbow" },
+          { "required_skill_tags_any": ["mage", "magic", "spell"], "item_id": "oak_quarterstaff" },
+          { "required_skill_tags_any": ["priest", "faith", "heal"], "item_id": "watchman_mace" },
+          { "required_skill_tags_any": ["warrior", "melee", "shield"], "item_id": "steel_longsword" }
+        ],
+        "starting_weapon_fallback_item_id": "steel_longsword"
+      },
+      "battle_skill_roles": {
+        "basic_attack_skill_id": "basic_attack"
+      },
+      "skill_generation_battle_sim": {
+        "ground_benchmark_skill_id": "mage_fireball",
+        "multi_target_benchmark_skill_id": "mage_arcane_missile",
+        "ranged_unit_benchmark_skill_id": "mage_frost_bolt",
+        "melee_brain_id": "melee_aggressor",
+        "mage_brain_id": "mage_controller",
+        "ranged_brain_id": "ranged_archer"
+      },
+      "equipment_generation_battle_sim": {
+        "melee_brain_id": "melee_aggressor"
+      }
+    }
+  ]
+}

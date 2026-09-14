@@ -1,7 +1,6 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_party_warehouse_window_schema_regression : LifecycleTestSceneTree
 {
@@ -12,14 +11,22 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
 
     public override async void _Initialize()
     {
-        await TestPartyWarehouseWindowRendersFormalWindowPayload();
-        await TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment();
-        await TestPartyWarehouseWindowKeepsDetailsPlainText();
-        await TestPartyWarehouseWindowToleratesInvalidIconPath();
-        await TestPartyWarehouseWindowRejectsStringNameTopLevelFields();
-        await TestPartyWarehouseWindowRejectsStringNameEntryFields();
-        await TestPartyWarehouseWindowRejectsStringNameTargetMemberFields();
-        RequestTestExit(_test.Finish("Party warehouse window schema regression"));
+        try
+        {
+            await TestPartyWarehouseWindowRendersFormalWindowData();
+            await TestPartyWarehouseWindowUsesInstanceOnlyDiscardForEquipment();
+            await TestPartyWarehouseWindowKeepsDetailsPlainText();
+            await TestPartyWarehouseWindowToleratesInvalidIconPath();
+            await TestPartyWarehouseWindowHidesOnUnavailableWindowData();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Party warehouse window schema regression"));
+        }
     }
 
     private async Task<PartyWarehouseWindow> CreateWindow()
@@ -36,17 +43,22 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
     }
 
-    private async Task TestPartyWarehouseWindowRendersFormalWindowPayload()
+    private async Task TestPartyWarehouseWindowRendersFormalWindowData()
     {
         PartyWarehouseWindow window = await CreateWindow();
         StringName discardedAllItemId = "";
         window.discard_all_requested += itemId => discardedAllItemId = itemId;
-        window.ShowWarehouse(MakeWarehousePayload());
+        window.ShowWarehouse(MakeWarehouseWindowData());
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         _test.True(window.Visible, "共享仓库窗口应在 ShowWarehouse 后保持可见。");
-        _test.Eq(window.stack_list.ItemCount, 1, "formal entries 应渲染一条仓库条目。");
-        _test.Eq(window.target_member_selector.GetItemCount(), 1, "formal target_members 应渲染一个目标角色。");
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.True(window.details_label.Size.X >= 240, "仓库详情应有可读宽度，不能被图标列挤成竖排。");
+        _test.Eq(window.title_label.Text, "共享仓库", "typed window data 的标题应渲染。");
+        _test.Eq(window.summary_label.Text, "已用 1/12 格", "typed window data 的容量摘要应渲染。");
+        _test.Eq(window.status_label.Text, "可用", "typed window data 的状态文案应渲染。");
+        _test.Eq(window.stack_list.ItemCount, 1, "typed entries 应渲染一条仓库条目。");
+        _test.Eq(window.target_member_selector.GetItemCount(), 1, "typed target_members 应渲染一个目标角色。");
         _test.Eq(window.discard_one_button.Text, "丢弃 1 件", "堆叠条目应提供按数量丢弃一件的操作。");
         _test.True(window.discard_all_button.Visible, "堆叠条目应显示丢弃全部同类操作。");
         _test.False(window.discard_all_button.Disabled, "有选中的堆叠条目时应允许丢弃全部同类。");
@@ -74,7 +86,7 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
         };
         window.discard_all_requested += _ => discardAllRequested = true;
 
-        window.ShowWarehouse(MakeEquipmentWarehousePayload());
+        window.ShowWarehouse(MakeEquipmentWarehouseWindowData());
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         _test.Eq(window.discard_one_button.Text, "丢弃此装备", "装备条目应明确按当前实例丢弃。");
@@ -84,6 +96,10 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
         _test.True(
             window.details_label.Text.Contains("装备实例条目"),
             "装备详情应明确当前条目代表一个独立实例。"
+        );
+        _test.True(
+            window.details_label.Text.Contains("耐久：80"),
+            "装备条目应展示实例耐久。"
         );
 
         window.discard_all_button.EmitSignal(BaseButton.SignalName.Pressed);
@@ -103,14 +119,14 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
     private async Task TestPartyWarehouseWindowKeepsDetailsPlainText()
     {
         PartyWarehouseWindow window = await CreateWindow();
-        GDictionary payload = MakeWarehousePayload();
-        GDictionary entry = ((Godot.Collections.Array<GDictionary>)payload["entries"])[0];
-        entry["display_name"] = "[b]治疗药水[/b]";
-        entry["description"] = "[url]不要解释为链接[/url]";
-        window.ShowWarehouse(payload);
+        window.ShowWarehouse(
+            MakeWarehouseWindowData(
+                MakeStackEntry(displayName: "[b]治疗药水[/b]", description: "[url]不要解释为链接[/url]")
+            )
+        );
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
-        _test.True(window.Visible, "仓库窗口应接受正式字符串 payload。");
+        _test.True(window.Visible, "仓库窗口应接受 typed window data。");
         _test.False(window.details_label.BbcodeEnabled, "仓库详情必须保持纯文本模式，内容字段不应被解释为 BBCode。");
         _test.True(
             window.details_label.Text.Contains("[b]治疗药水[/b]")
@@ -123,121 +139,117 @@ public partial class run_party_warehouse_window_schema_regression : LifecycleTes
     private async Task TestPartyWarehouseWindowToleratesInvalidIconPath()
     {
         PartyWarehouseWindow window = await CreateWindow();
-        GDictionary payload = MakeWarehousePayload();
-        GDictionary entry = ((Godot.Collections.Array<GDictionary>)payload["entries"])[0];
-        entry["icon"] = "res://missing/warehouse/not_a_texture.png";
-        window.ShowWarehouse(payload);
+        window.ShowWarehouse(
+            MakeWarehouseWindowData(
+                MakeStackEntry(icon: "res://missing/warehouse/not_a_texture.png")
+            )
+        );
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
-        _test.True(window.Visible, "坏 icon 路径不应导致仓库窗口拒绝整份正式 payload。");
+        _test.True(window.Visible, "坏 icon 路径不应导致仓库窗口拒绝整份 typed window data。");
         _test.True(window.item_icon.Texture == null, "坏 icon 路径应降级为空贴图，而不是保留脏贴图。");
         await DisposeWindow(window);
     }
 
-    private async Task TestPartyWarehouseWindowRejectsStringNameTopLevelFields()
+    private async Task TestPartyWarehouseWindowHidesOnUnavailableWindowData()
     {
         PartyWarehouseWindow window = await CreateWindow();
-        GDictionary payload = MakeWarehousePayload();
-        payload["title"] = new StringName("共享仓库");
-        window.ShowWarehouse(payload);
-        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
-        _test.False(window.Visible, "仓库窗口顶层 string 字段为 StringName 时应拒绝整份 payload。");
-        _test.Eq(window.stack_list.ItemCount, 0, "StringName-valued 顶层字段不应局部渲染仓库条目。");
+        window.ShowWarehouse(MakeWarehouseWindowData());
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.True(window.Visible, "测试前置：可用 window data 应打开窗口。");
+
+        window.ShowWarehouse(null);
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.False(window.Visible, "null window data 应关闭共享仓库窗口。");
+        _test.Eq(window.stack_list.ItemCount, 0, "null window data 不应保留仓库条目。");
+
+        window.ShowWarehouse(
+            new WarehouseWindowData("共享仓库", "", "", "", WarehouseWindowSnapshot.Empty)
+        );
+        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+        _test.False(window.Visible, "不可用 snapshot 应关闭共享仓库窗口。");
+        _test.Eq(
+            window.target_member_selector.GetItemCount(),
+            0,
+            "不可用 snapshot 不应保留目标角色选项。"
+        );
+
         await DisposeWindow(window);
     }
 
-    private async Task TestPartyWarehouseWindowRejectsStringNameEntryFields()
-    {
-        PartyWarehouseWindow window = await CreateWindow();
-        GDictionary payload = MakeWarehousePayload();
-        ((Godot.Collections.Array<GDictionary>)payload["entries"])[0]["display_name"] = new StringName("治疗药水");
-        window.ShowWarehouse(payload);
-        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        _test.False(window.Visible, "仓库 entry string 字段为 StringName 时应拒绝整份 payload。");
-        _test.Eq(window.stack_list.ItemCount, 0, "StringName-valued entry 不应被跳过后继续渲染。");
-        await DisposeWindow(window);
-    }
-
-    private async Task TestPartyWarehouseWindowRejectsStringNameTargetMemberFields()
-    {
-        PartyWarehouseWindow window = await CreateWindow();
-        GDictionary payload = MakeWarehousePayload();
-        ((Godot.Collections.Array<GDictionary>)payload["target_members"])[0]["member_id"] = new StringName("hero");
-        window.ShowWarehouse(payload);
-        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        _test.False(window.Visible, "仓库 target member id 为 StringName 时应拒绝整份 payload。");
-        _test.Eq(window.target_member_selector.GetItemCount(), 0, "非法 target member 不应被忽略后继续渲染。");
-        await DisposeWindow(window);
-    }
-
-    private static GDictionary MakeWarehousePayload() =>
+    private static WarehouseInventoryEntrySnapshot MakeStackEntry(
+        string displayName = "治疗药水",
+        string description = "恢复生命。",
+        string icon = ""
+    ) =>
         new()
         {
-            ["title"] = "共享仓库",
-            ["meta"] = "共享背包按堆栈占格，不计算重量。",
-            ["summary_text"] = "已用 1/12 格",
-            ["status_text"] = "可用",
-            ["default_target_member_id"] = "hero",
-            ["entries"] = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["item_id"] = "potion",
-                    ["instance_id"] = "",
-                    ["display_name"] = "治疗药水",
-                    ["description"] = "恢复生命。",
-                    ["quantity"] = 3,
-                    ["total_quantity"] = 3,
-                    ["is_stackable"] = true,
-                    ["stack_limit"] = 20,
-                    ["item_category"] = "consumable",
-                    ["granted_skill_id"] = "",
-                    ["storage_mode"] = "stack",
-                    ["icon"] = "",
-                    ["rarity"] = 1,
-                    ["current_durability"] = 0,
-                    ["is_skill_book"] = false,
-                    ["granted_skill_name"] = "",
-                },
-            },
-            ["target_members"] = new Godot.Collections.Array<GDictionary>
-            {
-                new()
-                {
-                    ["member_id"] = "hero",
-                    ["display_name"] = "主角",
-                },
-            },
+            ItemId = "potion",
+            DisplayName = displayName,
+            Description = description,
+            Icon = icon,
+            Quantity = 3,
+            TotalQuantity = 3,
+            IsStackable = true,
+            StackLimit = 20,
+            ItemCategory = "consumable",
+            IsSkillBook = false,
+            GrantedSkillId = "",
+            GrantedSkillName = "",
+            StorageMode = "stack",
+            InstanceId = "",
+            Rarity = 1,
+            CurrentDurability = 0,
+            HasEquipmentInstance = false,
         };
 
-    private static GDictionary MakeEquipmentWarehousePayload()
-    {
-        GDictionary payload = MakeWarehousePayload();
-        payload["entries"] = new Godot.Collections.Array<GDictionary>
+    private static WarehouseInventoryEntrySnapshot MakeEquipmentEntry() =>
+        new()
         {
-            new()
-            {
-                ["item_id"] = "bronze_sword",
-                ["instance_id"] = "eq_warehouse_bronze_sword_001",
-                ["display_name"] = "青铜短剑",
-                ["description"] = "一把独立记录属性的短剑。",
-                ["quantity"] = 1,
-                ["total_quantity"] = 2,
-                ["is_stackable"] = false,
-                ["stack_limit"] = 1,
-                ["item_category"] = "equipment",
-                ["granted_skill_id"] = "",
-                ["storage_mode"] = "instance",
-                ["icon"] = "",
-                ["rarity"] = 2,
-                ["current_durability"] = 80,
-                ["is_skill_book"] = false,
-                ["granted_skill_name"] = "",
-            },
+            ItemId = "bronze_sword",
+            DisplayName = "青铜短剑",
+            Description = "一把独立记录属性的短剑。",
+            Icon = "",
+            Quantity = 1,
+            TotalQuantity = 2,
+            IsStackable = false,
+            StackLimit = 1,
+            ItemCategory = "equipment",
+            IsSkillBook = false,
+            GrantedSkillId = "",
+            GrantedSkillName = "",
+            StorageMode = "instance",
+            InstanceId = "eq_warehouse_bronze_sword_001",
+            Rarity = 2,
+            CurrentDurability = 80,
+            HasEquipmentInstance = true,
         };
-        return payload;
-    }
+
+    private static WarehouseWindowData MakeWarehouseWindowData(
+        WarehouseInventoryEntrySnapshot entry = null
+    ) =>
+        new(
+            "共享仓库",
+            "共享背包按堆栈占格，不计算重量。",
+            "已用 1/12 格",
+            "可用",
+            new WarehouseWindowSnapshot(
+                true,
+                12,
+                1,
+                11,
+                false,
+                "队伍管理",
+                "hero",
+                new List<WarehouseTargetMemberSnapshot>
+                {
+                    new("hero", "主角", "leader"),
+                },
+                new List<WarehouseInventoryEntrySnapshot> { entry ?? MakeStackEntry() }
+            )
+        );
+
+    private static WarehouseWindowData MakeEquipmentWarehouseWindowData() =>
+        MakeWarehouseWindowData(MakeEquipmentEntry());
 }

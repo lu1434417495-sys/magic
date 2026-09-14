@@ -1,0 +1,891 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:battle_encounters:v1",
+  "title": "Magic battle encounter JSON authoring schema",
+  "description": "Strict battle encounter contract with nine closed objective kinds.",
+  "$ref": "#/$defs/BattleEncounterJsonDocumentDto",
+  "$defs": {
+    "BattleBossObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_actor_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_actor_id"
+      ]
+    },
+    "BattleBossObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_actor_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleControlObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "control_zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleControlZoneJsonDto"
+          }
+        },
+        "score_target": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "control_zones",
+        "score_target"
+      ]
+    },
+    "BattleControlObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "control_zones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleControlZoneJsonDto"
+          }
+        },
+        "score_target": {
+          "type": "integer"
+        }
+      }
+    },
+    "BattleControlZoneJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "placement_depth": {
+          "type": "integer"
+        },
+        "placement_edge": {
+          "type": "string"
+        },
+        "zone_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "placement_depth",
+        "placement_edge",
+        "zone_id"
+      ]
+    },
+    "BattleDefenseObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "duration_tu": {
+          "type": "integer"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "duration_tu",
+        "target_actor_id"
+      ]
+    },
+    "BattleDefenseObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "duration_tu": {
+          "type": "integer"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleEliminationObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "BattleEliminationObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "BattleEncounterJsonDocumentDto": {
+      "description": "Battle encounter document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "battle_encounters"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleEncounterJsonDto__authoring_encounter_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BattleEncounterJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BattleEncounterJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "encounter_id": {
+          "type": "string"
+        },
+        "objective": {
+          "$ref": "#/$defs/BattleObjectiveJsonDto"
+        },
+        "roster_profile_id": {
+          "type": "string"
+        },
+        "scenario_actors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleScenarioActorJsonDto"
+          }
+        },
+        "world_resolution": {
+          "$ref": "#/$defs/BattleEncounterWorldResolutionJsonDto"
+        }
+      },
+      "required": [
+        "display_name",
+        "encounter_id",
+        "objective",
+        "roster_profile_id",
+        "scenario_actors",
+        "world_resolution"
+      ]
+    },
+    "BattleEncounterJsonDto__authoring_encounter_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleEncounterJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BattleEncounterJsonDto__templated_encounter_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BattleEncounterJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "encounter_id": {
+          "type": "string"
+        },
+        "objective": {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial"
+        },
+        "roster_profile_id": {
+          "type": "string"
+        },
+        "scenario_actors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleScenarioActorJsonDto"
+          }
+        },
+        "world_resolution": {
+          "$ref": "#/$defs/BattleEncounterWorldResolutionJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BattleEncounterJsonDto__templated_encounter_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "encounter_id": {
+          "type": "string"
+        },
+        "objective": {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial"
+        },
+        "roster_profile_id": {
+          "type": "string"
+        },
+        "scenario_actors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleScenarioActorJsonDto"
+          }
+        },
+        "world_resolution": {
+          "$ref": "#/$defs/BattleEncounterWorldResolutionJsonDto__partial"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "encounter_id",
+        "template"
+      ]
+    },
+    "BattleEncounterWorldResolutionJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "draw_mode": {
+          "type": "string"
+        },
+        "player_failure_mode": {
+          "type": "string"
+        },
+        "player_success_mode": {
+          "type": "string"
+        },
+        "suppression_steps": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "draw_mode",
+        "player_failure_mode",
+        "player_success_mode",
+        "suppression_steps"
+      ]
+    },
+    "BattleEncounterWorldResolutionJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "draw_mode": {
+          "type": "string"
+        },
+        "player_failure_mode": {
+          "type": "string"
+        },
+        "player_success_mode": {
+          "type": "string"
+        },
+        "suppression_steps": {
+          "type": "integer"
+        }
+      }
+    },
+    "BattleEscapeObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "exit_depth",
+        "exit_edge",
+        "exit_zone_id"
+      ]
+    },
+    "BattleEscapeObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleEscortObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "exit_depth",
+        "exit_edge",
+        "exit_zone_id",
+        "target_actor_id"
+      ]
+    },
+    "BattleEscortObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleInterceptObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "exit_depth",
+        "exit_edge",
+        "exit_zone_id",
+        "target_actor_id"
+      ]
+    },
+    "BattleInterceptObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exit_depth": {
+          "type": "integer"
+        },
+        "exit_edge": {
+          "type": "string"
+        },
+        "exit_zone_id": {
+          "type": "string"
+        },
+        "target_actor_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleNodeOperationObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operation_nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleOperationNodeJsonDto"
+          }
+        }
+      },
+      "required": [
+        "operation_nodes"
+      ]
+    },
+    "BattleNodeOperationObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "operation_nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleOperationNodeJsonDto"
+          }
+        }
+      }
+    },
+    "BattleObjectiveJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__boss"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__control"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__defense"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__elimination"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__escape"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__escort"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__intercept"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__node_operation"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__rescue"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "boss": "#/$defs/BattleObjectiveJsonDto__boss",
+          "control": "#/$defs/BattleObjectiveJsonDto__control",
+          "defense": "#/$defs/BattleObjectiveJsonDto__defense",
+          "elimination": "#/$defs/BattleObjectiveJsonDto__elimination",
+          "escape": "#/$defs/BattleObjectiveJsonDto__escape",
+          "escort": "#/$defs/BattleObjectiveJsonDto__escort",
+          "intercept": "#/$defs/BattleObjectiveJsonDto__intercept",
+          "node_operation": "#/$defs/BattleObjectiveJsonDto__node_operation",
+          "rescue": "#/$defs/BattleObjectiveJsonDto__rescue"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__boss": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "boss"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleBossObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__control": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "control"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleControlObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__defense": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defense"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleDefenseObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__elimination": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "elimination"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEliminationObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__escape": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "escape"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEscapeObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__escort": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "escort"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEscortObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__intercept": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "intercept"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleInterceptObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__node_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "node_operation"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleNodeOperationObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleObjectiveJsonDto__partial": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__boss"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__control"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__defense"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__elimination"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__escape"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__escort"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__intercept"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__node_operation"
+        },
+        {
+          "$ref": "#/$defs/BattleObjectiveJsonDto__partial__rescue"
+        }
+      ]
+    },
+    "BattleObjectiveJsonDto__partial__boss": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "boss"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleBossObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__control": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "control"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleControlObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__defense": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "defense"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleDefenseObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__elimination": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "elimination"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEliminationObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__escape": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "escape"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEscapeObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__escort": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "escort"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleEscortObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__intercept": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "intercept"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleInterceptObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__node_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "node_operation"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleNodeOperationObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__partial__rescue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "rescue"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleRescueObjectivePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleObjectiveJsonDto__rescue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "rescue"
+        },
+        "payload": {
+          "$ref": "#/$defs/BattleRescueObjectivePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleOperationNodeJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "node_id": {
+          "type": "string"
+        },
+        "placement_depth": {
+          "type": "integer"
+        },
+        "placement_edge": {
+          "type": "string"
+        },
+        "zone_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "node_id",
+        "placement_depth",
+        "placement_edge",
+        "zone_id"
+      ]
+    },
+    "BattleRescueObjectivePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_actor_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_actor_id"
+      ]
+    },
+    "BattleRescueObjectivePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "target_actor_id": {
+          "type": "string"
+        }
+      }
+    },
+    "BattleScenarioActorJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "spawn_depth": {
+          "type": "integer"
+        },
+        "spawn_edge": {
+          "type": "string"
+        },
+        "spawn_zone_id": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "display_name",
+        "spawn_depth",
+        "spawn_edge",
+        "spawn_zone_id",
+        "template_id"
+      ]
+    }
+  }
+}

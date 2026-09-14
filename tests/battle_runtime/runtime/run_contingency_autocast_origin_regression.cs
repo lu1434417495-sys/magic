@@ -70,10 +70,10 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         state.active_unit_id = activeAlly.unit_id;
         state.phase = "unit_acting";
         runtime.SetupStateForTests(state);
-        BattleTestFixture.ConfigureDamageResolverForTests(
-            runtime,
-            new FixedSuccessOneDamageResolver()
+        var damageResolver = new UnknownSkillObservingDamageResolver(
+            storedSkill.SkillId
         );
+        BattleTestFixture.ConfigureDamageResolverForTests(runtime, damageResolver);
 
         int casterApBefore = caster.GetCurrentAp();
         int casterMpBefore = caster.GetCurrentMp();
@@ -120,6 +120,18 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         );
 
         _test.True(target.GetCurrentHp() < 30, "auto-cast should apply formal damage to the resolved target.");
+        _test.True(
+            damageResolver.WasInvoked,
+            "fixture should observe the caster during formal auto-cast damage resolution."
+        );
+        _test.False(
+            damageResolver.SawKnownActiveSkill,
+            "auto-cast must not temporarily add the stored spell to known_active_skill_ids."
+        );
+        _test.False(
+            damageResolver.SawKnownSkillLevel,
+            "auto-cast must not temporarily add the scoped level to known_skill_level_map."
+        );
         _test.True(
             target.HasStatusEffect("contingency_marked"),
             "auto-cast should commit ordinary status effects through the formal effect path."
@@ -307,8 +319,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             "sequential combat-start release report"
         );
 
-        using BattleEventBatch firstTurnBatch = new();
-        runtime._record_turn_started(caster, firstTurnBatch);
+        using BattleEventBatch firstTurnBatch = ActivateOwnerTurn(runtime, caster);
         int hpAfterFirst = target.GetCurrentHp();
         _test.True(hpAfterFirst < 30, "first owner-turn hook should execute exactly one queued spell.");
         _test.Eq(
@@ -317,8 +328,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
             "first owner-turn hook should leave the second queued spell pending."
         );
 
-        using BattleEventBatch secondTurnBatch = new();
-        runtime._record_turn_started(caster, secondTurnBatch);
+        using BattleEventBatch secondTurnBatch = ActivateOwnerTurn(runtime, caster);
         _test.True(
             target.GetCurrentHp() < hpAfterFirst,
             "second owner-turn hook should execute the next queued spell in order."
@@ -384,15 +394,23 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
     private void TestSpecialProfileAutoCastUsesFormalCommitWithoutCostsOrProgression()
     {
         SkillDefinition meteorSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/mage_meteor_swarm.tres",
+            "mage_meteor_swarm",
             "contingency_autocast_origin:mage_meteor_swarm"
         );
-        MeteorSwarmProfile meteorProfile = GD.Load<MeteorSwarmProfile>(
-            "res://data/configs/skill_special_profiles/profiles/meteor_swarm_profile.tres"
-        );
         _test.True(meteorSkill != null, "auto-cast meteor skill fixture should load.");
-        _test.True(meteorProfile != null, "auto-cast meteor profile fixture should load.");
-        if (meteorSkill == null || meteorProfile == null)
+        if (meteorSkill == null)
+            return;
+
+        using var specialProfiles = new BattleSpecialProfileRegistry();
+        specialProfiles.Rebuild(
+            new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill }
+        );
+        _test.Eq(
+            0,
+            specialProfiles.ValidateTyped().Count,
+            "auto-cast meteor JSON profile fixture should validate."
+        );
+        if (specialProfiles.ValidateTyped().Count != 0)
             return;
 
         PartyState partyState = BuildPartyState(
@@ -422,10 +440,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         runtime.setup(
             character_gateway: gateway,
             skill_definitions: new Dictionary<StringName, SkillDefinition> { [meteorSkill.SkillId] = meteorSkill },
-            battle_special_profile_view: BattleSpecialProfileRuntimeView.ForMeteorSwarm(
-                "meteor_swarm",
-                meteorProfile
-            )
+            battle_special_profile_view: specialProfiles.BuildRuntimeProfileView()
         );
         BattleTestFixture.ConfigureHitResolverForTests(runtime, new FixedHitResolver(10));
         BattleState state = Track(
@@ -600,6 +615,21 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         foreach (string value in batch?.LogLinesTyped ?? Array.Empty<string>())
             logs.Add(value);
         return string.Join(" | ", logs);
+    }
+
+    private static BattleEventBatch ActivateOwnerTurn(
+        BattleRuntimeModule runtime,
+        BattleUnitState owner
+    )
+    {
+        BattleState state = runtime?.GetState();
+        if (state?.timeline == null || owner == null)
+            return new BattleEventBatch();
+        state.PhaseKind = BattlePhaseKind.TimelineRunning;
+        state.active_unit_id = "";
+        state.timeline.ready_unit_ids.Clear();
+        state.timeline.ready_unit_ids.Add(owner.unit_id);
+        return runtime.advance(0);
     }
 
     private static SkillDefinition StoredBoltSkill() =>
@@ -934,6 +964,42 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         _stateFixtures.Clear();
     }
 
+    private sealed class UnknownSkillObservingDamageResolver : FixedSuccessOneDamageResolver
+    {
+        private readonly StringName _observedSkillId;
+
+        internal UnknownSkillObservingDamageResolver(StringName observedSkillId)
+        {
+            _observedSkillId = observedSkillId;
+        }
+
+        internal bool WasInvoked { get; private set; }
+        internal bool SawKnownActiveSkill { get; private set; }
+        internal bool SawKnownSkillLevel { get; private set; }
+
+        internal override AttackEffectResolutionResult ResolveAttackEffects(
+            BattleUnitState source_unit,
+            BattleUnitState target_unit,
+            IEnumerable<CombatEffectDefinition> effect_definitions,
+            AttackCheckInput attack_check,
+            AttackContext attack_context
+        )
+        {
+            WasInvoked = true;
+            SawKnownActiveSkill |=
+                source_unit?.KnowsActiveSkill(_observedSkillId) == true;
+            SawKnownSkillLevel |=
+                source_unit?.HasKnownSkillLevelTyped(_observedSkillId) == true;
+            return base.ResolveAttackEffects(
+                source_unit,
+                target_unit,
+                effect_definitions,
+                attack_check,
+                attack_context
+            );
+        }
+    }
+
     private sealed class TrackingBattleGateway : IBattleRuntimeCharacterGateway, IDisposable
     {
         private readonly PartyState _partyState;
@@ -992,7 +1058,7 @@ public partial class run_contingency_autocast_origin_regression : LifecycleTestS
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) =>
             new();
 

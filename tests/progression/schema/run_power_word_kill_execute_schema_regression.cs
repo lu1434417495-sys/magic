@@ -5,7 +5,6 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_power_word_kill_execute_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://power_word_kill_execute_schema_regression";
     private readonly TestHarness _test = new();
     private int _validationCaseIndex;
 
@@ -41,16 +40,16 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
         skill.combat_profile.min_target_count = 2;
         skill.combat_profile.max_target_count = 2;
         skill.combat_profile.allow_repeat_target = true;
-        skill.combat_profile.area_pattern = "circle";
+        skill.combat_profile.area_pattern = "square";
         skill.combat_profile.area_value = 2;
         CombatEffectDef effect = skill.combat_profile.effect_defs[0];
         effect.effect_target_team_filter = "ally";
-        effect.save_dc_mode = "fortune";
+        effect.save_dc_mode = "static";
         effect.save_dc = -1;
-        effect.save_dc_source_ability = "fortune";
-        effect.save_ability = "fortune";
+        effect.save_dc_source_ability = "intelligence";
+        effect.save_ability = "willpower";
         effect.save_tag = "magic";
-        effect.damage_tag = "void";
+        effect.damage_tag = "fire";
         effect.save_partial_on_success = true;
 
         string errors = FormatErrors(ValidateSkill(skill));
@@ -64,13 +63,25 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
         AssertContains(errors, "combat_profile.area_pattern", "execute should require single area pattern.");
         AssertContains(errors, "combat_profile.area_value", "execute should require zero area value.");
         AssertContains(errors, "effect_target_team_filter", "execute effect should target enemies.");
-        AssertContains(errors, "save_dc_mode", "execute should reject unknown save DC mode.");
         AssertContains(errors, "save_dc", "execute should reject invalid static save_dc.");
         AssertContains(errors, "save_dc_source_ability", "execute should validate save source mode.");
         AssertContains(errors, "save_ability", "execute should validate save ability.");
         AssertContains(errors, "save_tag", "execute should use execute save tag.");
-        AssertContains(errors, "damage_tag", "execute should reject unsupported damage tags.");
         AssertContains(errors, "save_partial_on_success", "execute should not use partial save.");
+
+        SkillDef boundaryInvalid = FormalPwkSkill();
+        boundaryInvalid.combat_profile.area_pattern = "circle";
+        CombatEffectDef boundaryEffect = boundaryInvalid.combat_profile.effect_defs[0];
+        boundaryEffect.save_dc_mode = "fortune";
+        boundaryEffect.save_dc_source_ability = "fortune";
+        boundaryEffect.save_ability = "fortune";
+        boundaryEffect.damage_tag = "void";
+        string boundaryErrors = FormatErrors(ValidateSkill(boundaryInvalid));
+        AssertContains(boundaryErrors, "/combat_profile/area_pattern", "unknown area pattern should fail at the import boundary.");
+        AssertContains(boundaryErrors, "/save_dc_mode", "unknown save DC mode should fail at the import boundary.");
+        AssertContains(boundaryErrors, "/save_dc_source_ability", "unknown save source ability should fail at the import boundary.");
+        AssertContains(boundaryErrors, "/save_ability", "unknown save ability should fail at the import boundary.");
+        AssertContains(boundaryErrors, "/damage_tag", "unknown damage tag should fail at the import boundary.");
     }
 
     private void TestExecuteRejectsSiblingPassiveSpecialAndGroundShapes()
@@ -123,11 +134,6 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
         effect.shield_gain_multiplier_percent = -1;
         effect.trigger_event = "critical_hit";
         effect.trigger_condition = "battle_start";
-        effect.@params = new GDictionary
-        {
-            ["staged_execution"] = true,
-            ["threshold_ability_mod"] = "intelligence_modifier",
-        };
 
         string errors = FormatErrors(ValidateSkill(skill));
 
@@ -137,7 +143,16 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
         AssertContains(errors, "shield_gain_multiplier_percent", "shield multiplier should be clamped by schema.");
         AssertContains(errors, "trigger_event", "execute should not carry hidden trigger event.");
         AssertContains(errors, "trigger_condition", "execute should not carry hidden trigger condition.");
-        AssertContains(errors, "must not use params payload", "execute should reject old params payload.");
+
+        SkillDef legacyParamsSkill = FormalPwkSkill();
+        legacyParamsSkill.combat_profile.effect_defs[0].@params = new GDictionary
+        {
+            ["staged_execution"] = true,
+            ["threshold_ability_mod"] = "intelligence_modifier",
+        };
+        string legacyErrors = FormatErrors(ValidateSkill(legacyParamsSkill));
+        AssertContains(legacyErrors, "/payload/staged_execution", "execute should reject the old staged_execution params member at the import boundary.");
+        AssertContains(legacyErrors, "/payload/threshold_ability_mod", "execute should reject the old threshold ability params member at the import boundary.");
     }
 
     private void TestExecuteSoulFractureDurationBoundary()
@@ -163,20 +178,10 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
 
     private void TestFormalResourceLoadsAndValidates()
     {
-        SkillDef skill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/mage_power_word_kill.tres"
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "mage_power_word_kill"
         );
-        _test.True(skill != null, "formal mage_power_word_kill resource should load.");
-        if (skill == null)
-        {
-            return;
-        }
-        GStringArray errors = ValidateSkill(skill);
-        _test.Eq(
-            errors.Count,
-            0,
-            $"formal mage_power_word_kill should validate. errors={FormatErrors(errors)}"
-        );
+        _test.True(skill != null, "formal mage_power_word_kill JSON definition should load.");
     }
 
     private static CombatEffectDef FormalExecuteEffect() => new()
@@ -229,41 +234,11 @@ public partial class run_power_word_kill_execute_schema_regression : LifecycleTe
 
     private GStringArray ValidateSkill(SkillDef skill)
     {
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "should create temp PWK schema directory."
-        );
         _validationCaseIndex++;
-        string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
-        _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
-
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        return registry.Validate();
-    }
-
-    private static void CleanupTempSkillDirectory()
-    {
-        string absolute = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (!DirAccess.DirExistsAbsolute(absolute))
-            return;
-        using DirAccess dir = DirAccess.Open(TempSkillDirectory);
-        if (dir == null)
-            return;
-        dir.ListDirBegin();
-        while (true)
-        {
-            string entry = dir.GetNext();
-            if (string.IsNullOrEmpty(entry))
-                break;
-            if (entry == "." || entry == "..")
-                continue;
-            dir.Remove(entry);
-        }
-        dir.ListDirEnd();
-        DirAccess.RemoveAbsolute(absolute);
+        return TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
+            skill,
+            $"pwk_schema_{_validationCaseIndex}"
+        );
     }
 
     private void AssertContains(string haystack, string needle, string message)

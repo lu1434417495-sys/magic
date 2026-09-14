@@ -7,17 +7,17 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundEffectCoordService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner
     )
     {
@@ -34,9 +34,9 @@ internal class BattleGroundEffectCoordService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -45,12 +45,12 @@ internal class BattleGroundEffectCoordService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
     private BattleTargetCollectionService TargetCollectionService =>
-        Runtime?._target_collection_service;
-    private BattleSkillResolutionRules SkillResolutionRules => Runtime?._skill_resolution_rules;
+        Runtime?.GetTargetCollectionService();
+    private BattleSkillResolutionRules SkillResolutionRules => Runtime?.GetSkillResolutionRules();
 
 
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
@@ -65,14 +65,13 @@ internal class BattleGroundEffectCoordService
             targetCoords ?? System.Array.Empty<Vector2I>()
         );
         if (
-            castVariantDefinition != null
-            && BattleGroundEffectService.HasParameter(castVariantDefinition.Parameters, "square2_corner")
+            castVariantDefinition?.Square2Corner is CombatCastSquare2CornerKind corner
             && normalizedTargetCoords.Count == 1
         )
         {
             IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
                 normalizedTargetCoords[0],
-                BattleGroundEffectService.ReadString(castVariantDefinition.Parameters, "square2_corner")
+                corner
             );
             var valid = new List<Vector2I>(expanded.Count);
             foreach (Vector2I coord in expanded)
@@ -123,14 +122,13 @@ internal class BattleGroundEffectCoordService
             targetCoords ?? System.Array.Empty<Vector2I>()
         );
         if (
-            castVariantDefinition != null
-            && BattleGroundEffectService.HasParameter(castVariantDefinition.Parameters, "square2_corner")
+            castVariantDefinition?.Square2Corner is CombatCastSquare2CornerKind corner
             && normalizedTargetCoords.Count == 1
         )
         {
             IReadOnlyList<Vector2I> expanded = ExpandSquare2Corner(
                 normalizedTargetCoords[0],
-                BattleGroundEffectService.ReadString(castVariantDefinition.Parameters, "square2_corner")
+                corner
             );
             var valid = new List<Vector2I>(expanded.Count);
             foreach (Vector2I coord in expanded)
@@ -228,32 +226,24 @@ internal class BattleGroundEffectCoordService
         IReadOnlyList<Vector2I> effectCoords
     )
     {
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> plan =
+            BuildGroundEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                effectCoords
+            );
         var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnit in CollectUnitsInCoords(effectCoords))
-        {
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
+        foreach (
+            BattleUnitState targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                effectDefinitions,
+                plan
             )
+        )
+        {
+            if (targetUnit != null)
             {
-                if (
-                    _owner._is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                    && BattleEffectTargetRequirementRules.IsSatisfied(
-                        effectDefinition,
-                        targetUnit
-                    )
-                )
-                {
-                    if (targetUnit != null)
-                    {
-                        targetUnitIds.Add(targetUnit.unit_id);
-                    }
-                    break;
-                }
+                targetUnitIds.Add(targetUnit.unit_id);
             }
         }
         return targetUnitIds;
@@ -266,43 +256,74 @@ internal class BattleGroundEffectCoordService
         IReadOnlyList<Vector2I> effectCoords
     )
     {
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>> plan =
+            BuildGroundEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                effectCoords
+            );
         var targetUnitIds = new List<StringName>();
-        foreach (BattleUnitState targetUnitState in CollectUnitsInCoords(effectCoords))
-        {
-            BattleUnitReadView targetUnit = new(targetUnitState);
-            foreach (
-                CombatEffectDefinition effectDefinition in effectDefinitions
-                    ?? Array.Empty<CombatEffectDefinition>()
+        foreach (
+            BattleUnitReadView targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                effectDefinitions,
+                plan
             )
+        )
+        {
+            if (targetUnit.IsValid)
             {
-                if (
-                    _owner._is_unit_valid_for_effect(
-                        sourceUnit,
-                        targetUnit,
-                        _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition)
-                    )
-                    && BattleEffectTargetRequirementRules.IsSatisfied(
-                        effectDefinition,
-                        targetUnit
-                    )
-                )
-                {
-                    if (targetUnit.IsValid)
-                    {
-                        targetUnitIds.Add(targetUnit.UnitId);
-                    }
-                    break;
-                }
+                targetUnitIds.Add(targetUnit.UnitId);
             }
         }
         return targetUnitIds;
+    }
+
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+        BuildGroundEffectTargetPlan(
+            BattleUnitState sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<Vector2I> effectCoords
+        )
+    {
+        IReadOnlyList<BattleUnitState> candidateUnits = CollectUnitsInCoords(effectCoords);
+        return Runtime?.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                candidateUnits
+            )
+            ?? new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>();
+    }
+
+    internal IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>
+        BuildGroundEffectTargetPlan(
+            BattleUnitReadView sourceUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<Vector2I> effectCoords
+        )
+    {
+        var candidateUnits = new List<BattleUnitReadView>();
+        foreach (BattleUnitState candidateUnit in CollectUnitsInCoords(effectCoords))
+        {
+            candidateUnits.Add(new BattleUnitReadView(candidateUnit));
+        }
+        return Runtime?.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                effectDefinitions,
+                candidateUnits
+            )
+            ?? new Dictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitReadView>>();
     }
 
     internal List<BattleUnitState> CollectUnitsInCoords(IReadOnlyList<Vector2I> effectCoords)
     {
         return _runtime == null
             ? new List<BattleUnitState>()
-            : new List<BattleUnitState>(Runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords));
+            : new List<BattleUnitState>(Runtime.CollectUnitsInCoords(effectCoords));
     }
 
     internal static HashSet<int> BuildEffectInstanceIdSet(
@@ -323,36 +344,43 @@ internal class BattleGroundEffectCoordService
         return result;
     }
 
-    private static IReadOnlyList<Vector2I> ExpandSquare2Corner(Vector2I center, string corner)
+    private static IReadOnlyList<Vector2I> ExpandSquare2Corner(
+        Vector2I center,
+        CombatCastSquare2CornerKind corner
+    )
     {
         var expanded = new List<Vector2I>(4);
-        if (corner == "top_left")
+        if (corner == CombatCastSquare2CornerKind.TopLeft)
         {
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X + 1, center.Y));
             expanded.Add(new Vector2I(center.X, center.Y + 1));
             expanded.Add(new Vector2I(center.X + 1, center.Y + 1));
         }
-        else if (corner == "top_right")
+        else if (corner == CombatCastSquare2CornerKind.TopRight)
         {
             expanded.Add(new Vector2I(center.X - 1, center.Y));
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X - 1, center.Y + 1));
             expanded.Add(new Vector2I(center.X, center.Y + 1));
         }
-        else if (corner == "bottom_left")
+        else if (corner == CombatCastSquare2CornerKind.BottomLeft)
         {
             expanded.Add(new Vector2I(center.X, center.Y - 1));
             expanded.Add(new Vector2I(center.X + 1, center.Y - 1));
             expanded.Add(center);
             expanded.Add(new Vector2I(center.X + 1, center.Y));
         }
-        else if (corner == "bottom_right")
+        else if (corner == CombatCastSquare2CornerKind.BottomRight)
         {
             expanded.Add(new Vector2I(center.X - 1, center.Y - 1));
             expanded.Add(new Vector2I(center.X, center.Y - 1));
             expanded.Add(new Vector2I(center.X - 1, center.Y));
             expanded.Add(center);
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(corner));
         }
         return expanded;
     }

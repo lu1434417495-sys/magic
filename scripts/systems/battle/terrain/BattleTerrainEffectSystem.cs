@@ -3,14 +3,23 @@ using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
+internal readonly record struct BattleTerrainMovementContactResult(
+    bool Checked,
+    bool MovementBlocked,
+    StringName FieldInstanceId
+)
+{
+    internal static BattleTerrainMovementContactResult None => new(false, false, "");
+}
+
 internal sealed class BattleTerrainEffectSystem : IDisposable
 {
     private static readonly StringName StackBehaviorRefresh = "refresh";
     private static readonly StringName StackBehaviorStack = "stack";
     private static readonly StringName StackBehaviorIgnoreExisting = "ignore_existing";
-    private const int TuGranularity = 5;
 
     private WeakReference<IBattleTerrainEffectRuntime> _runtimeRef = null;
+    private readonly Queue<int> _movementContactSaveRollOverridesForTests = new();
 
     private IBattleTerrainEffectRuntime _ResolveRuntime()
     {
@@ -32,6 +41,18 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     {
         GC.SuppressFinalize(this);
         _runtimeRef = null;
+        _movementContactSaveRollOverridesForTests.Clear();
+    }
+
+    internal void ConfigureMovementContactSaveRollOverridesForTests(
+        IEnumerable<int> values
+    )
+    {
+        _movementContactSaveRollOverridesForTests.Clear();
+        foreach (int value in values ?? Array.Empty<int>())
+        {
+            _movementContactSaveRollOverridesForTests.Enqueue(Math.Clamp(value, 1, 20));
+        }
     }
 
     public int GetMoveCostDeltaForUnitTarget(BattleUnitState unitState, Vector2I targetCoord)
@@ -195,6 +216,31 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         return true;
     }
 
+    public void PrepareTimedTerrainFieldPlacement(
+        BattleUnitState sourceUnit,
+        CombatEffectDefinition effectDefinition,
+        StringName newFieldInstanceId,
+        BattleEventBatch batch
+    )
+    {
+        if (
+            sourceUnit == null
+            || effectDefinition == null
+            || !effectDefinition.TerrainReplaceExistingFromSource
+            || effectDefinition.TerrainMaxActiveInstancesPerSource != 1
+        )
+        {
+            return;
+        }
+        RemoveTerrainFields(
+            effectState =>
+                effectState.source_unit_id == sourceUnit.unit_id
+                && effectState.effect_id == effectDefinition.TerrainEffectId
+                && effectState.field_instance_id != newFieldInstanceId,
+            batch
+        );
+    }
+
     public void ProcessTimedTerrainEffects(BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
@@ -330,6 +376,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             DamageResolutionContext
                 .ForSkill(effectState.source_skill_id)
                 .WithBattleState(runtime.GetState())
+                .WithDamageOriginKind(BattleDamageOriginKind.Terrain)
         );
         if (!damageResult.Applied)
             return;
@@ -435,7 +482,8 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
     public void ApplyContactEffectsForUnit(
         BattleUnitState targetUnit,
         BattleSaveContext saveContext,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        HashSet<string> processedContactKeys = null
     )
     {
         var runtime = _ResolveRuntime();
@@ -454,7 +502,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (targetCoords.Count == 0)
             return;
 
-        var processedContactKeys = new HashSet<string>();
+        processedContactKeys ??= new HashSet<string>();
         foreach (Vector2I coord in targetCoords)
         {
             BattleCellState cell = gridService.GetCellState(state, coord);
@@ -475,6 +523,218 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         }
     }
 
+    public BattleTerrainMovementContactResult ResolveMovementContactForUnit(
+        BattleUnitState targetUnit,
+        BattleSaveContext saveContext,
+        BattleEventBatch batch,
+        HashSet<string> processedFieldInstanceIds = null,
+        bool startingInsideCheck = false
+    )
+    {
+        var runtime = _ResolveRuntime();
+        if (
+            runtime == null
+            || targetUnit == null
+            || !targetUnit.IsAlive()
+        )
+        {
+            return BattleTerrainMovementContactResult.None;
+        }
+        BattleState state = runtime.GetState();
+        BattleGridService gridService = runtime.GetGridService();
+        if (state == null || gridService == null)
+        {
+            return BattleTerrainMovementContactResult.None;
+        }
+
+        processedFieldInstanceIds ??= new HashSet<string>();
+        bool checkedAny = false;
+        StringName lastCheckedFieldInstanceId = "";
+        foreach (
+            Vector2I coord in gridService.GetUnitTargetCoords(
+                targetUnit,
+                targetUnit.GetAnchorCoord()
+            )
+        )
+        {
+            BattleCellState cell = gridService.GetCellState(state, coord);
+            if (cell == null || cell.timed_terrain_effects.Count == 0)
+            {
+                continue;
+            }
+            foreach (BattleTerrainEffectState effectState in cell.timed_terrain_effects)
+            {
+                if (
+                    effectState == null
+                    || effectState.TerrainContactModeKind
+                        != CombatTerrainContactMode.InterruptMovementOnFailedSave
+                    || effectState.terrain_remaining_effective_triggers <= 0
+                    || (startingInsideCheck && !effectState.terrain_recheck_from_inside)
+                    || (
+                        effectState.terrain_requires_ground_contact
+                        && targetUnit.HasMovementTag(new StringName("fly"))
+                    )
+                )
+                {
+                    continue;
+                }
+                BattleUnitState sourceUnit =
+                    effectState.source_unit_id != ""
+                        ? GetUnit(state, effectState.source_unit_id)
+                        : null;
+                if (
+                    !BattleTargetTeamRules.IsUnitValidForFilter(
+                        sourceUnit,
+                        targetUnit,
+                        effectState.target_team_filter
+                    )
+                )
+                {
+                    continue;
+                }
+                string fieldKey = effectState.field_instance_id.ToString();
+                if (!processedFieldInstanceIds.Add(fieldKey))
+                {
+                    continue;
+                }
+                checkedAny = true;
+                lastCheckedFieldInstanceId = effectState.field_instance_id;
+
+                CombatEffectDefinition saveEffect = BattleRuntimeEffectDefinitions.StaticSave(
+                    effectState.contact_save_dc,
+                    effectState.contact_save_ability,
+                    effectState.contact_save_tag
+                );
+                BattleSaveContext resolvedSaveContext =
+                    _movementContactSaveRollOverridesForTests.Count > 0
+                        ? BattleSaveContext.WithSaveRollOverride(
+                            _movementContactSaveRollOverridesForTests.Dequeue()
+                        )
+                        : saveContext;
+                BattleSaveResult saveResult = BattleSaveResolver.ResolveSaveResult(
+                    sourceUnit,
+                    targetUnit,
+                    saveEffect,
+                    resolvedSaveContext
+                );
+                if (saveResult.Success)
+                {
+                    runtime.AppendBatchLog(
+                        batch,
+                        $"{targetUnit.display_name} 通过敏捷豁免，越过 {_GetTimedTerrainEffectDisplayName(effectState)}；本次移动不再重复判定。"
+                    );
+                    continue;
+                }
+
+                int remaining = Math.Max(
+                    effectState.terrain_remaining_effective_triggers - 1,
+                    0
+                );
+                SetFieldRemainingEffectiveTriggers(
+                    effectState.field_instance_id,
+                    remaining,
+                    batch
+                );
+                runtime.GrantTerrainEffectiveTriggerMastery(
+                    sourceUnit,
+                    targetUnit,
+                    effectState.source_skill_id,
+                    batch
+                );
+                runtime.AppendBatchLog(
+                    batch,
+                    remaining > 0
+                        ? $"{targetUnit.display_name} 未通过敏捷豁免，被 {_GetTimedTerrainEffectDisplayName(effectState)} 拦停；绊索还可生效 {remaining} 次。"
+                        : $"{targetUnit.display_name} 未通过敏捷豁免，被 {_GetTimedTerrainEffectDisplayName(effectState)} 拦停；绊索已经耗尽。"
+                );
+                return new BattleTerrainMovementContactResult(
+                    true,
+                    true,
+                    effectState.field_instance_id
+                );
+            }
+        }
+        return checkedAny
+            ? new BattleTerrainMovementContactResult(
+                true,
+                false,
+                lastCheckedFieldInstanceId
+            )
+            : BattleTerrainMovementContactResult.None;
+    }
+
+    private void SetFieldRemainingEffectiveTriggers(
+        StringName fieldInstanceId,
+        int remaining,
+        BattleEventBatch batch
+    )
+    {
+        if (fieldInstanceId == "")
+        {
+            return;
+        }
+        if (remaining <= 0)
+        {
+            RemoveTerrainFields(
+                effectState => effectState.field_instance_id == fieldInstanceId,
+                batch
+            );
+            return;
+        }
+        var runtime = _ResolveRuntime();
+        BattleState state = runtime?.GetState();
+        if (state == null)
+        {
+            return;
+        }
+        foreach (BattleState.BattleCellEntry entry in state.CellEntries())
+        {
+            bool changed = false;
+            foreach (BattleTerrainEffectState effectState in entry.Cell?.timed_terrain_effects
+                ?? new List<BattleTerrainEffectState>())
+            {
+                if (effectState?.field_instance_id != fieldInstanceId)
+                {
+                    continue;
+                }
+                effectState.terrain_remaining_effective_triggers = remaining;
+                changed = true;
+            }
+            if (changed)
+            {
+                runtime.AppendChangedCoord(batch, entry.Coord);
+            }
+        }
+    }
+
+    private void RemoveTerrainFields(
+        Func<BattleTerrainEffectState, bool> predicate,
+        BattleEventBatch batch
+    )
+    {
+        var runtime = _ResolveRuntime();
+        BattleState state = runtime?.GetState();
+        if (state == null || predicate == null)
+        {
+            return;
+        }
+        foreach (BattleState.BattleCellEntry entry in state.CellEntries())
+        {
+            BattleCellState cell = entry.Cell;
+            if (cell == null || cell.timed_terrain_effects.Count == 0)
+            {
+                continue;
+            }
+            int removed = cell.timed_terrain_effects.RemoveAll(
+                effectState => effectState != null && predicate(effectState)
+            );
+            if (removed > 0)
+            {
+                runtime.AppendChangedCoord(batch, entry.Coord);
+            }
+        }
+    }
+
     private void ApplyContactEffectForUnit(
         IBattleTerrainEffectRuntime runtime,
         BattleState state,
@@ -485,12 +745,17 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         BattleEventBatch batch
     )
     {
+        bool hasContactStatus = effectState?.contact_status_id != "";
+        bool hasContactDamage =
+            effectState?.contact_damage_dice_count > 0
+            && effectState.contact_damage_dice_sides > 0
+            && effectState.contact_damage_tag != "";
         if (
             runtime == null
             || state == null
             || targetUnit == null
             || effectState == null
-            || effectState.contact_status_id == ""
+            || (!hasContactStatus && !hasContactDamage)
             || processedContactKeys == null
         )
         {
@@ -519,8 +784,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         }
 
+        string contactKindKey = hasContactStatus
+            ? effectState.contact_status_id.ToString()
+            : $"damage:{effectState.contact_damage_tag}";
         string contactKey =
-            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{effectState.contact_status_id}";
+            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{contactKindKey}";
         if (processedContactKeys.Contains(contactKey))
             return;
         processedContactKeys.Add(contactKey);
@@ -542,6 +810,75 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
                 return;
         }
 
+        if (hasContactDamage)
+        {
+            BattleDamageResolver damageResolver = runtime.GetDamageResolver();
+            if (damageResolver == null)
+                return;
+            CombatEffectDefinition damageEffect = BattleRuntimeEffectDefinitions.Damage(
+                effectState.contact_damage_tag,
+                effectState.contact_damage_dice_count,
+                effectState.contact_damage_dice_sides,
+                effectState.contact_damage_flat_bonus,
+                new[] { effectState.contact_damage_tag }
+            );
+            AttackEffectResolutionResult damageResult = damageResolver.ResolveEffects(
+                sourceUnit,
+                targetUnit,
+                new[] { damageEffect },
+                DamageResolutionContext
+                    .ForSkill(effectState.source_skill_id)
+                    .WithBattleState(state)
+                    .WithDamageOriginKind(BattleDamageOriginKind.Terrain)
+                    .WithDamageApplicationHookContext(
+                        batch,
+                        BattleEffectOrigin.EquipmentAbility()
+                    )
+            );
+            if (damageResult.Applied)
+            {
+                runtime.AppendResultSourceStatusEffects(batch, sourceUnit, damageResult);
+                runtime.AppendChangedUnitId(batch, targetUnit.unit_id);
+                runtime.AppendChangedUnitCoords(batch, targetUnit);
+                if (damageResult.Damage > 0)
+                {
+                    runtime.AppendBatchLog(
+                        batch,
+                        $"{targetUnit.display_name} 踩入 {_GetTimedTerrainEffectDisplayName(effectState)}，受到 {damageResult.Damage} 点伤害。"
+                    );
+                }
+                else if (damageResult.AnyImmune)
+                {
+                    runtime.AppendBatchLog(
+                        batch,
+                        $"{targetUnit.display_name} 免疫 {_GetTimedTerrainEffectDisplayName(effectState)} 的伤害。"
+                    );
+                }
+                bool causedDefeat = !targetUnit.IsAlive();
+                if (causedDefeat)
+                {
+                    runtime.ClearDefeatedUnit(targetUnit, batch);
+                    runtime.AppendBatchLog(batch, $"{targetUnit.display_name} 被击倒。");
+                    runtime.RecordEnemyDefeatedAchievement(sourceUnit, targetUnit);
+                }
+                if (sourceUnit != null)
+                {
+                    runtime.RecordBattleContributionResult(
+                        sourceUnit,
+                        targetUnit,
+                        damageResult.Damage,
+                        damageResult.Healing,
+                        causedDefeat,
+                        new StringName("terrain"),
+                        effectState.source_skill_id
+                    );
+                }
+            }
+        }
+
+        if (!hasContactStatus || !targetUnit.IsAlive())
+            return;
+
         int durationTu = Math.Max(effectState.contact_status_duration_tu, 0);
         CombatEffectDefinition statusEffect = BattleRuntimeEffectDefinitions.Status(
             effectState.contact_status_id,
@@ -557,15 +894,24 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             dispellableHarmfulMagic: effectState.contact_dispellable_harmful_magic,
             dispellableBeneficialMagic: effectState.contact_dispellable_beneficial_magic
         );
+        StringName sourceUnitId = sourceUnit?.unit_id ?? new StringName("");
+        BattleStatusSourceIdentity sourceIdentity = effectState.source_skill_id != ""
+            ? BattleStatusSourceIdentity.Skill(sourceUnitId, effectState.source_skill_id)
+            : BattleStatusSourceIdentity.TerrainEffect(sourceUnitId, effectState.effect_id);
         BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
             statusEffect,
-            sourceUnit?.unit_id ?? new StringName(""),
+            sourceUnitId,
             targetUnit.GetStatusEffect(effectState.contact_status_id),
-            effectState.contact_status_id
+            effectState.contact_status_id,
+            sourceIdentity
         );
         if (statusEntry == null)
             return;
         ApplyContactTimelineDamagePayload(statusEntry, effectState);
+        BattleStatusSemanticTable.SynchronizeSourceContributionTimelinePayload(
+            statusEntry,
+            sourceIdentity
+        );
         targetUnit.SetStatusEffect(statusEntry);
         runtime.MarkAppliedStatusesForTurnTiming(
             targetUnit,
@@ -588,6 +934,8 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             return;
         if (effectState.contact_tick_interval_tu > 0)
             statusEntry.tick_interval_tu = effectState.contact_tick_interval_tu;
+        if (effectState.contact_damage_tag != "")
+            statusEntry.damage_tag = effectState.contact_damage_tag;
         if (
             effectState.contact_timeline_damage_dice_count > 0
             && effectState.contact_timeline_damage_dice_sides > 0
@@ -608,14 +956,10 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         BattleTerrainEffectState effectState
     )
     {
-        IReadOnlyDictionary<string, object> normalizedParams =
-            ContentValueNormalizer.NormalizeDictionary(
-                effectState?.ParamsSnapshotPlain
-                    ?? new Dictionary<string, object>(System.StringComparer.Ordinal),
-                "BattleTerrainEffectSystem.tick_effect.parameters"
-            );
+        StringName effectType = NormalizeStringName(effectState?.effect_type);
+        BattleEffectKind effectKind = BattleTypedNames.ToEffectKind(effectType);
         return new CombatEffectDefinition(
-            effectType: NormalizeStringName(effectState?.effect_type),
+            effectType: effectType,
             effectTargetTeamFilter: default,
             statusId: NormalizeStringName(effectState?.applied_status_id),
             saveFailureStatusId: default,
@@ -661,7 +1005,11 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
             effectTags: Array.Empty<StringName>(),
             triggerCondition: new StringName(""),
             power: effectState?.power ?? 0,
-            parameters: normalizedParams,
+            payload: effectKind is BattleEffectKind.Status or BattleEffectKind.ApplyStatus
+                ? new StatusEffectPayloadDefinition(
+                    sourceSkillId: effectState?.source_skill_id ?? new StringName("")
+                )
+                : EmptyCombatEffectPayloadDefinition.Instance,
             triggerEvent: new StringName("")
         );
     }
@@ -814,6 +1162,24 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         );
         effectState.power = effectDefinition.Power;
         effectState.damage_tag = effectDefinition.DamageTag;
+        effectState.contact_damage_dice_count = Math.Max(effectDefinition.DiceCount, 0);
+        effectState.contact_damage_dice_sides = Math.Max(effectDefinition.DiceSides, 0);
+        effectState.contact_damage_flat_bonus = Math.Max(effectDefinition.DiceBonus, 0);
+        effectState.contact_damage_tag = effectDefinition.DamageTag;
+        effectState.terrain_contact_mode =
+            effectDefinition.TerrainContactMode ?? new StringName("");
+        effectState.terrain_remaining_effective_triggers =
+            effectDefinition.TerrainEffectiveTriggerCount;
+        effectState.terrain_requires_ground_contact =
+            effectDefinition.TerrainRequiresGroundContact;
+        effectState.terrain_recheck_from_inside = effectDefinition.TerrainRecheckFromInside;
+        effectState.terrain_max_active_instances_per_source =
+            effectDefinition.TerrainMaxActiveInstancesPerSource;
+        effectState.terrain_replace_existing_from_source =
+            effectDefinition.TerrainReplaceExistingFromSource;
+        effectState.contact_save_dc = effectDefinition.SaveDc;
+        effectState.contact_save_ability = effectDefinition.SaveAbility;
+        effectState.contact_save_tag = effectDefinition.SaveTag;
         effectState.tick_interval_tu = tickIntervalTu;
         effectState.remaining_tu =
             lifetimePolicy == CombatEffectLifetimePolicy.Battle
@@ -841,7 +1207,7 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
 
         effectState.stack_behavior = _NormalizeStackBehavior(effectDefinition.StackBehavior);
         effectState.SetParamsTyped(
-            BattleTerrainEffectState.CopyResidualParamsPlain(effectDefinition.Parameters)
+            new Dictionary<string, object>(System.StringComparer.Ordinal)
         );
         return effectState;
     }
@@ -899,16 +1265,16 @@ internal sealed class BattleTerrainEffectSystem : IDisposable
         if (value <= 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must be positive and use {TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must be positive and use {BattleTimeRules.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_positive",
                 "battle"
             );
             return -1;
         }
-        if (value % TuGranularity != 0)
+        if (value % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"{fieldLabel} must use {TuGranularity} TU steps, got {value}; skipping effect.",
+                $"{fieldLabel} must use {BattleTimeRules.TuGranularity} TU steps, got {value}; skipping effect.",
                 "battle.terrain.invalid_tu_granularity",
                 "battle"
             );

@@ -118,6 +118,7 @@ public partial class run_warrior_spin_slash_regression : LifecycleTestSceneTree
 
         using BattleRuntimeModule runtime = BuildRuntime(skill);
         runtime.ConfigureDamageResolverForTests(new FixedRollDamageResolver());
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver());
         BattleState state = BuildState(new Vector2I(5, 5));
         BattleUnitState caster = BuildUnit("spin_user", "player", new Vector2I(2, 2));
         BattleUnitState adjacentEnemy = BuildUnit(
@@ -215,7 +216,7 @@ public partial class run_warrior_spin_slash_regression : LifecycleTestSceneTree
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_spin_slash.tres",
+            "warrior_spin_slash",
             "warrior_spin_slash_regression"
         );
 

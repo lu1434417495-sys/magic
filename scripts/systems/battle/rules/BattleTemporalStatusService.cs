@@ -20,6 +20,10 @@ internal static class BattleTemporalStatusService
 {
     internal const int FullProgressRatePercent = 100;
     internal const int TimeSlowProgressRatePercent = 50;
+
+    // 内容侧允许的最大行动速率，由 ActionCadenceContentRules 从最快阈值与粒度推导。
+    internal const int MaxTemporalProgressRatePercent =
+        ActionCadenceContentRules.MaxTemporalProgressRatePercent;
     internal const int ReverberationDurationTu = 60;
     internal const int ReverberationTemporalSaveBonus = 5;
 

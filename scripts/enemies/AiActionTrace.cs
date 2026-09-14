@@ -95,13 +95,34 @@ public sealed class AiActionTrace
             return;
         }
         Increment("candidate_count", 1);
-        TopCandidates.Add(candidate.Clone());
-        TopCandidates.Sort((left, right) => right.TotalScore.CompareTo(left.TotalScore));
+        AiCandidateSummary clone = candidate.Clone();
+        // Insertion keeps the list ordered by the decision engine's own preference order.
+        // Sorting with that predicate is not an option: its conditional lethal branch is not a
+        // total order, and List.Sort rejects inconsistent comparers.
+        int insertIndex = TopCandidates.Count;
+        for (int index = 0; index < TopCandidates.Count; index++)
+        {
+            if (IsBetterCandidate(clone, TopCandidates[index]))
+            {
+                insertIndex = index;
+                break;
+            }
+        }
+        TopCandidates.Insert(insertIndex, clone);
         int limit = Mathf.Max(keepCount, 0);
         if (TopCandidates.Count > limit)
         {
             TopCandidates.RemoveRange(limit, TopCandidates.Count - limit);
         }
+    }
+
+    private static bool IsBetterCandidate(AiCandidateSummary left, AiCandidateSummary right)
+    {
+        if (left?.OrderingFacts == null || right?.OrderingFacts == null)
+        {
+            return (left?.TotalScore ?? 0) > (right?.TotalScore ?? 0);
+        }
+        return BattleAiCandidateOrdering.IsBetter(left.OrderingFacts, right.OrderingFacts);
     }
 
     internal void ApplyBestDecision(BattleAiDecision decision)

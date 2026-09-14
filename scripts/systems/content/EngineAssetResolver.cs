@@ -1,22 +1,145 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 
 internal sealed class EngineAssetResolver : IDisposable
 {
     private const string AuditPathPrefix = "engine-asset:";
+    private const string CatalogAuditPathPrefix = "engine-asset-catalog:";
 
     private readonly Dictionary<string, Resource> _assets = new(StringComparer.Ordinal);
+    private IReadOnlyDictionary<StringName, Resource> _catalogAssets =
+        new ReadOnlyDictionary<StringName, Resource>(
+            new Dictionary<StringName, Resource>()
+        );
+    private EngineAssetCatalogDef _catalogRoot;
+    private string _catalogCanonicalPath = "";
+    private bool _catalogPublished;
     private bool _acceptingLoads = true;
     private bool _disposed;
 
     internal int CanonicalAssetCount => _assets.Count;
+    internal int PublishedAssetCount => _catalogAssets.Count;
+    internal bool HasCatalogRoot => _catalogRoot != null;
+    internal bool HasPublishedCatalog => _catalogPublished;
 
-    internal T ResolveBorrowed<T>(string resourcePath)
+    internal IReadOnlySet<StringName> GetPublishedContentAssetIds<T>()
         where T : Resource
     {
-        ThrowIfUnavailable();
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        ThrowIfDisposed();
+        if (!_catalogPublished)
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog has not been published."
+            );
+        }
+        var result = new HashSet<StringName>();
+        foreach ((StringName assetId, Resource asset) in _catalogAssets)
+        {
+            if (asset is T)
+                result.Add(assetId);
+        }
+        return result;
+    }
+
+    internal EngineAssetCatalogDef LoadAndPublishCatalogBorrowed(string catalogPath)
+    {
+        ThrowIfLoadUnavailable();
+        string canonicalPath = CanonicalizeResPath(catalogPath, nameof(catalogPath));
+        if (_catalogRoot != null)
+        {
+            if (!string.Equals(_catalogCanonicalPath, canonicalPath, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Engine asset catalog root is already anchored at "
+                        + $"{_catalogCanonicalPath}, not {canonicalPath}."
+                );
+            }
+
+            if (!_catalogPublished)
+                PublishCatalogIndex(_catalogRoot);
+            return _catalogRoot;
+        }
+
+        EngineAssetCatalogDef loaded = ResourceLoader.Load<EngineAssetCatalogDef>(
+            canonicalPath,
+            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
+        );
+        if (loaded == null)
+        {
+            throw new InvalidOperationException(
+                $"Failed to load engine asset catalog root {canonicalPath}."
+            );
+        }
+
+        _catalogRoot = loaded;
+        _catalogCanonicalPath = canonicalPath;
+        GodotWrapperOwnershipRegistry.Register(
+            loaded,
+            GodotWrapperOwnershipKind.BorrowedStaticContent,
+            this,
+            canonicalPath
+        );
+        LifecycleAuditRegistry.Shared.RegisterEngineAssetRoot(
+            CatalogAuditPathPrefix + canonicalPath,
+            loaded.GetType(),
+            loaded
+        );
+
+        PublishCatalogIndex(loaded);
+        return loaded;
+    }
+
+    internal T ResolveContentAssetBorrowed<T>(StringName assetId, bool optional = false)
+        where T : Resource
+    {
+        ThrowIfDisposed();
+        if (IsEmptyAssetId(assetId))
+        {
+            if (optional)
+                return null;
+            throw new ArgumentException("Engine asset ID is required.", nameof(assetId));
+        }
+        if (IsPathLikeAssetId(assetId))
+        {
+            throw new ArgumentException(
+                $"Engine asset ID must not be a resource path: {assetId}.",
+                nameof(assetId)
+            );
+        }
+        if (!_catalogPublished)
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog has not been published."
+            );
+        }
+        if (!_catalogAssets.TryGetValue(assetId, out Resource asset))
+        {
+            throw new KeyNotFoundException(
+                $"Engine asset ID is not registered: {assetId}."
+            );
+        }
+        if (asset is not T typed)
+        {
+            throw new InvalidOperationException(
+                $"Engine asset {assetId} is {asset.GetType().Name}, not {typeof(T).Name}."
+            );
+        }
+        return typed;
+    }
+
+    internal T ResolveCodeAssetBorrowed<T>(string codeOwnedPath)
+        where T : Resource
+    {
+        ThrowIfLoadUnavailable();
+        string canonicalPath = CanonicalizeResPath(codeOwnedPath, nameof(codeOwnedPath));
+        return ResolveCanonicalPathBorrowed<T>(canonicalPath);
+    }
+
+    private T ResolveCanonicalPathBorrowed<T>(string canonicalPath)
+        where T : Resource
+    {
         if (_assets.TryGetValue(canonicalPath, out Resource existing))
         {
             return existing is T typed
@@ -42,7 +165,7 @@ internal sealed class EngineAssetResolver : IDisposable
             this,
             canonicalPath
         );
-        LifecycleAuditRegistry.Shared.RegisterProcessContentRoot(
+        LifecycleAuditRegistry.Shared.RegisterEngineAssetRoot(
             AuditPathPrefix + canonicalPath,
             loaded.GetType(),
             loaded
@@ -63,25 +186,240 @@ internal sealed class EngineAssetResolver : IDisposable
         _disposed = true;
         _acceptingLoads = false;
 
+        _catalogAssets = new ReadOnlyDictionary<StringName, Resource>(
+            new Dictionary<StringName, Resource>()
+        );
+        _catalogPublished = false;
+        if (_catalogRoot != null)
+        {
+            LifecycleAuditRegistry.Shared.ReleaseEngineAssetRoot(
+                CatalogAuditPathPrefix + _catalogCanonicalPath
+            );
+            _catalogRoot = null;
+            _catalogCanonicalPath = "";
+        }
+
         foreach (string canonicalPath in _assets.Keys)
         {
-            LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(
+            LifecycleAuditRegistry.Shared.ReleaseEngineAssetRoot(
                 AuditPathPrefix + canonicalPath
             );
         }
         _assets.Clear();
     }
 
-    private void ThrowIfUnavailable()
+    private void PublishCatalogIndex(EngineAssetCatalogDef catalog)
     {
-        if (_disposed)
-            throw new ObjectDisposedException(nameof(EngineAssetResolver));
+        var assetsById = new Dictionary<StringName, Resource>();
+        var idsByInstance = new Dictionary<ulong, StringName>();
+        RegisterTextureEntries(
+            catalog.texture_assets,
+            assetsById,
+            idsByInstance
+        );
+        RegisterSceneEntries(
+            catalog.scene_assets,
+            assetsById,
+            idsByInstance
+        );
+        RegisterAudioEntries(
+            catalog.audio_assets,
+            assetsById,
+            idsByInstance
+        );
+        RegisterShaderEntries(
+            catalog.shader_assets,
+            assetsById,
+            idsByInstance
+        );
+
+        _catalogAssets = new ReadOnlyDictionary<StringName, Resource>(assetsById);
+        _catalogPublished = true;
+    }
+
+    private static void RegisterTextureEntries(
+        Godot.Collections.Array<EngineTextureAssetEntryDef> entries,
+        Dictionary<StringName, Resource> assetsById,
+        Dictionary<ulong, StringName> idsByInstance
+    )
+    {
+        RequireArray(entries, "texture");
+        for (int index = 0; index < entries.Count; index++)
+        {
+            EngineTextureAssetEntryDef entry = entries[index];
+            RegisterEntry(
+                entry,
+                entry?.asset_id,
+                entry?.texture,
+                "texture",
+                index,
+                assetsById,
+                idsByInstance
+            );
+        }
+    }
+
+    private static void RegisterSceneEntries(
+        Godot.Collections.Array<EngineSceneAssetEntryDef> entries,
+        Dictionary<StringName, Resource> assetsById,
+        Dictionary<ulong, StringName> idsByInstance
+    )
+    {
+        RequireArray(entries, "scene");
+        for (int index = 0; index < entries.Count; index++)
+        {
+            EngineSceneAssetEntryDef entry = entries[index];
+            RegisterEntry(
+                entry,
+                entry?.asset_id,
+                entry?.scene,
+                "scene",
+                index,
+                assetsById,
+                idsByInstance
+            );
+        }
+    }
+
+    private static void RegisterAudioEntries(
+        Godot.Collections.Array<EngineAudioAssetEntryDef> entries,
+        Dictionary<StringName, Resource> assetsById,
+        Dictionary<ulong, StringName> idsByInstance
+    )
+    {
+        RequireArray(entries, "audio");
+        for (int index = 0; index < entries.Count; index++)
+        {
+            EngineAudioAssetEntryDef entry = entries[index];
+            RegisterEntry(
+                entry,
+                entry?.asset_id,
+                entry?.audio,
+                "audio",
+                index,
+                assetsById,
+                idsByInstance
+            );
+        }
+    }
+
+    private static void RegisterShaderEntries(
+        Godot.Collections.Array<EngineShaderAssetEntryDef> entries,
+        Dictionary<StringName, Resource> assetsById,
+        Dictionary<ulong, StringName> idsByInstance
+    )
+    {
+        RequireArray(entries, "shader");
+        for (int index = 0; index < entries.Count; index++)
+        {
+            EngineShaderAssetEntryDef entry = entries[index];
+            RegisterEntry(
+                entry,
+                entry?.asset_id,
+                entry?.shader,
+                "shader",
+                index,
+                assetsById,
+                idsByInstance
+            );
+        }
+    }
+
+    private static void RequireArray(object entries, string assetKind)
+    {
+        if (entries == null)
+            throw new InvalidOperationException($"Engine asset catalog {assetKind} array is missing.");
+    }
+
+    private static void RegisterEntry(
+        Resource entry,
+        StringName assetId,
+        Resource asset,
+        string assetKind,
+        int index,
+        Dictionary<StringName, Resource> assetsById,
+        Dictionary<ulong, StringName> idsByInstance
+    )
+    {
+        if (entry == null || !GodotObject.IsInstanceValid(entry))
+        {
+            throw new InvalidOperationException(
+                $"Engine asset catalog {assetKind} entry {index} is missing."
+            );
+        }
+
+        if (IsEmptyAssetId(assetId))
+        {
+            throw new InvalidOperationException(
+                $"Engine asset catalog {assetKind} entry {index} has no asset_id."
+            );
+        }
+
+        if (asset == null || !GodotObject.IsInstanceValid(asset))
+        {
+            throw new InvalidOperationException(
+                $"Engine asset catalog {assetKind} entry {assetId} has no target."
+            );
+        }
+        if (assetsById.ContainsKey(assetId))
+        {
+            throw new InvalidOperationException(
+                $"Engine asset catalog declares duplicate asset_id {assetId}."
+            );
+        }
+
+        ulong instanceId = asset.GetInstanceId();
+        if (idsByInstance.TryGetValue(instanceId, out StringName existingId))
+        {
+            throw new InvalidOperationException(
+                "Engine asset catalog registers the same underlying resource as "
+                    + $"both {existingId} and {assetId}."
+            );
+        }
+
+        assetsById.Add(assetId, asset);
+        idsByInstance.Add(instanceId, assetId);
+
+    }
+
+    private static bool IsEmptyAssetId(StringName assetId) =>
+        assetId == null || string.IsNullOrWhiteSpace(assetId.ToString());
+
+    private static bool IsPathLikeAssetId(StringName assetId)
+    {
+        string value = assetId.ToString();
+        return value.Contains("://", StringComparison.Ordinal)
+            || value.Contains('/')
+            || value.Contains('\\');
+    }
+
+    private static string CanonicalizeResPath(string resourcePath, string parameterName)
+    {
+        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+        if (!canonicalPath.StartsWith("res://", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"Engine asset paths must use the res:// scheme: {resourcePath}.",
+                parameterName
+            );
+        }
+        return canonicalPath;
+    }
+
+    private void ThrowIfLoadUnavailable()
+    {
+        ThrowIfDisposed();
         if (!_acceptingLoads)
         {
             throw new InvalidOperationException(
                 "Engine assets cannot be loaded after application quiescing begins."
             );
         }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }
 

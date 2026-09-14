@@ -89,6 +89,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeBattleSessionPort
     string IGameRuntimeBattleSessionPort.GetMemberDisplayName(StringName memberId) =>
         GetMemberDisplayName(memberId);
 
+    string IGameRuntimeBattleSessionPort.GetSkillDisplayName(StringName skillId) =>
+        GetSkillDisplayName(skillId);
+
     bool IGameRuntimeBattleSessionPort.TryGetProfessionDefinition(
         StringName professionId,
         out ProfessionDefinition professionDefinition

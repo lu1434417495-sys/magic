@@ -10,7 +10,6 @@ internal enum QuestAcceptRequirementKind
     QuestActive,
     QuestNotCompleted,
 }
-
 public sealed class QuestAcceptRequirementDefinition
 {
     public QuestAcceptRequirementDefinition(StringName requirementType, StringName questId)
@@ -56,7 +55,7 @@ public sealed class QuestObjectiveDefinition
     public StringName EncounterProfileId { get; }
     public string EncounterDisplayName { get; }
     public int EncounterGrowthStage { get; }
-    internal QuestObjectiveKind ObjectiveKind => QuestDef.ToObjectiveKind(ObjectiveType);
+    internal QuestObjectiveKind ObjectiveKind => QuestContentKinds.ToObjectiveKind(ObjectiveType);
 }
 
 public sealed class QuestPendingRewardEntryDefinition
@@ -107,7 +106,7 @@ public sealed class QuestRewardDefinition
     public int ItemQuantity { get; }
     public StringName PendingRewardMemberId { get; }
     public IReadOnlyList<QuestPendingRewardEntryDefinition> PendingRewardEntries { get; }
-    internal QuestRewardKind RewardKind => QuestDef.ToRewardKind(RewardType);
+    internal QuestRewardKind RewardKind => QuestContentKinds.ToRewardKind(RewardType);
 }
 
 public sealed class QuestDefinition
@@ -208,20 +207,24 @@ public sealed class QuestDefinition
     public IReadOnlyList<StringName> ListingSettlementIds { get; }
     public bool CanRestartAfterFailure { get; }
 
-    internal static QuestDefinition FromResource(QuestDef source, string path)
+    internal static QuestDefinition FromImport(QuestImportModel source, string path)
     {
         string rootPath = NormalizePath(path);
-        IdentityDefinitionProjection.RequireResource(source, rootPath, nameof(QuestDef));
-        RequireNonEmpty(source.quest_id, $"{rootPath}.quest_id");
-        RequireNonBlankString(source.display_name, $"{rootPath}.display_name");
-        RequireString(source.description, $"{rootPath}.description");
+        if (source == null)
+            throw new InvalidDataException($"Content value at '{rootPath}' must not be null.");
+        StringName questId = new(source.QuestId);
+        StringName providerInteractionId = new(source.ProviderInteractionId);
+        StringName providerKind = new(source.ProviderKind);
+        RequireNonEmpty(questId, $"{rootPath}.quest_id");
+        RequireNonBlankString(source.DisplayName, $"{rootPath}.display_name");
+        RequireString(source.Description, $"{rootPath}.description");
         RequireNonEmpty(
-            source.provider_interaction_id,
+            providerInteractionId,
             $"{rootPath}.provider_interaction_id"
         );
-        RequireNonEmpty(source.provider_kind, $"{rootPath}.provider_kind");
+        RequireNonEmpty(providerKind, $"{rootPath}.provider_kind");
         QuestFailurePolicyKind failurePolicy = QuestFailurePolicyRules.ToKind(
-            source.failure_policy
+            new StringName(source.FailurePolicy)
         );
         if (failurePolicy == QuestFailurePolicyKind.Unknown)
         {
@@ -229,29 +232,23 @@ public sealed class QuestDefinition
                 $"Content value at '{rootPath}.failure_policy' must be terminal or restartable."
             );
         }
-        RequireString(source.accept_dialogue_text, $"{rootPath}.accept_dialogue_text");
+        RequireString(source.AcceptDialogueText, $"{rootPath}.accept_dialogue_text");
         RequireString(
-            source.accept_feedback_success,
+            source.AcceptFeedbackSuccess,
             $"{rootPath}.accept_feedback_success"
         );
         RequireString(
-            source.accept_feedback_failure,
+            source.AcceptFeedbackFailure,
             $"{rootPath}.accept_feedback_failure"
         );
         RequireString(
-            source.accept_confirmation_text,
+            source.AcceptConfirmationText,
             $"{rootPath}.accept_confirmation_text"
         );
 
-        IReadOnlyList<StringName> tags = IdentityDefinitionProjection.CopyStringNames(
-            source.TagsBorrowed,
-            $"{rootPath}.tags"
-        );
+        IReadOnlyList<StringName> tags = CopyImportNames(source.Tags, $"{rootPath}.tags");
         IReadOnlyList<StringName> listingChannels =
-            IdentityDefinitionProjection.CopyStringNames(
-                source.ListingChannelsBorrowed,
-                $"{rootPath}.listing_channels"
-            );
+            CopyImportNames(source.ListingChannels, $"{rootPath}.listing_channels");
         if (listingChannels.Count == 0)
         {
             throw new InvalidDataException(
@@ -262,8 +259,8 @@ public sealed class QuestDefinition
             RequireNonEmpty(listingChannels[index], $"{rootPath}.listing_channels[{index}]");
 
         IReadOnlyList<StringName> listingSettlementIds =
-            IdentityDefinitionProjection.CopyStringNames(
-                source.ListingSettlementIdsBorrowed,
+            CopyImportNames(
+                source.ListingSettlementIds,
                 $"{rootPath}.listing_settlement_ids"
             );
         for (int index = 0; index < listingSettlementIds.Count; index++)
@@ -272,17 +269,17 @@ public sealed class QuestDefinition
                 $"{rootPath}.listing_settlement_ids[{index}]"
             );
 
-        EnsureCollection(source.AcceptRequirementsBorrowed, $"{rootPath}.accept_requirements");
-        EnsureCollection(source.ObjectiveDefsBorrowed, $"{rootPath}.objective_defs");
-        EnsureCollection(source.RewardEntriesBorrowed, $"{rootPath}.reward_entries");
+        EnsureCollection(source.AcceptRequirements, $"{rootPath}.accept_requirements");
+        EnsureCollection(source.Objectives, $"{rootPath}.objective_defs");
+        EnsureCollection(source.Rewards, $"{rootPath}.reward_entries");
 
         IReadOnlyList<QuestAcceptRequirementDefinition> acceptRequirements =
             ProjectAcceptRequirements(
-                source.GetAcceptRequirementEntriesTyped(),
+                source.AcceptRequirements,
                 $"{rootPath}.accept_requirements"
             );
         IReadOnlyList<QuestObjectiveDefinition> objectives = ProjectObjectives(
-            source.GetObjectiveEntriesTyped(),
+            source.Objectives,
             $"{rootPath}.objective_defs"
         );
         if (objectives.Count == 0)
@@ -292,27 +289,27 @@ public sealed class QuestDefinition
             );
         }
         IReadOnlyList<QuestRewardDefinition> rewards = ProjectRewards(
-            source.GetRewardEntriesTyped(),
+            source.Rewards,
             $"{rootPath}.reward_entries"
         );
 
         return new QuestDefinition(
-            source.quest_id,
-            source.display_name,
-            source.description,
-            source.provider_interaction_id,
+            questId,
+            source.DisplayName,
+            source.Description,
+            providerInteractionId,
             tags,
             acceptRequirements,
             objectives,
             rewards,
-            source.is_repeatable,
-            source.provider_kind,
+            source.IsRepeatable,
+            providerKind,
             listingChannels,
-            source.accept_dialogue_text,
-            source.accept_feedback_success,
-            source.accept_feedback_failure,
-            source.accept_confirmation_text,
-            source.danger_tier_override,
+            source.AcceptDialogueText,
+            source.AcceptFeedbackSuccess,
+            source.AcceptFeedbackFailure,
+            source.AcceptConfirmationText,
+            source.DangerTierOverride,
             listingSettlementIds,
             failurePolicy == QuestFailurePolicyKind.Restartable
         );
@@ -330,7 +327,7 @@ public sealed class QuestDefinition
     }
 
     private static IReadOnlyList<QuestAcceptRequirementDefinition> ProjectAcceptRequirements(
-        IReadOnlyList<QuestDef.AcceptRequirementEntryData> source,
+        IReadOnlyList<QuestAcceptRequirementImportModel> source,
         string path
     )
     {
@@ -340,27 +337,29 @@ public sealed class QuestDefinition
         var result = new List<QuestAcceptRequirementDefinition>(source.Count);
         for (int index = 0; index < source.Count; index++)
         {
-            QuestDef.AcceptRequirementEntryData entry = source[index];
+            QuestAcceptRequirementImportModel entry = source[index];
             if (entry == null)
-                throw MissingNested(path, index, nameof(QuestDef.AcceptRequirementEntryData));
+                throw MissingNested(path, index, nameof(QuestAcceptRequirementImportModel));
             string entryPath = $"{path}[{index}]";
-            RequireNonEmpty(entry.RequirementType, $"{entryPath}.requirement_type");
-            if (ToAcceptRequirementKind(entry.RequirementType) == QuestAcceptRequirementKind.Unknown)
+            StringName requirementType = new(entry.RequirementType);
+            StringName requiredQuestId = new(entry.QuestId);
+            RequireNonEmpty(requirementType, $"{entryPath}.requirement_type");
+            if (ToAcceptRequirementKind(requirementType) == QuestAcceptRequirementKind.Unknown)
             {
                 throw new InvalidDataException(
                     $"Content value at '{entryPath}.requirement_type' has unsupported quest requirement type '{entry.RequirementType}'."
                 );
             }
-            RequireNonEmpty(entry.QuestId, $"{entryPath}.quest_id");
+            RequireNonEmpty(requiredQuestId, $"{entryPath}.quest_id");
             result.Add(
-                new QuestAcceptRequirementDefinition(entry.RequirementType, entry.QuestId)
+                new QuestAcceptRequirementDefinition(requirementType, requiredQuestId)
             );
         }
         return new ReadOnlyCollection<QuestAcceptRequirementDefinition>(result);
     }
 
     private static IReadOnlyList<QuestObjectiveDefinition> ProjectObjectives(
-        IReadOnlyList<QuestDef.ObjectiveEntryData> source,
+        IReadOnlyList<QuestObjectiveImportModel> source,
         string path
     )
     {
@@ -371,13 +370,17 @@ public sealed class QuestDefinition
         bool hasEncounterBinding = false;
         for (int index = 0; index < source.Count; index++)
         {
-            QuestDef.ObjectiveEntryData entry = source[index];
+            QuestObjectiveImportModel entry = source[index];
             if (entry == null)
-                throw MissingNested(path, index, nameof(QuestDef.ObjectiveEntryData));
+                throw MissingNested(path, index, nameof(QuestObjectiveImportModel));
             string entryPath = $"{path}[{index}]";
-            RequireNonEmpty(entry.ObjectiveId, $"{entryPath}.objective_id");
-            RequireNonEmpty(entry.ObjectiveType, $"{entryPath}.objective_type");
-            QuestObjectiveKind objectiveKind = QuestDef.ToObjectiveKind(entry.ObjectiveType);
+            StringName objectiveId = new(entry.ObjectiveId);
+            StringName objectiveType = new(entry.ObjectiveType);
+            StringName targetId = new(entry.TargetId);
+            StringName encounterProfileId = new(entry.EncounterProfileId);
+            RequireNonEmpty(objectiveId, $"{entryPath}.objective_id");
+            RequireNonEmpty(objectiveType, $"{entryPath}.objective_type");
+            QuestObjectiveKind objectiveKind = QuestContentKinds.ToObjectiveKind(objectiveType);
             if (objectiveKind == QuestObjectiveKind.Unknown)
             {
                 throw new InvalidDataException(
@@ -390,7 +393,7 @@ public sealed class QuestDefinition
                     $"Content value at '{entryPath}.target_value' must be Int."
                 );
             }
-            if (entry.TargetValue <= 0)
+            if (entry.TargetValue.GetValueOrDefault() <= 0)
             {
                 throw new InvalidDataException(
                     $"Content value at '{entryPath}.target_value' must be positive."
@@ -402,9 +405,9 @@ public sealed class QuestDefinition
                 || objectiveKind == QuestObjectiveKind.SettlementAction
             )
             {
-                RequireNonEmpty(entry.TargetId, $"{entryPath}.target_id");
+                RequireNonEmpty(targetId, $"{entryPath}.target_id");
             }
-            bool hasEncounterProfile = entry.EncounterProfileId != "";
+            bool hasEncounterProfile = encounterProfileId != "";
             bool hasEncounterDisplayName = !string.IsNullOrWhiteSpace(
                 entry.EncounterDisplayName
             );
@@ -419,7 +422,7 @@ public sealed class QuestDefinition
             }
             if (
                 entry.HasStrictEncounterGrowthStage
-                && entry.EncounterGrowthStage < 0
+                && entry.EncounterGrowthStage.GetValueOrDefault() < 0
             )
             {
                 throw new InvalidDataException(
@@ -458,13 +461,13 @@ public sealed class QuestDefinition
             hasEncounterBinding |= hasEncounterProfile;
             result.Add(
                 new QuestObjectiveDefinition(
-                    entry.ObjectiveId,
-                    entry.ObjectiveType,
-                    entry.TargetId,
-                    entry.TargetValue,
-                    entry.EncounterProfileId,
+                    objectiveId,
+                    objectiveType,
+                    targetId,
+                    entry.TargetValue.GetValueOrDefault(),
+                    encounterProfileId,
                     entry.EncounterDisplayName,
-                    entry.EncounterGrowthStage
+                    entry.EncounterGrowthStage.GetValueOrDefault()
                 )
             );
         }
@@ -472,7 +475,7 @@ public sealed class QuestDefinition
     }
 
     private static IReadOnlyList<QuestRewardDefinition> ProjectRewards(
-        IReadOnlyList<QuestDef.RewardEntryData> source,
+        IReadOnlyList<QuestRewardImportModel> source,
         string path
     )
     {
@@ -482,12 +485,13 @@ public sealed class QuestDefinition
         var result = new List<QuestRewardDefinition>(source.Count);
         for (int index = 0; index < source.Count; index++)
         {
-            QuestDef.RewardEntryData entry = source[index];
+            QuestRewardImportModel entry = source[index];
             if (entry == null)
-                throw MissingNested(path, index, nameof(QuestDef.RewardEntryData));
+                throw MissingNested(path, index, nameof(QuestRewardImportModel));
             string entryPath = $"{path}[{index}]";
-            RequireNonEmpty(entry.RewardType, $"{entryPath}.reward_type");
-            QuestRewardKind rewardKind = QuestDef.ToRewardKind(entry.RewardType);
+            StringName rewardType = new(entry.RewardType);
+            RequireNonEmpty(rewardType, $"{entryPath}.reward_type");
+            QuestRewardKind rewardKind = QuestContentKinds.ToRewardKind(rewardType);
             if (rewardKind == QuestRewardKind.Unknown)
             {
                 throw new InvalidDataException(
@@ -505,24 +509,25 @@ public sealed class QuestDefinition
             {
                 if (!entry.HasStrictGoldAmount)
                     throw new InvalidDataException($"Content value at '{entryPath}.amount' must be Int.");
-                if (entry.GoldAmount <= 0)
+                if (entry.GoldAmount.GetValueOrDefault() <= 0)
                     throw new InvalidDataException($"Content value at '{entryPath}.amount' must be positive.");
-                goldAmount = entry.GoldAmount;
+                goldAmount = entry.GoldAmount.GetValueOrDefault();
             }
             else if (rewardKind == QuestRewardKind.Item)
             {
-                RequireNonEmpty(entry.ItemId, $"{entryPath}.item_id");
+                StringName importItemId = new(entry.ItemId);
+                RequireNonEmpty(importItemId, $"{entryPath}.item_id");
                 if (!entry.HasStrictItemQuantity)
                     throw new InvalidDataException($"Content value at '{entryPath}.quantity' must be Int.");
-                if (entry.ItemQuantity <= 0)
+                if (entry.ItemQuantity.GetValueOrDefault() <= 0)
                     throw new InvalidDataException($"Content value at '{entryPath}.quantity' must be positive.");
-                itemId = entry.ItemId;
-                itemQuantity = entry.ItemQuantity;
+                itemId = importItemId;
+                itemQuantity = entry.ItemQuantity.GetValueOrDefault();
             }
             else
             {
-                RequireNonEmpty(entry.PendingRewardMemberId, $"{entryPath}.member_id");
-                pendingMemberId = entry.PendingRewardMemberId;
+                pendingMemberId = new StringName(entry.PendingRewardMemberId);
+                RequireNonEmpty(pendingMemberId, $"{entryPath}.member_id");
                 pendingEntries = ProjectPendingRewardEntries(
                     entry.PendingRewardEntries,
                     $"{entryPath}.entries"
@@ -537,7 +542,7 @@ public sealed class QuestDefinition
 
             result.Add(
                 new QuestRewardDefinition(
-                    entry.RewardType,
+                    rewardType,
                     goldAmount,
                     itemId,
                     itemQuantity,
@@ -550,7 +555,7 @@ public sealed class QuestDefinition
     }
 
     private static IReadOnlyList<QuestPendingRewardEntryDefinition> ProjectPendingRewardEntries(
-        IReadOnlyList<QuestDef.PendingRewardEntryData> source,
+        IReadOnlyList<QuestPendingRewardImportModel> source,
         string path
     )
     {
@@ -560,31 +565,52 @@ public sealed class QuestDefinition
         var result = new List<QuestPendingRewardEntryDefinition>(source.Count);
         for (int index = 0; index < source.Count; index++)
         {
-            QuestDef.PendingRewardEntryData entry = source[index];
+            QuestPendingRewardImportModel entry = source[index];
             string entryPath = $"{path}[{index}]";
             if (entry == null || !entry.IsDictionaryEntry)
                 throw MissingNested(path, index, "Dictionary");
-            RequireNonEmpty(entry.EntryType, $"{entryPath}.entry_type");
-            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(entry.EntryType))
+            StringName entryType = new(entry.EntryType);
+            StringName targetId = new(entry.TargetId);
+            RequireNonEmpty(entryType, $"{entryPath}.entry_type");
+            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(entryType))
             {
                 throw new InvalidDataException(
                     $"Content value at '{entryPath}.entry_type' has unsupported pending reward type '{entry.EntryType}'."
                 );
             }
-            RequireNonEmpty(entry.TargetId, $"{entryPath}.target_id");
+            RequireNonEmpty(targetId, $"{entryPath}.target_id");
             if (!entry.HasStrictAmount)
                 throw new InvalidDataException($"Content value at '{entryPath}.amount' must be Int.");
-            if (entry.Amount == 0)
+            if (entry.Amount.GetValueOrDefault() == 0)
                 throw new InvalidDataException($"Content value at '{entryPath}.amount' must not be zero.");
             result.Add(
                 new QuestPendingRewardEntryDefinition(
-                    entry.EntryType,
-                    entry.TargetId,
-                    entry.Amount
+                    entryType,
+                    targetId,
+                    entry.Amount.GetValueOrDefault()
                 )
             );
         }
         return new ReadOnlyCollection<QuestPendingRewardEntryDefinition>(result);
+    }
+
+    private static IReadOnlyList<StringName> CopyImportNames(
+        IReadOnlyList<string> source,
+        string path
+    )
+    {
+        EnsureCollection(source, path);
+        if (source.Count == 0)
+            return System.Array.Empty<StringName>();
+        var result = new List<StringName>(source.Count);
+        for (int index = 0; index < source.Count; index++)
+        {
+            string value = source[index];
+            if (value == null)
+                throw new InvalidDataException($"Content string at '{path}[{index}]' must not be null.");
+            result.Add(new StringName(value));
+        }
+        return new ReadOnlyCollection<StringName>(result);
     }
 
     private static void EnsureCollection(object source, string path)

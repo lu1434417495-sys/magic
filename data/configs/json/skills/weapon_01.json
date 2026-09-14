@@ -1,0 +1,1723 @@
+{
+  "entries": [
+    {
+      "skill_id": "weapon_axe_echo_throw",
+      "icon_id": "weapon_axe_echo_throw",
+      "display_name": "回音投掷",
+      "description": "装备技能。选择同列或同行 6 格内地面，对使用者到目标格路径上的敌人造成 1D6+1 挥砍伤害；每个实际受伤敌人为持有者获得 1 层余音，最多 5 层，持续 60TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "echo",
+        "weapon",
+        "axe",
+        "thrown"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_echo_throw",
+        "target_mode": "ground",
+        "range_value": 6,
+        "area_pattern": "line",
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "dice_bonus": 1
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "area_value": 6,
+        "stamina_cost": 40,
+        "attack_resolution_mode": "direct_effect",
+        "area_origin_mode": "caster"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_executioner_death_sentence",
+      "icon_id": "weapon_axe_executioner_death_sentence",
+      "display_name": "死亡判决",
+      "description": "装备技能。对相邻敌人施加 60TU 死亡判决；下一次使用处刑者之斧成功命中时，该次命中变为暴击并结算 DC16 体质判决。消耗 1AP 与 60 体力，冷却 300TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "executioner",
+        "weapon",
+        "mark"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_death_sentence",
+        "cooldown_tu": 300,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "undispellable": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "executioner_death_sentence",
+            "stack_limit": 1,
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "executioner",
+              "death_sentence",
+              "mark"
+            ]
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 60,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "equipment",
+          "executioner",
+          "weapon",
+          "mark"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_executioner_execution_fear",
+      "icon_id": "weapon_axe_executioner_execution_fear",
+      "display_name": "处刑余威",
+      "description": "处刑者之斧内部恐惧结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "fear"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_execution_fear",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "diamond",
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frightened",
+            "stack_limit": 1,
+            "save_dc": 14,
+            "save_ability": "willpower",
+            "save_failure_status_id": "frightened",
+            "save_tag": "frightened",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "fear",
+              "executioner"
+            ]
+          }
+        ],
+        "area_value": 3,
+        "attack_resolution_mode": "direct_effect",
+        "max_target_count": 99
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_executioner_judgment_fallback",
+      "icon_id": "weapon_axe_executioner_judgment_fallback",
+      "display_name": "判决重创",
+      "description": "处刑者之斧内部精英与首领判决结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "negative_energy"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_judgment_fallback",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "damage_tags": [
+              "negative_energy"
+            ],
+            "dice_count": 3,
+            "dice_sides": 12,
+            "effect_target_team_filter": "enemy",
+            "save_dc": 16,
+            "save_ability": "constitution",
+            "save_tag": "execute"
+          }
+        ],
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_executioner_judgment_resolution",
+      "icon_id": "weapon_axe_executioner_judgment_resolution",
+      "display_name": "判决结算",
+      "description": "处刑者之斧内部判决结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "execute"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_judgment_resolution",
+        "effect_defs": [
+          {
+            "effect_type": "execute",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "threshold_max_hp_ratio_percent": 100,
+            "threshold_cap_max_hp_ratio_percent": 100,
+            "effect_target_team_filter": "enemy",
+            "save_dc": 16,
+            "save_ability": "constitution",
+            "save_tag": "execute"
+          }
+        ],
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_executioner_self_execution",
+      "icon_id": "weapon_axe_executioner_self_execution",
+      "display_name": "自我处刑结算",
+      "description": "处刑者之斧内部反噬结算。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "executioner",
+        "backlash"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_executioner_self_execution",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "physical_slash",
+            "damage_tags": [
+              "physical_slash"
+            ],
+            "dice_count": 2,
+            "dice_sides": 12,
+            "dice_bonus": 2,
+            "effect_target_team_filter": "self",
+            "save_dc": 14,
+            "save_ability": "willpower",
+            "save_tag": "willpower"
+          }
+        ],
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_frostbite_icebound_path",
+      "icon_id": "weapon_axe_frostbite_icebound_path",
+      "display_name": "冰封之路",
+      "description": "装备技能。选择相邻 1 格水域，将其冻结为冰层；消耗 60 体力，冷却 120TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "frostbite",
+        "weapon",
+        "terrain",
+        "freeze"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_frostbite_icebound_path",
+        "target_mode": "ground",
+        "ap_cost": 0,
+        "cooldown_tu": 120,
+        "stamina_cost": 60,
+        "mastery_trigger_mode": "effect_applied",
+        "cast_variants": [
+          {
+            "variant_id": "ice_single_water",
+            "display_name": "单格冰层",
+            "description": "将相邻 1 格水域冻结为冰层。",
+            "allowed_base_terrains": [
+              "water",
+              "shallow_water",
+              "flowing_water",
+              "deep_water"
+            ],
+            "effect_defs": [
+              {
+                "effect_type": "terrain_replace",
+                "payload": {},
+                "terrain_replace_to": "ice"
+              }
+            ]
+          }
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
+      "icon_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
+      "display_name": "月蚀影步",
+      "description": "装备技能。未穿重甲时，闪现至 3 格内地面格，并获得闪避 AC +4，持续 60TU；消耗 1AP/45 体力，冷却 120TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "lunareclipse",
+        "weapon",
+        "mobility",
+        "dodge"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_lunareclipse_eclipse_shadowstep",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "blink",
+            "forced_move_distance": 3
+          },
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "status_id": "dodge_bonus_up"
+          }
+        ],
+        "stamina_cost": 45,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "equipment"
+        ],
+        "required_weapon_families": [
+          "axe"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_rustanchor_sunk_anchor_stance",
+      "icon_id": "weapon_axe_rustanchor_sunk_anchor_stance",
+      "display_name": "沉锚守势",
+      "description": "装备技能。1AP、60体力，冷却 180TU；自身获得沉锚 120TU，免疫敌方强制位移，移动点上限 -1，并在沉锚期间减免 3 点物理伤害。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "rustanchor",
+        "weapon",
+        "defense"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_rustanchor_sunk_anchor_stance",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 180,
+        "stamina_cost": 60,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "equipment",
+          "rustanchor",
+          "weapon",
+          "defense"
+        ],
+        "target_selection_mode": "self",
+        "required_weapon_families": [
+          "axe"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_axe_starfragment_starburst",
+      "icon_id": "weapon_axe_starfragment_starburst",
+      "display_name": "星爆",
+      "description": "装备技能。选择地面目标，对半径2格内敌方造成2D8力场伤害；目标进行agility DC14豁免，成功则伤害减半；星辰碎片来源每世界日1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "starfragment",
+        "force",
+        "magic"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_starfragment_starburst",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 2,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc": 14,
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "area_value": 2
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "weapon_axe_storms_eye_cloudsplitter_heavy_chop",
+      "icon_id": "weapon_axe_storms_eye_cloudsplitter_heavy_chop",
+      "display_name": "裂云重劈",
+      "description": "装备技能。1AP、45体力，冷却 120TU；对相邻 1 格敌人进行攻击检定 +2 的武器攻击，命中造成武器伤害+2D6 thunder 并尝试推动 1 格；若没有实际推动，额外造成 2D6 thunder。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "storms_eye",
+        "weapon",
+        "melee",
+        "thunder",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_axe_storms_eye_cloudsplitter_heavy_chop",
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true,
+            "effect_target_team_filter": "enemy"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 45,
+        "attack_roll_bonus": 2,
+        "delivery_categories": [
+          "equipment",
+          "storms_eye",
+          "weapon",
+          "melee",
+          "thunder",
+          "displacement"
+        ],
+        "required_weapon_families": [
+          "axe"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_bow_thunderbow_stored_thunder_shot",
+      "icon_id": "weapon_bow_thunderbow_stored_thunder_shot",
+      "display_name": "蓄雷矢",
+      "description": "装备技能。1AP、60体力，冷却 300TU；对 4 格内敌人进行武器攻击，命中造成武器伤害+3D6 lightning。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "thunderbow",
+        "bow",
+        "weapon",
+        "thunder",
+        "lightning"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_bow_thunderbow_stored_thunder_shot",
+        "range_value": 4,
+        "cooldown_tu": 300,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true,
+            "effect_target_team_filter": "enemy"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 60,
+        "delivery_categories": [
+          "equipment",
+          "thunderbow",
+          "bow",
+          "weapon",
+          "thunder",
+          "lightning"
+        ],
+        "projectile_kind": "magical",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_bow_windbow_gale_push",
+      "icon_id": "weapon_bow_windbow_gale_push",
+      "display_name": "风压推射",
+      "description": "装备技能。1AP、12体力，冷却 60TU；选择 6 格内敌人，不造成伤害；目标进行 strength DC14 检定，失败时沿持弓者到目标的主轴方向被推离最多 2 格。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "windbow",
+        "bow",
+        "wind",
+        "control",
+        "displacement"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_bow_windbow_gale_push",
+        "range_value": 6,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 2,
+            "save_dc": 14,
+            "save_ability": "strength",
+            "save_tag": "strength"
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 12,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "windbow",
+          "bow",
+          "wind",
+          "control",
+          "displacement",
+          "weapon"
+        ],
+        "projectile_kind": "magical",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_bow_wolf_spirit_summon",
+      "icon_id": "weapon_bow_wolf_spirit_summon",
+      "display_name": "狼灵召唤",
+      "description": "装备技能。选择6格内盟友或自身作为锚点，召唤一只幽灵狼，持续60TU。狼牙之弓来源每世界日1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "wolf_bow",
+        "weapon",
+        "summon",
+        "wolf"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_bow_wolf_spirit_summon",
+        "target_team_filter": "ally",
+        "range_value": 6,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "summon",
+          "wolf"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_exotic_sands_time_accelerate",
+      "icon_id": "weapon_exotic_sands_time_accelerate",
+      "display_name": "时间加速",
+      "description": "装备技能。一场战斗一次，同一行动回合限用一次；1AP，30尺内一个友方单位本行动回合 AP 总量翻倍。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "sands_time",
+        "time",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_exotic_sands_time_accelerate",
+        "target_team_filter": "ally",
+        "range_value": 6,
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "sands_time",
+          "time",
+          "weapon"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_exotic_sands_time_decelerate",
+      "icon_id": "weapon_exotic_sands_time_decelerate",
+      "display_name": "时间减速",
+      "description": "装备技能。一场战斗一次，同一行动回合限用一次；1AP，30尺内一个敌人下一行动回合 AP 归零，但仍可移动。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "sands_time",
+        "time",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_exotic_sands_time_decelerate",
+        "range_value": 6,
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "sands_time",
+          "time",
+          "weapon"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_hammer_tremor_shockwave",
+      "icon_id": "weapon_hammer_tremor_shockwave",
+      "display_name": "震击",
+      "description": "装备技能。攻击近身地面，对半径2格内所有生物造成2D6雷鸣伤害；目标进行constitution DC14豁免，成功则伤害减半，失败额外倒地50TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "tremor",
+        "hammer",
+        "thunder",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_hammer_tremor_shockwave",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "area_pattern": "radius",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "duration_tu": 50,
+            "payload": {},
+            "damage_tag": "thunder",
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc": 14,
+            "save_ability": "constitution",
+            "save_failure_status_id": "prone",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "area_value": 2,
+        "attack_resolution_mode": "direct_effect"
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_morningstar_viper_venom_injection",
+      "icon_id": "weapon_morningstar_viper_venom_injection",
+      "display_name": "毒液注入",
+      "description": "装备技能。为毒蛇晨星灌注毒液，使下一次本武器成功命中时额外追加 1D6 poison。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "viper_morningstar",
+        "weapon",
+        "buff",
+        "poison"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_morningstar_viper_venom_injection",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff",
+          "poison"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_polearm_spider_spear_web_binding",
+      "icon_id": "weapon_polearm_spider_spear_web_binding",
+      "display_name": "蛛丝束缚",
+      "description": "装备技能。射出蛛丝束缚3格内一个敌人；目标进行 strength DC14 豁免，失败被定身60TU且攻击检定-2。蛛矛来源每世界日3次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "spider_spear",
+        "spear",
+        "polearm",
+        "web",
+        "control",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_polearm_spider_spear_web_binding",
+        "range_value": 3,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "attack_roll_penalty": 2,
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "stack_limit": 1,
+            "save_dc": 14,
+            "save_ability": "strength",
+            "save_tag": "strength",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "spider_spear",
+          "spear",
+          "web",
+          "control"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_courage_inspire",
+      "icon_id": "weapon_sword_courage_inspire",
+      "display_name": "鼓舞",
+      "description": "装备技能。选择 6 格内盟友，使其 60TU 内下一次攻击检定和下一次豁免各获得 +2；0AP，冷却 60TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "courage",
+        "longsword",
+        "support",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_courage_inspire",
+        "target_team_filter": "ally",
+        "range_value": 6,
+        "ap_cost": 0,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "display_name": "鼓舞",
+            "attack_roll_bonus": 2,
+            "consume_on_next_attack_check": true,
+            "consume_on_next_save": true,
+            "dispellable_beneficial_magic": true,
+            "effect_target_team_filter": "ally",
+            "status_id": "courage_inspired",
+            "stack_limit": 1,
+            "save_bonus": 2
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "courage",
+          "weapon",
+          "support"
+        ],
+        "required_weapon_families": [
+          "sword"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_cowardice_scurry",
+      "icon_id": "weapon_sword_cowardice_scurry",
+      "display_name": "逃窜",
+      "description": "装备技能。生命值不高于 50% 时可用；自身闪避移动 2 格并获得 60TU 的怯懦反击预备，使下一次真实攻击检定获得优势并消耗该状态。0AP，冷却 60TU。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "cowardice",
+        "shortsword",
+        "weapon",
+        "mobility"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_cowardice_scurry",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "ap_cost": 0,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "evasive",
+            "forced_move_distance": 2
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "display_name": "怯懦反击预备",
+            "attack_roll_advantage": true,
+            "consume_on_next_attack_check": true,
+            "dispellable_beneficial_magic": true,
+            "effect_target_team_filter": "self",
+            "status_id": "cowardice_counter_ready",
+            "stack_limit": 1
+          }
+        ],
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "cowardice",
+          "weapon",
+          "mobility"
+        ],
+        "target_selection_mode": "self",
+        "required_weapon_families": [
+          "sword"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_double_edged_single_edge",
+      "icon_id": "weapon_sword_double_edged_single_edge",
+      "display_name": "单刃斩",
+      "description": "装备技能。1AP、12体力；对武器范围内一个敌人进行武器攻击，命中造成武器伤害+2D6 physical_slash；无反伤；同一行动回合限用1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "double_edged",
+        "weapon",
+        "melee"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_double_edged_single_edge",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 12,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "double_edged",
+          "weapon",
+          "melee"
+        ],
+        "required_weapon_families": [
+          "sword"
+        ],
+        "required_weapon_type_ids": [
+          "longsword"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_double_edged_twin_attack",
+      "icon_id": "weapon_sword_double_edged_twin_attack",
+      "display_name": "双刃攻击",
+      "description": "装备技能。1AP、24体力；选择武器范围内两个不同敌人，分别进行武器攻击，命中造成武器伤害+3D6 physical_slash；若至少造成一次HP伤害，行动后自身受到固定8HP反伤；若本次击杀两个目标，反伤后治疗2D8HP；同一行动回合限用1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "double_edged",
+        "weapon",
+        "melee"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_double_edged_twin_attack",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 3,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "requires_los": true,
+        "stamina_cost": 24,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "double_edged",
+          "weapon",
+          "melee"
+        ],
+        "target_selection_mode": "multi_unit",
+        "min_target_count": 2,
+        "max_target_count": 2,
+        "required_weapon_families": [
+          "sword"
+        ],
+        "required_weapon_type_ids": [
+          "longsword"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_heartbane_heartbreak_burst",
+      "icon_id": "weapon_sword_heartbane_heartbreak_burst",
+      "display_name": "心碎爆发",
+      "description": "装备技能。只能对拥有至少3层情感撕裂的敌人使用，造成4D6 psychic伤害，施加30TU震慑，并消耗目标的情感撕裂；噬心者来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "heartbane",
+        "psychic",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_heartbane_heartbreak_burst",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_categories": [
+              "psychic"
+            ],
+            "effect_target_team_filter": "enemy",
+            "required_target_status_id": "heartbane_emotional_rend",
+            "required_target_status_min_stacks": 3
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "stunned",
+            "required_target_status_id": "heartbane_emotional_rend",
+            "required_target_status_min_stacks": 3,
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "heartbane_emotional_rend",
+            "required_target_status_id": "heartbane_emotional_rend",
+            "required_target_status_min_stacks": 3
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "weapon",
+          "psychic"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_last_lesson_inheritance_seal",
+      "icon_id": "weapon_sword_last_lesson_inheritance_seal",
+      "display_name": "传承之印",
+      "description": "装备技能。消耗3层教诲，使当前行动轮次内攻击伤害骰取最大，并使本次回合结束无法获得教诲。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "last_lesson",
+        "weapon",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_last_lesson_inheritance_seal",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_last_lesson_last_lesson",
+      "icon_id": "weapon_sword_last_lesson_last_lesson",
+      "display_name": "最后一课",
+      "description": "装备技能。消耗1层教诲，使下一次攻击检定获得优势。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "last_lesson",
+        "weapon",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_last_lesson_last_lesson",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_oathscar_bind_oath",
+      "icon_id": "weapon_sword_oathscar_bind_oath",
+      "display_name": "誓约绑定",
+      "description": "装备技能。消耗1AP，指定视野内一个敌人成为誓言目标；同一持有者同一把誓约之痕只能维持一个誓言目标。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "oathscar",
+        "oath",
+        "weapon",
+        "radiant"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_oathscar_bind_oath",
+        "range_value": 6,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 10000,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "oathscar_oath_target",
+            "stack_limit": 1
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "radiant"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_oathscar_oath_judgment",
+      "icon_id": "weapon_sword_oathscar_oath_judgment",
+      "display_name": "誓约裁决",
+      "description": "装备技能。只能对拥有持有者4层誓约之印的敌人完整生效，必中造成4D6 radiant伤害，施加30TU震慑，并消耗目标的誓约之印；誓约之痕来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "oathscar",
+        "oath",
+        "radiant",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_oathscar_oath_judgment",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "radiant",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source"
+          },
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "stunned",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source",
+            "lock_counterattack": true,
+            "lock_guard": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "oathscar_oath_mark",
+            "required_target_status_id": "oathscar_oath_mark",
+            "required_target_status_min_stacks": 4,
+            "required_target_status_source_selector": "source"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "radiant"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_ravenplume_crow_feast",
+      "icon_id": "weapon_sword_ravenplume_crow_feast",
+      "display_name": "群鸦之宴",
+      "description": "装备技能。消耗4只鸦羽召唤的存活乌鸦，对6格内一个敌人造成4D6 necrotic；若击杀目标，则目标不可转化为亡灵。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "ravenplume",
+        "raven",
+        "necrotic",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_ravenplume_crow_feast",
+        "range_value": 6,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "negative_energy"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_rustoath_rust_powder_storm",
+      "icon_id": "weapon_sword_rustoath_rust_powder_storm",
+      "display_name": "锈粉风暴",
+      "description": "装备技能。只能对拥有至少5层锈蚀的敌人使用，消耗1AP，造成3D6 acid伤害，并消耗目标锈蚀。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "rustoath",
+        "acid",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_rustoath_rust_powder_storm",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "acid",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "required_target_status_id": "rustoath_rust_corrosion",
+            "required_target_status_min_stacks": 5
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rustoath_rust_corrosion",
+            "required_target_status_id": "rustoath_rust_corrosion",
+            "required_target_status_min_stacks": 5
+          }
+        ],
+        "requires_los": true,
+        "delivery_categories": [
+          "weapon",
+          "acid"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_starfell_star_map_guidance",
+      "icon_id": "weapon_sword_starfell_star_map_guidance",
+      "display_name": "星图指引",
+      "description": "装备技能。消耗2层你施加的星尘（优先扣除层数最多的目标），使下一次攻击检定获得优势；需要你施加的星尘总数≥2。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "starfell",
+        "weapon",
+        "buff"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_starfell_star_map_guidance",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "equipment",
+          "weapon",
+          "buff"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_starfell_starfall",
+      "icon_id": "weapon_sword_starfell_starfall",
+      "display_name": "星坠",
+      "description": "装备技能。需要你施加的星尘总数≥5，施放后消耗5层（优先扣除层数最多的目标）。选择地面目标，对半径2格内敌方造成3D6力场与3D6火焰伤害；目标进行agility DC16豁免，成功则伤害减半；建筑和非魔法构造物受到双倍伤害；群星之末来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "starfell",
+        "force",
+        "fire",
+        "magic"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_starfell_starfall",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc": 16,
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic",
+            "extra_damage_segments": [
+              {
+                "damage_tag": "fire",
+                "dice_count": 3,
+                "dice_sides": 6
+              }
+            ],
+            "target_damage_multiplier_rules": [
+              {
+                "any_creature_type_tags": [
+                  "building"
+                ],
+                "multiplier_percent": 200
+              },
+              {
+                "any_creature_type_tags": [
+                  "construct"
+                ],
+                "excluded_creature_type_tags": [
+                  "magical",
+                  "building"
+                ],
+                "multiplier_percent": 200
+              }
+            ]
+          }
+        ],
+        "area_value": 2
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "weapon_sword_threadweaver_cut_fate_thread",
+      "icon_id": "weapon_sword_threadweaver_cut_fate_thread",
+      "display_name": "线断命绝",
+      "description": "装备技能。对拥有持有者命运脆弱状态的相邻敌人发动constitution DC18处决；失败即死，成功仍受到4D10 psychic伤害，并清除命运线与命运脆弱；织命来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "threadweaver",
+        "fate",
+        "psychic",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_threadweaver_cut_fate_thread",
+        "effect_defs": [
+          {
+            "effect_type": "execute",
+            "payload": {},
+            "damage_tag": "psychic",
+            "threshold_max_hp_ratio_percent": 100,
+            "threshold_cap_max_hp_ratio_percent": 100,
+            "soul_fracture_duration_tu": 30,
+            "effect_categories": [
+              "psychic"
+            ],
+            "effect_target_team_filter": "enemy",
+            "save_dc": 18,
+            "save_ability": "constitution",
+            "save_tag": "execute",
+            "required_target_status_id": "threadweaver_fate_frayed",
+            "required_target_status_min_stacks": 1,
+            "required_target_status_source_selector": "source"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "threadweaver",
+          "weapon",
+          "psychic",
+          "execute"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_threadweaver_thread_mending",
+      "icon_id": "weapon_sword_threadweaver_thread_mending",
+      "display_name": "织线修复",
+      "description": "装备技能。治疗2格内一个盟友2D8+10，可拉起倒地盟友；施放者失去10HP；织命来源每场战斗1次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "threadweaver",
+        "fate",
+        "heal",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_threadweaver_thread_mending",
+        "target_team_filter": "ally",
+        "range_value": 2,
+        "effect_defs": [
+          {
+            "effect_type": "heal_fatal",
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "dice_bonus": 10,
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "threadweaver",
+          "weapon",
+          "heal"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_twilight_edge_twilight_step",
+      "icon_id": "weapon_sword_twilight_edge_twilight_step",
+      "display_name": "暮影步",
+      "description": "装备技能。战斗时间达到70TU后可选，消耗1AP，冷却40TU，闪现至3格内地面格。使用后当前行动轮次内启用暮光切割；白天使用还会让攻击持有者的攻击检定+1直到本行动轮次结束。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "twilight_edge",
+        "mobility",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_twilight_edge_twilight_step",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "cooldown_tu": 40,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "blink",
+            "forced_move_distance": 3
+          }
+        ],
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "equipment"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_wyrmbreak_dragon_soul_burst",
+      "icon_id": "weapon_sword_wyrmbreak_dragon_soul_burst",
+      "display_name": "龙魂爆发",
+      "description": "装备技能。消耗5层龙魂怒气，沿直线喷吐火焰，对敌方造成6D6 fire伤害，agility DC16豁免成功减半；dragon额外2D6。该火焰伤害绕过fire half抗性，但不绕过fire immune。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "wyrmbreak",
+        "fire",
+        "dragon_soul"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_wyrmbreak_dragon_soul_burst",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "line",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "mitigation_bypass_damage_tags": [
+              "fire"
+            ],
+            "mitigation_bypass_tiers": [
+              "half"
+            ],
+            "dice_count": 6,
+            "dice_sides": 6,
+            "bonus_damage_dice_count": 2,
+            "bonus_damage_dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "bonus_condition": "target_creature_type",
+            "bonus_condition_creature_type_tag": "dragon",
+            "save_dc": 16,
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "area_value": 4,
+        "requires_los": true,
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_sword_wyrmbreak_dragon_soul_extension",
+      "icon_id": "weapon_sword_wyrmbreak_dragon_soul_extension",
+      "display_name": "龙魂延伸",
+      "description": "装备技能。消耗3层龙魂怒气，以2格距离进行一次龙骨断剑武器攻击。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "wyrmbreak",
+        "weapon",
+        "melee"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_sword_wyrmbreak_dragon_soul_extension",
+        "range_value": 2,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "weapon_range_policy": "configured",
+        "requires_los": true,
+        "delivery_categories": [
+          "equipment",
+          "weapon",
+          "melee"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "weapon_warhammer_sacred_heal",
+      "icon_id": "weapon_warhammer_sacred_heal",
+      "display_name": "神圣治疗",
+      "description": "装备技能。触碰治疗相邻一个盟友2D8 HP；神圣之锤来源每世界日3次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "sacred_hammer",
+        "warhammer",
+        "heal",
+        "radiant",
+        "weapon"
+      ],
+      "combat_profile": {
+        "skill_id": "weapon_warhammer_sacred_heal",
+        "target_team_filter": "ally",
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "effect_target_team_filter": "ally"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "sacred_hammer",
+          "weapon",
+          "heal",
+          "radiant"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    }
+  ],
+  "family": "weapon_01",
+  "templates": {
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    }
+  },
+  "domain": "skills",
+  "schema": 1
+}

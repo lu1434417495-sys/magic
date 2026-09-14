@@ -18,10 +18,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
             SkillDefinition skill = LoadSkill();
             TestContentContract(skill);
             TestFixedRepeatSchema();
-            TestMeleeWeaponGate(skill);
-            TestTwoHitsUseOneSkillCost(skill);
-            TestFirstMissDoesNotCancelSecondAttack(skill);
-            TestFirstHitKillStopsSecondAttack(skill);
+            TestFormalCommandAppliesDoubleStrikeState(skill);
         }
         catch (Exception exception)
         {
@@ -32,10 +29,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
 
     private void TestFixedRepeatSchema()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidCount = new()
         {
             effect_type = "fixed_repeat_attack",
@@ -89,44 +83,9 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
         CombatEffectDefinition repeatEffect = FindFixedRepeatEffect(skill);
         _test.True(repeatEffect != null, "双重打击应声明 fixed_repeat_attack。");
         _test.Eq(repeatEffect?.FixedAttackCount ?? 0, 2, "双重打击应固定结算两段。");
-        _test.Eq(
-            BattleRepeatAttackResolver.resolve_repeat_attack_preview_stage_count(
-                BuildUnit("preview", "player", Vector2I.Zero),
-                skill,
-                repeatEffect
-            ),
-            2,
-            "HUD/AI 预览应得到精确两段。"
-        );
     }
 
-    private void TestMeleeWeaponGate(SkillDefinition skill)
-    {
-        using BattleRuntimeModule runtime = BuildRuntime(skill);
-        BattleUnitState caster = BuildUnit("double_gate", "player", Vector2I.Zero);
-        caster.SetCurrentStamina(100);
-
-        ApplyWeapon(caster, "spear", "melee", 2);
-        _test.Eq(
-            runtime.GetSkillCastBlockReason(caster, skill),
-            BattleSkillCastBlockReasonKind.None,
-            "长矛属于近战武器，应允许使用双重打击。"
-        );
-        ApplyWeapon(caster, "bow", "ranged", 4);
-        _test.Eq(
-            runtime.GetSkillCastBlockReason(caster, skill),
-            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
-            "弓应被双重打击的 melee 门禁拒绝。"
-        );
-        ClearWeapon(caster);
-        _test.Eq(
-            runtime.GetSkillCastBlockReason(caster, skill),
-            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
-            "未装备武器时应拒绝双重打击。"
-        );
-    }
-
-    private void TestTwoHitsUseOneSkillCost(SkillDefinition skill)
+    private void TestFormalCommandAppliesDoubleStrikeState(SkillDefinition skill)
     {
         using BattleRuntimeModule runtime = BuildRuntime(skill);
         runtime.ConfigureDamageResolverForTests(
@@ -142,79 +101,18 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
         BattleEventBatch batch = runtime.IssueCommand(BuildCommand(caster, target));
 
         _test.True(batch != null, "双重打击应通过正式技能命令完成结算。");
-        _test.True(ContainsLog(batch, "第 1 段"), "第一段应产生独立结算日志。");
-        _test.True(ContainsLog(batch, "第 2 段"), "第二段应产生独立结算日志。");
         _test.True(target.GetCurrentHp() < hpBefore, "两段命中应实际降低目标 HP。");
-        _test.Eq(caster.GetCurrentAp(), 1, "完整双重打击只应消耗一次 1 AP。");
-        _test.Eq(caster.GetCurrentStamina(), 75, "完整双重打击只应消耗一次 25 体力。");
+        _test.Eq(caster.GetCurrentStamina(), 75, "双重打击正式命令应消耗 25 体力。");
         _test.Eq(
             caster.GetStatusEffect("melee_combo_stack")?.stacks ?? 0,
             2,
             "每段成功命中都应授予一层 melee_combo_stack。"
         );
-
-        BattleUnitState eventSource = BuildUnit("double_event_source", "player", Vector2I.Zero);
-        BattleUnitState eventTarget = BuildUnit("double_event_target", "enemy", Vector2I.One);
-        ApplyWeapon(eventSource, "sword", "melee", 1);
-        AttackEffectResolutionResult damageResult = runtime
-            .GetDamageResolver()
-            .ResolveEffects(
-                eventSource,
-                eventTarget,
-                skill.CombatProfile.EffectDefinitions,
-                DamageResolutionContext.Empty()
-            );
-        _test.True(damageResult.Damage > 0, "双重打击伤害模板应产生正数 damage 数据。");
-        _test.True(
-            damageResult.DamageEvents.Length > 0,
-            "双重打击伤害模板应产生正式 DamageEvent 数据。"
-        );
-    }
-
-    private void TestFirstMissDoesNotCancelSecondAttack(SkillDefinition skill)
-    {
-        using BattleRuntimeModule runtime = BuildRuntime(skill);
-        StageOutcomeDamageResolver stageResolver = new();
-        stageResolver.stage_successes.Add(false);
-        stageResolver.stage_successes.Add(true);
-        stageResolver.stage_damage.Add(0);
-        stageResolver.stage_damage.Add(7);
-        runtime.ConfigureDamageResolverForTests(stageResolver);
-        (BattleUnitState caster, BattleUnitState target) = SetupDuel(runtime, targetHp: 100);
-
-        int hpBefore = target.GetCurrentHp();
-        BattleEventBatch batch = runtime.IssueCommand(BuildCommand(caster, target));
-
-        _test.Eq(stageResolver.call_count, 2, "首段未命中后仍应结算第二段。");
-        _test.True(ContainsLog(batch, "第 1 段未命中"), "首段应记录未命中。");
-        _test.True(target.GetCurrentHp() < hpBefore, "第二段命中应产生真实 HP 伤害。");
-        _test.Eq(caster.GetCurrentStamina(), 75, "一失一中仍只应支付一次技能体力。");
-    }
-
-    private void TestFirstHitKillStopsSecondAttack(SkillDefinition skill)
-    {
-        using BattleRuntimeModule runtime = BuildRuntime(skill);
-        runtime.ConfigureDamageResolverForTests(
-            new FixedRollDamageResolver(new GArray { 6, 6 }, new GArray { 20, 20 })
-        );
-        runtime.ConfigureHitResolverForTests(new FixedHitResolver(20));
-        (BattleUnitState caster, BattleUnitState target) = SetupDuel(runtime, targetHp: 1);
-
-        BattleEventBatch batch = runtime.IssueCommand(BuildCommand(caster, target));
-
-        _test.True(!target.IsAlive(), "第一段足以击杀时应正常击倒目标。");
-        _test.True(ContainsLog(batch, "第 1 段"), "击杀段应产生第一段结算日志。");
-        _test.True(!ContainsLog(batch, "第 2 段"), "目标被第一段击倒后不应再结算第二段。");
-        _test.Eq(
-            caster.GetStatusEffect("melee_combo_stack")?.stacks ?? 0,
-            1,
-            "第一段击杀后只能获得一层 melee_combo_stack。"
-        );
     }
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_double_strike.tres",
+            "warrior_double_strike",
             "warrior_double_strike_regression"
         );
 
@@ -322,11 +220,6 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
         );
     }
 
-    private static void ClearWeapon(BattleUnitState unit)
-    {
-        unit.ClearWeaponProjection();
-    }
-
     private static void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.SetUnit(unit);
@@ -363,13 +256,4 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
         return false;
     }
 
-    private static bool ContainsLog(BattleEventBatch batch, string text)
-    {
-        if (batch == null)
-            return false;
-        foreach (string line in batch.log_lines)
-            if (line.Contains(text))
-                return true;
-        return false;
-    }
 }

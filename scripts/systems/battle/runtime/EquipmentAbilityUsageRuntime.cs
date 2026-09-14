@@ -521,6 +521,163 @@ internal static class EquipmentAbilityUsageRuntime
             _ => false,
         };
 
+    internal static bool IsFatalInterceptAttemptAvailable(
+        BattleUnitState unit,
+        BattleEquipmentAbilitySourceReadView source,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentFatalInterceptDefinition intercept,
+        int worldStep
+    )
+    {
+        if (
+            unit == null
+            || source == null
+            || binding == null
+            || intercept == null
+            || binding.BindingId == ""
+            || intercept.InterceptId == ""
+            || intercept.MaxAttemptsPerPeriod <= 0
+        )
+        {
+            return false;
+        }
+
+        if (intercept.UsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
+        {
+            StringName chargeKey = BuildFatalInterceptPerBattleChargeKey(
+                source,
+                binding,
+                intercept
+            );
+            return chargeKey != ""
+                && (
+                    !unit.HasPerBattleChargeTyped(chargeKey)
+                    || unit.GetPerBattleChargeTyped(
+                        chargeKey,
+                        intercept.MaxAttemptsPerPeriod
+                    ) > 0
+                );
+        }
+
+        if (!EquipmentAbilityUsagePeriodKinds.IsPersistentWorldPeriod(intercept.UsagePeriodKind))
+            return false;
+        int periodIndex = ResolvePeriodIndex(intercept.UsagePeriodKind, worldStep);
+        EquipmentInstanceState instance = FindEquipmentInstance(
+            unit,
+            source.SourceEquipmentInstanceId
+        );
+        StringName abilityId = BuildFatalInterceptUsageAbilityId(binding, intercept);
+        return periodIndex >= 0
+            && instance != null
+            && abilityId != ""
+            && GetUsedCount(
+                instance,
+                abilityId,
+                intercept.UsagePeriodKind,
+                periodIndex
+            ) < intercept.MaxAttemptsPerPeriod;
+    }
+
+    internal static bool TryCommitFatalInterceptAttempt(
+        BattleUnitState unit,
+        BattleEquipmentAbilitySourceReadView source,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentFatalInterceptDefinition intercept,
+        int worldStep
+    )
+    {
+        if (!IsFatalInterceptAttemptAvailable(unit, source, binding, intercept, worldStep))
+            return false;
+
+        if (intercept.UsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
+        {
+            StringName chargeKey = BuildFatalInterceptPerBattleChargeKey(
+                source,
+                binding,
+                intercept
+            );
+            if (!unit.HasPerBattleChargeTyped(chargeKey))
+            {
+                unit.SetPerBattleChargeTyped(
+                    chargeKey,
+                    intercept.MaxAttemptsPerPeriod
+                );
+            }
+            int remaining = unit.GetPerBattleChargeTyped(chargeKey, 0);
+            if (remaining <= 0)
+                return false;
+            unit.SetPerBattleChargeTyped(chargeKey, remaining - 1);
+            return true;
+        }
+
+        int periodIndex = ResolvePeriodIndex(intercept.UsagePeriodKind, worldStep);
+        EquipmentInstanceState instance = FindEquipmentInstance(
+            unit,
+            source.SourceEquipmentInstanceId
+        );
+        StringName abilityId = BuildFatalInterceptUsageAbilityId(binding, intercept);
+        if (periodIndex < 0 || instance == null || abilityId == "")
+            return false;
+        instance.ability_usage_periods ??= new List<EquipmentAbilityUsagePeriodState>();
+        EquipmentAbilityUsagePeriodState usage = FindUsagePeriod(
+            instance,
+            abilityId,
+            intercept.UsagePeriodKind,
+            periodIndex
+        );
+        if (usage == null)
+        {
+            instance.ability_usage_periods.Add(
+                new EquipmentAbilityUsagePeriodState
+                {
+                    AbilityId = ToText(abilityId),
+                    PeriodKind = ToPeriodKindText(intercept.UsagePeriodKind),
+                    PeriodIndex = periodIndex,
+                    UsedCount = 1,
+                }
+            );
+            return true;
+        }
+        if (usage.UsedCount >= intercept.MaxAttemptsPerPeriod)
+            return false;
+        usage.UsedCount = Math.Min(usage.UsedCount + 1, intercept.MaxAttemptsPerPeriod);
+        return true;
+    }
+
+    internal static int GetFatalInterceptAttemptUsedCount(
+        BattleUnitState unit,
+        BattleEquipmentAbilitySourceReadView source,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentFatalInterceptDefinition intercept,
+        int worldStep
+    )
+    {
+        if (unit == null || source == null || binding == null || intercept == null)
+            return 0;
+        if (intercept.UsagePeriodKind == EquipmentAbilityUsagePeriodKind.PerBattle)
+        {
+            StringName chargeKey = BuildFatalInterceptPerBattleChargeKey(
+                source,
+                binding,
+                intercept
+            );
+            if (chargeKey == "" || !unit.HasPerBattleChargeTyped(chargeKey))
+                return 0;
+            int remaining = unit.GetPerBattleChargeTyped(chargeKey, 0);
+            return Math.Max(intercept.MaxAttemptsPerPeriod - remaining, 0);
+        }
+
+        int periodIndex = ResolvePeriodIndex(intercept.UsagePeriodKind, worldStep);
+        EquipmentInstanceState instance = FindEquipmentInstance(
+            unit,
+            source.SourceEquipmentInstanceId
+        );
+        StringName abilityId = BuildFatalInterceptUsageAbilityId(binding, intercept);
+        return periodIndex < 0 || instance == null || abilityId == ""
+            ? 0
+            : GetUsedCount(instance, abilityId, intercept.UsagePeriodKind, periodIndex);
+    }
+
     internal static bool TryCommitUsage(
         BattleUnitState unit,
         BattleAvailableSkillEntry entry,
@@ -704,6 +861,38 @@ internal static class EquipmentAbilityUsageRuntime
             return "";
         return new StringName(
             $"equipment_skill:{ownerSourceKey}:{grant.GrantedActionId}"
+        );
+    }
+
+    private static StringName BuildFatalInterceptPerBattleChargeKey(
+        BattleEquipmentAbilitySourceReadView source,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentFatalInterceptDefinition intercept
+    )
+    {
+        StringName ownerSourceKey = ResolveOwnerSourceKey(source);
+        if (
+            ownerSourceKey == ""
+            || binding?.BindingId == ""
+            || intercept?.InterceptId == ""
+        )
+        {
+            return "";
+        }
+        return new StringName(
+            $"equipment_fatal_intercept:{ownerSourceKey}:{binding.BindingId}:{intercept.InterceptId}"
+        );
+    }
+
+    private static StringName BuildFatalInterceptUsageAbilityId(
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentFatalInterceptDefinition intercept
+    )
+    {
+        if (binding?.BindingId == "" || intercept?.InterceptId == "")
+            return "";
+        return new StringName(
+            $"fatal_intercept:{binding.BindingId}:{intercept.InterceptId}"
         );
     }
 

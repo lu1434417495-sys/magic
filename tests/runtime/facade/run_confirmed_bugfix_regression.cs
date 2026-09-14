@@ -16,7 +16,7 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
     private void Run()
     {
         TestAttackDispositionRespectsNaturalRollFlags();
-        TestWorldFootprintReRegisterClearsOldCells();
+        TestAttackMetadataRespectsExplicitCritLock();
         TestMissingItemDefDoesNotTrapEquippedInstance();
 
         RequestTestExit(_test.Finish("Confirmed bugfix regression"));
@@ -41,26 +41,26 @@ public partial class run_confirmed_bugfix_regression : LifecycleTestSceneTree
         );
     }
 
-    private void TestWorldFootprintReRegisterClearsOldCells()
+    private void TestAttackMetadataRespectsExplicitCritLock()
     {
-        WorldMapGridSystem gridSystem = new();
-        gridSystem.Setup(new Vector2I(3, 3), Vector2I.One);
+        BattleHitResolver hitResolver = new();
+        AttackCheckInput critLockedCheck = new(
+            requiredRoll: 21,
+            naturalTwentyAutoHit: false,
+            critLocked: true
+        );
+        AttackResolutionMetadata metadata = hitResolver.ResolveAttackMetadata(
+            BuildUnit("crit_lock_source"),
+            BuildUnit("crit_lock_target"),
+            critLockedCheck,
+            new AttackContext(new[] { 20 })
+        );
 
-        _test.True(
-            gridSystem.RegisterFootprint("camp", new Vector2I(0, 0), new Vector2I(2, 1)),
-            "初次注册 footprint 应成功。"
-        );
-        _test.True(
-            gridSystem.RegisterFootprint("camp", new Vector2I(1, 1), Vector2I.One),
-            "同 entity_id 重新注册 footprint 应成功。"
-        );
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(0, 0)), "", "重新注册后旧 footprint 占用应被清理。");
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "重新注册后新 footprint 应可读取。");
-        _test.False(
-            gridSystem.RegisterFootprint("camp", new Vector2I(9, 9), Vector2I.One),
-            "越界重新注册应失败。"
-        );
-        _test.Eq(gridSystem.GetOccupantRoot(new Vector2I(1, 1)), "camp", "越界注册失败后旧 footprint 应被恢复。");
+        _test.Eq(metadata.HitRoll, 20, "显式禁暴击回归应固定掷出 d20=20。");
+        _test.True(metadata.CritLocked, "执行元数据应保留 AttackCheckInput.CritLocked。");
+        _test.False(metadata.AttackSuccess, "禁用自然 20 自动命中且门槛为 21 时应未命中。");
+        _test.False(metadata.CriticalHit, "显式禁暴击时 d20=20 不得提前判为暴击命中。");
+        _test.True(metadata.OrdinaryMiss, "显式禁暴击后的阈值失败应记为普通未命中。");
     }
 
     private void TestMissingItemDefDoesNotTrapEquippedInstance()

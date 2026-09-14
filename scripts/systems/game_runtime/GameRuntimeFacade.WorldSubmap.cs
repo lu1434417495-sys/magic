@@ -49,6 +49,21 @@ public sealed partial class GameRuntimeFacade
     internal void MaterializeActiveWorldStateToRoot() =>
         _materialize_active_world_state_to_root();
 
+    // --- 事务提交/回滚接缝 ---------------------------------------------------
+    // RuntimeTransaction 曾直接读写 facade 的 _world_map_data_context / _game_session 字段。
+    // 下面三个成员是它现在唯一的入口，字段本身已收为 private。
+
+    /// 复制一份 root 世界状态，供事务回滚快照持有。
+    internal WorldRuntimeData CaptureRootWorldSnapshot() =>
+        _world_map_data_context?.RootRuntimeData?.DuplicateState() ?? WorldRuntimeData.Empty();
+
+    /// 回滚时把快照写回 root 世界状态。
+    internal void BindRootWorldData(WorldRuntimeData worldData) =>
+        _world_map_data_context.BindRootWorldData(worldData);
+
+    /// 事务需要在 session 上做范围化的提交/回滚，这里只读暴露当前 session。
+    internal GameSession ActiveGameSession => _game_session;
+
     private void _materialize_active_world_state_to_root()
     {
         _world_map_data_context.SaveActiveWorldFogState(_fog_system);

@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_reject_simulation_outlier",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_worldbreaker_orb",
+      "display_name": "错误灭世法球",
+      "description": "故意保持结构合法但把伤害和资源效率推到明显离群，用于验证 BattleSim 强度门禁。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "combat_profile": {
+        "skill_id": "mage_generated_worldbreaker_orb",
+        "target_mode": "ground",
+        "target_team_filter": "enemy",
+        "range_value": 5,
+        "ap_cost": 1,
+        "mp_cost": 1,
+        "cooldown_tu": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 20,
+            "dice_sides": 20,
+            "effect_target_team_filter": "any",
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      }
+    }
+  ]
+}

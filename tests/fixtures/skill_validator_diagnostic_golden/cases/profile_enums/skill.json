@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_enums",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_profile_enums",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_profile_enums",
+        "fumble_protection_curve": [
+          -1
+        ],
+        "backlash_offset_radius": -1
+      },
+      "icon_id": "diagnostic_profile_enums",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -34,7 +34,13 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MapViewportContainer" type="SubViewportContainer" parent="MapFrame" unique_id=821501431]
+[node name="MapViewportHost" type="Control" parent="MapFrame"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+clip_contents = true
+
+[node name="MapViewportContainer" type="SubViewportContainer" parent="MapFrame/MapViewportHost" unique_id=821501431]
 unique_name_in_owner = true
 layout_mode = 2
 

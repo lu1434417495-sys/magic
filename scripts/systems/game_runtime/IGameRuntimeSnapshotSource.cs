@@ -40,6 +40,11 @@ public interface IGameRuntimeSnapshotSource
     IReadOnlyList<IReadOnlyDictionary<string, object>> GetMemberEquippedEntriesSnapshotPlain(
         StringName member_id
     );
+    GearSetEvaluationSnapshot GetMemberGearSetEvaluationTyped(StringName member_id) =>
+        GearSetEvaluationSnapshot.Empty;
+    IReadOnlyList<GearSetGrantedActionSummary> GetMemberGearSetGrantedActionSummariesTyped(
+        StringName member_id
+    ) => System.Array.Empty<GearSetGrantedActionSummary>();
     string GetMemberDisplayName(StringName member_id);
     string GetResolvedSettlementId();
     IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(

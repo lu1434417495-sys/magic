@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:barrier_layers:v1",
+  "title": "Magic barrier layer JSON authoring schema",
+  "description": "Strict reusable barrier layers with typed passage outcomes.",
+  "$ref": "#/$defs/BarrierLayerJsonDocumentDto",
+  "$defs": {
+    "BarrierLayerJsonDocumentDto": {
+      "description": "Barrier layer document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "barrier_layers"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BarrierLayerJsonDto__authoring_layer_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BarrierLayerJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BarrierLayerJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blocked_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "breaker_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "layer_id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "passage_outcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BarrierOutcomeJsonDto"
+          }
+        }
+      },
+      "required": [
+        "blocked_categories",
+        "breaker_skill_ids",
+        "display_name",
+        "layer_id",
+        "order",
+        "passage_outcomes"
+      ]
+    },
+    "BarrierLayerJsonDto__authoring_layer_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BarrierLayerJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BarrierLayerJsonDto__templated_layer_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BarrierLayerJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blocked_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "breaker_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "layer_id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "passage_outcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BarrierOutcomeJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BarrierLayerJsonDto__templated_layer_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "blocked_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "breaker_skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "layer_id": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "passage_outcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BarrierOutcomeJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "layer_id",
+        "template"
+      ]
+    },
+    "BarrierOutcomeJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string"
+        },
+        "fatal_damage": {
+          "type": "integer"
+        },
+        "half_on_success": {
+          "type": "boolean"
+        },
+        "outcome_type": {
+          "type": "string"
+        },
+        "save_ability": {
+          "type": "string"
+        },
+        "save_dc": {
+          "type": "integer"
+        },
+        "save_tag": {
+          "type": "string"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "success_amount": {
+          "type": "integer"
+        },
+        "success_damage_tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount",
+        "damage_tag",
+        "fatal_damage",
+        "half_on_success",
+        "outcome_type",
+        "save_ability",
+        "save_dc",
+        "save_tag",
+        "status_id",
+        "success_amount",
+        "success_damage_tag"
+      ]
+    }
+  }
+}

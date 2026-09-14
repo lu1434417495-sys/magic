@@ -161,47 +161,4 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
         );
     }
 
-    private static bool IsForbiddenPublicApiType(Type type)
-    {
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        return typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal);
-    }
-
-    private static bool ReadBool(
-        IReadOnlyDictionary<string, object> dictionary,
-        string key
-    )
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.TryGetValue(key, out object value))
-        {
-            return false;
-        }
-        return value is bool boolValue && boolValue;
-    }
-
-    private static int ReadInt(
-        IReadOnlyDictionary<string, object> dictionary,
-        string key,
-        int fallback
-    )
-    {
-        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.TryGetValue(key, out object value))
-        {
-            return fallback;
-        }
-        return value switch
-        {
-            int intValue => intValue,
-            long longValue => (int)longValue,
-            float floatValue => (int)floatValue,
-            double doubleValue => (int)doubleValue,
-            _ => fallback,
-        };
-    }
-
 }

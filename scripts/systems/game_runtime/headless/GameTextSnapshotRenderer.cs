@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = System.Collections.Generic.IReadOnlyList<object>;
@@ -104,7 +104,7 @@ public static class GameTextSnapshotRenderer
         var lines = new List<string>
         {
             $"active_save_id={GetString(session, "active_save_id")}",
-            $"generation_config={GetString(session, "generation_config_path")}",
+            $"world_generation_id={GetString(session, "world_generation_id")}",
             $"world_loaded={FormatBool(ReadExactBool(session, "world_loaded"))}",
         };
         foreach (GDictionary preset in Dictionaries(GetArray(session, "presets")))
@@ -356,10 +356,18 @@ public static class GameTextSnapshotRenderer
                 if (ContainsKey(trigger, "percent"))
                     triggerText = $"{triggerText}:{GetInt(trigger, "percent")}";
                 lines.Add(
-                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | effective_mp_max={GetInt(setup, "effective_mp_max")} | material=special_contingency_gem:{GetInt(setup, "material_quantity")} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
+                    $"member_contingency={memberId} | {GetString(setup, "setup_id")} | charged={(ReadExactBool(setup, "charged") ? "yes" : "no")} | reserved_mp_max={GetInt(setup, "reserved_mp_max")} | effective_mp_max={GetInt(setup, "effective_mp_max")} | materials={FormatContingencyMaterials(GetArray(setup, "material_costs"))} | trigger={triggerText} | release={GetString(setup, "release_mode")} | spells={FormatContingencySpells(GetArray(setup, "stored_spells"))}"
                 );
             }
         }
+    }
+
+    private static string FormatContingencyMaterials(GArray costs)
+    {
+        var parts = new List<string>();
+        foreach (GDictionary cost in Dictionaries(costs))
+            parts.Add($"{GetString(cost, "item_id")}:{GetInt(cost, "quantity")}");
+        return string.Join(",", parts);
     }
 
     private static string FormatContingencySpells(GArray spells)
@@ -382,7 +390,7 @@ public static class GameTextSnapshotRenderer
         if (MemberHasProgressionSnapshot(member))
         {
             lines.Add(
-                $"member_progression={memberId} | resources={FormatArray(GetArray(member, "unlocked_combat_resource_ids"))} | aura={GetInt(member, "current_aura")} | active_core={FormatArray(GetArray(member, "active_core_skill_ids"))} | active_trigger={GetString(member, "active_level_trigger_core_skill_id")} | locked_trigger={FormatArray(GetArray(member, "locked_level_trigger_skill_ids"))} | blocked_relearn={FormatArray(GetArray(member, "blocked_relearn_skill_ids"))}"
+                $"member_progression={memberId} | resources={FormatArray(GetArray(member, "unlocked_combat_resource_ids"))} | aura={GetInt(member, "current_aura")} | active_core={FormatArray(GetArray(member, "active_core_skill_ids"))} | growth_completed={FormatArray(GetArray(member, "used_growth_trigger_skill_ids"))} | blocked_relearn={FormatArray(GetArray(member, "blocked_relearn_skill_ids"))}"
             );
         }
         AppendMemberSkillLines(lines, memberId, GetArray(member, "skill_entries"));
@@ -396,8 +404,7 @@ public static class GameTextSnapshotRenderer
             "unlocked_combat_resource_ids",
             "current_aura",
             "active_core_skill_ids",
-            "active_level_trigger_core_skill_id",
-            "locked_level_trigger_skill_ids",
+            "used_growth_trigger_skill_ids",
             "blocked_relearn_skill_ids",
             "skill_entries",
             "profession_entries",
@@ -422,7 +429,7 @@ public static class GameTextSnapshotRenderer
             if (string.IsNullOrEmpty(skillId))
                 continue;
             lines.Add(
-                $"member_skill={memberId} | {skillId} | lv={GetInt(skillEntry, "level")} | core={FormatBool(ReadExactBool(skillEntry, "is_core"))} | trigger_active={FormatBool(ReadExactBool(skillEntry, "is_level_trigger_active"))} | trigger_locked={FormatBool(ReadExactBool(skillEntry, "is_level_trigger_locked"))} | growth_claimed={FormatBool(ReadExactBool(skillEntry, "core_max_growth_claimed"))} | profession={GetString(skillEntry, "assigned_profession_id")}"
+                $"member_skill={memberId} | {skillId} | lv={GetInt(skillEntry, "level")} | core={FormatBool(ReadExactBool(skillEntry, "is_core"))} | growth_completed={FormatBool(ReadExactBool(skillEntry, "growth_completed"))} | profession={GetString(skillEntry, "assigned_profession_id")}"
             );
         }
     }

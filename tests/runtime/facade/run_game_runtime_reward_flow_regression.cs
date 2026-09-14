@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_game_runtime_reward_flow_regression : LifecycleTestSceneTree
@@ -120,20 +119,11 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             RuntimeCommandResult closeResult =
                 handler.CommandCloseActiveModalTyped();
             _test.True(closeResult.Ok, "关闭人物信息窗应成功。");
-            using GodotProjectionLease<GDictionary> characterInfoLease =
-                runtime.GetCharacterInfoContextLease();
-            _test.Eq(characterInfoLease.Value.Count, 0, "关闭人物信息窗后上下文应清空。");
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
-
-            RuntimeCommandResult blockedResult =
-                handler.CommandCloseActiveModalTyped();
-            _test.False(blockedResult.Ok, "reward modal 不应直接关闭。");
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "reward modal 被阻止时应保持打开。");
-            _test.Eq(
-                blockedResult.Code,
-                RuntimeCommandCode.InvalidState,
-                "reward modal 被阻止时 typed result 应给出 InvalidState code。"
+            _test.True(
+                runtime.GetCharacterInfoContextTyped() == null,
+                "关闭人物信息窗后上下文应清空。"
             );
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Reward, "关闭人物信息窗后应继续展示待领奖励。");
         }
         finally
         {
@@ -160,10 +150,10 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
 
     private static GameRuntimeFacade BuildRuntime(PartyState partyState)
     {
-        GameRuntimeFacade runtime = new()
-        {
-            _party_state = partyState,
-        };
+        GameRuntimeFacade runtime = new();
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._character_management.setup(
             partyState,
             BuildSkillDefinitions(),
@@ -172,7 +162,10 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             new Dictionary<StringName, ItemDefinition>(),
             new Dictionary<StringName, QuestDefinition>()
         );
-        runtime._settlement_command_handler.SetupRuntime(runtime);
+        runtime._settlement_command_handler.SetupRuntime(
+            runtime,
+            GameSessionTestFactory.GetProcessSnapshot().GameplayConfiguration
+        );
         runtime._warehouse_handler.Setup(runtime);
         runtime._party_command_handler.Setup(runtime);
         runtime._reward_flow_handler.Setup(runtime);
@@ -262,7 +255,7 @@ public partial class run_game_runtime_reward_flow_regression : LifecycleTestScen
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }

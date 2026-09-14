@@ -319,15 +319,39 @@ public partial class run_fate_low_luck_tactical_skills_regression : LifecycleTes
                 caster,
                 variantId
             );
-        var simulatedTypedResult = runtime._skill_orchestrator.ResolveUnitSkillEffectResult(
-            caster,
-            enemy,
-            skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> simulatedEffects =
             runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariantDefinition,
                 caster
-            )
+            );
+        using var simulatedBatch = new BattleEventBatch();
+        BattleSkillExecutionOrchestrator.UnitSkillEffectResolution
+            simulatedTypedResult = default;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            simulatedBatch,
+            () =>
+            {
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        simulatedEffects,
+                        caster.GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    runtime.BeginLogicalAttack(deliveryKind);
+                simulatedTypedResult =
+                    runtime._skill_orchestrator
+                        .ResolveUnitSkillEffectResult(
+                            caster,
+                            enemy,
+                            skillDefinition,
+                            simulatedEffects,
+                            simulatedBatch,
+                            logicalAttack.Context
+                        );
+                logicalAttack.Complete();
+            }
         );
         using GodotProjectionLease<GDictionary> simulatedResultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(

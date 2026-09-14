@@ -47,11 +47,38 @@ internal sealed class BattleRuntimeModuleBorrowerSet
     internal BattleMovementCommandService MovementCommand { get; } = new();
     internal BattleMetricsReportService MetricsReport { get; } = new();
     internal BattleContingencyBridgeService ContingencyBridge { get; } = new();
-    internal BattleCommandPreviewService CommandPreview { get; } = new();
-    internal BattleAiDecisionBindingService AiDecisionBinding { get; } = new();
+    internal BattleTimelineBridgeService TimelineBridge { get; } = new();
+    internal BattleChargeBridgeService ChargeBridge { get; } = new();
+    internal BattleSkillPreviewBridgeService SkillPreviewBridge { get; } = new();
+    internal BattleGroundEffectBridgeService GroundEffectBridge { get; } = new();
+    internal BattleCommandPreviewBridgeService CommandPreviewBridge { get; } = new();
+    internal BattleAiDecisionBindingBridgeService AiDecisionBindingBridge { get; } = new();
+    internal BattleEquipmentDurabilityResultProjector
+        EquipmentDurabilityResultProjector { get; } = new();
+    internal BattleWeaponAttackOutcomeCommitter
+        WeaponAttackOutcomeCommitter { get; }
+    internal BattleRuntimeCounterattackWeaponAttackDefinitionProvider
+        CounterattackWeaponAttackDefinitionProvider { get; } = new();
+    internal BattleImmediateWeaponAttackService
+        ImmediateWeaponAttack { get; }
+    internal BattleCounterattackQueryService
+        CounterattackQuery { get; }
 
     internal BattleRuntimeModuleBorrowerSet()
     {
+        WeaponAttackOutcomeCommitter =
+            new BattleWeaponAttackOutcomeCommitter(
+                EquipmentDurabilityResultProjector
+            );
+        ImmediateWeaponAttack =
+            new BattleImmediateWeaponAttackService(
+                WeaponAttackOutcomeCommitter,
+                CounterattackWeaponAttackDefinitionProvider
+            );
+        CounterattackQuery =
+            new BattleCounterattackQueryService(
+                ImmediateWeaponAttack
+            );
         // Forward order is dependency-first. Teardown runs this list in reverse,
         // so the AI borrower releases its preview/movement dependencies first.
         _borrowers =
@@ -60,9 +87,18 @@ internal sealed class BattleRuntimeModuleBorrowerSet
             SpecialSkillGate,
             MovementCommand,
             MetricsReport,
+            EquipmentDurabilityResultProjector,
+            WeaponAttackOutcomeCommitter,
+            CounterattackWeaponAttackDefinitionProvider,
+            ImmediateWeaponAttack,
+            CounterattackQuery,
             ContingencyBridge,
-            CommandPreview,
-            AiDecisionBinding,
+            TimelineBridge,
+            ChargeBridge,
+            SkillPreviewBridge,
+            GroundEffectBridge,
+            CommandPreviewBridge,
+            AiDecisionBindingBridge,
         ];
         var typeNames = new string[_borrowers.Length];
         for (int index = 0; index < _borrowers.Length; index++)
@@ -93,12 +129,12 @@ internal sealed class BattleRuntimeModuleBorrowerSet
         }
     }
 
-    internal void DisposeRuntime(ref Exception firstFailure)
+    internal void DisposeRuntime(ref Exception accumulatedFailure)
     {
         for (int index = _borrowers.Length - 1; index >= 0; index--)
         {
             BattleRuntimeModule.RunTeardownStep(
-                ref firstFailure,
+                ref accumulatedFailure,
                 _borrowers[index].DisposeRuntime
             );
         }

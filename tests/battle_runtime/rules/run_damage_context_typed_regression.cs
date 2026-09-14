@@ -12,6 +12,7 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
         internal BattleState LastDamageQueryState { get; private set; }
         internal BattleState LastReactionState { get; private set; }
         internal int DamageAppliedCount { get; private set; }
+        internal int MitigationAuraQueryCount { get; private set; }
 
         public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
             CollectBonusDamageDiceOnHit(BattleEquipmentAbilityBonusDamageDiceContext context)
@@ -34,6 +35,30 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
         {
             LastDamageQueryState = context?.BattleState;
             return Array.Empty<BattleEquipmentAbilityDamageReductionResult>();
+        }
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
+            BattleEquipmentAbilityMitigationAuraContext context
+        )
+        {
+            MitigationAuraQueryCount++;
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
+        }
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        )
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+        }
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            LastDamageQueryState = context?.BattleState;
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
         }
 
         public bool ResolveAttackCheck(BattleEquipmentAbilityAttackCheckContext context) => false;
@@ -102,6 +127,10 @@ public partial class run_damage_context_typed_regression : LifecycleTestSceneTre
             _test.True(
                 ReferenceEquals(ports.LastDamageQueryState, state),
                 "damage query should receive the explicitly supplied battle state."
+            );
+            _test.True(
+                ports.MitigationAuraQueryCount > 0,
+                "mitigation aura query should run through the explicit damage-query port."
             );
             _test.True(
                 ReferenceEquals(ports.LastReactionState, state),

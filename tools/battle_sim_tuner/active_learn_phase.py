@@ -17,7 +17,7 @@ Runs GPU (gpu_search) + CPU (real battles), so it competes with any other tuner 
 box — run it when the machine has headroom. Does NOT run on import.
 
     battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.active_learn_phase \
-        --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+        --scenario attrition_sustain_2v2 \
         --free-params phase1 --rounds 8 --eval-top-k 6 --eval-workers 8
 """
 
@@ -112,9 +112,9 @@ def main() -> None:
             break
 
     if best_genome is not None:
-        from .export_score_profile import write_score_profile_tres
-        champ = os.path.join(args.output_dir, "champion_score_profile.tres")
-        write_score_profile_tres(champ, best_genome)
+        from .export_score_profile import write_score_profile_json
+        champ = os.path.join(args.output_dir, "champion_score_profile.json")
+        write_score_profile_json(champ, best_genome)
         with open(os.path.join(args.output_dir, "champion_genome.json"), "w", encoding="utf-8") as fh:
             json.dump(best_genome, fh, indent=2, sort_keys=True)
         print(f"\nbest REAL objective={best_real:+.3f}; exported {champ}")

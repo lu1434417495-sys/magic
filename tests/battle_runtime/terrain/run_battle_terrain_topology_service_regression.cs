@@ -95,7 +95,7 @@ public partial class run_battle_terrain_topology_service_regression : LifecycleT
         var runtime = new BattleRuntimeModule();
         BattleState state = BuildFlatState(new Vector2I(3, 3), 4);
         runtime.SetupStateForTests(state);
-        runtime._ground_effect_service.Setup(runtime);
+        runtime._ground_effect_service.Setup(runtime._moduleBorrowers.GroundEffectBridge);
         SetCell(state, new Vector2I(1, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.DeepWater), 3);
         SetCell(state, new Vector2I(0, 1), BattleTerrainRules.ToStringName(BattleTerrainKind.Land), 2);
 
@@ -179,35 +179,6 @@ public partial class run_battle_terrain_topology_service_regression : LifecycleT
         }
         _test.Fail($"Missing terrain topology change for coord: {coord}.");
         return default;
-    }
-
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || IsGodotCollectionType(type);
-
-    private static bool IsGodotCollectionType(Type type)
-    {
-        if (type == null || type.IsGenericParameter)
-        {
-            return false;
-        }
-        if (type.Namespace == "Godot.Collections")
-        {
-            return type.Name.StartsWith("Dictionary", StringComparison.Ordinal)
-                || type.Name.StartsWith("Array", StringComparison.Ordinal);
-        }
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-        foreach (Type genericArgument in type.GetGenericArguments())
-        {
-            if (IsGodotCollectionType(genericArgument))
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
 }

@@ -242,22 +242,6 @@ public static class BattleExecutionRules
         return attributeSnapshot.GetValue(attributeId);
     }
 
-    private static int ReadInt(Godot.Collections.Dictionary source, StringName key)
-    {
-        if (source == null || IsEmpty(key) || !source.ContainsKey(key))
-        {
-            return 0;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : 0;
-        }
-    }
-
     private static bool IsEmpty(StringName value) =>
         value == null || string.IsNullOrEmpty(value.ToString());
 }

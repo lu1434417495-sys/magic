@@ -25,7 +25,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
     {
         BattleState state = BuildFlatState(new Vector2I(5, 5));
         var service = new BattleTargetCollectionService();
-        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromResource(
+        CombatSkillDefinition combatProfile = CombatSkillDefinition.FromDiagnosticFixture(
             new CombatSkillDef
             {
                 target_mode = "ground",
@@ -71,7 +71,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.GetAnchorCoord(),
-            CombatSkillDefinition.FromResource(
+            CombatSkillDefinition.FromDiagnosticFixture(
                 new CombatSkillDef
                 {
                     target_mode = "unit",
@@ -95,7 +95,7 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
             state,
             gridService,
             sourceUnit.GetAnchorCoord(),
-            CombatSkillDefinition.FromResource(
+            CombatSkillDefinition.FromDiagnosticFixture(
                 new CombatSkillDef { target_mode = "unit" },
                 "target_collection_unit",
                 "test.target_collection.unit_profile"
@@ -149,35 +149,6 @@ public partial class run_battle_target_collection_service_regression : Lifecycle
         );
         unit.SetAnchorCoord(coord);
         return unit;
-    }
-
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || IsGodotCollectionType(type);
-
-    private static bool IsGodotCollectionType(Type type)
-    {
-        if (type == null || type.IsGenericParameter)
-        {
-            return false;
-        }
-        if (type.Namespace == "Godot.Collections")
-        {
-            return type.Name.StartsWith("Dictionary", StringComparison.Ordinal)
-                || type.Name.StartsWith("Array", StringComparison.Ordinal);
-        }
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-        foreach (Type genericArgument in type.GetGenericArguments())
-        {
-            if (IsGodotCollectionType(genericArgument))
-            {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void AssertCoords(

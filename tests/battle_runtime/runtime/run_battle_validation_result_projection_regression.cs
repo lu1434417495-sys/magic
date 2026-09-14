@@ -18,80 +18,12 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         ProcessFrame -= RunOnFirstProcessFrame;
         _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
 
-        TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor();
         TestUnitSkillValidationProjectsTypedLists();
         TestGroundSkillValidationParsesAndProjectsStringKeyPayload();
         TestAttackEffectResolutionReaderRequiresTypedCritLock();
         TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
-        TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
         RequestTestExit(_test.Finish("Battle validation result projection regression"));
-    }
-
-    private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
-    {
-        var runtime = new BattleRuntimeModule();
-        SkillDefinition lockedZeroSkill = TestSkillDefinitionProjection.BuildSkill(
-            "locked_zero_skill",
-            maxLevel: 0
-        );
-        runtime.setup(
-            null,
-            new Dictionary<StringName, SkillDefinition>
-            {
-                [lockedZeroSkill.SkillId] = lockedZeroSkill,
-            }
-        );
-
-        var orchestrator = new BattleSkillExecutionOrchestrator();
-        BattleUnitState activeOnlyUnit = null;
-        BattleUnitState lockedZeroUnit = null;
-        try
-        {
-            orchestrator.Setup(runtime);
-            activeOnlyUnit = new BattleUnitState();
-            activeOnlyUnit.SetKnownActiveSkillIds(
-                new[] { new StringName("active_only_skill") }
-            );
-            _test.Eq(
-                orchestrator._get_unit_skill_level(activeOnlyUnit, "active_only_skill"),
-                1,
-                "只有 active skill id、没有显式等级时应继续按 1 级处理。"
-            );
-
-            lockedZeroUnit = new BattleUnitState();
-            lockedZeroUnit.SetKnownActiveSkillIds(
-                new[] { new StringName("locked_zero_skill") }
-            );
-            lockedZeroUnit.SetKnownSkillLevelTyped(
-                "locked_zero_skill",
-                0,
-                preserveZero: true
-            );
-            _test.Eq(
-                orchestrator._get_unit_skill_level(lockedZeroUnit, "locked_zero_skill"),
-                0,
-                "静态 0 级技能即使出现在 active skill ids 中，也应继续保持 0 级。"
-            );
-
-            var unsortedCoords = new Godot.Collections.Array<Vector2I>
-            {
-                new Vector2I(2, 3),
-                new Vector2I(1, 1),
-                new Vector2I(0, 1),
-            };
-            var sortedCoords = orchestrator._sort_coords(unsortedCoords);
-            _test.Eq(sortedCoords[0], new Vector2I(0, 1), "typed 排序入口应先按 Y 再按 X 排序。");
-            _test.Eq(sortedCoords[1], new Vector2I(1, 1), "typed 排序入口排序结果应稳定。");
-            _test.Eq(sortedCoords[2], new Vector2I(2, 3), "typed 排序入口应保留较大的坐标在后。");
-        }
-        finally
-        {
-            orchestrator.DisposeRuntime();
-            BattleTestFixture.DisposeBattleUnit(activeOnlyUnit);
-            BattleTestFixture.DisposeBattleUnit(lockedZeroUnit);
-            BattleTestFixture.DisposeRuntime(runtime);
-        }
     }
 
     private void TestUnitSkillValidationProjectsTypedLists()
@@ -319,14 +251,33 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
             state.active_unit_id = source.unit_id;
             runtime.SetupStateForTests(state);
 
-            BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
-                ._skill_orchestrator
-                .ResolveUnitSkillEffectResult(
-                    source,
-                    target,
-                    skillDefinition,
-                    effects
-                );
+            using var batch = new BattleEventBatch();
+            BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed =
+                default;
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                runtime,
+                batch,
+                () =>
+                {
+                    BattleAttackDeliveryKind deliveryKind =
+                        BattleAttackDeliveryRules.Resolve(
+                            effects,
+                            source.GetWeaponProjectionReadViewTyped()
+                        );
+                    using BattleLogicalAttackScope logicalAttack =
+                        runtime.BeginLogicalAttack(deliveryKind);
+                    typed = runtime._skill_orchestrator
+                        .ResolveUnitSkillEffectResult(
+                            source,
+                            target,
+                            skillDefinition,
+                            effects,
+                            batch,
+                            logicalAttack.Context
+                        );
+                    logicalAttack.Complete();
+                }
+            );
             using GodotProjectionLease<Godot.Collections.Dictionary> projectedLease =
                 AttackEffectResolutionResultReader.BuildGodotPayloadLease(typed.Result);
             Godot.Collections.Dictionary projected = projectedLease.Value;
@@ -368,146 +319,4 @@ public partial class run_battle_validation_result_projection_regression : Lifecy
         }
     }
 
-    private void TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects()
-    {
-        var runtime = new BattleRuntimeModule();
-        runtime.setup();
-        BattleTestFixture.ConfigureDamageResolverForTests(runtime, new DeterministicBattleDamageResolver());
-
-        BattleState state = null;
-        BattleUnitState source = null;
-        BattleUnitState primary = null;
-        BattleUnitState chained = null;
-        SkillDefinition skill = null;
-        List<CombatEffectDefinition> effectDefs = null;
-        BattleEventBatch batch = null;
-        try
-        {
-            state = BuildFlatBattleState(new Vector2I(4, 3));
-
-            source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
-            primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
-            chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
-            int chainedHpBefore = chained.GetCurrentHp();
-
-            state.SetUnit(source);
-            state.SetUnit(primary);
-            state.SetUnit(chained);
-            runtime._grid_service.PlaceUnit(state, source, source.GetAnchorCoord(), true);
-            runtime._grid_service.PlaceUnit(state, primary, primary.GetAnchorCoord(), true);
-            runtime._grid_service.PlaceUnit(state, chained, chained.GetAnchorCoord(), true);
-            runtime.SetupStateForTests(state);
-
-            skill = BuildChainTestSkill();
-            effectDefs = new List<CombatEffectDefinition>
-            {
-                BuildChainDamagePayloadEffect(),
-                TestSkillDefinitionProjection.BuildEffect("chain_damage"),
-            };
-            batch = new BattleEventBatch();
-
-            runtime._skill_orchestrator._apply_chain_damage_effects(
-                source,
-                primary,
-                skill,
-                effectDefs,
-                new AttackEffectResolutionResult { Applied = true, SkillId = skill.SkillId },
-                batch,
-                "连锁测试"
-            );
-
-            _test.Eq(
-                chained.GetCurrentHp(),
-                chainedHpBefore - 1,
-                "runtime chain damage wrapper 应继续通过 typed primary result 解析命中次级目标。"
-            );
-            _test.True(
-                batch.changed_unit_ids.Contains(chained.unit_id),
-                "runtime chain damage wrapper 应继续记录次级目标 changed_unit_id。"
-            );
-        }
-        finally
-        {
-            BattleTestFixture.DisposeBattleFixture(runtime, state);
-            batch?.Dispose();
-        }
-    }
-
-    private static BattleState BuildFlatBattleState(Vector2I mapSize)
-    {
-        BattleState state = new() { map_size = mapSize };
-        for (int y = 0; y < mapSize.Y; y++)
-        {
-            for (int x = 0; x < mapSize.X; x++)
-            {
-                Vector2I coord = new(x, y);
-                var cell = new BattleCellState
-                {
-                    coord = coord,
-                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
-                    base_height = 4,
-                    height_offset = 0,
-                };
-                cell.RecalculateRuntimeValues();
-                state.SetCell(coord, cell);
-            }
-        }
-        state.RebuildCellColumns();
-        return state;
-    }
-
-    private static BattleUnitState MakeChainTestUnit(
-        StringName unitId,
-        StringName factionId,
-        Vector2I coord
-    )
-    {
-        BattleUnitState unit = new BattleUnitState()
-        {
-            unit_id = unitId,
-            display_name = unitId.ToString(),
-            faction_id = factionId,
-            control_mode = "manual",
-        }.WithCombatResourcesForTest(
-            hp: 30,
-            stamina: 20,
-            ap: 2,
-            isAlive: true
-        );
-        unit.SetAnchorCoord(coord);
-        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
-        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
-        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
-        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 10);
-        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
-        unit.attribute_snapshot.SetValue("agility", 10);
-        unit.attribute_snapshot.SetValue("constitution", 10);
-        unit.attribute_snapshot.SetValue("intelligence", 10);
-        unit.attribute_snapshot.SetValue("willpower", 10);
-        return unit;
-    }
-
-    private static SkillDefinition BuildChainTestSkill()
-    {
-        return TestSkillDefinitionProjection.BuildSkill(
-            "chain_arc_projection",
-            displayName: "Chain Arc Projection",
-            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
-                "chain_arc_projection",
-                targetMode: "unit",
-                targetTeamFilter: "enemy",
-                rangePattern: "fixed",
-                rangeValue: 4
-            )
-        );
-    }
-
-    private static CombatEffectDefinition BuildChainDamagePayloadEffect()
-    {
-        return TestSkillDefinitionProjection.BuildEffect(
-            "damage",
-            damageTag: "physical_slash",
-            power: 1
-        );
-    }
 }

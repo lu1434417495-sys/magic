@@ -65,16 +65,26 @@ internal sealed class GameRuntimeContractBoardCommandHandler
     }
 
 
-    internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain()
-    {
-        Dictionary<string, object> context = _windowDataBuilder.CloneActiveContractBoardContextPlain();
-        context.Remove("party_state");
-        return context;
-    }
+    internal IReadOnlyDictionary<string, object> GetContractBoardWindowDataSnapshotPlain() =>
+        GetActiveContractBoardContextTyped().BuildSnapshotPlain();
+
+    internal SettlementServiceWindowData GetActiveContractBoardContextTyped() =>
+        _owner.GetActiveContractBoardContextTyped();
 
     internal void _open_contract_board_modal(string settlement_id, GDictionary payload)
     {
-        GDictionary windowData = _build_contract_board_window_data(settlement_id, payload);
+        SettlementServiceWindowData windowData = _build_contract_board_window_data(
+            settlement_id,
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "action_id"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id").Trim(),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_id"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_id"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_name"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "service_type"),
+            GameRuntimeSettlementCommandHandler.ReadString(payload, "feedback_text"),
+            null
+        );
         _owner.SetActiveContractBoardContext(windowData);
         _owner.SetActiveModalKind(RuntimeModalKind.ContractBoard);
         _owner.UpdateStatus(
@@ -82,59 +92,74 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         );
     }
 
-    private GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
+    private SettlementServiceWindowData _build_contract_board_window_data(
+        string settlement_id,
+        string action_id,
+        string provider_interaction_id,
+        string facility_id,
+        string facility_name,
+        string npc_id,
+        string npc_name,
+        string service_type,
+        string feedback_text,
+        SettlementServiceConfirmationData confirmation
+    )
     {
         using GodotProjectionLease<GDictionary> settlementLease =
             _owner.GetSettlementRecordLease(settlement_id);
         GDictionary settlement = settlementLease.Value;
-        string providerInteractionId = GameRuntimeSettlementCommandHandler.ReadString(payload, "interaction_script_id").Trim();
-        GDictArray entries = _build_contract_board_entries(providerInteractionId);
-        string summaryText = GameRuntimeSettlementCommandHandler.ReadString(payload, "feedback_text").Trim();
+        string providerInteractionId = (provider_interaction_id ?? "").Trim();
+        List<SettlementServiceWindowEntryData> entries = _build_contract_board_entries(
+            providerInteractionId
+        );
+        string feedbackText = feedback_text ?? "";
+        string summaryText = feedbackText.Trim();
         if (string.IsNullOrEmpty(summaryText))
         {
             summaryText =
                 "选择契约后会按当前状态执行接取或领奖；重复接取、待领奖励和可重复任务都会返回明确反馈。";
         }
-        string feedbackText = GameRuntimeSettlementCommandHandler.ReadString(payload, "feedback_text", "");
         string stateSummaryText = !string.IsNullOrEmpty(feedbackText)
             ? feedbackText
             : _build_contract_board_state_summary(entries);
-        return new GDictionary
-        {
-            ["title"] =
-                $"{GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name", settlement_id)} · 任务板",
-            ["meta"] =
-                $"{GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name", "任务板")} · {GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_name", "值守人员")} · {GameRuntimeSettlementCommandHandler.ReadString(payload, "service_type", "契约")}",
-            ["summary_text"] = summaryText,
-            ["state_summary_text"] = stateSummaryText,
-            ["service_name"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "service_type", "任务板"),
-            ["settlement_id"] = settlement_id,
-            ["action_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "action_id"),
-            ["interaction_script_id"] = providerInteractionId,
-            ["provider_interaction_id"] = providerInteractionId,
-            ["facility_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_id"),
-            ["facility_name"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "facility_name"),
-            ["npc_id"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_id"),
-            ["npc_name"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_name"),
-            ["service_type"] = GameRuntimeSettlementCommandHandler.ReadString(payload, "service_type"),
-            ["panel_kind"] = SettlementPanelKinds.ToPayloadValue(
-                SettlementPanelKind.ContractBoard
+        return new SettlementServiceWindowData(
+            settlement_id,
+            action_id ?? "",
+            SettlementPanelKind.ContractBoard,
+            $"{GameRuntimeSettlementCommandHandler.ReadString(settlement, "display_name", settlement_id)} · 任务板",
+            $"{FallbackText(facility_name, "任务板")} · {FallbackText(npc_name, "值守人员")} · {FallbackText(service_type, "契约")}",
+            summaryText,
+            stateSummaryText,
+            new SettlementServiceWindowLabelsData(
+                "确认操作",
+                "返回据点",
+                "可选契约",
+                "任务板概况",
+                "契约状态",
+                "契约奖励",
+                "契约说明",
+                "执行成员",
+                "状态：暂无契约",
+                "奖励：无",
+                "当前没有可查看契约。"
             ),
-            ["show_member_selector"] = false,
-            ["confirm_label"] = "确认操作",
-            ["cancel_label"] = "返回据点",
-            ["entry_title"] = "可选契约",
-            ["summary_title"] = "任务板概况",
-            ["state_title"] = "契约状态",
-            ["cost_title"] = "契约奖励",
-            ["details_title"] = "契约说明",
-            ["member_title"] = "执行成员",
-            ["empty_state_label"] = "状态：暂无契约",
-            ["empty_cost_label"] = "奖励：无",
-            ["empty_details_text"] = "当前没有可查看契约。",
-            ["entries"] = entries,
-        };
+            false,
+            providerInteractionId,
+            facility_id ?? "",
+            facility_name ?? "",
+            npc_id ?? "",
+            npc_name ?? "",
+            service_type ?? "",
+            entries,
+            null,
+            "",
+            "",
+            confirmation
+        );
     }
+
+    private static string FallbackText(string value, string fallback) =>
+        string.IsNullOrEmpty(value) ? fallback : value;
 
     internal bool _is_bounty_board_modal_submission(GDictionary payload)
     {
@@ -301,7 +326,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         return _is_quest_listed_for_settlement(quest_definition, settlement_template_id);
     }
 
-    // 悬赏必须按据点绑定（listing_settlement_ids = SettlementConfig.settlement_id 白名单）。
+    // 悬赏必须按据点绑定（listing_settlement_ids = SettlementDefinition.TemplateId / JSON settlement_id 白名单）。
     // 未绑定或据点不匹配的悬赏在本板不可见；validator 已保证正式内容非空绑定。
     private static bool _is_quest_listed_for_settlement(
         QuestDefinition quest_definition,
@@ -520,9 +545,11 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         return _owner.GetEnemyTemplateDefinitionsTyped();
     }
 
-    private GDictArray _build_contract_board_entries(string interaction_script_id)
+    private List<SettlementServiceWindowEntryData> _build_contract_board_entries(
+        string interaction_script_id
+    )
     {
-        var entries = new GDictArray();
+        var entries = new List<SettlementServiceWindowEntryData>();
         string normalizedInteractionId = interaction_script_id.Trim();
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs = _owner.GetQuestDefsTyped();
         var questIds = new List<StringName>(questDefs.Keys);
@@ -530,11 +557,11 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         foreach (StringName questId in questIds)
         {
             QuestDefinition questDefinition = questDefs[questId];
-            GDictionary questEntry = _build_contract_board_entry(
+            SettlementServiceWindowEntryData questEntry = _build_contract_board_entry(
                 questDefinition,
                 normalizedInteractionId
             );
-            if (questEntry.Count != 0)
+            if (questEntry != null)
             {
                 entries.Add(questEntry);
             }
@@ -549,27 +576,32 @@ internal sealed class GameRuntimeContractBoardCommandHandler
                     "当前任务板缺少 interaction_script_id，无法匹配 provider_interaction_id。";
             }
             entries.Add(
-                new GDictionary
-                {
-                    ["entry_id"] = "placeholder",
-                    ["display_name"] = "当前暂无可展示契约",
-                    ["provider_kind"] = "",
-                    ["listing_channels"] = new Godot.Collections.Array<string>(),
-                    ["summary_text"] = "任务定义尚未挂到这块任务板上。",
-                    ["details_text"] = missingProviderText,
-                    ["state_id"] = "empty",
-                    ["state_label"] = "状态：空",
-                    ["cost_label"] = "奖励：无",
-                    ["is_enabled"] = false,
-                    ["disabled_reason"] = "暂无可查看任务。",
-                    ["accept_dialogue_text"] = "",
-                }
+                new SettlementServiceWindowEntryData(
+                    "placeholder",
+                    "当前暂无可展示契约",
+                    "任务定义尚未挂到这块任务板上。",
+                    missingProviderText,
+                    "状态：空",
+                    "奖励：无",
+                    false,
+                    "暂无可查看任务。",
+                    null,
+                    new SettlementContractEntryFactsData(
+                        "empty",
+                        "",
+                        System.Array.Empty<string>(),
+                        "",
+                        "",
+                        "",
+                        false
+                    )
+                )
             );
         }
         return entries;
     }
 
-    private GDictionary _build_contract_board_entry(
+    private SettlementServiceWindowEntryData _build_contract_board_entry(
         QuestDefinition quest_definition,
         string interaction_script_id
     )
@@ -577,7 +609,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         ContractBoardQuestData questData = _build_contract_board_quest_data(quest_definition);
         if (questData == null)
         {
-            return new GDictionary();
+            return null;
         }
         string providerInteractionId = questData.ProviderInteractionId.Trim();
         if (
@@ -585,7 +617,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             || providerInteractionId != interaction_script_id
         )
         {
-            return new GDictionary();
+            return null;
         }
 
         QuestProviderKind providerKind = QuestProviderContentRules.ToProviderKind(
@@ -593,7 +625,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         );
         if (!QuestProviderContentRules.IsSupportedProviderKind(providerKind))
         {
-            return new GDictionary();
+            return null;
         }
 
         bool isContractBoard = interaction_script_id == "service_contract_board";
@@ -608,7 +640,7 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
         if (!matchesProviderKind || !matchesChannel)
         {
-            return new GDictionary();
+            return null;
         }
 
         string stateId = _resolve_contract_board_quest_state_id(
@@ -637,30 +669,28 @@ internal sealed class GameRuntimeContractBoardCommandHandler
             disabledReason = "该任务已经失败，不能重新接取。";
         }
 
-        return new GDictionary
-        {
-            ["entry_id"] = questData.QuestId.ToString(),
-            ["quest_id"] = questData.QuestId.ToString(),
-            ["provider_interaction_id"] = providerInteractionId,
-            ["provider_kind"] = quest_definition.ProviderKind.ToString(),
-            ["listing_channels"] = new Godot.Collections.Array<string>(
-                quest_definition.ListingChannels.Select(c => c.ToString())
-            ),
-            ["display_name"] = questData.DisplayName,
-            ["summary_text"] = _build_contract_board_objective_summary(questData),
-            ["details_text"] = _build_contract_board_entry_details(questData),
-            ["state_id"] = stateId,
-            ["state_label"] = _build_contract_board_state_label(stateId),
-            ["cost_label"] = _build_contract_board_reward_label(questData.RewardEntries),
-            ["is_enabled"] = isEnabled,
-            ["disabled_reason"] = disabledReason,
-            ["lock_reason_id"] = lockReasonId,
-            ["is_repeatable"] = questData.IsRepeatable,
-            ["accept_dialogue_text"] = quest_definition.AcceptDialogueText,
-            ["accept_feedback_success"] = quest_definition.AcceptFeedbackSuccess,
-            ["accept_feedback_failure"] = quest_definition.AcceptFeedbackFailure,
-            ["accept_confirmation_text"] = quest_definition.AcceptConfirmationText,
-        };
+        return new SettlementServiceWindowEntryData(
+            questData.QuestId,
+            questData.DisplayName,
+            _build_contract_board_objective_summary(questData),
+            _build_contract_board_entry_details(questData),
+            _build_contract_board_state_label(stateId),
+            _build_contract_board_reward_label(questData.RewardEntries),
+            isEnabled,
+            disabledReason,
+            new SettlementContractSelectionData(questData.QuestId),
+            new SettlementContractEntryFactsData(
+                stateId,
+                quest_definition.ProviderKind.ToString(),
+                new List<string>(
+                    quest_definition.ListingChannels.Select(channel => channel.ToString())
+                ),
+                quest_definition.AcceptDialogueText,
+                providerInteractionId,
+                lockReasonId,
+                questData.IsRepeatable
+            )
+        );
     }
 
     internal string _resolve_contract_board_quest_state_id(
@@ -722,7 +752,9 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         }
     }
 
-    private string _build_contract_board_state_summary(GDictArray entries)
+    private string _build_contract_board_state_summary(
+        IReadOnlyList<SettlementServiceWindowEntryData> entries
+    )
     {
         int activeCount = 0;
         int availableCount = 0;
@@ -731,9 +763,9 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         int restartableFailedCount = 0;
         int failedCount = 0;
         int completedCount = 0;
-        foreach (GDictionary entry in entries)
+        foreach (SettlementServiceWindowEntryData entry in entries)
         {
-            switch (GameRuntimeSettlementCommandHandler.ReadString(entry, "state_id"))
+            switch (entry.ContractFacts?.StateId ?? "")
             {
                 case "active":
                     activeCount += 1;
@@ -939,43 +971,54 @@ internal sealed class GameRuntimeContractBoardCommandHandler
 
     private void _refresh_active_contract_board_context(string feedback_text = "")
     {
-        using GodotProjectionLease<GDictionary> contextLease =
-            _owner.GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        if (context.Count == 0)
+        SettlementServiceWindowData context = GetActiveContractBoardContextTyped();
+        if (!context.IsValid)
         {
             return;
         }
-        string settlementId = GameRuntimeSettlementCommandHandler.ReadString(context, "settlement_id");
-        GDictionary nextPayload = context;
-        if (!string.IsNullOrEmpty(feedback_text))
-        {
-            nextPayload["feedback_text"] = feedback_text;
-        }
-        GDictionary nextContext = _build_contract_board_window_data(settlementId, nextPayload);
+        SettlementServiceWindowData nextContext = _build_contract_board_window_data(
+            context.SettlementId.ToString(),
+            context.ActionId.ToString(),
+            context.InteractionScriptId.ToString(),
+            context.FacilityId.ToString(),
+            context.FacilityName,
+            context.NpcId.ToString(),
+            context.NpcName,
+            context.ServiceType,
+            // No new feedback means the panel falls back to the derived state summary,
+            // exactly like the first build.
+            feedback_text ?? "",
+            context.Confirmation
+        );
         _owner.SetActiveContractBoardContext(nextContext);
     }
 
     private void _set_contract_board_confirmation_context(StringName quest_id, string confirmation_text)
     {
-        using GodotProjectionLease<GDictionary> contextLease =
-            _owner.GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        context["pending_confirmation_quest_id"] = quest_id.ToString();
-        context["pending_confirmation_text"] = confirmation_text;
-        context["pending_confirmation_source"] = "contract_board";
-        _owner.SetActiveContractBoardContext(context);
+        SettlementServiceWindowData context = GetActiveContractBoardContextTyped();
+        if (!context.IsValid)
+        {
+            return;
+        }
+        _owner.SetActiveContractBoardContext(
+            context.WithConfirmation(
+                new SettlementServiceConfirmationData(
+                    quest_id,
+                    confirmation_text,
+                    SettlementSubmissionSource.ContractBoard
+                )
+            )
+        );
     }
 
     private void _clear_contract_board_confirmation_context()
     {
-        using GodotProjectionLease<GDictionary> contextLease =
-            _owner.GetActiveContractBoardContextLease();
-        GDictionary context = contextLease.Value;
-        context.Remove("pending_confirmation_quest_id");
-        context.Remove("pending_confirmation_text");
-        context.Remove("pending_confirmation_source");
-        _owner.SetActiveContractBoardContext(context);
+        SettlementServiceWindowData context = GetActiveContractBoardContextTyped();
+        if (!context.IsValid)
+        {
+            return;
+        }
+        _owner.SetActiveContractBoardContext(context.WithConfirmation(null));
     }
 
     internal bool _is_contract_board_modal_submission(GDictionary payload)
@@ -993,10 +1036,8 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         {
             return _owner.CommandError("运行时尚未初始化。");
         }
-        using GodotProjectionLease<GDictionary> contractBoardContextLease =
-            _owner.GetActiveContractBoardContextLease();
-        GDictionary contractBoardContext = contractBoardContextLease.Value;
-        if (GameRuntimeSettlementCommandHandler.ReadString(contractBoardContext, "action_id").Trim() != action_id)
+        SettlementServiceWindowData contractBoardContext = GetActiveContractBoardContextTyped();
+        if (contractBoardContext.ActionId.ToString().Trim() != action_id)
         {
             string actionMismatchMessage = "当前任务板与请求的服务入口不一致。";
             _owner.SetSettlementFeedbackText(actionMismatchMessage);
@@ -1060,13 +1101,10 @@ internal sealed class GameRuntimeContractBoardCommandHandler
         }
 
         bool isConfirmationSubmission = GameRuntimeSettlementCommandHandler.ReadBool(payload, "confirm_accept", false);
-        using GodotProjectionLease<GDictionary> activeContractBoardLease =
-            _owner.GetActiveContractBoardContextLease();
+        SettlementServiceConfirmationData pendingConfirmation =
+            GetActiveContractBoardContextTyped().Confirmation;
         bool hasPendingConfirmation =
-            GameRuntimeSettlementCommandHandler.ReadStringName(
-                activeContractBoardLease.Value,
-                "pending_confirmation_quest_id"
-            ) == questId;
+            pendingConfirmation != null && pendingConfirmation.QuestId == questId;
 
         if (!string.IsNullOrEmpty(questData.AcceptConfirmationText))
         {

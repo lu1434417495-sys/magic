@@ -40,8 +40,18 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
     private static readonly StringName FactCreatureTypeTags = "creature_type_tags";
     private static readonly StringName FactBattleEnvironmentTag = "battle_environment_tag";
     private static readonly StringName FactHpPercentBp = "hp_percent_bp";
+    private static readonly StringName FactHpBefore = "hp_before";
+    private static readonly StringName FactHpBeforePercentBp = "hp_before_percent_bp";
     private static readonly StringName FactCriticalHit = "critical_hit";
     private static readonly StringName FactHpDamage = "hp_damage";
+    internal static readonly StringName FactRawDamage = "raw_damage";
+    private static readonly StringName FactDamageTag = "damage_tag";
+    private static readonly StringName FactSkillId = "skill_id";
+    private static readonly StringName FactSaveTag = "save_tag";
+    private static readonly StringName FactEffectCategories = "effect_categories";
+    private static readonly StringName FactDamageOriginKind = "damage_origin_kind";
+    private static readonly StringName FactIsEquipmentGenerated = "is_equipment_generated";
+    private static readonly StringName FactIsSelfDamage = "is_self_damage";
     private static readonly StringName FactSkillDamagedTargetCount =
         "skill_damaged_target_count";
     private static readonly StringName FactSkillKilledTargetCount =
@@ -109,6 +119,8 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
     {
         if (group == null)
             return true;
+        if (group.Mode != "" && group.Mode != "all" && group.Mode != "any")
+            return false;
         bool anyMode = group.Mode == "any";
         bool sawAny = false;
         bool passed = anyMode ? false : true;
@@ -154,6 +166,41 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         if (!sawAny)
             passed = true;
         return group.Negate ? !passed : passed;
+    }
+
+    internal static bool ConditionGroupReferencesFact(
+        EquipmentConditionGroupDefinition group,
+        StringName factId
+    )
+    {
+        factId = ProgressionDataUtils.to_string_name(factId);
+        if (group == null || factId == "")
+            return false;
+        foreach (
+            EquipmentAbilityConditionDefinition condition
+            in group.Conditions ?? Array.Empty<EquipmentAbilityConditionDefinition>()
+        )
+        {
+            if (
+                condition?.Kind == ConditionKindCompareFact
+                && condition.PayloadDefinition
+                    is CompareFactConditionPayloadDefinition comparePayload
+                && (comparePayload.Left?.FactId == factId
+                    || comparePayload.Right?.FactId == factId)
+            )
+            {
+                return true;
+            }
+        }
+        foreach (
+            EquipmentConditionGroupDefinition child
+            in group.Groups ?? Array.Empty<EquipmentConditionGroupDefinition>()
+        )
+        {
+            if (ConditionGroupReferencesFact(child, factId))
+                return true;
+        }
+        return false;
     }
 
     private bool ConditionPasses(
@@ -366,6 +413,26 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             value = Math.Max(factContext.HpDamage, 0);
             return true;
         }
+        if (query.FactId == FactRawDamage)
+        {
+            value = Math.Max(factContext.RawDamage, 0);
+            return true;
+        }
+        if (query.FactId == FactHpBefore)
+        {
+            value = Math.Max(factContext.HpBefore, 0);
+            return true;
+        }
+        if (query.FactId == FactIsEquipmentGenerated)
+        {
+            value = factContext.IsEquipmentGenerated ? 1 : 0;
+            return true;
+        }
+        if (query.FactId == FactIsSelfDamage)
+        {
+            value = factContext.IsSelfDamage ? 1 : 0;
+            return true;
+        }
         if (query.FactId == FactSkillDamagedTargetCount)
         {
             value = Math.Max(factContext.SkillDamagedTargetCount, 0);
@@ -501,6 +568,16 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             BattleStatusEffectState status = statusSubject.GetStatusEffect(statusId);
             if (
                 query.RequireSourceUnitMatch
+                && status?.HasSourceContributionsTyped() == true
+            )
+            {
+                value = sourceUnit == null
+                    ? 0
+                    : status.GetSourceContributionStacksForUnitTyped(sourceUnit.unit_id);
+                return true;
+            }
+            if (
+                query.RequireSourceUnitMatch
                 && (sourceUnit == null || status?.source_unit_id != sourceUnit.unit_id)
             )
             {
@@ -557,6 +634,13 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
                 BattleStatusEffectState status = unit?.GetStatusEffect(totalStatusId);
                 if (status == null || status.stacks <= 0)
                     continue;
+                if (status.HasSourceContributionsTyped())
+                {
+                    totalStacks += status.GetSourceContributionStacksForUnitTyped(
+                        stacksOwner.unit_id
+                    );
+                    continue;
+                }
                 if (
                     ProgressionDataUtils.to_string_name(status.source_unit_id)
                     != stacksOwner.unit_id
@@ -595,6 +679,27 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
                 query.StateKey,
                 radiusSubject,
                 query.IntLiteral > 0 ? query.IntLiteral : -1
+            );
+            return true;
+        }
+        if (query.FactId == FactHpBeforePercentBp)
+        {
+            BattleUnitState beforeSubject =
+                BattleEquipmentAbilityRuntimeService.ResolveSubject(
+                    query.Subject,
+                    sourceUnit,
+                    targetUnit
+                );
+            if (beforeSubject == null)
+                return false;
+            int beforeMaxHp = Math.Max(
+                beforeSubject.attribute_snapshot?.GetValue(AttributeService.HP_MAX) ?? 0,
+                1
+            );
+            value = (int)Math.Clamp(
+                (long)factContext.HpBefore * 10000L / beforeMaxHp,
+                0L,
+                10000L
             );
             return true;
         }
@@ -692,7 +797,10 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
         EquipmentAbilityFactContext factContext
     )
     {
-        if (query == null || query.QueryKind != QueryKindFact)
+        if (
+            query == null
+            || query.QueryKind != QueryKindFact
+        )
             return Array.Empty<StringName>();
         if (query.FactId == FactCreatureTypeTags)
         {
@@ -706,6 +814,10 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             return factContext.BattleState?.GetEnvironmentSnapshot()?.GlobalEnvironmentTags
                 ?? _runtime?.GetState()?.GetEnvironmentSnapshot()?.GlobalEnvironmentTags
                 ?? Array.Empty<StringName>();
+        }
+        if (query.FactId == FactEffectCategories)
+        {
+            return factContext.EffectCategories ?? Array.Empty<StringName>();
         }
         return Array.Empty<StringName>();
     }
@@ -721,6 +833,14 @@ internal sealed class BattleEquipmentAbilityConditionEvaluator
             return "";
         if (query.QueryKind == QueryKindLiteral)
             return ProgressionDataUtils.to_string_name(query.StringNameLiteral);
+        if (query.QueryKind == QueryKindFact && query.FactId == FactDamageTag)
+            return factContext.DamageTag;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactSkillId)
+            return factContext.SkillId;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactSaveTag)
+            return factContext.SaveTag;
+        if (query.QueryKind == QueryKindFact && query.FactId == FactDamageOriginKind)
+            return BattleDamageOriginContentRules.ToStringName(factContext.DamageOriginKind);
         if (query.QueryKind == QueryKindFact && query.FactId == FactWeaponRangeType)
         {
             BattleUnitState subject = BattleEquipmentAbilityRuntimeService.ResolveSubject(query.Subject, sourceUnit, targetUnit);

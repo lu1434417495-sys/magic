@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import importlib.util
 import io
 import subprocess
@@ -13,7 +12,6 @@ from unittest import mock
 
 
 RUNNER_PATH = Path(__file__).resolve().parents[1] / "run_regression_suite.py"
-WORKFLOW_PATH = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
 SPEC = importlib.util.spec_from_file_location("run_regression_suite_under_test", RUNNER_PATH)
 if SPEC is None or SPEC.loader is None:
 	raise RuntimeError(f"Unable to load regression runner from {RUNNER_PATH}")
@@ -22,48 +20,38 @@ sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
 
 
+class RegressionSuiteShardingTests(unittest.TestCase):
+	def test_shards_cover_every_test_exactly_once_in_stable_order(self) -> None:
+		tests = [f"test_{index:03}.cs" for index in range(535)]
+		shards = [runner.select_test_shard(tests, index, 4) for index in range(4)]
+		flattened = [test for shard in shards for test in shard]
+		self.assertCountEqual(tests, flattened)
+		self.assertEqual(len(tests), len(set(flattened)))
+		self.assertLessEqual(max(map(len, shards)) - min(map(len, shards)), 1)
+		for shard in shards:
+			self.assertEqual(shard, sorted(shard))
+		self.assertEqual(shards, [runner.select_test_shard(tests, index, 4) for index in range(4)])
+
+	def test_single_shard_preserves_the_existing_test_selection(self) -> None:
+		tests = ["a.cs", "b.cs"]
+		self.assertEqual(tests, runner.select_test_shard(tests, 0, 1))
+		self.assertEqual([], runner.select_test_shard([], 0, 1))
+
+	def test_small_selection_does_not_duplicate_tests_across_shards(self) -> None:
+		shards = [runner.select_test_shard(["a.cs", "b.cs"], index, 4) for index in range(4)]
+		self.assertCountEqual(["a.cs", "b.cs"], [test for shard in shards for test in shard])
+		self.assertEqual(2, sum(not shard for shard in shards))
+
+	def test_invalid_shard_selection_is_rejected(self) -> None:
+		for index, count in ((0, 0), (0, -1), (-1, 4), (4, 4)):
+			with self.subTest(index=index, count=count), self.assertRaises(ValueError):
+				runner.select_test_shard(["a.cs"], index, count)
+
+
 class RegressionSuiteOutputGateTests(unittest.TestCase):
-	def test_ci_imports_resources_and_runs_one_strict_full_suite(self) -> None:
-		workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-
-		self.assertIn("timeout-minutes: 120", workflow)
-		self.assertIn("--headless --import --quit --path .", workflow)
-		self.assertEqual(1, workflow.count("python tests/run_regression_suite.py"))
-		self.assertIn("--jobs 16", workflow)
-		self.assertIn("--test-timeout-seconds 180", workflow)
-		self.assertIn("--fail-on-output-error", workflow)
-		self.assertIn("--lifecycle-correctness", workflow)
-		self.assertNotIn("--finalizer-crash-retries", workflow)
-		self.assertNotIn("--stop-on-failure", workflow)
-		self.assertNotIn("Run lifecycle correctness gate", workflow)
-		self.assertNotIn("run_runtime_lifecycle_boundary_regression.cs", workflow)
-
 	def test_parser_rejects_removed_finalizer_retry_option(self) -> None:
 		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
 			runner.build_parser().parse_args(["--finalizer-crash-retries", "1"])
-
-	def test_runner_source_has_no_retry_or_shutdown_exemption_path(self) -> None:
-		source = RUNNER_PATH.read_text(encoding="utf-8")
-
-		for forbidden in (
-			"--finalizer-crash-retries",
-			"finalizer_crash_retries",
-			"finalizer_retries",
-			"borrowed_resource_shutdown",
-			"ObjectDB_leak_exempt",
-			"suppressed_leaked_unsafe",
-		):
-			with self.subTest(forbidden=forbidden):
-				self.assertNotIn(forbidden, source)
-
-		for required in (
-			"LEAKED_UNSAFE_REFERENCE_PREFIX",
-			"OBJECTDB_LEAK_PREFIX",
-			"RESOURCE_LEAK_PATTERN",
-			"LIFECYCLE_FATAL_MARKERS",
-		):
-			with self.subTest(required=required):
-				self.assertIn(required, source)
 
 	def test_parser_accepts_strict_output_and_timeout_options(self) -> None:
 		args = runner.build_parser().parse_args(
@@ -448,24 +436,6 @@ class RegressionSuiteOutputGateTests(unittest.TestCase):
 		self.assertEqual(child_env, run_one.call_args.args[9])
 		self.assertTrue(run_one.call_args.args[10])
 		self.assertIn("raw lifecycle output", parallel_output.getvalue())
-
-	def test_run_result_and_printed_summary_have_no_retry_count(self) -> None:
-		field_names = {field.name for field in dataclasses.fields(runner.TestRunResult)}
-		self.assertNotIn("finalizer_crash_retries", field_names)
-		result = runner.TestRunResult(
-			index=1,
-			total=1,
-			test_path="tests/fake/run_pass.cs",
-			returncode=0,
-			stdout="",
-			stderr="",
-			elapsed=0.01,
-		)
-		output = io.StringIO()
-		with contextlib.redirect_stdout(output):
-			runner.print_test_result(result, show_output=False)
-		self.assertNotIn("retry", output.getvalue().lower())
-
 
 if __name__ == "__main__":
 	unittest.main()

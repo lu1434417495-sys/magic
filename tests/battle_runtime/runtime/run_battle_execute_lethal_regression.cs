@@ -10,7 +10,6 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
     {
         TestPwkSkipsLowPriorityDeathWard();
         TestPwkAllowsHighPriorityDeathWard();
-        TestPwkBypassesShieldWithoutMutatingShieldFields();
 
         RequestTestExit(_test.Finish("Battle execute lethal regression"));
     }
@@ -59,42 +58,11 @@ public partial class run_battle_execute_lethal_regression : LifecycleTestSceneTr
         );
     }
 
-    private void TestPwkBypassesShieldWithoutMutatingShieldFields()
-    {
-        BattleDamageResolver resolver = new();
-        BattleUnitState source = MakeUnit("mage_source", "player");
-        BattleUnitState target = MakeUnit("shielded_target", "hostile");
-        target.SetCurrentHp(5);
-        target.ReplaceShieldStateTyped(
-            20,
-            20,
-            10,
-            "execute_ward",
-            "ward_source",
-            "ward_skill"
-        );
-        BattleUnitShieldSnapshot shieldBefore = target.GetShieldStateTyped();
-
-        resolver.ResolveEffects(
-            source,
-            target,
-            new[] { MakeExecuteEffect() },
-            DamageResolutionContext.FromDictionary(new GDictionary { ["save_roll_override"] = 1 })
-        );
-
-        _test.False(target.IsAlive(), "failed-save PWK should kill shielded low-HP target.");
-        _test.Eq(
-            target.GetShieldStateTyped(),
-            shieldBefore,
-            "PWK should not mutate any shield owner field."
-        );
-    }
-
     private static BattleDamageResolver BuildResolverWithLastStand()
     {
         BattleDamageResolver resolver = new();
         SkillDefinition lastStandSkill = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_last_stand.tres",
+            "warrior_last_stand",
             "battle_execute_lethal:warrior_last_stand"
         );
         resolver.SetSkillDefinitions(

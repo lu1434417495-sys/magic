@@ -18,6 +18,7 @@ public static class BattleRangeService
         public BattleUnitState UnitState;
         public BattleUnitReadView UnitView;
         public bool HasUnitView;
+        public int MovePointCapacity;
         public int WeaponAttackRange;
         public StringName WeaponProfileKind = EmptyStringName;
         public StringName WeaponRangeType = EmptyStringName;
@@ -143,7 +144,7 @@ public static class BattleRangeService
         return UnitHasMeleeWeapon(unitInfo)
             || (
                 UnitUsesAllowedNaturalWeapon(unitInfo, skillDefinition)
-                && unitInfo.WeaponAttackRange <= 2
+                && unitInfo.WeaponRangeType == WeaponRangeTypeMelee
             );
     }
 
@@ -372,7 +373,10 @@ public static class BattleRangeService
             return 0;
         }
         int skillRange = ResolveBaseSkillRange(unitInfo, skillDefinition, skillCatalog);
-        skillRange += GetRangeModifierBonus(unitInfo, skillDefinition);
+        if (combatProfile.RangeMovePointCapacityMultiplier <= 0)
+        {
+            skillRange += GetRangeModifierBonus(unitInfo, skillDefinition);
+        }
         return Math.Max(skillRange, 0);
     }
 
@@ -482,6 +486,88 @@ public static class BattleRangeService
         );
     }
 
+    public static int ResolveConfiguredSkillRange(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition
+    )
+    {
+        return ResolveConfiguredSkillRange(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition
+        );
+    }
+
+    public static int ResolveConfiguredSkillRange(
+        BattleUnitState unitState,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        return ResolveConfiguredSkillRange(
+            BuildUnitRangeInfo(unitState),
+            skillDefinition,
+            skillLevel
+        );
+    }
+
+    internal static int ResolveConfiguredSkillRange(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition
+    )
+    {
+        return ResolveConfiguredSkillRange(
+            BuildUnitRangeInfo(unitView),
+            skillDefinition
+        );
+    }
+
+    internal static int ResolveConfiguredSkillRange(
+        BattleUnitReadView unitView,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        return ResolveConfiguredSkillRange(
+            BuildUnitRangeInfo(unitView),
+            skillDefinition,
+            skillLevel
+        );
+    }
+
+    private static int ResolveConfiguredSkillRange(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition
+    )
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
+        {
+            return 0;
+        }
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDefinition.SkillId);
+        return ResolveConfiguredSkillRange(unitInfo, skillDefinition, skillLevel);
+    }
+
+    private static int ResolveConfiguredSkillRange(
+        UnitRangeInfo unitInfo,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
+        if (combatProfile == null)
+        {
+            return 0;
+        }
+        return Math.Max(
+            combatProfile.GetEffectiveRangeValue(
+                Math.Max(skillLevel, 0),
+                unitInfo?.MovePointCapacity ?? 0
+            ),
+            0
+        );
+    }
+
     private static int ResolveBaseSkillRange(
         UnitRangeInfo unitInfo,
         SkillDefinition skillDefinition,
@@ -493,13 +579,11 @@ public static class BattleRangeService
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, skillDefinition.SkillId);
-        SkillEffectiveCombatDefinition effectiveDefinition = ResolveEffectiveDefinition(
-            skillCatalog,
-            skillDefinition,
-            skillLevel
-        );
-        int configuredRange = Math.Max(effectiveDefinition.RangeValue, 0);
+        int configuredRange = ResolveConfiguredSkillRange(unitInfo, skillDefinition);
+        if (combatProfile.RangeMovePointCapacityMultiplier > 0)
+        {
+            return configuredRange;
+        }
         if (IsGroundRelocationSkill(skillDefinition))
         {
             return configuredRange;
@@ -510,28 +594,53 @@ public static class BattleRangeService
         }
         if (RequiresCurrentMeleeWeapon(skillDefinition))
         {
-            return unitInfo.WeaponAttackRange;
+            return UsesCurrentWeaponWithConfiguredBonus(skillDefinition)
+                ? AddRanges(unitInfo.WeaponAttackRange, configuredRange)
+                : unitInfo.WeaponAttackRange;
         }
         if (IsWeaponRangeSkill(skillDefinition))
         {
             int weaponRange = unitInfo.WeaponAttackRange;
             if (weaponRange > 0)
             {
-                return weaponRange;
+                return UsesCurrentWeaponWithConfiguredBonus(skillDefinition)
+                    ? AddRanges(weaponRange, configuredRange)
+                    : weaponRange;
+            }
+            if (UsesCurrentWeaponWithConfiguredBonus(skillDefinition))
+            {
+                return 0;
             }
             if (SkillHasTag(skillDefinition, "melee"))
             {
                 return 1;
             }
         }
+        if (UsesCurrentWeaponWithConfiguredBonus(skillDefinition))
+        {
+            return 0;
+        }
         return configuredRange;
     }
 
     private static bool UsesConfiguredWeaponRange(SkillDefinition skillDefinition)
     {
-        return ProgressionDataUtils.to_string_name(
-            skillDefinition?.CombatProfile?.WeaponRangePolicy ?? new StringName("")
-        ) == "configured";
+        return skillDefinition?.CombatProfile?.WeaponRangePolicyKind
+            == CombatWeaponRangePolicy.Configured;
+    }
+
+    private static bool UsesCurrentWeaponWithConfiguredBonus(
+        SkillDefinition skillDefinition
+    )
+    {
+        return skillDefinition?.CombatProfile?.WeaponRangePolicyKind
+            == CombatWeaponRangePolicy.CurrentWeaponPlusConfigured;
+    }
+
+    private static int AddRanges(int baseRange, int bonusRange)
+    {
+        long total = (long)Math.Max(baseRange, 0) + Math.Max(bonusRange, 0);
+        return total >= int.MaxValue ? int.MaxValue : (int)total;
     }
 
     public static bool IsGroundJumpSkill(SkillDefinition skillDefinition)
@@ -722,7 +831,9 @@ public static class BattleRangeService
             return false;
         }
         BattleForcedMoveMode mode = effectDef.ForcedMoveModeKind;
-        return mode is BattleForcedMoveMode.Jump or BattleForcedMoveMode.Blink;
+        return mode is BattleForcedMoveMode.Jump
+            or BattleForcedMoveMode.Blink
+            or BattleForcedMoveMode.GrappleAscent;
     }
 
     private static bool SkillHasTag(SkillDefinition skillDefinition, StringName expectedTag)
@@ -785,6 +896,7 @@ public static class BattleRangeService
             return info;
         }
         info.UnitState = unitState;
+        info.MovePointCapacity = unitState.GetMovePointCapacity();
         BattleWeaponProjectionValues weaponProjection =
             unitState.GetWeaponProjectionReadViewTyped().Values;
         info.WeaponAttackRange = Math.Max(weaponProjection.AttackRange, 0);
@@ -808,6 +920,7 @@ public static class BattleRangeService
         }
         info.UnitView = unitView;
         info.HasUnitView = true;
+        info.MovePointCapacity = unitView.MovePointCapacity;
         info.WeaponAttackRange = Math.Max(unitView.WeaponAttackRange, 0);
         info.WeaponProfileKind = unitView.WeaponProfileKind;
         info.WeaponRangeType = unitView.WeaponRangeType;

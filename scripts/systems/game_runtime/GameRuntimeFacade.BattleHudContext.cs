@@ -39,4 +39,16 @@ public sealed partial class GameRuntimeFacade : IBattleHudContext
         BattleUnitState activeUnit,
         StringName skillId
     ) => GetBattleSkillCastBlockMessage(activeUnit, skillId);
+
+    GearSetEvaluationSnapshot IBattleHudContext.EvaluateUnitGearSets(BattleUnitState unit) =>
+        unit == null || unit.source_member_id == ""
+            ? GearSetEvaluationSnapshot.Empty
+            : _character_management?.EvaluateGearSets(
+                unit.source_member_id,
+                unit.GetEquipmentView()
+            ) ?? GearSetEvaluationSnapshot.Empty;
+
+    IReadOnlyDictionary<StringName, TraitDefinition> IBattleHudContext.GetTraitDefinitions() =>
+        GetContentCatalogTyped()?.GetTraitDefsTyped()
+        ?? new Dictionary<StringName, TraitDefinition>();
 }

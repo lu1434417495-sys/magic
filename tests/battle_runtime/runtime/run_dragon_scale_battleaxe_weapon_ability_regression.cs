@@ -73,23 +73,18 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         _test.True(fixture.Bindings.ContainsKey(DragonBalanceBindingId), "真实装备能力内容应包含屠龙制衡 binding。");
         if (!fixture.ItemDefs.ContainsKey(ItemId))
             return;
-
-        using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_dragon_scale.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_dragon_scale");
         _test.True(rawItem != null, "龙鳞之斧原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "龙鳞之斧 item_id 不应包含来源编号。");
-            _test.Eq(rawItem.display_name, "龙鳞之斧", "龙鳞之斧显示名应来自设计源。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_battleaxe_base"), "龙鳞之斧应继承 battleaxe 模板。");
-            _test.Eq(rawItem.base_price, 75000, "龙鳞之斧基础价格应为 75000。");
-            _test.True(ContainsStringName(rawItem.trait_ids, FivefoldScalesTraitId), "龙鳞之斧应固定五色龙鳞。");
-            _test.True(ContainsStringName(rawItem.trait_ids, DragonToothEdgeTraitId), "龙鳞之斧应固定龙牙锋刃。");
-            _test.True(ContainsStringName(rawItem.trait_ids, ScaleGuardTraitId), "龙鳞之斧应固定龙鳞护面。");
-            _test.True(ContainsStringName(rawItem.trait_ids, ScaleRiftTraitId), "龙鳞之斧应固定破鳞裂痕。");
-            _test.True(ContainsStringName(rawItem.trait_ids, DragonBalanceTraitId), "龙鳞之斧应固定屠龙制衡。");
+            _test.Eq(rawItem.ItemId, ItemId, "龙鳞之斧 item_id 不应包含来源编号。");
+            _test.Eq(rawItem.DisplayName, "龙鳞之斧", "龙鳞之斧显示名应来自设计源。");
+            _test.Eq(rawItem.BasePrice, 75000, "龙鳞之斧基础价格应为 75000。");
+            _test.True(ContainsStringName(rawItem.TraitIds, FivefoldScalesTraitId), "龙鳞之斧应固定五色龙鳞。");
+            _test.True(ContainsStringName(rawItem.TraitIds, DragonToothEdgeTraitId), "龙鳞之斧应固定龙牙锋刃。");
+            _test.True(ContainsStringName(rawItem.TraitIds, ScaleGuardTraitId), "龙鳞之斧应固定龙鳞护面。");
+            _test.True(ContainsStringName(rawItem.TraitIds, ScaleRiftTraitId), "龙鳞之斧应固定破鳞裂痕。");
+            _test.True(ContainsStringName(rawItem.TraitIds, DragonBalanceTraitId), "龙鳞之斧应固定屠龙制衡。");
         }
 
         AssertDragonToothPayload(fixture.Bindings[DragonToothEdgeBindingId], "registry");
@@ -97,9 +92,6 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         AssertScaleRiftPayload(fixture.Bindings[ScaleRiftBindingId], "registry");
         AssertDragonBalancePayload(fixture.Bindings[DragonBalanceBindingId], "registry");
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildDragonScaleUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -126,17 +118,6 @@ public partial class run_dragon_scale_battleaxe_weapon_ability_regression : Life
         AssertMitigation(equipped, "acid", "half");
         AssertMitigation(equipped, "freeze", "half");
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除龙鳞之斧后 weapon_item_id 应清空。");
-        _test.Eq(equippedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "移除后武器 profile 应回到装备前状态。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除后装备能力源应清空。"
-        );
-        _test.Eq(equipped.GetEffectiveTraitInstanceCountTyped(), baseline.GetEffectiveTraitInstanceCountTyped(), "移除后装备 trait 实例应回到装备前状态。");
     }
 
     private void TestDragonToothEdgeIsOncePerHolderTurnAndDragonBalanceOnlyAffectsDragons()

@@ -1276,7 +1276,7 @@ V1 字段规则：
 - `lock_dodge_bonus = true` 表示本次 attack check 不计入目标 `dodge_bonus` attribute 和 `dodge_bonus_up` status；它复用当前 `BattleHitResolver` 里已有的 dodge lock 语义，但只在本次 attack check 生效，不写 status。
 - `required_target_equipment_selector` 可选，V1 只允许空、`target_armor`、`target_shield`。不填表示不检查目标装备；填了以后必须用 `EquipmentAbilityEquipmentTargetSelector` 解析目标装备，并要求其 item tags / equipment type 满足 `required_target_item_tags`、`required_target_equipment_type_ids`。例如“无视金属护甲 AC”应写 `target_armor + metal`，没有符合条件的 armor 时该 modifier 不生效并输出 no-op trace。
 - `cover_policy` V1 允许 `normal`、`ignore_cover_bonus`。该字段只影响 attack check 中由掩体产生的命中/防御修正；如果当前实现还没有 cover bonus owner，则非 `normal` 必须 blocking diagnostic，不能静默当作 `+hit`。
-- `projectile_obstacle_policy` V1 允许 `normal`、`ignore_projectile_obstacle_for_attack_check`。它只允许跳过 attack check 阶段的 projectile obstruction / cover gate；路径、墙体、line-of-sight、穿墙寻路和地形残留仍属于 V2，当前没有对应 owner 时必须 blocking diagnostic。
+- `projectile_obstacle_policy` V1 允许 `normal`、`ignore_projectile_obstacle_for_attack_check`。它只允许跳过 attack check 阶段的 projectile obstruction / cover gate；路径、遮挡物（规划中的 R4 格级障碍物）和地形残留仍属于 V2，当前没有对应 owner 时必须 blocking diagnostic。注：边墙与 LOS 阻断已于 2026-08-16 从游戏中移除，不再是 V2 候选。
 - `trace_label` 只用于 HUD/headless/AI trace 展示，不参与规则判断。
 
 runtime DTO：

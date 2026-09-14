@@ -1,0 +1,67 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 8,
+        "constitution": 14,
+        "intelligence": 8,
+        "perception": 10,
+        "strength": 16,
+        "willpower": 12
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "sapient",
+      "creature_level": 7,
+      "damage_resistances": {
+        "fire": "double",
+        "physical_pierce": "half"
+      },
+      "display_name": "\u6728\u4E43\u4F0A\u5B88\u536B",
+      "drop_entries": [
+        {
+          "drop_entry_id": "mummy_wrappings",
+          "drop_type": "item",
+          "item_id": "linen_cloth",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 10,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "physical_blunt",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "sleep",
+        "charm",
+        "poison",
+        "frightened"
+      ],
+      "skill_ids": [
+        "basic_attack"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "undead",
+        "mummy",
+        "beast"
+      ],
+      "target_rank": "elite",
+      "template_id": "mummy_guardian"
+    }
+  ],
+  "family": "mummy_guardian",
+  "schema": 1,
+  "templates": {}
+}

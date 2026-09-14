@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_level_override_instance_gaps",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_level_override_instance_gaps",
+      "display_name": "Level override instance diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "max_level": 2,
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_level_override_instance_gaps",
+        "level_overrides": {
+          "0": {
+            "ap_cost": -1
+          },
+          "1": {}
+        },
+        "unit_target_resolution_mode": "ordered_slots"
+      },
+      "icon_id": "diagnostic_level_override_instance_gaps",
+      "mastery_curve": [
+        10,
+        20
+      ]
+    }
+  ]
+}

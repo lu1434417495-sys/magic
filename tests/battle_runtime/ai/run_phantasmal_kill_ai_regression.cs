@@ -227,11 +227,11 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
 
         _test.False(
             evaluator.PassesFriendlyFireLimits(defaultDefinition, exposedAlly),
-            "Default UseGroundSkillAction should reject locations exposing any ally."
+            "Default use_ground_skill should reject locations exposing any ally."
         );
         _test.False(
             evaluator.PassesFriendlyFireLimits(defaultDefinition, lethalAlly),
-            "Default UseGroundSkillAction should reject locations with friendly lethal risk."
+            "Default use_ground_skill should reject locations with friendly lethal risk."
         );
         _test.True(
             evaluator.PassesFriendlyFireLimits(softConfiguredDefinition, exposedAlly),
@@ -376,22 +376,24 @@ public partial class run_phantasmal_kill_ai_regression : LifecycleTestSceneTree
             saveAbility: "willpower",
             saveTag: "illusion",
             savePartialOnSuccess: false,
-            parameters: new Dictionary<string, object>
-            {
-                ["profile_id"] = "phantasmal_kill",
-                ["failure_execute_threshold_fixed"] = 50,
-                ["failure_execute_threshold_max_hp_percent"] = 25,
-                ["failure_damage_dice_count"] = 6,
-                ["failure_damage_dice_sides"] = 6,
-                ["failure_frightened_duration_tu"] = 60,
-                ["failure_reaction_lock_duration_tu"] = 30,
-                ["critical_failure_execute_threshold_max_hp_percent"] = 35,
-                ["critical_failure_damage_dice_count"] = 10,
-                ["critical_failure_damage_dice_sides"] = 6,
-                ["critical_failure_frightened_duration_tu"] = 90,
-                ["critical_failure_stunned_duration_tu"] = 30,
-                ["success_aftershock_duration_tu"] = 30,
-            }
+            payload: BuildPhantasmalKillPayload()
+        );
+
+    private static GradedSaveExecuteEffectPayloadDefinition BuildPhantasmalKillPayload() =>
+        new(
+            profileId: "phantasmal_kill",
+            failureExecuteThresholdFixed: 50,
+            failureExecuteThresholdMaxHpPercent: 25,
+            failureDamageDiceCount: 6,
+            failureDamageDiceSides: 6,
+            failureFrightenedDurationTu: 60,
+            failureReactionLockDurationTu: 30,
+            criticalFailureExecuteThresholdMaxHpPercent: 35,
+            criticalFailureDamageDiceCount: 10,
+            criticalFailureDamageDiceSides: 6,
+            criticalFailureFrightenedDurationTu: 90,
+            criticalFailureStunnedDurationTu: 30,
+            successAftershockDurationTu: 30
         );
 
     private static BattleUnitState BuildUnit(

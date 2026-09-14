@@ -96,12 +96,14 @@ internal class BattleBarrierService
     {
         public static BarrierApplyParams FromEffect(CombatEffectDefinition effectDefinition)
         {
+            LayeredBarrierEffectPayloadDefinition payload =
+                effectDefinition?.Payload as LayeredBarrierEffectPayloadDefinition;
             return new BarrierApplyParams(
-                effectDefinition?.GetStringNameParamTyped("profile_id", "") ?? new StringName(""),
-                effectDefinition?.GetIntParamTyped("radius_cells", 0) ?? 0,
-                effectDefinition?.GetStringNameParamTyped("area_pattern", "") ?? new StringName(""),
-                effectDefinition?.GetIntParamTyped("duration_tu", 0) ?? 0,
-                effectDefinition?.GetIntParamTyped("save_dc", DEFAULT_SAVE_DC) ?? DEFAULT_SAVE_DC
+                payload?.ProfileId ?? new StringName(""),
+                payload?.RadiusCells ?? 0,
+                payload?.AreaPattern ?? new StringName(""),
+                effectDefinition?.DurationTu ?? 0,
+                payload?.SaveDc ?? DEFAULT_SAVE_DC
             );
         }
     }
@@ -330,6 +332,35 @@ internal class BattleBarrierService
         return false;
     }
 
+    internal bool HasActiveBarrierBoundaryBetween(
+        Vector2I fromCoord,
+        Vector2I toCoord
+    )
+    {
+        var runtime = _ResolveRuntime();
+        if (runtime?._state == null)
+            return false;
+        foreach (StringName barrierKey in _SortedBarrierKeys())
+        {
+            if (
+                !TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier)
+                || _GetActiveLayer(barrier) == null
+            )
+            {
+                continue;
+            }
+            BattleBarrierFootprintTransition transition =
+                BattleBarrierGeometryService.ClassifyFootprintTransition(
+                    new[] { fromCoord },
+                    new[] { toCoord },
+                    _GetBarrierCoords(barrier)
+                );
+            if (transition.CrossesBoundary)
+                return true;
+        }
+        return false;
+    }
+
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
@@ -379,6 +410,33 @@ internal class BattleBarrierService
         );
     }
 
+    internal BattleBarrierInteractionResult PreviewSkillBarrierInteractionBetweenCoordsResult(
+        BattleUnitReadView sourceUnit,
+        Vector2I effectOriginCoord,
+        BattleUnitReadView targetUnit,
+        Vector2I effectTargetCoord,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleBarrierPreviewSession previewSession = null,
+        CombatCastVariantDefinition castVariantDefinition = null
+    )
+    {
+        if (!sourceUnit.IsValid || !targetUnit.IsValid)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit.UnsafeUnitForReadOnlyRules,
+            effectOriginCoord,
+            effectTargetCoord,
+            targetUnit.DisplayName,
+            skillDefinition,
+            effectDefinitions,
+            batch: null,
+            commit: false,
+            previewSession: previewSession,
+            castVariantDefinition: castVariantDefinition
+        );
+    }
+
     internal BattleBarrierPreviewSession BeginSkillBarrierPreviewSession()
     {
         IReadOnlyList<StringName> orderedBarrierKeys = _SortedBarrierKeys();
@@ -407,6 +465,32 @@ internal class BattleBarrierService
             sourceUnit,
             effectOriginCoord,
             targetUnit.GetAnchorCoord(),
+            targetUnit.display_name,
+            skillDefinition,
+            effectDefinitions,
+            batch,
+            commit: true,
+            castVariantDefinition: castVariantDefinition
+        );
+    }
+
+    internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionBetweenCoordsResult(
+        BattleUnitState sourceUnit,
+        Vector2I effectOriginCoord,
+        BattleUnitState targetUnit,
+        Vector2I effectTargetCoord,
+        SkillDefinition skillDefinition,
+        IEnumerable<CombatEffectDefinition> effectDefinitions,
+        BattleEventBatch batch,
+        CombatCastVariantDefinition castVariantDefinition = null
+    )
+    {
+        if (sourceUnit == null || targetUnit == null)
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
+            sourceUnit,
+            effectOriginCoord,
+            effectTargetCoord,
             targetUnit.display_name,
             skillDefinition,
             effectDefinitions,

@@ -302,6 +302,11 @@ public sealed partial class CharacterManagementModule
         var before_profession_ranks = _capture_profession_ranks(progression);
         delta.character_level_before = progression.character_level;
 
+        SkillDefinition grantedSkillDefinition = GetSkillDefinition(skill_id);
+        bool canTriggerProfessionPromotion =
+            SkillProfessionPromotionRules.CanTriggerProfessionPromotion(
+                grantedSkillDefinition
+            );
         var progression_service = BuildProgressionService(progression);
         var mastery_source_type = _resolve_mastery_source_type(source_type);
         if (!progression_service.GrantSkillMastery(skill_id, amount, mastery_source_type))
@@ -329,6 +334,13 @@ public sealed partial class CharacterManagementModule
             before_granted_skill_ids,
             before_profession_ranks
         );
+        if (!canTriggerProfessionPromotion)
+        {
+            delta.SetPendingProfessionChoices(
+                Array.Empty<PendingProfessionChoice>()
+            );
+            delta.needs_promotion_modal = false;
+        }
         if (emit_achievement_event)
             delta.AppendUnlockedAchievementIds(
                 RecordAchievementEvent(member_id, "skill_mastery_gained", amount, skill_id)

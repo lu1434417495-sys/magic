@@ -54,6 +54,7 @@ internal interface IGameRuntimeBattleSessionPort
     bool HasPendingPromotionPrompt();
     void SetPendingPromotionPrompt(GameRuntimePromotionPromptContext prompt);
     string GetMemberDisplayName(StringName memberId);
+    string GetSkillDisplayName(StringName skillId);
     bool TryGetProfessionDefinition(
         StringName professionId,
         out ProfessionDefinition professionDefinition

@@ -9,7 +9,11 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Life
     public override void _Initialize()
     {
         TestUnitDamageSkillMapsToHostileUnitAffordance();
+        TestAnyProfileWithEnemyOnlyEffectStaysHostile();
         TestAllyHealSkillMapsToSupportAffordance();
+        TestGroundShieldSkillMapsToSupportAffordance();
+        TestMixedUnitSkillKeepsHostileAndSupportAffordances();
+        TestMixedGroundSkillKeepsHostileAndSupportAffordances();
         TestGroundControlSkillMapsToGroundFamily();
         TestRandomChainSkillEmitsChainAndPositioningFamilies();
         TestMultiUnitSkillEmitsSkillAndPositioningFamilies();
@@ -35,6 +39,83 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Life
         _test.True(record.is_generatable, "友方治疗技能应可生成。");
         AssertListHas(record.affordances, "ally_heal", "友方治疗技能应标为 ally_heal。");
         AssertListHas(record.action_families, "use_unit_skill", "友方治疗技能仍应使用 unit skill action family。");
+    }
+
+    private void TestGroundShieldSkillMapsToSupportAffordance()
+    {
+        SkillDefinition skill = BuildSkill(
+            "holy_barrier",
+            "ground",
+            "ally",
+            Effect("shield", "ally")
+        );
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "纯范围护盾技能应进入 AI 候选枚举。");
+        AssertListHas(record.effect_roles, "shield", "范围护盾应暴露 shield effect role。");
+        AssertListHas(record.affordances, "self_or_ally_buff", "范围护盾应标为支援增益。");
+        AssertListHas(record.action_families, "use_ground_skill", "范围护盾应使用 ground skill family。");
+    }
+
+    private void TestAnyProfileWithEnemyOnlyEffectStaysHostile()
+    {
+        SkillDefinition skill = BuildSkill(
+            "single_hostile_branch",
+            "unit",
+            "any",
+            Effect("damage", "enemy")
+        );
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.Eq(
+            record.team_intent,
+            new StringName("hostile"),
+            "profile 为 any 时，单一 enemy 效果仍应保持 hostile，不应误判为 mixed。"
+        );
+        AssertListHas(
+            record.affordances,
+            "unit_hostile.damage",
+            "profile 为 any 的普通单敌伤害技能应保留既有 hostile affordance。"
+        );
+        _test.False(
+            record.affordances.Contains("ally_heal"),
+            "普通单敌伤害技能不应凭 profile=any 获得支援 affordance。"
+        );
+    }
+
+    private void TestMixedUnitSkillKeepsHostileAndSupportAffordances()
+    {
+        SkillDefinition skill = BuildSkill(
+            "mixed_flame",
+            "unit",
+            "any",
+            new[] { Effect("heal", "ally"), Effect("damage", "enemy") }
+        );
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "混合单体技能应可生成。");
+        _test.Eq(record.team_intent, new StringName("mixed"), "混合单体技能应保留 mixed team intent。");
+        AssertListHas(record.affordances, "ally_heal", "混合单体技能不应丢失支援 affordance。");
+        AssertListHas(record.affordances, "unit_hostile.damage", "混合单体技能不应丢失敌对伤害 affordance。");
+        AssertListHas(record.action_families, "use_unit_skill", "混合单体技能应使用 unit skill family。");
+    }
+
+    private void TestMixedGroundSkillKeepsHostileAndSupportAffordances()
+    {
+        SkillDefinition skill = BuildSkill(
+            "mixed_ground_flame",
+            "ground",
+            "any",
+            new[]
+            {
+                Effect("heal", "self"),
+                Effect("damage", "enemy"),
+                Effect("heal", "ally"),
+            }
+        );
+        BattleAiSkillAffordanceRecord record = Classify(skill);
+        _test.True(record.is_generatable, "混合地面技能应可生成。");
+        _test.Eq(record.team_intent, new StringName("mixed"), "混合地面技能应保留 mixed team intent。");
+        AssertListHas(record.affordances, "ground_hostile.aoe", "混合地面技能不应被首个治疗效果遮蔽敌对 AoE。");
+        AssertListHas(record.affordances, "ally_heal", "混合地面技能应保留支援 affordance。");
+        AssertListHas(record.action_families, "use_ground_skill", "混合地面技能应使用 ground skill family。");
     }
 
     private void TestGroundControlSkillMapsToGroundFamily()
@@ -135,12 +216,37 @@ public partial class run_battle_ai_skill_affordance_classifier_regression : Life
         StringName skillType = default
     )
     {
+        return BuildSkill(
+            skillId,
+            targetMode,
+            targetFilter,
+            new[] { effectDef },
+            targetSelectionMode,
+            minTargetCount,
+            maxHitsPerTarget,
+            castVariants,
+            skillType
+        );
+    }
+
+    private static SkillDefinition BuildSkill(
+        StringName skillId,
+        StringName targetMode,
+        StringName targetFilter,
+        IReadOnlyList<CombatEffectDefinition> effectDefs,
+        StringName targetSelectionMode = default,
+        int minTargetCount = 0,
+        int maxHitsPerTarget = 0,
+        IReadOnlyList<CombatCastVariantDefinition> castVariants = null,
+        StringName skillType = default
+    )
+    {
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,
             skillId.ToString(),
             TestSkillDefinitionProjection.BuildCombatProfile(
                 skillId,
-                effects: new[] { effectDef },
+                effects: effectDefs,
                 targetMode: targetMode,
                 targetTeamFilter: targetFilter,
                 rangePattern: "fixed",

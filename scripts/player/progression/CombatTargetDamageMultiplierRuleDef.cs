@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public sealed partial class CombatTargetDamageMultiplierRuleDef : Resource
+public sealed partial class CombatTargetDamageMultiplierRuleDef : RefCounted
 {
     [Export]
     public Godot.Collections.Array<StringName> any_creature_type_tags { get; set; } =

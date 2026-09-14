@@ -1,0 +1,3756 @@
+{
+  "entries": [
+    {
+      "skill_id": "archer_aimed_shot",
+      "display_name": "精准射击",
+      "description": "稳住呼吸后以弓或天生武器发动高精度远程攻击，提高攻击检定并附加技能伤害骰。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "武器伤害+{skill_dice}技能骰，攻击检定{attack}，射程随弓或天生武器，消耗1AP/20体力，无冷却",
+      "level_description_configs": {
+        "0": {
+          "attack": "+1",
+          "skill_dice": "1D4"
+        },
+        "1": {
+          "attack": "+1",
+          "skill_dice": "1D6"
+        },
+        "2": {
+          "attack": "+2",
+          "skill_dice": "1D6"
+        },
+        "3": {
+          "attack": "+2",
+          "skill_dice": "1D8"
+        },
+        "4": {
+          "attack": "+3",
+          "skill_dice": "1D8"
+        },
+        "5": {
+          "attack": "+3",
+          "skill_dice": "2D4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_aimed_shot",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 4,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "attack_roll_bonus": 2
+          },
+          "4": {
+            "attack_roll_bonus": 3
+          }
+        },
+        "stamina_cost": 20,
+        "attack_roll_bonus": 1,
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ],
+        "allows_natural_weapon": true
+      },
+      "icon_id": "archer_aimed_shot",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_armor_piercer",
+      "display_name": "破甲箭",
+      "description": "以破甲箭寻找甲隙，造成当前弓箭武器伤害并追加1D6技能骰，短暂降低目标AC；满级破甲更深，但会进入较长冷却。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "造成{dmg}，命中附加{status}（{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "—",
+          "cooldown": "无",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "40",
+          "stamina": "30",
+          "status": "破甲（-2 AC）"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "—",
+          "cooldown": "无",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "60",
+          "stamina": "30",
+          "status": "破甲（-2 AC）"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "—",
+          "cooldown": "无",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "60",
+          "stamina": "30",
+          "status": "破甲（-2 AC）"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "—",
+          "cooldown": "无",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "80",
+          "stamina": "30",
+          "status": "破甲（-2 AC）"
+        },
+        "4": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "无",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "80",
+          "stamina": "30",
+          "status": "破甲（-2 AC）"
+        },
+        "5": {
+          "ap": "1",
+          "attack": "+2",
+          "cooldown": "120TU",
+          "dmg": "弓箭武器伤害+1D6技能骰",
+          "duration": "100",
+          "stamina": "30",
+          "status": "破甲（-4 AC）"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_armor_piercer",
+        "range_value": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "armor_break"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "status_id": "armor_break"
+          }
+        ],
+        "level_overrides": {
+          "4": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "cooldown_tu": 120,
+            "attack_roll_bonus": 2
+          }
+        },
+        "stamina_cost": 30,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "icon_id": "archer_armor_piercer",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_arrow_rain",
+      "display_name": "箭雨",
+      "description": "向指定区域倾泻箭雨，对范围内敌人造成武器伤害，并在落点短暂留下压制地带。低等级时为4格方形分布，高等级后扩大为完整范围。",
+      "max_level": 7,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{dmg}伤害，留下{zone}（敌方移动成本+1，{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "30",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "30",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "35",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "35",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "4": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "40",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "5": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "40",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "6": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "45",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        },
+        "7": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "90",
+          "dmg": "武器伤害",
+          "duration": "45",
+          "stamina": "50",
+          "zone": "箭雨压制"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_arrow_rain",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "terrain_effect",
+            "max_skill_level": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "箭雨压制",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "arrow_rain_suppression",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 2,
+            "max_skill_level": 3,
+            "duration_tu": 35,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "箭雨压制",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "arrow_rain_suppression",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 4,
+            "max_skill_level": 5,
+            "duration_tu": 40,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "箭雨压制",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "arrow_rain_suppression",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 6,
+            "duration_tu": 45,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "箭雨压制",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "arrow_rain_suppression",
+            "tick_interval_tu": 5
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 50,
+        "attack_roll_bonus": -1,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "cast_variants": [
+          {
+            "variant_id": "arrow_rain_tl",
+            "display_name": "左上分布",
+            "payload": {
+              "square2_corner": "top_left"
+            }
+          },
+          {
+            "variant_id": "arrow_rain_tr",
+            "display_name": "右上分布",
+            "payload": {
+              "square2_corner": "top_right"
+            }
+          },
+          {
+            "variant_id": "arrow_rain_bl",
+            "display_name": "左下分布",
+            "payload": {
+              "square2_corner": "bottom_left"
+            }
+          },
+          {
+            "variant_id": "arrow_rain_br",
+            "display_name": "右下分布",
+            "payload": {
+              "square2_corner": "bottom_right"
+            }
+          },
+          {
+            "variant_id": "arrow_rain_full",
+            "display_name": "完整范围",
+            "min_skill_level": 6
+          }
+        ],
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "icon_id": "archer_arrow_rain",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        250,
+        600,
+        1200,
+        2100,
+        3400,
+        5000,
+        7000
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 80,
+        "perception": 40
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "archer_backstep_shot",
+      "icon_id": "archer_backstep_shot",
+      "display_name": "后跃射",
+      "description": "使用时先选择一名敌人，再选择一个使你远离目标的正交方向；使用弓发动一次标准武器攻击，结算后沿该方向直线后撤最多2格。后撤不消耗移动力，不能转弯或绕路，受阻时停在阻挡前；后撤正常处理地形、屏障与位置变化效果。无法主动移动时不能使用。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "使用弓发动一次标准武器攻击；使用时选择远离目标的正交方向，攻击结算后沿该方向直线后撤最多2格，消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}",
+      "level_description_configs": {
+        "0": {
+          "accuracy": "",
+          "cooldown": "80",
+          "stamina": "28"
+        },
+        "1": {
+          "accuracy": "",
+          "cooldown": "80",
+          "stamina": "28"
+        },
+        "2": {
+          "accuracy": "",
+          "cooldown": "80",
+          "stamina": "26"
+        },
+        "3": {
+          "accuracy": "",
+          "cooldown": "70",
+          "stamina": "26"
+        },
+        "4": {
+          "accuracy": "",
+          "cooldown": "70",
+          "stamina": "24"
+        },
+        "5": {
+          "accuracy": "，攻击检定+1",
+          "cooldown": "70",
+          "stamina": "24"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_backstep_shot",
+        "range_value": 0,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "source_retreat",
+            "payload": {},
+            "source_retreat_distance": 2
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 26
+          },
+          "3": {
+            "cooldown_tu": 70
+          },
+          "4": {
+            "stamina_cost": 24
+          },
+          "5": {
+            "attack_roll_bonus": 1
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 28,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_breach_barrage",
+      "icon_id": "archer_breach_barrage",
+      "display_name": "贯阵一矢",
+      "description": "选择相邻的上、下、左或右作为方向，沿当前弓的完整有效射程发射一箭，对路径内所有符合高度通道的存活单位逐个进行标准弓武器攻击；友军与中立单位也会受击，单位不会阻挡箭矢，阻挡视线的墙、关闭的门或边缘屏障会截断路径。以施术者所在格高度为基准：同层单位可受击且不锁定通道；首个遇到的+1或-1层单位自动锁定对应方向，之后只攻击同层及该方向一层内的单位，玩家不能选择高度方向；高度差超过1或位于相反通道的单位会被跳过，且不进行攻击检定、不推进伤害衰减。首个成功命中造成等级对应的武器伤害；每次成功命中使后续目标伤害倍率降低20%，最低40%，未命中不推进衰减。消耗2AP；体力按完整有效弓射程R和力量调整值S计算：B=32+R²，S≥0时为max(1,ceil(B×100/(100+S²)))，S<0时为ceil(B×(100+S²)/100)。",
+      "max_level": 7,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{damage}弓武器伤害，攻击检定{attack}；每次成功命中使后续目标倍率-20%（最低40%），射程随当前弓，体力按射程与力量动态计算，消耗2AP，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "attack": "-2",
+          "cooldown": "120",
+          "damage": "200%"
+        },
+        "1": {
+          "attack": "-2",
+          "cooldown": "120",
+          "damage": "200%"
+        },
+        "2": {
+          "attack": "-1",
+          "cooldown": "120",
+          "damage": "220%"
+        },
+        "3": {
+          "attack": "-1",
+          "cooldown": "120",
+          "damage": "240%"
+        },
+        "4": {
+          "attack": "无加值",
+          "cooldown": "120",
+          "damage": "260%"
+        },
+        "5": {
+          "attack": "无加值",
+          "cooldown": "110",
+          "damage": "280%"
+        },
+        "6": {
+          "attack": "+1",
+          "cooldown": "110",
+          "damage": "290%"
+        },
+        "7": {
+          "attack": "+1",
+          "cooldown": "100",
+          "damage": "300%"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_breach_barrage",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "range_value": 0,
+        "ap_cost": 2,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "attack_roll_bonus": -1
+          },
+          "4": {
+            "attack_roll_bonus": 0
+          },
+          "5": {
+            "cooldown_tu": 110
+          },
+          "6": {
+            "attack_roll_bonus": 1
+          },
+          "7": {
+            "cooldown_tu": 100
+          }
+        },
+        "requires_los": true,
+        "directional_piercing_profile": {
+          "base_damage_percent_curve": [
+            200,
+            200,
+            220,
+            240,
+            260,
+            280,
+            290,
+            300
+          ]
+        },
+        "attack_roll_bonus": -2,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        300,
+        750,
+        1650,
+        3000,
+        4800,
+        7050,
+        9750
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 50,
+        "strength": 70
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "archer_disrupting_arrow",
+      "icon_id": "archer_disrupting_arrow",
+      "display_name": "扰咒箭",
+      "description": "持弓进入扰咒待机，直到你的下一次行动开始或反应射击触发。期间，处于标准武器攻击有效范围内的敌人主动施放法术并提交消耗后、产生效果前，你立即以当前弓发动一次标准武器攻击。未命中或未造成生命伤害时法术照常结算；造成生命伤害时，施法者进行体质维持检定，DC=max(10，本次生命伤害/2)+技能加值，失败则法术中断，已支付消耗与冷却不返还；击倒施法者也会中断。自动施法、装备触发与应急预案不会触发扰咒箭。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control",
+        "reaction"
+      ],
+      "level_description_template": "进入扰咒待机；反应射击命中并造成生命伤害时迫使施法者进行体质维持检定（DC=max(10，生命伤害/2){dc_bonus}），消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}",
+      "level_description_configs": {
+        "0": {
+          "accuracy": "",
+          "cooldown": "120",
+          "dc_bonus": "",
+          "stamina": "30"
+        },
+        "1": {
+          "accuracy": "",
+          "cooldown": "120",
+          "dc_bonus": "",
+          "stamina": "30"
+        },
+        "2": {
+          "accuracy": "",
+          "cooldown": "120",
+          "dc_bonus": "",
+          "stamina": "28"
+        },
+        "3": {
+          "accuracy": "",
+          "cooldown": "120",
+          "dc_bonus": "+1",
+          "stamina": "28"
+        },
+        "4": {
+          "accuracy": "",
+          "cooldown": "100",
+          "dc_bonus": "+1",
+          "stamina": "28"
+        },
+        "5": {
+          "accuracy": "，反应射击攻击检定+1",
+          "cooldown": "100",
+          "dc_bonus": "+2",
+          "stamina": "28"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_disrupting_arrow",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "cooldown_tu": 120,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "payload": {},
+            "lifetime_policy": "battle",
+            "display_name": "扰咒箭待机",
+            "status_id": "disrupting_arrow_ready"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 28
+          },
+          "4": {
+            "cooldown_tu": 100
+          }
+        },
+        "stamina_cost": 30,
+        "spell_reaction_profile": {
+          "reaction_skill_id": "basic_attack",
+          "readiness_status_id": "disrupting_arrow_ready",
+          "required_weapon_family": "bow",
+          "attack_roll_bonus_by_skill_level": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "save_dc_bonus_by_skill_level": [
+            0,
+            0,
+            0,
+            1,
+            1,
+            2
+          ]
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "target_selection_mode": "self",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_double_nock",
+      "icon_id": "archer_double_nock",
+      "display_name": "双弦连射",
+      "description": "以同一目标为焦点连续射击。第一箭进行标准弓武器攻击；仅当第一箭命中且目标仍存活时发射第二箭，第二箭进行独立的标准弓武器攻击并造成200%武器伤害。两箭各自进行攻击检定、暴击判定，并分别经过护甲与减伤链。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output",
+        "focus_fire"
+      ],
+      "level_description_template": "第一箭命中且目标存活才发射第二箭；第一箭造成100%弓武器伤害，攻击检定{first_attack}；第二箭造成200%弓武器伤害，攻击检定{second_attack}。射程随当前弓，消耗1AP/24体力，冷却60TU",
+      "level_description_configs": {
+        "0": {
+          "first_attack": "无加值",
+          "second_attack": "无加值"
+        },
+        "1": {
+          "first_attack": "无加值",
+          "second_attack": "无加值"
+        },
+        "2": {
+          "first_attack": "无加值",
+          "second_attack": "+1"
+        },
+        "3": {
+          "first_attack": "+1",
+          "second_attack": "+2"
+        },
+        "4": {
+          "first_attack": "+1",
+          "second_attack": "+3"
+        },
+        "5": {
+          "first_attack": "+2",
+          "second_attack": "+4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_double_nock",
+        "range_value": 0,
+        "cooldown_tu": 60,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "fixed_repeat_attack",
+            "payload": {},
+            "fixed_attack_count": 2,
+            "follow_up_damage_multiplier_percent": 200,
+            "follow_up_attack_roll_bonus_curve": [
+              0,
+              0,
+              1,
+              1,
+              2,
+              2
+            ]
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "stamina_cost": 24,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "ai_tags": [
+          "focus_fire"
+        ],
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_evasive_roll",
+      "icon_id": "archer_evasive_roll",
+      "display_name": "翻滚卸力",
+      "description": "向更安全的位置位移 2 格，并获得持续 60 TU 的 闪避 +20%，适合脱离贴身威胁。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "获得{status}（{duration}TU），位移{move}格，自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "闪避提升"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "闪避提升"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "闪避提升"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "闪避提升"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_evasive_roll",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "dodge_bonus_up"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 2
+          }
+        ],
+        "stamina_cost": 1,
+        "target_selection_mode": "self"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_execution_arrow",
+      "icon_id": "archer_execution_arrow",
+      "display_name": "猎手终结",
+      "description": "根据目标已损失生命提高伤害；目标生命越低，终结收益越高。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_execution_arrow",
+        "range_value": 5,
+        "ap_cost": 2,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 2,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_fan_volley",
+      "icon_id": "archer_fan_volley",
+      "display_name": "扇幕齐射",
+      "description": "中距离扇面清线技，对近距离多前排组合威胁较高。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，锥形范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "4",
+          "stamina": "2"
+        },
+        "1": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "4",
+          "stamina": "2"
+        },
+        "2": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "4",
+          "stamina": "2"
+        },
+        "3": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "4",
+          "stamina": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_fan_volley",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "cone",
+        "ap_cost": 2,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 9,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 2,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_far_horizon",
+      "icon_id": "archer_far_horizon",
+      "display_name": "天际远射",
+      "description": "超远距离重箭；若自身处于 预瞄 或高地，则忽略命中惩罚。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，攻击检定{attack}，消耗{ap}AP/{aura}斗气，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "attack": "-2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "15",
+          "range": "7"
+        },
+        "1": {
+          "ap": "2",
+          "attack": "-2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "15",
+          "range": "7"
+        },
+        "2": {
+          "ap": "2",
+          "attack": "-2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "15",
+          "range": "7"
+        },
+        "3": {
+          "ap": "2",
+          "attack": "-2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "15",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_far_horizon",
+        "range_value": 7,
+        "ap_cost": 2,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 15,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "attack_roll_bonus": -2,
+        "aura_cost": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_fearsignal_shot",
+      "icon_id": "archer_fearsignal_shot",
+      "display_name": "惊禽哨箭",
+      "description": "扇形压制射击，命中敌人获得 压制；若目标本就带有 标记，额外后退 1 格。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，锥形范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "15",
+          "dmg": "8",
+          "range": "5",
+          "stamina": "2"
+        },
+        "1": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "15",
+          "dmg": "8",
+          "range": "5",
+          "stamina": "2"
+        },
+        "2": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "15",
+          "dmg": "8",
+          "range": "5",
+          "stamina": "2"
+        },
+        "3": {
+          "ap": "2",
+          "area_pattern": "cone",
+          "cooldown": "15",
+          "dmg": "8",
+          "range": "5",
+          "stamina": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_fearsignal_shot",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "cone",
+        "ap_cost": 2,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 2,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_flash_whistle",
+      "icon_id": "archer_flash_whistle",
+      "display_name": "炫目鸣镝",
+      "description": "向弓射程内的地格发射一支不造成伤害的鸣镝，爆响使半径1格内的敌人炫目：攻击检定-2且无法反击。炫目不影响移动、施法、AP、格挡或闪避加值，不视为致盲；重复施加只刷新持续时间，不叠加效果。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control",
+        "aoe"
+      ],
+      "level_description_template": "不造成伤害；使半径1格内敌人炫目{duration}TU（攻击检定-2且无法反击），射程随弓，消耗1AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "cooldown": "100",
+          "duration": "30",
+          "stamina": "30"
+        },
+        "1": {
+          "cooldown": "100",
+          "duration": "30",
+          "stamina": "30"
+        },
+        "2": {
+          "cooldown": "100",
+          "duration": "30",
+          "stamina": "28"
+        },
+        "3": {
+          "cooldown": "100",
+          "duration": "35",
+          "stamina": "28"
+        },
+        "4": {
+          "cooldown": "90",
+          "duration": "35",
+          "stamina": "28"
+        },
+        "5": {
+          "cooldown": "80",
+          "duration": "40",
+          "stamina": "26"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_flash_whistle",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "display_name": "炫目",
+            "attack_roll_penalty": 2,
+            "effect_target_team_filter": "enemy",
+            "status_id": "flash_whistle_dazzled",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "lock_counterattack": true
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 35,
+            "payload": {},
+            "display_name": "炫目",
+            "attack_roll_penalty": 2,
+            "effect_target_team_filter": "enemy",
+            "status_id": "flash_whistle_dazzled",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "lock_counterattack": true
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "display_name": "炫目",
+            "attack_roll_penalty": 2,
+            "effect_target_team_filter": "enemy",
+            "status_id": "flash_whistle_dazzled",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "lock_counterattack": true
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 28
+          },
+          "4": {
+            "cooldown_tu": 90
+          },
+          "5": {
+            "stamina_cost": 26,
+            "cooldown_tu": 80
+          }
+        },
+        "area_value": 1,
+        "requires_los": true,
+        "stamina_cost": 30,
+        "mastery_trigger_mode": "status_applied",
+        "ai_tags": [
+          "aoe",
+          "control",
+          "debuff"
+        ],
+        "projectile_kind": "nonmagical",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "perception": 40
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_grapple_redeploy",
+      "icon_id": "archer_grapple_redeploy",
+      "display_name": "索钩登高",
+      "description": "装备弓时，选择一个正交相邻、比当前位置高至少2层的空地格，射出索钩攀登至该格。登高不消耗移动力；只能向上攀登，不能斜向、平移或下降。最大可攀高差随技能等级提升。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "攀登至正交相邻且高2至{height}层的空地格，不消耗移动力；消耗1AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "cooldown": "80",
+          "height": "2",
+          "stamina": "28"
+        },
+        "1": {
+          "cooldown": "80",
+          "height": "2",
+          "stamina": "28"
+        },
+        "2": {
+          "cooldown": "80",
+          "height": "2",
+          "stamina": "26"
+        },
+        "3": {
+          "cooldown": "80",
+          "height": "3",
+          "stamina": "26"
+        },
+        "4": {
+          "cooldown": "70",
+          "height": "3",
+          "stamina": "26"
+        },
+        "5": {
+          "cooldown": "70",
+          "height": "4",
+          "stamina": "26"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_grapple_redeploy",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "max_skill_level": 2,
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "forced_move_mode": "grapple_ascent",
+            "forced_move_distance": 1,
+            "grapple_max_height_gain": 2
+          },
+          {
+            "effect_type": "forced_move",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "forced_move_mode": "grapple_ascent",
+            "forced_move_distance": 1,
+            "grapple_max_height_gain": 3
+          },
+          {
+            "effect_type": "forced_move",
+            "min_skill_level": 5,
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "forced_move_mode": "grapple_ascent",
+            "forced_move_distance": 1,
+            "grapple_max_height_gain": 4
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 26
+          },
+          "4": {
+            "cooldown_tu": 70
+          }
+        },
+        "stamina_cost": 28,
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "high_ground"
+        ],
+        "projectile_kind": "nonmagical",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_harrier_mark",
+      "icon_id": "archer_harrier_mark",
+      "display_name": "猎印追缉",
+      "description": "锁定一个可见敌人。标记期间，只有施放者以武器或天生武器命中该目标时才会追加伤害骰；其他单位与非武器伤害不会触发。等级提升会强化追加骰、延长持续时间、增加射程并降低体力与冷却压力。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranger",
+        "ranged",
+        "mark",
+        "debuff",
+        "output"
+      ],
+      "level_description_template": "标记目标{duration}TU；施放者以武器或天生武器命中目标时额外造成{bonus_damage}伤害。射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "bonus_damage": "1D4",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "18"
+        },
+        "1": {
+          "ap": "1",
+          "bonus_damage": "1D4",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "18"
+        },
+        "2": {
+          "ap": "1",
+          "bonus_damage": "1D4",
+          "cooldown": "80",
+          "duration": "70",
+          "range": "4",
+          "stamina": "17"
+        },
+        "3": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "70",
+          "duration": "80",
+          "range": "5",
+          "stamina": "16"
+        },
+        "4": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "60",
+          "duration": "90",
+          "range": "5",
+          "stamina": "15"
+        },
+        "5": {
+          "ap": "1",
+          "bonus_damage": "1D8",
+          "cooldown": "60",
+          "duration": "100",
+          "range": "6",
+          "stamina": "14"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_harrier_mark",
+        "range_value": 4,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 4,
+            "effect_target_team_filter": "enemy",
+            "status_id": "harrier_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 70,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 4,
+            "effect_target_team_filter": "enemy",
+            "status_id": "harrier_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "status_id": "harrier_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 90,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "effect_target_team_filter": "enemy",
+            "status_id": "harrier_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 8,
+            "effect_target_team_filter": "enemy",
+            "status_id": "harrier_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 17,
+            "cooldown_tu": 80
+          },
+          "3": {
+            "stamina_cost": 16,
+            "cooldown_tu": 70,
+            "range_value": 5
+          },
+          "4": {
+            "stamina_cost": 15,
+            "cooldown_tu": 60
+          },
+          "5": {
+            "stamina_cost": 14,
+            "range_value": 6
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 18,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "source_bound_weapon_bonus_damage",
+        "delivery_categories": [
+          "martial",
+          "mark",
+          "ranger"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_heartseeker",
+      "icon_id": "archer_heartseeker",
+      "display_name": "追心箭",
+      "description": "若目标已带有 标记，本次伤害改为 150%；若因此击杀，则返还 1 点 stamina。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，攻击检定+{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "10",
+          "dmg": "12",
+          "range": "5",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "10",
+          "dmg": "12",
+          "range": "5",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "10",
+          "dmg": "12",
+          "range": "5",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "10",
+          "dmg": "12",
+          "range": "5",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_heartseeker",
+        "range_value": 5,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "attack_roll_bonus": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_highground_claim",
+      "icon_id": "archer_highground_claim",
+      "display_name": "抢高位",
+      "description": "向指定高低差合法格位移动最多 3 格；若落点为高地，额外获得 预瞄。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "向指定格位移最多{range}格，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "range": "3",
+          "stamina": "2",
+          "status": "预瞄"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "range": "3",
+          "stamina": "2",
+          "status": "预瞄"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "range": "3",
+          "stamina": "2",
+          "status": "预瞄"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "range": "3",
+          "stamina": "2",
+          "status": "预瞄"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_highground_claim",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "area_pattern": "self",
+        "ap_cost": 2,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "archer_pre_aim"
+          }
+        ],
+        "stamina_cost": 2,
+        "target_selection_mode": "self"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_hunter_feint",
+      "icon_id": "archer_hunter_feint",
+      "display_name": "猎步佯退",
+      "description": "轻伤试探并附加 标记；命中后可免费移动 1 格。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "8",
+          "range": "4",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "8",
+          "range": "4",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "8",
+          "range": "4",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "8",
+          "range": "4",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_hunter_feint",
+        "range_value": 4,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 8,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_hunter_mark",
+      "icon_id": "archer_hunter_mark",
+      "display_name": "猎人标记",
+      "description": "标记一个猎物。施放者本人以武器命中该目标时，额外造成同次攻击伤害并获得猎人标记熟练度；其他单位不会触发该奖励。等级提升会增加持续时间、射程，并降低体力与冷却压力；5级额外伤害提升为2D4。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranger",
+        "mark",
+        "debuff",
+        "weapon_support"
+      ],
+      "level_description_template": "标记目标{duration}TU；施放者武器命中目标额外{bonus_damage}伤害。射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "20"
+        },
+        "1": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "90",
+          "duration": "60",
+          "range": "4",
+          "stamina": "20"
+        },
+        "2": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "80",
+          "duration": "70",
+          "range": "4",
+          "stamina": "19"
+        },
+        "3": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "70",
+          "duration": "80",
+          "range": "5",
+          "stamina": "18"
+        },
+        "4": {
+          "ap": "1",
+          "bonus_damage": "1D6",
+          "cooldown": "60",
+          "duration": "100",
+          "range": "5",
+          "stamina": "17"
+        },
+        "5": {
+          "ap": "1",
+          "bonus_damage": "2D4",
+          "cooldown": "60",
+          "duration": "120",
+          "range": "6",
+          "stamina": "16"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_hunter_mark",
+        "range_value": 4,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 1,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 70,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 100,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 1,
+            "source_bound_weapon_bonus_damage_dice_sides": 6,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "source_bound_weapon_bonus_damage_dice_count": 2,
+            "source_bound_weapon_bonus_damage_dice_sides": 4,
+            "dispellable_magic": true,
+            "dispellable_harmful_magic": true,
+            "effect_target_team_filter": "enemy",
+            "status_id": "hunter_marked",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "mark",
+              "quarry"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 19,
+            "cooldown_tu": 80
+          },
+          "3": {
+            "stamina_cost": 18,
+            "cooldown_tu": 70,
+            "range_value": 5
+          },
+          "4": {
+            "stamina_cost": 17,
+            "cooldown_tu": 60
+          },
+          "5": {
+            "stamina_cost": 16,
+            "range_value": 6
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 20,
+        "mastery_trigger_mode": "source_bound_weapon_bonus_damage",
+        "delivery_categories": [
+          "martial",
+          "mark",
+          "ranger"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        80,
+        180,
+        360,
+        620,
+        980
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "willpower": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_hunting_grid",
+      "icon_id": "archer_hunting_grid",
+      "display_name": "狩猎网阵",
+      "description": "在区域内撒布索绳与短箭；敌人首次离开区域时再受一次 50% 伤害并获得 断筋。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，半径范围，消耗{ap}AP/{aura}斗气，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6",
+          "range": "4"
+        },
+        "1": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6",
+          "range": "4"
+        },
+        "2": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6",
+          "range": "4"
+        },
+        "3": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6",
+          "range": "4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_hunting_grid",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 2,
+        "aura_cost": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_killing_field",
+      "icon_id": "archer_killing_field",
+      "display_name": "猎场封锁",
+      "description": "招牌领域技；区域持续 120 TU，敌人每次在其中结束行动时受到追击伤害并自动附加 标记。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，半径范围，攻击检定{attack}，消耗{ap}AP/{aura}斗气，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "attack": "-2",
+          "aura": "2",
+          "cooldown": "5",
+          "dmg": "7",
+          "range": "5"
+        },
+        "1": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "attack": "-2",
+          "aura": "2",
+          "cooldown": "5",
+          "dmg": "7",
+          "range": "5"
+        },
+        "2": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "attack": "-2",
+          "aura": "2",
+          "cooldown": "5",
+          "dmg": "7",
+          "range": "5"
+        },
+        "3": {
+          "ap": "3",
+          "area_pattern": "radius",
+          "attack": "-2",
+          "aura": "2",
+          "cooldown": "5",
+          "dmg": "7",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_killing_field",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "cooldown_tu": 5,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 7,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 2,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_long_draw",
+      "icon_id": "archer_long_draw",
+      "display_name": "满弦狙击",
+      "description": "仅限装备弓使用。选择武器有效射程内的一名敌人，进行一次标准武器攻击；命中、暴击、护甲与减伤均使用正常武器攻击链。\n使用时选择蓄力挡位。力量调整值 ≥+5 / +3～+4 / +1～+2 / ≤0 时，每挡分别需要 5 / 10 / 15 / 20 TU；每挡额外消耗 8 体力并增加 1W。挡位自然上限为 max(1, ceil(体质调整值/2))。\n确认后支付费用、剩余 AP 清零并立即结束当前回合。蓄力期间行动进度冻结，体力照常恢复，且不能主动取消；单纯受到伤害不会打断。倒地、眩晕、麻痹、冻结、石化、疯狂、失衡、陨石震荡、施术者强制位移、武器变化或目标失效会打断，费用不退并进入完整冷却。目标移动不会提前打断，但完成时会重新检查目标、距离与视线；不合法则攻击落空。5级时，本技能有效射程在装备弓射程基础上增加1格。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "基础1W标准弓攻击；攻击检定{attack}；可选蓄力上限{cap}，每挡+1W、+8体力；消耗2AP/{stamina}基础体力，冷却{cooldown}TU；{range}",
+      "level_description_configs": {
+        "0": {
+          "attack": "+1",
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "100",
+          "range": "射程随装备弓",
+          "stamina": "16"
+        },
+        "1": {
+          "attack": "+1",
+          "cap": "1挡（仍受体质自然上限约束）",
+          "cooldown": "100",
+          "range": "射程随装备弓",
+          "stamina": "14"
+        },
+        "2": {
+          "attack": "+1",
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "range": "射程随装备弓",
+          "stamina": "14"
+        },
+        "3": {
+          "attack": "+2",
+          "cap": "2挡（仍受体质自然上限约束）",
+          "cooldown": "90",
+          "range": "射程随装备弓",
+          "stamina": "12"
+        },
+        "4": {
+          "attack": "+2",
+          "cap": "3挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "range": "射程随装备弓",
+          "stamina": "12"
+        },
+        "5": {
+          "attack": "+3",
+          "cap": "3挡（仍受体质自然上限约束）",
+          "cooldown": "80",
+          "range": "装备弓射程+1格",
+          "stamina": "10"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_long_draw",
+        "range_value": 0,
+        "ap_cost": 2,
+        "cooldown_tu": 100,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "stamina_cost": 14
+          },
+          "2": {
+            "cooldown_tu": 90
+          },
+          "3": {
+            "stamina_cost": 12,
+            "attack_roll_bonus": 2
+          },
+          "4": {
+            "cooldown_tu": 80
+          },
+          "5": {
+            "stamina_cost": 10,
+            "attack_roll_bonus": 3,
+            "range_value": 1
+          }
+        },
+        "weapon_range_policy": "current_weapon_plus_configured",
+        "requires_los": true,
+        "stamina_cost": 16,
+        "windup_profile": {
+          "stamina_cost_per_tier": 8,
+          "skill_level_tier_caps": [
+            1,
+            1,
+            2,
+            2,
+            3,
+            3
+          ],
+          "base_weapon_dice_multipliers": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "attack_roll_bonus": 1,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_multishot",
+      "display_name": "连珠箭",
+      "description": "通过依次锁定多个目标来铺开点杀火力，是弓箭手的招牌多目标技能。",
+      "max_level": 7,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe"
+      ],
+      "level_description_template": "最多{targets}个目标，各进行一次弓箭武器攻击，攻击检定{attack}，消耗{ap}AP/{stamina}体力，无冷却",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "-1",
+          "stamina": "45",
+          "targets": "2"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "-1",
+          "stamina": "45",
+          "targets": "3"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "0",
+          "stamina": "45",
+          "targets": "3"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "0",
+          "stamina": "45",
+          "targets": "4"
+        },
+        "4": {
+          "ap": "1",
+          "attack": "+1",
+          "stamina": "45",
+          "targets": "4"
+        },
+        "5": {
+          "ap": "1",
+          "attack": "+1",
+          "stamina": "45",
+          "targets": "5"
+        },
+        "6": {
+          "ap": "1",
+          "attack": "+2",
+          "stamina": "45",
+          "targets": "5"
+        },
+        "7": {
+          "ap": "1",
+          "attack": "+2",
+          "stamina": "40",
+          "targets": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_multishot",
+        "target_mode": "ground",
+        "range_value": 5,
+        "level_overrides": {
+          "1": {
+            "max_target_count": 3
+          },
+          "2": {
+            "attack_roll_bonus": 0
+          },
+          "3": {
+            "max_target_count": 4
+          },
+          "4": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "max_target_count": 5
+          },
+          "6": {
+            "attack_roll_bonus": 2
+          },
+          "7": {
+            "stamina_cost": 40
+          }
+        },
+        "stamina_cost": 45,
+        "attack_roll_bonus": -1,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "ai_tags": [
+          "multi_target",
+          "focus_fire"
+        ],
+        "projectile_kind": "current_weapon",
+        "target_selection_mode": "multi_unit",
+        "max_target_count": 2,
+        "selection_order_mode": "manual",
+        "cast_variants": [
+          {
+            "variant_id": "multishot_volley",
+            "display_name": "连珠箭",
+            "description": "依次锁定多个不同敌方单位，并按选择顺序逐个结算弓箭武器攻击。",
+            "footprint_pattern": "unordered",
+            "effect_defs": [
+              {
+                "effect_type": "damage",
+                "payload": {},
+                "add_weapon_dice": true,
+                "use_weapon_physical_damage_tag": true,
+                "resolve_as_weapon_attack": true
+              }
+            ]
+          }
+        ],
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "icon_id": "archer_multishot",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        300,
+        750,
+        1650,
+        3000,
+        4800,
+        7050,
+        9750
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 80,
+        "strength": 40
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "archer_pinning_shot",
+      "display_name": "钉射",
+      "description": "射出钉足箭限制目标行动，伤害取当前弓箭武器骰，低等级阻止移动，满级改为短时踉跄。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}，命中附加{status}（{duration}TU），射程随武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "无加值",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "60",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "4": {
+          "ap": "1",
+          "attack": "+1",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "60",
+          "stamina": "24",
+          "status": "钉足（阻止移动）"
+        },
+        "5": {
+          "ap": "1",
+          "attack": "+2",
+          "cooldown": "90",
+          "dmg": "弓箭武器伤害",
+          "duration": "40",
+          "stamina": "24",
+          "status": "踉跄"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_pinning_shot",
+        "range_value": 0,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "status",
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "pinned"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "pinned"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "staggered"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "stamina_cost": 24,
+        "mastery_trigger_mode": "status_applied",
+        "ai_tags": [
+          "single_target",
+          "control"
+        ],
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "icon_id": "archer_pinning_shot",
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "perception": 40
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_repel_arrow",
+      "icon_id": "archer_repel_arrow",
+      "display_name": "震退箭",
+      "description": "使用弓进行一次标准武器攻击；命中后将目标沿射击方向击退1格。击退受地形、占位和强制位移免疫限制，无法移动时不追加伤害。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control",
+        "displacement"
+      ],
+      "level_description_template": "造成一次标准弓武器攻击伤害；命中后沿射击方向击退1格，射程随弓，消耗1AP/{stamina}体力，冷却{cooldown}TU{accuracy}",
+      "level_description_configs": {
+        "0": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "36"
+        },
+        "1": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "36"
+        },
+        "2": {
+          "accuracy": "",
+          "cooldown": "90",
+          "stamina": "34"
+        },
+        "3": {
+          "accuracy": "，攻击检定+1",
+          "cooldown": "90",
+          "stamina": "34"
+        },
+        "4": {
+          "accuracy": "，攻击检定+1",
+          "cooldown": "80",
+          "stamina": "34"
+        },
+        "5": {
+          "accuracy": "，攻击检定+2",
+          "cooldown": "80",
+          "stamina": "34"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_repel_arrow",
+        "range_value": 0,
+        "cooldown_tu": 90,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback",
+            "forced_move_distance": 1,
+            "trigger_event": "attack_hit"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 34
+          },
+          "3": {
+            "attack_roll_bonus": 1
+          },
+          "4": {
+            "cooldown_tu": 80
+          },
+          "5": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "requires_los": true,
+        "stamina_cost": 36,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "ai_tags": [
+          "single_target",
+          "control",
+          "displacement"
+        ],
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 40,
+        "perception": 20
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_running_shot",
+      "icon_id": "archer_running_shot",
+      "display_name": "奔袭射击",
+      "description": "若本回合先移动至少 3 格，则取消命中惩罚，并额外施加 标记。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "5",
+          "dmg": "11",
+          "range": "4",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "5",
+          "dmg": "11",
+          "range": "4",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "5",
+          "dmg": "11",
+          "range": "4",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "5",
+          "dmg": "11",
+          "range": "4",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_running_shot",
+        "range_value": 4,
+        "cooldown_tu": 5,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 11,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "attack_roll_bonus": -1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_shield_breaker",
+      "icon_id": "archer_shield_breaker",
+      "display_name": "破盾箭",
+      "description": "对处于格挡、护卫或防御姿态的目标追加 +25% 伤害，并移除其防御姿态。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "5",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "5",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "5",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "5",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_shield_breaker",
+        "range_value": 5,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "attack_roll_bonus": -1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_shooting_specialization",
+      "icon_id": "archer_shooting_specialization",
+      "display_name": "射击专精",
+      "description": "弓箭手基础被动。装备弓武器时，弓攻击有效射程 +1；不适用于弩。",
+      "skill_type": "passive",
+      "learn_source": "profession",
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "passive"
+      ],
+      "combat_profile": {
+        "skill_id": "archer_shooting_specialization",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "ap_cost": 0,
+        "target_selection_mode": "self",
+        "passive_effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "payload": {},
+            "status_id": "archer_shooting_specialization",
+            "trigger_condition": "battle_start",
+            "range_bonus": 1
+          }
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        1
+      ]
+    },
+    {
+      "skill_id": "archer_sidewind_slide",
+      "icon_id": "archer_sidewind_slide",
+      "display_name": "侧滑换位",
+      "description": "攻击前或攻击后允许横向移动 1 格，用于避开直线冲锋或重构夹角。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "4",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "4",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "4",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "10",
+          "range": "4",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_sidewind_slide",
+        "range_value": 4,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 10,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_skirmish_step",
+      "icon_id": "archer_skirmish_step",
+      "display_name": "游击步",
+      "description": "向更安全的位置立即位移最多 2 格，并获得 预瞄，是弓箭手的基础转线手段。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "mobility"
+      ],
+      "level_description_template": "获得{status}（{duration}TU），位移{move}格，自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "5",
+          "duration": "60",
+          "move": "2",
+          "stamina": "1",
+          "status": "预瞄"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_skirmish_step",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "cooldown_tu": 5,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "archer_pre_aim"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "retreat",
+            "forced_move_distance": 2
+          }
+        ],
+        "stamina_cost": 1,
+        "target_selection_mode": "self"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_split_bolt",
+      "icon_id": "archer_split_bolt",
+      "display_name": "裂风重矢",
+      "description": "粗重箭矢沿直线贯穿最多 2 个敌人，适合打站位重叠目标。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "output"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，直线范围，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area_pattern": "line",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "1": {
+          "ap": "2",
+          "area_pattern": "line",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "2": {
+          "ap": "2",
+          "area_pattern": "line",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        },
+        "3": {
+          "ap": "2",
+          "area_pattern": "line",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "14",
+          "range": "5",
+          "stamina": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_split_bolt",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 14,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 1,
+        "stamina_cost": 2,
+        "attack_roll_bonus": -1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_suppressive_fire",
+      "icon_id": "archer_suppressive_fire",
+      "display_name": "压制射击",
+      "description": "使用弓或天生武器沿直线倾泻火力，对路径内敌人造成武器伤害，并留下使敌方移动成本 +1 的压制地带。等级提升会延长压制、降低体力与冷却压力，并提高命中。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "aoe",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}，留下压制地带（敌方移动成本+1，{duration}TU），射程随弓或天生武器，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "attack": "-1",
+          "cooldown": "80",
+          "dmg": "武器伤害",
+          "duration": "30",
+          "stamina": "32"
+        },
+        "1": {
+          "ap": "2",
+          "attack": "-1",
+          "cooldown": "80",
+          "dmg": "武器伤害",
+          "duration": "30",
+          "stamina": "32"
+        },
+        "2": {
+          "ap": "2",
+          "attack": "-1",
+          "cooldown": "80",
+          "dmg": "武器伤害",
+          "duration": "35",
+          "stamina": "30"
+        },
+        "3": {
+          "ap": "2",
+          "attack": "无加值",
+          "cooldown": "70",
+          "dmg": "武器伤害",
+          "duration": "40",
+          "stamina": "28"
+        },
+        "4": {
+          "ap": "2",
+          "attack": "无加值",
+          "cooldown": "60",
+          "dmg": "武器伤害",
+          "duration": "50",
+          "stamina": "26"
+        },
+        "5": {
+          "ap": "2",
+          "attack": "+1",
+          "cooldown": "50",
+          "dmg": "武器伤害",
+          "duration": "60",
+          "stamina": "24"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_suppressive_fire",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "resolve_as_weapon_attack": true
+          },
+          {
+            "effect_type": "terrain_effect",
+            "max_skill_level": 1,
+            "duration_tu": 30,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "压制火力",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "suppressive_fire_zone",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "duration_tu": 35,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "压制火力",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "suppressive_fire_zone",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "duration_tu": 40,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "压制火力",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "suppressive_fire_zone",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "duration_tu": 50,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "压制火力",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "suppressive_fire_zone",
+            "tick_interval_tu": 5
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "duration_tu": 60,
+            "payload": {},
+            "tick_effect_type": "movement_cost",
+            "move_cost_delta": 1,
+            "display_name": "压制火力",
+            "does_not_stack_with_status_id": "slow",
+            "terrain_effect_id": "suppressive_fire_zone",
+            "tick_interval_tu": 5
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 30
+          },
+          "3": {
+            "stamina_cost": 28,
+            "cooldown_tu": 70,
+            "attack_roll_bonus": 0
+          },
+          "4": {
+            "stamina_cost": 26,
+            "cooldown_tu": 60
+          },
+          "5": {
+            "stamina_cost": 24,
+            "cooldown_tu": 50,
+            "attack_roll_bonus": 1
+          }
+        },
+        "area_value": 1,
+        "requires_los": true,
+        "stamina_cost": 32,
+        "attack_roll_bonus": -1,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon",
+        "required_weapon_families": [
+          "bow"
+        ],
+        "allows_natural_weapon": true
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "perception": 40
+      },
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "archer_tendon_splitter",
+      "icon_id": "archer_tendon_splitter",
+      "display_name": "断筋箭",
+      "description": "命中后施加 断筋；对依赖冲锋和突进的敌人压制力很强。",
+      "max_level": 3,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control"
+      ],
+      "level_description_template": "造成{dmg}伤害，射程{range}，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "5",
+          "stamina": "1"
+        },
+        "1": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "5",
+          "stamina": "1"
+        },
+        "2": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "5",
+          "stamina": "1"
+        },
+        "3": {
+          "ap": "1",
+          "attack": "-1",
+          "cooldown": "10",
+          "dmg": "9",
+          "range": "5",
+          "stamina": "1"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_tendon_splitter",
+        "range_value": 5,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 9,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "attack_roll_bonus": -1,
+        "projectile_kind": "current_weapon"
+      },
+      "mastery_curve": [
+        28,
+        46,
+        72
+      ],
+      "template": "max_level_3"
+    },
+    {
+      "skill_id": "archer_tripwire_arrow",
+      "icon_id": "archer_tripwire_arrow",
+      "display_name": "绊索箭",
+      "description": "需要装备弓。选择弓射程内一处空旷、可通行且视线可达的地格，在那里布置一条垂直于射击方向的3格绊索。只有地面移动的敌人会触发：敌人进入绊索，或在新一次移动指令开始时已经站在绊索上，进行一次敏捷豁免；成功则本次移动继续且不消耗绊索次数，同一移动指令不再对这条绊索判定；失败则立即停在当前格并消耗1次有效阻挡。普通移动失败仍支付原选定路径的全部移动力；冲锋与技能步进会中止后续路径，冲锋不会发动终点攻击；强制位移会停止剩余位移。飞行、传送、交换、生成与复活不触发。每名使用者同时只能保留一条绊索，再次施放会替换旧绊索。绊索不会因使用者倒下而消失。",
+      "max_level": 5,
+      "tags": [
+        "archer",
+        "ranged",
+        "bow",
+        "control",
+        "ground_control"
+      ],
+      "level_description_template": "布置3格绊索，敏捷豁免DC{dc}，失败拦停并消耗1次阻挡；可阻挡{triggers}次，持续{duration}TU，射程随当前弓，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "80",
+          "dc": "12",
+          "duration": "60",
+          "stamina": "20",
+          "triggers": "1"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "80",
+          "dc": "12",
+          "duration": "60",
+          "stamina": "20",
+          "triggers": "1"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "80",
+          "dc": "12",
+          "duration": "60",
+          "stamina": "18",
+          "triggers": "1"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "80",
+          "dc": "13",
+          "duration": "70",
+          "stamina": "18",
+          "triggers": "1"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "70",
+          "dc": "13",
+          "duration": "70",
+          "stamina": "18",
+          "triggers": "1"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "70",
+          "dc": "13",
+          "duration": "80",
+          "stamina": "18",
+          "triggers": "2"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "archer_tripwire_arrow",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "line",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "terrain_effect",
+            "max_skill_level": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "render_overlay_id": "tripwire_line",
+            "overlay_priority": 40,
+            "display_name": "绊索",
+            "effect_target_team_filter": "enemy",
+            "terrain_effect_id": "tripwire_line",
+            "terrain_contact_mode": "interrupt_movement_on_failed_save",
+            "terrain_effective_trigger_count": 1,
+            "terrain_requires_ground_contact": true,
+            "terrain_recheck_from_inside": true,
+            "terrain_max_active_instances_per_source": 1,
+            "terrain_replace_existing_from_source": true,
+            "tick_interval_tu": 5,
+            "stack_behavior": "stack",
+            "save_dc": 12,
+            "save_ability": "agility",
+            "save_tag": "agility"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "render_overlay_id": "tripwire_line",
+            "overlay_priority": 40,
+            "display_name": "绊索",
+            "effect_target_team_filter": "enemy",
+            "terrain_effect_id": "tripwire_line",
+            "terrain_contact_mode": "interrupt_movement_on_failed_save",
+            "terrain_effective_trigger_count": 1,
+            "terrain_requires_ground_contact": true,
+            "terrain_recheck_from_inside": true,
+            "terrain_max_active_instances_per_source": 1,
+            "terrain_replace_existing_from_source": true,
+            "tick_interval_tu": 5,
+            "stack_behavior": "stack",
+            "save_dc": 12,
+            "save_ability": "agility",
+            "save_tag": "agility"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "duration_tu": 70,
+            "payload": {},
+            "render_overlay_id": "tripwire_line",
+            "overlay_priority": 40,
+            "display_name": "绊索",
+            "effect_target_team_filter": "enemy",
+            "terrain_effect_id": "tripwire_line",
+            "terrain_contact_mode": "interrupt_movement_on_failed_save",
+            "terrain_effective_trigger_count": 1,
+            "terrain_requires_ground_contact": true,
+            "terrain_recheck_from_inside": true,
+            "terrain_max_active_instances_per_source": 1,
+            "terrain_replace_existing_from_source": true,
+            "tick_interval_tu": 5,
+            "stack_behavior": "stack",
+            "save_dc": 13,
+            "save_ability": "agility",
+            "save_tag": "agility"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "duration_tu": 70,
+            "payload": {},
+            "render_overlay_id": "tripwire_line",
+            "overlay_priority": 40,
+            "display_name": "绊索",
+            "effect_target_team_filter": "enemy",
+            "terrain_effect_id": "tripwire_line",
+            "terrain_contact_mode": "interrupt_movement_on_failed_save",
+            "terrain_effective_trigger_count": 1,
+            "terrain_requires_ground_contact": true,
+            "terrain_recheck_from_inside": true,
+            "terrain_max_active_instances_per_source": 1,
+            "terrain_replace_existing_from_source": true,
+            "tick_interval_tu": 5,
+            "stack_behavior": "stack",
+            "save_dc": 13,
+            "save_ability": "agility",
+            "save_tag": "agility"
+          },
+          {
+            "effect_type": "terrain_effect",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "duration_tu": 80,
+            "payload": {},
+            "render_overlay_id": "tripwire_line",
+            "overlay_priority": 40,
+            "display_name": "绊索",
+            "effect_target_team_filter": "enemy",
+            "terrain_effect_id": "tripwire_line",
+            "terrain_contact_mode": "interrupt_movement_on_failed_save",
+            "terrain_effective_trigger_count": 2,
+            "terrain_requires_ground_contact": true,
+            "terrain_recheck_from_inside": true,
+            "terrain_max_active_instances_per_source": 1,
+            "terrain_replace_existing_from_source": true,
+            "tick_interval_tu": 5,
+            "stack_behavior": "stack",
+            "save_dc": 13,
+            "save_ability": "agility",
+            "save_tag": "agility"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 18
+          },
+          "4": {
+            "cooldown_tu": 70
+          }
+        },
+        "area_value": 1,
+        "requires_los": true,
+        "ground_effect_require_full_area": true,
+        "ground_effect_require_empty": true,
+        "ground_effect_require_traversable": true,
+        "stamina_cost": 20,
+        "mastery_trigger_mode": "terrain_effective_trigger",
+        "area_direction_mode": "target_vector_perpendicular",
+        "ai_tags": [
+          "ground_control",
+          "route_denial"
+        ],
+        "projectile_kind": "nonmagical",
+        "target_selection_mode": "single_coord",
+        "required_weapon_families": [
+          "bow"
+        ]
+      },
+      "non_core_max_level": 3,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "agility": 20,
+        "perception": 40
+      },
+      "template": "max_level_5"
+    }
+  ],
+  "family": "archer_01",
+  "templates": {
+    "max_level_3": {
+      "max_level": 3
+    },
+    "max_level_7": {
+      "max_level": 7
+    },
+    "max_level_5": {
+      "max_level": 5
+    }
+  },
+  "domain": "skills",
+  "schema": 1
+}

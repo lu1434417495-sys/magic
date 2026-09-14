@@ -14,14 +14,17 @@ internal sealed class CharacterTraitService
         PartyMemberState GetMemberStateForTraitAggregation(StringName memberId);
         EquipmentState GetEquipmentStateForTraitAggregation(StringName memberId);
         ItemDefinition GetItemDefForTraitAggregation(StringName itemId);
+        IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefsForTraitAggregation();
     }
 
     private readonly List<TraitDefinition> _traitDefinitions;
+    private readonly IReadOnlyDictionary<StringName, GearSetDefinition> _gearSetDefinitions;
     private readonly ICharacterTraitGateway _gateway;
 
     public CharacterTraitService(
         IEnumerable<TraitDefinition> traitDefinitions,
-        ICharacterTraitGateway gateway
+        ICharacterTraitGateway gateway,
+        IReadOnlyDictionary<StringName, GearSetDefinition> gearSetDefinitions = null
     )
     {
         _traitDefinitions = new List<TraitDefinition>();
@@ -32,22 +35,42 @@ internal sealed class CharacterTraitService
                     _traitDefinitions.Add(traitDefinition);
         }
         _gateway = gateway;
+        _gearSetDefinitions = gearSetDefinitions
+            ?? new Dictionary<StringName, GearSetDefinition>();
     }
 
     public EffectiveTraitSet BuildEffectiveTraits(
         StringName memberId,
         EquipmentState equipmentOverride = null
+    ) => BuildEffectiveTraits(memberId, equipmentOverride, out _);
+
+    public EffectiveTraitSet BuildEffectiveTraits(
+        StringName memberId,
+        EquipmentState equipmentOverride,
+        out GearSetEvaluationSnapshot gearSetEvaluation
     )
     {
         List<EffectiveTraitInstance> raw = new();
+        gearSetEvaluation = GearSetEvaluationSnapshot.Empty;
         if (_gateway == null || memberId == "")
             return new EffectiveTraitSet(raw);
 
         CollectIdentity(memberId, raw);
         CollectCharacter(memberId, raw);
-        CollectEquipment(memberId, equipmentOverride, raw);
+        EquipmentState equipment = equipmentOverride
+            ?? _gateway.GetEquipmentStateForTraitAggregation(memberId);
+        CollectEquipment(memberId, equipment, raw);
+        gearSetEvaluation = EvaluateGearSets(equipment);
+        CollectGearSetThresholdTraits(gearSetEvaluation, raw);
         return new EffectiveTraitSet(ApplyStackPolicies(raw));
     }
+
+    internal GearSetEvaluationSnapshot EvaluateGearSets(EquipmentState equipment) =>
+        GearSetEvaluationService.Evaluate(
+            equipment,
+            _gateway?.GetItemDefsForTraitAggregation(),
+            _gearSetDefinitions
+        );
 
     public IReadOnlyList<AttributeModifierDefinition> ResolveTraitAttributeModifiers(
         EffectiveTraitSet set
@@ -150,6 +173,49 @@ internal sealed class CharacterTraitService
 
             foreach (TraitInstanceState traitInstance in instance.trait_instances)
                 AppendInstanceTrait(raw, traitInstance, TraitSourceKind.EquipmentRoll);
+        }
+    }
+
+    private void CollectGearSetThresholdTraits(
+        GearSetEvaluationSnapshot evaluation,
+        List<EffectiveTraitInstance> raw
+    )
+    {
+        if (evaluation == null)
+            return;
+        foreach (GearSetDerivedTraitInstance derived in evaluation.DerivedTraitInstances)
+        {
+            if (
+                derived == null
+                || derived.TraitId == ""
+                || derived.SourceEquipmentInstanceId == ""
+                || derived.EffectiveInstanceKey == ""
+                || !TryGetAllowedTraitDef(
+                    derived.TraitId,
+                    TraitSourceKind.GearSetThreshold,
+                    out TraitDefinition traitDefinition
+                )
+            )
+            {
+                continue;
+            }
+
+            raw.Add(
+                new EffectiveTraitInstance
+                {
+                    TraitId = derived.TraitId,
+                    Definition = traitDefinition,
+                    SourceKind = TraitSourceKind.GearSetThreshold,
+                    SourceId = derived.SourceEquipmentInstanceId,
+                    EffectiveInstanceKey = derived.EffectiveInstanceKey,
+                    StackPolicy = traitDefinition.StackPolicyKind,
+                    ChargeScope = traitDefinition.ChargeScopeKind,
+                    ChargeResetTiming = traitDefinition.ChargeResetTimingKind,
+                    Rank = 1,
+                    Stacks = 1,
+                    RollValues = new List<TraitRollValueState>(),
+                }
+            );
         }
     }
 
@@ -411,6 +477,10 @@ internal sealed class CharacterTraitService
         int stacks
     )
     {
+        StringName resolvedInstanceKey =
+            source.SourceKind == TraitSourceKind.GearSetThreshold
+                ? source.EffectiveInstanceKey
+                : effectiveInstanceKey;
         return new EffectiveTraitInstance
         {
             TraitId = source.TraitId,
@@ -418,7 +488,7 @@ internal sealed class CharacterTraitService
             TraitInstance = source.TraitInstance,
             SourceKind = source.SourceKind,
             SourceId = source.SourceId,
-            EffectiveInstanceKey = effectiveInstanceKey,
+            EffectiveInstanceKey = resolvedInstanceKey,
             StackPolicy = source.StackPolicy,
             ChargeScope = source.ChargeScope,
             ChargeResetTiming = source.ChargeResetTiming,

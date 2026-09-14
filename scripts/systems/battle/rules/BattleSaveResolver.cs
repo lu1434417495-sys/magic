@@ -225,7 +225,8 @@ public static class BattleSaveResolver
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
         int saveBonus =
             GetStatusSaveBonus(target_unit, saveTag)
-            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility)
+            + GetUnitTagSaveBonus(target_unit, saveTag);
         int rollTotal = naturalRoll + abilityModifier + saveBonus;
         bool success = DoesNaturalSaveRollSucceed(
             naturalRoll,
@@ -296,7 +297,8 @@ public static class BattleSaveResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         CombatEffectDefinition effect_definition,
-        BattleSaveContext context = default
+        BattleSaveContext context = default,
+        int additionalSaveBonus = 0
     )
     {
         int resolvedDc = ResolveSaveDc(source_unit, effect_definition, context);
@@ -331,7 +333,9 @@ public static class BattleSaveResolver
         StringName advantageState = ResolveAdvantageState(tagState);
         int saveBonus =
             GetStatusSaveBonus(target_unit, saveTag)
-            + GetUnitAbilitySaveBonus(target_unit, saveAbility);
+            + GetUnitAbilitySaveBonus(target_unit, saveAbility)
+            + GetUnitTagSaveBonus(target_unit, saveTag)
+            + additionalSaveBonus;
         int successBasisPoints = EstimateSuccessProbabilityBasisPoints(
             advantageState,
             resolvedDc,
@@ -369,7 +373,9 @@ public static class BattleSaveResolver
         if (effect_definition.SaveDcModeKind == BattleSaveDcMode.CasterSpell)
         {
             int casterDc = ResolveCasterSpellSaveDc(source_unit, effect_definition);
-            return casterDc > 0 ? casterDc + lockedSkillHitBonus : 0;
+            return casterDc > 0
+                ? casterDc + effect_definition.SaveDcBonus + lockedSkillHitBonus
+                : 0;
         }
 
         int staticDc = Math.Max(effect_definition.SaveDc, 0);
@@ -769,6 +775,15 @@ public static class BattleSaveResolver
         return targetUnit.GetSaveBonusByAbilityTyped(saveAbility);
     }
 
+    private static int GetUnitTagSaveBonus(BattleUnitState targetUnit, StringName saveTag)
+    {
+        if (targetUnit == null || IsEmpty(saveTag))
+        {
+            return 0;
+        }
+        return targetUnit.GetSaveBonusByTagTyped(saveTag);
+    }
+
     private static int GetStatusSaveBonus(BattleUnitState targetUnit, StringName saveTag)
     {
         if (targetUnit == null)
@@ -797,42 +812,6 @@ public static class BattleSaveResolver
             }
         }
         return bonus;
-    }
-
-    private static int GetInt(Godot.Collections.Dictionary source, string key, int fallback = 0)
-    {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
-        {
-            return fallback;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
-        }
-    }
-
-    private static int GetInt(
-        Godot.Collections.Dictionary source,
-        StringName key,
-        int fallback = 0
-    )
-    {
-        if (source == null || IsEmpty(key) || !source.ContainsKey(key))
-        {
-            return fallback;
-        }
-        try
-        {
-            return source[key].AsInt32();
-        }
-        catch
-        {
-            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
-        }
     }
 
     private static int GetAttributeValue(AttributeSnapshot attributeSnapshot, StringName attributeId)

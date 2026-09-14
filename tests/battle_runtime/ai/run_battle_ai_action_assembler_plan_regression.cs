@@ -26,7 +26,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
     private void TestAssemblerReturnsDefinitionPlanWithoutMutatingAuthoringState()
     {
         Fixture fixture = BuildFixture();
-        int originalActionCount = fixture.StateResource.actions.Count;
+        int originalActionCount = fixture.StateDefinition.Actions.Count;
         using BattleAiRuntimeActionPlan plan = fixture.Assembler.BuildUnitActionPlan(
             fixture.Unit,
             fixture.Brain,
@@ -40,17 +40,10 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             "Runtime plan should contain authored and generated definitions."
         );
         _test.Eq(
-            fixture.StateResource.actions.Count,
+            fixture.StateDefinition.Actions.Count,
             originalActionCount,
-            "Assembler should not write generated actions back into the authoring Resource."
+            "Assembler should not write generated actions back into the immutable state definition."
         );
-        foreach (BattleAiRuntimeActionEntry entry in entries)
-        {
-            _test.True(
-                entry?.Action is EnemyAiActionDefinition,
-                "Authored and generated entries should share EnemyAiActionDefinition."
-            );
-        }
     }
 
     private void TestAssemblerEnablesCandidateMetadataWithoutMutatingAuthoredMove()
@@ -75,8 +68,8 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             "Authored no-screening move metadata should select candidate evaluation."
         );
         _test.True(
-            fixture.MoveTemplateResource.ai_evaluation_mode != (StringName)"candidate_request",
-            "Assembler should not mutate the authored move Resource."
+            fixture.MoveTemplateDefinition.AiEvaluationMode != (StringName)"candidate_request",
+            "Assembler should not mutate the borrowed move definition."
         );
 
         BattleAiRuntimeActionEntry generatedMove = FindEntryForSkill<MoveToRangeActionDefinition>(
@@ -84,9 +77,8 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
             "chain_arc"
         );
         _test.True(
-            generatedMove?.Metadata.force_candidate_request_evaluation == true
-                && generatedMove.Action is MoveToRangeActionDefinition,
-            "Generated move_to_range should use one immutable definition and candidate metadata."
+            generatedMove?.Metadata.force_candidate_request_evaluation == true,
+            "Generated move_to_range should enable candidate-request evaluation metadata."
         );
     }
 
@@ -171,28 +163,19 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
 
     private static Fixture BuildFixture()
     {
-        var stateResource = new EnemyAiStateDef { state_id = "engage" };
-        var unitTemplate = TestResourceOwnership.Own(
-            new UseUnitSkillAction
-            {
-                action_id = "template_unit",
-                score_bucket_id = "frontline_pressure",
-                target_selector = "nearest_enemy",
-            },
-            "BattleAiActionAssemblerPlan.BuildFixture.unit_template"
+        UseUnitSkillActionDefinition unitTemplate =
+            TestEnemyDefinitionFactory.UseUnitSkill(
+                "template_unit",
+                scoreBucketId: "frontline_pressure",
+                targetSelector: "nearest_enemy"
+            );
+        MoveToRangeActionDefinition moveTemplate = TestEnemyDefinitionFactory.MoveToRange(
+            "template_move",
+            scoreBucketId: "archer_survival",
+            targetSelector: "nearest_enemy"
         );
-        var moveTemplate = TestResourceOwnership.Own(
-            new MoveToRangeAction
-            {
-                action_id = "template_move",
-                score_bucket_id = "archer_survival",
-                target_selector = "nearest_enemy",
-            },
-            "BattleAiActionAssemblerPlan.BuildFixture.move_template"
-        );
-        stateResource.actions.Add(unitTemplate);
-        stateResource.actions.Add(moveTemplate);
-        stateResource.generation_slots.Add(
+        var slots = new List<EnemyAiGenerationSlotDefinition>
+        {
             Slot(
                 "offense",
                 10,
@@ -200,9 +183,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_unit_skill") },
                 "template_unit",
                 "harrier_pressure"
-            )
-        );
-        stateResource.generation_slots.Add(
+            ),
             Slot(
                 "chain_cast",
                 20,
@@ -210,9 +191,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_random_chain_skill") },
                 "template_unit",
                 "frontline_pressure"
-            )
-        );
-        stateResource.generation_slots.Add(
+            ),
             Slot(
                 "chain_move",
                 30,
@@ -220,9 +199,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("move_to_range") },
                 "template_move",
                 "archer_survival"
-            )
-        );
-        stateResource.generation_slots.Add(
+            ),
             Slot(
                 "multi_move",
                 40,
@@ -230,9 +207,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("move_to_multi_unit_skill_position") },
                 "template_move",
                 "archer_survival"
-            )
-        );
-        stateResource.generation_slots.Add(
+            ),
             Slot(
                 "ground_cast",
                 50,
@@ -240,24 +215,18 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
                 new[] { new StringName("use_ground_skill") },
                 "template_unit",
                 "frontline_pressure"
-            )
-        );
-        TestResourceOwnership.Own(
-            stateResource,
-            "BattleAiActionAssemblerPlan.BuildFixture.state"
-        );
-
-        var brainResource = new EnemyAiBrainDef
-        {
-            brain_id = "plan_brain",
-            default_state_id = "engage",
+            ),
         };
-        brainResource.states.Add(stateResource);
-        TestResourceOwnership.Own(
-            brainResource,
-            "BattleAiActionAssemblerPlan.BuildFixture.brain"
+        EnemyAiStateDefinition stateDefinition = TestEnemyDefinitionFactory.State(
+            "engage",
+            new EnemyAiActionDefinition[] { unitTemplate, moveTemplate },
+            slots
         );
-        EnemyAiBrainDefinition brain = brainResource.ToDefinition();
+        EnemyAiBrainDefinition brain = TestEnemyDefinitionFactory.Brain(
+            "plan_brain",
+            "engage",
+            new[] { stateDefinition }
+        );
         var unit = new BattleUnitState
         {
             unit_id = "actor",
@@ -288,15 +257,14 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
         {
             Assembler = new BattleAiActionAssembler(),
             Brain = brain,
-            StateResource = stateResource,
+            StateDefinition = stateDefinition,
             Unit = unit,
-            MoveTemplateResource = moveTemplate,
-            MoveTemplateDefinition = brain.GetState("engage").Actions[1] as MoveToRangeActionDefinition,
+            MoveTemplateDefinition = moveTemplate,
             SkillDefinitions = skillDefinitions,
         };
     }
 
-    private static EnemyAiGenerationSlotDef Slot(
+    private static EnemyAiGenerationSlotDefinition Slot(
         StringName slotId,
         int order,
         IEnumerable<StringName> affordances,
@@ -305,21 +273,14 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
         StringName bucketId
     )
     {
-        var slot = new EnemyAiGenerationSlotDef
-        {
-            slot_id = slotId,
-            order = order,
-            style_template_action_id = templateActionId,
-            score_bucket_id = bucketId,
-            target_selector = "nearest_enemy",
-        };
-        foreach (StringName affordance in affordances)
-            slot.allowed_affordances.Add(affordance);
-        foreach (StringName family in families)
-            slot.action_families.Add(family);
-        return TestResourceOwnership.Own(
-            slot,
-            $"BattleAiActionAssemblerPlan.Slot.{slotId}"
+        return TestEnemyDefinitionFactory.GenerationSlot(
+            slotId,
+            order: order,
+            allowedAffordances: new List<StringName>(affordances),
+            actionFamilies: new List<StringName>(families),
+            styleTemplateActionId: templateActionId,
+            scoreBucketId: bucketId,
+            targetSelector: "nearest_enemy"
         );
     }
 
@@ -422,9 +383,8 @@ public partial class run_battle_ai_action_assembler_plan_regression : LifecycleT
     {
         public BattleAiActionAssembler Assembler;
         public EnemyAiBrainDefinition Brain;
-        public EnemyAiStateDef StateResource;
+        public EnemyAiStateDefinition StateDefinition;
         public BattleUnitState Unit;
-        public MoveToRangeAction MoveTemplateResource;
         public MoveToRangeActionDefinition MoveTemplateDefinition;
         public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     }

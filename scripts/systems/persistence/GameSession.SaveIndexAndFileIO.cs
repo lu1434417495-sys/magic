@@ -400,7 +400,7 @@ public partial class GameSession
             "display_name",
             "world_preset_id",
             "world_preset_name",
-            "generation_config_path",
+            "world_generation_id",
             "world_size_cells",
             "created_at_unix_time",
             "updated_at_unix_time",
@@ -481,6 +481,20 @@ public partial class GameSession
         return entries;
     }
 
+    /// 索引重建跳过某个存档文件时必须留痕：静默 continue 会让存档在读档列表里凭空消失，
+    /// 文件还在磁盘上却查不到任何原因。
+    private void RecordSaveIndexRebuildSkip(string savePath, string reason, string detail)
+    {
+        RecordLogEvent(
+            GameLogLevel.Warning,
+            "session",
+            "session.save.index.rebuild_skipped",
+            $"存档索引重建跳过了 {savePath}：{reason}。该存档不会出现在读档列表中。",
+            $"save_path={savePath};reason={reason}"
+                + (string.IsNullOrEmpty(detail) ? "" : $";{detail}")
+        );
+    }
+
     private List<Dictionary<string, object>> RebuildSaveIndexEntriesFromSaveFilesPlain()
     {
         if (
@@ -496,7 +510,13 @@ public partial class GameSession
         );
         DirAccess openedSaveDir = DirAccess.Open(_persistenceOptions.SaveDirectory);
         if (openedSaveDir == null)
-            return new List<Dictionary<string, object>>();
+        {
+            // 目录存在却打不开是真实 IO 故障；静默返回空表会让所有存档看起来"不存在"。
+            throw new InvalidOperationException(
+                $"Failed to open save directory {_persistenceOptions.SaveDirectory} for index rebuild. "
+                    + $"Error: {(int)DirAccess.GetOpenError()}"
+            );
+        }
         DirAccess saveDir = directoryScope.Own(
             openedSaveDir,
             $"open:{_persistenceOptions.SaveDirectory}"
@@ -533,42 +553,67 @@ public partial class GameSession
                     false
                 );
                 if (readError != (int)Error.Ok)
+                {
+                    RecordSaveIndexRebuildSkip(savePath, "payload_read_failed", $"error={readError}");
                     continue;
+                }
                 if (
                     !_save_serializer.TryExtractSaveMetaPlain(
                         plainPayload,
                         out Dictionary<string, object> saveMeta
                     )
                 )
+                {
+                    RecordSaveIndexRebuildSkip(savePath, "save_meta_unreadable", "");
                     continue;
-                string generationConfigPath = ReadPlainString(
-                    saveMeta,
-                    "generation_config_path"
+                }
+                StringName worldGenerationId = new(
+                    ReadPlainString(saveMeta, "world_generation_id")
                 );
                 if (
                     !_save_serializer.TryDecodePayload(
                         plainPayload,
-                        generationConfigPath,
+                        worldGenerationId,
                         saveMeta,
                         out SaveDecodeResult decodeResult
                     )
                 )
+                {
+                    RecordSaveIndexRebuildSkip(
+                        savePath,
+                        "payload_decode_rejected",
+                        $"decode_error={decodeResult.Error};"
+                            + $"decode_reason={decodeResult.RejectionReason};"
+                            + $"world_generation_id={worldGenerationId}"
+                    );
                     continue;
+                }
+                int identityError;
                 try
                 {
-                    if (
-                        ValidateDecodedPartyIdentityForSave(
-                            decodeResult.PartyState,
-                            ReadPlainString(saveMeta, "save_id"),
-                            "index_rebuild"
-                        ) != (int)Error.Ok
-                    )
-                    {
-                        continue;
-                    }
+                    identityError = ValidateDecodedPartyIdentityForSave(
+                        decodeResult.PartyState,
+                        ReadPlainString(saveMeta, "save_id"),
+                        "index_rebuild"
+                    );
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException exception)
                 {
+                    RecordSaveIndexRebuildSkip(
+                        savePath,
+                        "party_identity_validation_threw",
+                        $"exception_type={exception.GetType().FullName};"
+                            + $"exception_message={exception.Message}"
+                    );
+                    continue;
+                }
+                if (identityError != (int)Error.Ok)
+                {
+                    RecordSaveIndexRebuildSkip(
+                        savePath,
+                        "party_identity_invalid",
+                        $"error={identityError}"
+                    );
                     continue;
                 }
                 rebuiltById[ReadPlainString(saveMeta, "save_id")] =

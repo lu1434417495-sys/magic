@@ -21,7 +21,6 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         TestDirectRecordProgressMovesCompletedQuestToClaimable();
         TestAuthoredFailurePolicyProjection();
         TestFailureTransitionsAndRestartPolicy();
-        TestStringKeyOnlyQuestDefsAreRejected();
         TestMissingObjectiveTargetValueDoesNotDefaultToOne();
         TestAcceptEventRejectsNegativeWorldStep();
 
@@ -30,11 +29,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestFormalProgressEventSchema()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestTestDefinitionBuilder questDef = BuildQuestTestDefinitionBuilder(
             "contract_formal_progress_event",
             "正式进度事件",
             "train_once",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
             "service:training",
             2
         );
@@ -92,9 +91,9 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                 "train_once"
             ) ?? -1,
             1,
-            "直接 quest progress event 应从 QuestDef 读取 target_value。"
+            "直接 quest progress event 应从 QuestTestDefinitionBuilder 读取 target_value。"
         );
-        _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "未达到 QuestDef target_value 前不应完成。");
+        _test.True(!partyState.HasClaimableQuest(questDef.quest_id), "未达到 QuestTestDefinitionBuilder target_value 前不应完成。");
 
         GDictionary matchedSummary = QuestProgressResultProjection.Project(
             manager.ApplyQuestProgressEventsTyped(
@@ -104,7 +103,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                         new GDictionary
                         {
                             ["event_type"] = "progress",
-                            ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction).ToString(),
+                            ["objective_type"] = QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction).ToString(),
                             ["target_id"] = "service:training",
                             ["progress_delta"] = 1,
                             ["world_step"] = 4,
@@ -119,11 +118,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestSingleBattleDefeatObjectiveRequiresOneBattleEvent()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestTestDefinitionBuilder questDef = BuildQuestTestDefinitionBuilder(
             "folk_single_battle_wolves",
             "单场荒狼",
             "defeat_wolves",
-            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle),
             "wolf_pack",
             5
         );
@@ -158,7 +157,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                     5,
                     3,
                     "wrong_event_type_battle",
-                    QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle)
+                    QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemyInSingleBattle)
                 ),
             }
         );
@@ -195,7 +194,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
                     new GDictionary
                     {
                         ["event_type"] = "progress",
-                        ["objective_type"] = QuestDef
+                        ["objective_type"] = QuestContentKinds
                             .ToStringName(QuestObjectiveKind.DefeatEnemy)
                             .ToString(),
                         ["target_id"] = "wolf_pack",
@@ -234,11 +233,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestNormalDefeatObjectiveStillAccumulatesAcrossBattles()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestTestDefinitionBuilder questDef = BuildQuestTestDefinitionBuilder(
             "bounty_accumulating_wolves",
             "累计荒狼",
             "defeat_wolves",
-            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemy),
             "wolf_pack",
             5
         );
@@ -290,7 +289,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             {
                 new QuestObjectiveDefinition(
                     "train_once",
-                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
                     "service:training",
                     1
                 ),
@@ -422,11 +421,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestAuthoredFailurePolicyProjection()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestTestDefinitionBuilder questDef = BuildQuestTestDefinitionBuilder(
             "contract_authored_restartable_failure",
             "可重启失败策略",
             "survive",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
             "service:survive",
             2
         );
@@ -455,7 +454,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             {
                 new QuestObjectiveDefinition(
                     "survive",
-                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
                     "service:survive",
                     2
                 ),
@@ -472,42 +471,6 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
     }
 
-    private void TestStringKeyOnlyQuestDefsAreRejected()
-    {
-        QuestDef questDef = BuildQuestDef(
-            "contract_string_key_progress",
-            "旧 String key 进度",
-            "train_once",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
-            "service:training",
-            1
-        );
-        PartyState partyState = new();
-        GDictionary questDefs = new();
-        questDefs[questDef.quest_id.ToString()] = questDef;
-        CharacterManagementModule manager = new();
-        manager.setup(
-            partyState,
-            new Dictionary<StringName, SkillDefinition>(),
-            new Dictionary<StringName, ProfessionDefinition>(),
-            new Dictionary<StringName, AchievementDefinition>(),
-            new Dictionary<StringName, ItemDefinition>(),
-            ProjectQuestDefs(questDefs),
-            true,
-            null,
-            null
-        );
-
-        _test.True(
-            !manager.AcceptQuest(questDef.quest_id, 1),
-            "String key-only quest_def 不应被 QuestProgressService 恢复。"
-        );
-        _test.True(
-            !partyState.HasActiveQuest(questDef.quest_id),
-            "String key-only quest_def accept 失败后不应写入 active_quests。"
-        );
-    }
-
     private void TestMissingObjectiveTargetValueDoesNotDefaultToOne()
     {
         QuestDefinition questDef = new(
@@ -521,7 +484,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             {
                 new QuestObjectiveDefinition(
                     "bad_target",
-                    QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                    QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
                     "service:bad",
                     0
                 ),
@@ -562,11 +525,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
 
     private void TestAcceptEventRejectsNegativeWorldStep()
     {
-        QuestDef questDef = BuildQuestDef(
+        QuestTestDefinitionBuilder questDef = BuildQuestTestDefinitionBuilder(
             "contract_negative_step_accept",
             "负时间戳接取事件",
             "train_once",
-            QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+            QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
             "service:training",
             1
         );
@@ -624,7 +587,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         );
     }
 
-    private static CharacterManagementModule BuildManager(PartyState partyState, QuestDef questDef)
+    private static CharacterManagementModule BuildManager(PartyState partyState, QuestTestDefinitionBuilder questDef)
     {
         return BuildManager(
             partyState,
@@ -677,7 +640,7 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             progressDelta,
             worldStep,
             encounterId,
-            QuestDef.ToStringName(QuestObjectiveKind.DefeatEnemy)
+            QuestContentKinds.ToStringName(QuestObjectiveKind.DefeatEnemy)
         );
 
     private static QuestProgressService.QuestProgressEventData BuildWolfDefeatProgressEvent(
@@ -696,31 +659,11 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
             "single"
         );
 
-    private static Dictionary<StringName, QuestDefinition> ProjectQuestDefs(
-        GDictionary questDefs
-    )
-    {
-        Dictionary<StringName, QuestDefinition> result = new();
-        if (questDefs == null)
-            return result;
-        foreach (Variant rawKey in questDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName questId = rawKey.AsStringName();
-            if (questId == "")
-                continue;
-            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
-                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
-        }
-        return result;
-    }
-
     private static QuestProgressService.QuestProgressEventData QuestProgressEvent(
         GDictionary eventData
     ) => QuestProgressService.QuestProgressEventData.FromDictionary(eventData);
 
-    private static QuestDef BuildQuestDef(
+    private static QuestTestDefinitionBuilder BuildQuestTestDefinitionBuilder(
         string questId,
         string displayName,
         string objectiveId,
@@ -729,13 +672,13 @@ public partial class run_quest_progress_service_regression : LifecycleTestSceneT
         int targetValue
     )
     {
-        QuestDef questDef = new()
+        QuestTestDefinitionBuilder questDef = new()
         {
             quest_id = questId,
             display_name = displayName,
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            listing_channels = new GArray { "contract_board" },
             failure_policy = "terminal",
         };
         GDictionary objectiveDef = new()

@@ -1,601 +1,396 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Linq;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_enemy_content_registry_typed_regression : LifecycleTestSceneTree
 {
-    private const string OfficialSeedPath = "res://data/configs/enemies/enemy_content_seed.tres";
-    private const string InvalidReferenceSeedPath =
-        "res://tests/fixtures/enemy_content/invalid_roster/enemy_content_seed.tres";
-    private const string TargetModeMismatchSeedPath =
-        "res://tests/synthetic/enemy_action_target_mode_mismatch.tres";
-    private const string SkillLevelMismatchSeedPath =
-        "res://tests/synthetic/enemy_action_skill_level_mismatch.tres";
-
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
-    {
-        RunAfterProcessStartup(Run);
-    }
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {
-        TestProcessSnapshotPublishesImmutablePlainEnemyDefinitions();
-        TestOfficialSharedWolfEncounterStages();
-        TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed();
-        TestRegistryRejectsActionSkillTargetModeMismatch();
-        TestRegistryRejectsTemplateLevelWithoutCompatibleCastOption();
-
-        RequestTestExit(_test.Finish("Enemy content registry typed regression"));
+        TestCodeOwnedJsonDiscoveryAndImmutableProjection();
+        TestScoreProfileProjectionPreservesTypedBehavior();
+        TestClosedActionSpec();
+        TestClosedActionImportRejections();
+        TestSharedWolfEncounterBehavior();
+        RequestTestExit(_test.Finish("Enemy JSON content registry regression"));
     }
 
-    private void TestProcessSnapshotPublishesImmutablePlainEnemyDefinitions()
+    private void TestScoreProfileProjectionPreservesTypedBehavior()
     {
-        ProcessContentHost host = Root
-            .GetNode<ApplicationLifetimeCoordinator>("ApplicationLifetimeCoordinator")
-            .ContentHost;
-        ContentSnapshot snapshot = host.GetSnapshot();
-
-        _test.True(snapshot.EnemyTemplates.ContainsKey("wolf_raider"), "snapshot 应发布正式敌人模板定义。");
-        _test.True(snapshot.EnemyBrains.ContainsKey("melee_aggressor"), "snapshot 应发布正式 AI brain 定义。");
-        _test.True(snapshot.EncounterRosters.ContainsKey("wolf_den"), "snapshot 应发布正式 encounter roster 定义。");
-        _test.Eq(snapshot.BattleSimProfiles.Count, 4, "snapshot 应一次投影四个正式 BattleSim profile。");
-
-        EnemyTemplateDefinition template = snapshot.EnemyTemplates["wolf_raider"];
-        using TestContentResourceLoader loader = new();
-        using EnemyContentRegistry rawRegistry = new(loader);
-        EnemyTemplateDef rawTemplate = rawRegistry.GetEnemyTemplatesTyped()["wolf_raider"];
-        int rawTagCount = rawTemplate.tags.Count;
-        int rawDropCount = rawTemplate.drop_entries.Count;
-        EnemyTemplateDefinition repeatedProjection = rawTemplate.ToDefinition(snapshot.Items);
-        _test.Eq(template.TemplateId, new StringName("wolf_raider"), "模板 key/value id 应保持一致。");
-        _test.Eq(rawTemplate.tags.Count, rawTagCount, "definition projection 不得修改 source tags。");
-        _test.Eq(rawTemplate.drop_entries.Count, rawDropCount, "definition projection 不得修改 source drops。");
-        _test.Eq(repeatedProjection.TemplateId, template.TemplateId, "重复投影应保持字段稳定。");
-        _test.Eq(
-            template.BattleSpriteTexturePath,
-            string.IsNullOrWhiteSpace(rawTemplate.battle_sprite_texture?.ResourcePath)
-                ? ""
-                : ContentPathCanonicalizer.Canonicalize(
-                    rawTemplate.battle_sprite_texture.ResourcePath
-                ),
-            "texture wrapper 必须投影为资源路径。"
-        );
-        _test.True(
-            template.Tags is not Godot.Collections.Array<StringName>,
-            "模板列表必须是只读 CLR collection。"
-        );
-        _test.True(
-            Throws<NotSupportedException>(() =>
-                ((IDictionary<StringName, EnemyTemplateDefinition>)snapshot.EnemyTemplates).Add(
-                    "forbidden",
-                    template
-                )
-            ),
-            "enemy snapshot dictionary 应拒绝修改。"
-        );
-        _test.True(
-            Throws<NotSupportedException>(() =>
-                ((IList<StringName>)template.Tags).Add("forbidden")
-            ),
-            "enemy template nested list 应拒绝修改。"
-        );
-
-        foreach (
-            Type rootType in new[]
-            {
-                typeof(EnemyTemplateDefinition),
-                typeof(EnemyAiBrainDefinition),
-                typeof(WildEncounterRosterDefinition),
-                typeof(BattleAiScoreProfileDefinition),
-            }
-        )
+        var source = new BattleAiScoreProfileJsonDto
         {
-            foreach (Type type in EnumerateTypeGraph(rootType))
+            DamageWeight = 101,
+            HealWeight = 102,
+            StatusWeight = 103,
+            TerrainWeight = 104,
+            HeightWeight = 105,
+            LethalTargetWeight = 106,
+            LethalThreatTargetWeight = 107,
+            TargetCountWeight = 108,
+            FriendlyFireDamageWeight = 109,
+            FriendlyFireTargetWeight = 110,
+            FriendlyControlTargetWeight = 111,
+            FriendlyLethalTargetWeight = 112,
+            ApCostWeight = 113,
+            MpCostWeight = 114,
+            StaminaCostWeight = 115,
+            AuraCostWeight = 116,
+            CooldownWeight = 117,
+            DelayedResolutionCostPer5Tu = 118,
+            MovementCostWeight = 119,
+            MpReserveFloorBp = 120,
+            MpReservePressureWeight = 121,
+            MpReserveBreachPenalty = 122,
+            StaminaReserveFloorBp = 123,
+            StaminaReservePressureWeight = 124,
+            StaminaReserveBreachPenalty = 125,
+            AuraReserveFloorBp = 126,
+            AuraReservePressureWeight = 127,
+            AuraReserveBreachPenalty = 128,
+            ResourceConservationWeight = 129,
+            PositionBaseScore = 130,
+            PositionDistanceStep = 131,
+            PositionUndershootPenalty = 132,
+            PositionOvershootPenalty = 133,
+            SurvivalMarginGainWeight = 134,
+            PostActionThreatDamageWeight = 135,
+            PostActionThreatCountWeight = 136,
+            LethalSurvivalRiskPenalty = 137,
+            IncomingThreatReliefWeight = 138,
+            LowHpUrgencyThresholdBp = 139,
+            LowHpUrgencyWeight = 140,
+            ExecuteTargetHpThresholdBp = 141,
+            ExecuteBonusWeight = 142,
+            OverkillDamagePenaltyWeight = 143,
+            RoleThreatMinEffectiveRange = 144,
+            RoleThreatDistanceWindow = 145,
+            RoleThreatMaxApproachDistance = 146,
+            RoleThreatMaxContactRange = 147,
+            RoleThreatInRangeScoreStep = 148,
+            EnemyTargetCountWeight = 149,
+            ChainEnemyTargetWeight = 150,
+            FocusFireWoundedTargetWeight = 151,
+            HitRateReliabilityWeight = 152,
+            SaveReliableDamageWeight = 153,
+            ShieldAbsorbedWeight = 154,
+            ControlWeight = 155,
+            GroundControlWeight = 156,
+            StatusRedundancyPenalty = 157,
+            PositionObjectiveWeight = 158,
+            SafeDistanceAdherenceWeight = 159,
+            ThreatHealerBiasBasisPoints = 160,
+            ThreatControlBiasBasisPoints = 161,
+            ThreatRangedBiasBasisPoints = 162,
+            ThreatRangeStepBiasBasisPoints = 163,
+            ThreatMultiplierCapBasisPoints = 164,
+            MeteorHighPriorityThreatMultiplierBp = 165,
+            MeteorHighPriorityDamageHpPercent = 166,
+            MeteorHighPriorityTargetPriorityScore = 167,
+            MeteorTopThreatRank = 168,
+            MeteorFriendlyFireProfile = "reckless",
+            MeteorFriendlyFireSoftExpectedHpPercent = 170,
+            MeteorFriendlyFireHardExpectedHpPercent = 171,
+            MeteorFriendlyFireHardWorstCaseHpPercent = 172,
+            ActionBaseScores = new Dictionary<string, int>
             {
-                _test.False(
-                    typeof(GodotObject).IsAssignableFrom(type),
-                    $"definition graph 不得包含 GodotObject: {rootType.Name} -> {type.FullName}"
-                );
-                _test.False(
-                    type.Namespace?.StartsWith("Godot.Collections", StringComparison.Ordinal) == true,
-                    $"definition graph 不得包含 Godot collection: {rootType.Name} -> {type.FullName}"
-                );
-                _test.False(
-                    type == typeof(Variant),
-                    $"definition graph 不得包含 Variant: {rootType.Name}"
-                );
-            }
-        }
+                ["skill"] = 173,
+                ["move"] = 174,
+            },
+            DefaultBucketPriority = 175,
+            BucketPriorities = new Dictionary<string, int> { ["pressure"] = 176 },
+        };
+        BattleAiScoreProfileDefinition definition =
+            EnemyContentDefinitionProjector.ProjectScoreProfile(source);
+
+        _test.Eq(definition.DamageWeight, source.DamageWeight, "damage weight 应保真。");
+        _test.Eq(definition.HealWeight, source.HealWeight, "heal weight 应保真。");
+        _test.Eq(definition.StatusWeight, source.StatusWeight, "status weight 应保真。");
+        _test.Eq(definition.TerrainWeight, source.TerrainWeight, "terrain weight 应保真。");
+        _test.Eq(definition.HeightWeight, source.HeightWeight, "height weight 应保真。");
+        _test.Eq(definition.LethalTargetWeight, source.LethalTargetWeight, "lethal target weight 应保真。");
+        _test.Eq(definition.LethalThreatTargetWeight, source.LethalThreatTargetWeight, "lethal threat target weight 应保真。");
+        _test.Eq(definition.TargetCountWeight, source.TargetCountWeight, "target count weight 应保真。");
+        _test.Eq(definition.FriendlyFireDamageWeight, source.FriendlyFireDamageWeight, "friendly-fire damage weight 应保真。");
+        _test.Eq(definition.FriendlyFireTargetWeight, source.FriendlyFireTargetWeight, "friendly-fire target weight 应保真。");
+        _test.Eq(definition.FriendlyControlTargetWeight, source.FriendlyControlTargetWeight, "friendly control target weight 应保真。");
+        _test.Eq(definition.FriendlyLethalTargetWeight, source.FriendlyLethalTargetWeight, "friendly lethal target weight 应保真。");
+        _test.Eq(definition.ApCostWeight, source.ApCostWeight, "AP cost weight 应保真。");
+        _test.Eq(definition.MpCostWeight, source.MpCostWeight, "MP cost weight 应保真。");
+        _test.Eq(definition.StaminaCostWeight, source.StaminaCostWeight, "stamina cost weight 应保真。");
+        _test.Eq(definition.AuraCostWeight, source.AuraCostWeight, "aura cost weight 应保真。");
+        _test.Eq(definition.CooldownWeight, source.CooldownWeight, "cooldown weight 应保真。");
+        _test.Eq(definition.DelayedResolutionCostPer5Tu, source.DelayedResolutionCostPer5Tu, "delayed-resolution cost 应保真。");
+        _test.Eq(definition.MovementCostWeight, source.MovementCostWeight, "movement cost weight 应保真。");
+        _test.Eq(definition.MpReserveFloorBp, source.MpReserveFloorBp, "MP reserve floor 应保真。");
+        _test.Eq(definition.MpReservePressureWeight, source.MpReservePressureWeight, "MP reserve pressure weight 应保真。");
+        _test.Eq(definition.MpReserveBreachPenalty, source.MpReserveBreachPenalty, "MP reserve breach penalty 应保真。");
+        _test.Eq(definition.StaminaReserveFloorBp, source.StaminaReserveFloorBp, "stamina reserve floor 应保真。");
+        _test.Eq(definition.StaminaReservePressureWeight, source.StaminaReservePressureWeight, "stamina reserve pressure weight 应保真。");
+        _test.Eq(definition.StaminaReserveBreachPenalty, source.StaminaReserveBreachPenalty, "stamina reserve breach penalty 应保真。");
+        _test.Eq(definition.AuraReserveFloorBp, source.AuraReserveFloorBp, "aura reserve floor 应保真。");
+        _test.Eq(definition.AuraReservePressureWeight, source.AuraReservePressureWeight, "aura reserve pressure weight 应保真。");
+        _test.Eq(definition.AuraReserveBreachPenalty, source.AuraReserveBreachPenalty, "aura reserve breach penalty 应保真。");
+        _test.Eq(definition.ResourceConservationWeight, source.ResourceConservationWeight, "resource conservation weight 应保真。");
+        _test.Eq(definition.PositionBaseScore, source.PositionBaseScore, "position base score 应保真。");
+        _test.Eq(definition.PositionDistanceStep, source.PositionDistanceStep, "position distance step 应保真。");
+        _test.Eq(definition.PositionUndershootPenalty, source.PositionUndershootPenalty, "position undershoot penalty 应保真。");
+        _test.Eq(definition.PositionOvershootPenalty, source.PositionOvershootPenalty, "position overshoot penalty 应保真。");
+        _test.Eq(definition.SurvivalMarginGainWeight, source.SurvivalMarginGainWeight, "survival margin weight 应保真。");
+        _test.Eq(definition.PostActionThreatDamageWeight, source.PostActionThreatDamageWeight, "post-action threat damage weight 应保真。");
+        _test.Eq(definition.PostActionThreatCountWeight, source.PostActionThreatCountWeight, "post-action threat count weight 应保真。");
+        _test.Eq(definition.LethalSurvivalRiskPenalty, source.LethalSurvivalRiskPenalty, "lethal survival risk penalty 应保真。");
+        _test.Eq(definition.IncomingThreatReliefWeight, source.IncomingThreatReliefWeight, "incoming threat relief weight 应保真。");
+        _test.Eq(definition.LowHpUrgencyThresholdBp, source.LowHpUrgencyThresholdBp, "low-HP urgency threshold 应保真。");
+        _test.Eq(definition.LowHpUrgencyWeight, source.LowHpUrgencyWeight, "low-HP urgency weight 应保真。");
+        _test.Eq(definition.ExecuteTargetHpThresholdBp, source.ExecuteTargetHpThresholdBp, "execute threshold 应保真。");
+        _test.Eq(definition.ExecuteBonusWeight, source.ExecuteBonusWeight, "execute bonus weight 应保真。");
+        _test.Eq(definition.OverkillDamagePenaltyWeight, source.OverkillDamagePenaltyWeight, "overkill penalty 应保真。");
+        _test.Eq(definition.RoleThreatMinEffectiveRange, source.RoleThreatMinEffectiveRange, "role threat minimum range 应保真。");
+        _test.Eq(definition.RoleThreatDistanceWindow, source.RoleThreatDistanceWindow, "role threat distance window 应保真。");
+        _test.Eq(definition.RoleThreatMaxApproachDistance, source.RoleThreatMaxApproachDistance, "role threat approach distance 应保真。");
+        _test.Eq(definition.RoleThreatMaxContactRange, source.RoleThreatMaxContactRange, "role threat contact range 应保真。");
+        _test.Eq(definition.RoleThreatInRangeScoreStep, source.RoleThreatInRangeScoreStep, "role threat score step 应保真。");
+        _test.Eq(definition.EnemyTargetCountWeight, source.EnemyTargetCountWeight, "enemy target count weight 应保真。");
+        _test.Eq(definition.ChainEnemyTargetWeight, source.ChainEnemyTargetWeight, "chain enemy target weight 应保真。");
+        _test.Eq(definition.FocusFireWoundedTargetWeight, source.FocusFireWoundedTargetWeight, "focus-fire wounded target weight 应保真。");
+        _test.Eq(definition.HitRateReliabilityWeight, source.HitRateReliabilityWeight, "hit-rate reliability weight 应保真。");
+        _test.Eq(definition.SaveReliableDamageWeight, source.SaveReliableDamageWeight, "save-reliable damage weight 应保真。");
+        _test.Eq(definition.ShieldAbsorbedWeight, source.ShieldAbsorbedWeight, "shield absorbed weight 应保真。");
+        _test.Eq(definition.ControlWeight, source.ControlWeight, "control weight 应保真。");
+        _test.Eq(definition.GroundControlWeight, source.GroundControlWeight, "ground-control weight 应保真。");
+        _test.Eq(definition.StatusRedundancyPenalty, source.StatusRedundancyPenalty, "status redundancy penalty 应保真。");
+        _test.Eq(definition.PositionObjectiveWeight, source.PositionObjectiveWeight, "position objective weight 应保真。");
+        _test.Eq(definition.SafeDistanceAdherenceWeight, source.SafeDistanceAdherenceWeight, "safe-distance weight 应保真。");
+        _test.Eq(definition.ThreatHealerBiasBasisPoints, source.ThreatHealerBiasBasisPoints, "healer threat bias 应保真。");
+        _test.Eq(definition.ThreatControlBiasBasisPoints, source.ThreatControlBiasBasisPoints, "control threat bias 应保真。");
+        _test.Eq(definition.ThreatRangedBiasBasisPoints, source.ThreatRangedBiasBasisPoints, "ranged threat bias 应保真。");
+        _test.Eq(definition.ThreatRangeStepBiasBasisPoints, source.ThreatRangeStepBiasBasisPoints, "range-step threat bias 应保真。");
+        _test.Eq(definition.ThreatMultiplierCapBasisPoints, source.ThreatMultiplierCapBasisPoints, "threat multiplier cap 应保真。");
+        _test.Eq(definition.MeteorHighPriorityThreatMultiplierBp, source.MeteorHighPriorityThreatMultiplierBp, "meteor threat multiplier 应保真。");
+        _test.Eq(definition.MeteorHighPriorityDamageHpPercent, source.MeteorHighPriorityDamageHpPercent, "meteor damage threshold 应保真。");
+        _test.Eq(definition.MeteorHighPriorityTargetPriorityScore, source.MeteorHighPriorityTargetPriorityScore, "meteor target priority 应保真。");
+        _test.Eq(definition.MeteorTopThreatRank, source.MeteorTopThreatRank, "meteor top-threat rank 应保真。");
+        _test.Eq(definition.MeteorFriendlyFireProfileKind, BattleAiMeteorFriendlyFireProfile.Reckless, "meteor friendly-fire profile 应投影为 typed kind。");
+        _test.Eq(definition.MeteorFriendlyFireSoftExpectedHpPercent, source.MeteorFriendlyFireSoftExpectedHpPercent, "meteor soft friendly-fire threshold 应保真。");
+        _test.Eq(definition.MeteorFriendlyFireHardExpectedHpPercent, source.MeteorFriendlyFireHardExpectedHpPercent, "meteor hard expected threshold 应保真。");
+        _test.Eq(definition.MeteorFriendlyFireHardWorstCaseHpPercent, source.MeteorFriendlyFireHardWorstCaseHpPercent, "meteor hard worst-case threshold 应保真。");
+        _test.Eq(definition.GetActionBaseScore("move"), 174, "action score 应通过 typed lookup 保真。");
+        _test.Eq(definition.GetActionBaseScore("unknown"), 173, "未知 action 应回退到 skill score。");
+        _test.Eq(definition.GetBucketPriority("pressure"), 176, "bucket priority 应通过 typed lookup 保真。");
+        _test.Eq(definition.GetBucketPriority("unknown"), 175, "未知 bucket 应回退到默认优先级。");
     }
 
-    private void TestOfficialSharedWolfEncounterStages()
+    private void TestCodeOwnedJsonDiscoveryAndImmutableProjection()
     {
         ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
-        bool hasSharedWolfRoster = snapshot.EncounterRosters.TryGetValue(
-            "wolf_pack_skirmish",
-            out WildEncounterRosterDefinition sharedWolfRoster
-        );
-        bool hasSharedWolfEncounter = snapshot.BattleEncounters.TryGetValue(
-            "wolf_wilds",
-            out BattleEncounterDefinition sharedWolfEncounter
-        );
+        _test.Eq(snapshot.EnemyBrains.Count, 9, "production 应从固定 JSON 目录发现 9 个 AI brain。");
+        _test.Eq(snapshot.EnemyTemplates.Count, 40, "production 应从固定 JSON 目录发现 40 个 enemy template。");
+        _test.Eq(snapshot.EncounterRosters.Count, 5, "production 应从固定 JSON 目录发现 5 个 roster。");
+        _test.True(snapshot.EnemyTemplates.ContainsKey("red_dragon"), "JSON template 应包含红龙。");
+        _test.True(snapshot.EnemyBrains.ContainsKey("dragon_tyrant"), "JSON brain 应包含 dragon_tyrant。");
+        _test.True(snapshot.EnemyTemplates["red_dragon"].SkillIds.Contains(new StringName("dragon_frightful_presence")), "转换必须保留工作树中的红龙威压技能。");
 
-        _test.False(
-            snapshot.EncounterRosters.ContainsKey("folk_farmers_plea_wolves"),
-            "《农夫的恳求》不得复制一份任务专属荒狼 roster。"
-        );
-        _test.False(
-            snapshot.BattleEncounters.ContainsKey("folk_farmers_plea_wolves"),
-            "《农夫的恳求》不得复制一份任务专属 battle encounter。"
-        );
-        _test.True(hasSharedWolfRoster, "正式 enemy snapshot 应发布共享荒狼 roster。");
-        _test.True(hasSharedWolfEncounter, "正式 battle snapshot 应发布共享 wolf_wilds 遭遇。");
-        if (!hasSharedWolfRoster || !hasSharedWolfEncounter)
-            return;
-
-        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> ordinaryWolfEntries =
-            sharedWolfRoster.GetStageUnitEntries(0);
-        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> fiveWolfEntries =
-            sharedWolfRoster.GetStageUnitEntries(1);
-        WildEncounterRosterStageDefinition mixedWolfStage = null;
-        foreach (WildEncounterRosterStageDefinition stage in sharedWolfRoster.Stages)
-        {
-            if (stage?.Stage == 2)
-            {
-                mixedWolfStage = stage;
-                break;
-            }
-        }
-        IReadOnlyList<WildEncounterRosterUnitEntryDefinition> mixedWolfEntries =
-            mixedWolfStage?.UnitEntries
-            ?? Array.Empty<WildEncounterRosterUnitEntryDefinition>();
-        bool hasRegularWolfTemplate = snapshot.EnemyTemplates.TryGetValue(
-            "wolf_pack",
-            out EnemyTemplateDefinition regularWolfTemplate
-        );
-        bool hasWorgTemplate = snapshot.EnemyTemplates.TryGetValue(
-            "worg",
-            out EnemyTemplateDefinition worgTemplate
-        );
-
+        EnemyTemplateDefinition wolf = snapshot.EnemyTemplates["wolf_raider"];
+        _test.Eq(wolf.BattleSpriteAssetId, new StringName("battle.unit.enemy.wolf"), "敌人贴图应发布稳定 asset ID。");
+        _test.False(wolf.BattleSpriteAssetId.ToString().StartsWith("res://", StringComparison.Ordinal), "Definition 不得携带贴图路径。");
         _test.Eq(
-            sharedWolfEncounter.RosterProfileId,
-            new StringName("wolf_pack_skirmish"),
-            "wolf_wilds 应继续引用同一份共享荒狼 roster。"
-        );
-        _test.Eq(sharedWolfRoster.GetMaxStage(), 2, "共享荒狼 roster 应正式声明到 stage 2。");
-        _test.Eq(sharedWolfRoster.Stages.Count, 3, "共享荒狼 roster 应恰好声明三个阶段。");
-        _test.True(mixedWolfStage != null, "共享荒狼 roster 必须精确声明 stage 2，不能依赖阶段回退。");
-        _test.Eq(ordinaryWolfEntries.Count, 1, "共享荒狼 roster stage 0 应只有一类敌人。");
-        _test.Eq(fiveWolfEntries.Count, 1, "共享荒狼 roster stage 1 应只有一类敌人。");
-        _test.Eq(mixedWolfEntries.Count, 2, "共享荒狼 roster stage 2 应有常规狼和座狼两类敌人。");
-        _test.True(hasRegularWolfTemplate, "正式 enemy snapshot 应发布常规狼模板。");
-        _test.True(hasWorgTemplate, "正式 enemy snapshot 应发布座狼模板。");
-        if (
-            ordinaryWolfEntries.Count != 1
-            || fiveWolfEntries.Count != 1
-            || mixedWolfEntries.Count != 2
-            || !hasRegularWolfTemplate
-            || !hasWorgTemplate
-        )
-            return;
-
-        _test.Eq(
-            ordinaryWolfEntries[0].TemplateId,
-            new StringName("wolf_pack"),
-            "共享荒狼 roster stage 0 应使用正式 wolf_pack 模板。"
+            wolf.Weapon.WeaponProfileKind,
+            BattleUnitState.ToStringName(BattleWeaponProfileKind.Natural),
+            "JSON beast template 应直接投影天生武器。"
         );
         _test.Eq(
-            ordinaryWolfEntries[0].Count,
-            2,
-            "普通 wolf_wilds 锚点应继续使用共享 roster 的两狼阶段。"
+            wolf.Weapon.WeaponPhysicalDamageTag,
+            new StringName("physical_pierce"),
+            "JSON beast template 应从 bite tag 推导穿刺伤害。"
+        );
+        _test.Eq(wolf.Weapon.WeaponOneHandedDice.DiceCount, 1, "天生武器应投影 1D6。");
+        _test.Eq(wolf.Weapon.WeaponOneHandedDice.DiceSides, 6, "天生武器应投影 1D6。");
+        _test.Eq(wolf.DerivedHpMax, 12, "JSON template 应直接计算 wolf_raider 派生 HP。");
+        _test.Eq(wolf.DerivedAttackBonus, 1, "近战天生武器应按力量计算攻击加值。");
+
+        EnemyTemplateDefinition goblinArcher = snapshot.EnemyTemplates["goblin_archer"];
+        _test.Eq(
+            goblinArcher.Weapon.WeaponProfileKind,
+            BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
+            "JSON non-beast template 应从 item Definition 投影装备武器。"
         );
         _test.Eq(
-            fiveWolfEntries[0].TemplateId,
-            new StringName("wolf_pack"),
-            "共享荒狼 roster stage 1 应继续使用同一正式 wolf_pack 模板。"
+            goblinArcher.Weapon.WeaponItemId,
+            new StringName("militia_light_crossbow"),
+            "装备武器投影应保留稳定 item ID。"
         );
         _test.Eq(
-            fiveWolfEntries[0].Count,
-            5,
-            "共享 wolf_wilds 遭遇的 stage 1 应在同一场战斗生成五只荒狼。"
-        );
-        _test.Eq(
-            mixedWolfEntries[0].TemplateId,
-            new StringName("wolf_pack"),
-            "共享荒狼 roster stage 2 的第一类敌人应为常规狼。"
-        );
-        _test.Eq(
-            mixedWolfEntries[0].Count,
-            3,
-            "共享荒狼 roster stage 2 应生成三只常规狼。"
-        );
-        _test.Eq(
-            mixedWolfEntries[1].TemplateId,
-            new StringName("worg"),
-            "共享荒狼 roster stage 2 的第二类敌人应为座狼。"
-        );
-        _test.Eq(
-            mixedWolfEntries[1].Count,
-            2,
-            "共享荒狼 roster stage 2 应生成两只座狼。"
-        );
-        _test.Eq(
-            mixedWolfEntries[0].Count + mixedWolfEntries[1].Count,
-            5,
-            "共享荒狼 roster stage 2 总数应保持五只狼。"
-        );
-        _test.Eq(regularWolfTemplate.CreatureLevel, 0, "常规狼模板应保持 0 级。");
-        _test.Eq(worgTemplate.CreatureLevel, 1, "座狼模板应修正为 1 级。");
-        _test.Eq(regularWolfTemplate.SkillIds.Count, 1, "常规狼模板应只配置一个技能。");
-        if (regularWolfTemplate.SkillIds.Count == 1)
-        {
-            _test.Eq(
-                regularWolfTemplate.SkillIds[0],
-                new StringName("basic_attack"),
-                "常规狼模板唯一技能应为基础攻击。"
-            );
-        }
-        _test.Eq(worgTemplate.SkillIds.Count, 2, "座狼模板应配置基础攻击和冲锋两个技能。");
-        if (worgTemplate.SkillIds.Count == 2)
-        {
-            _test.Eq(
-                worgTemplate.SkillIds[0],
-                new StringName("basic_attack"),
-                "座狼模板应保留基础攻击。"
-            );
-            _test.Eq(
-                worgTemplate.SkillIds[1],
-                new StringName("charge"),
-                "座狼模板应允许使用冲锋。"
-            );
-        }
-    }
-
-    private void TestRebuildClearsOfficialCatalogBeforeLoadingInvalidSeed()
-    {
-        using TestContentResourceLoader loader = new();
-        using EnemyContentRegistry registry = new(loader);
-        registry.ConfigureSeedResource(OfficialSeedPath, true, true);
-        registry.ConfigureSeedResource(InvalidReferenceSeedPath, true, false);
-
-        IReadOnlyDictionary<StringName, EnemyAiBrainDef> typedBrains = registry.GetEnemyAiBrainsTyped();
-        IReadOnlyDictionary<StringName, EnemyTemplateDef> typedTemplates = registry.GetEnemyTemplatesTyped();
-        IReadOnlyDictionary<StringName, WildEncounterRosterDef> typedRosters =
-            registry.GetWildEncounterRostersTyped();
-        IReadOnlyList<string> typedErrors = registry.ValidateTyped();
-        GStringArray errors = registry.Validate();
-
-        _test.Eq(
-            typedErrors.Count,
-            errors.Count,
-            "invalid seed 下 enemy registry typed/public validation error 数量应保持一致。"
-        );
-        _test.Eq(typedBrains.Count, 0, "invalid roster fixture 不应残留上一轮官方 brain catalog。");
-        _test.Eq(typedTemplates.Count, 0, "invalid roster fixture 不应残留上一轮官方 template catalog。");
-        _test.Eq(typedRosters.Count, 1, "invalid roster fixture 应只注册自身 roster。");
-        _test.True(
-            typedRosters.ContainsKey("invalid_roster"),
-            "invalid roster fixture 应保留 invalid_roster typed key。"
-        );
-        _test.True(
-            errors.Count > 0,
-            $"invalid roster fixture 应稳定报告缺失 template。 errors={FormatErrors(errors)}"
-        );
-    }
-
-    private void TestRegistryRejectsActionSkillTargetModeMismatch()
-    {
-        SkillDefinition groundSkill = TestSkillDefinitionProjection.BuildSkill(
-            "fixture_ground_skill",
-            combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
-                "fixture_ground_skill",
-                targetMode: "ground",
-                targetSelectionMode: "single_coord"
-            )
-        );
-        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
-        {
-            [groundSkill.SkillId] = groundSkill,
-        };
-
-        UseGroundSkillAction validGroundAction = TestResourceOwnership.Own(
-            new UseGroundSkillAction
-            {
-                action_id = "valid_ground_action",
-                desired_min_distance = 1,
-                desired_max_distance = 1,
-                DistanceReferenceKind = EnemyAiDistanceReference.TargetCoord,
-            },
-            "enemy_action_target_mode.valid_ground_action"
-        );
-        validGroundAction.skill_ids.Add(groundSkill.SkillId);
-
-        UseUnitSkillAction invalidUnitAction = TestResourceOwnership.Own(
-            new UseUnitSkillAction
-            {
-                action_id = "invalid_unit_action",
-                desired_min_distance = 1,
-                desired_max_distance = 1,
-                DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-            },
-            "enemy_action_target_mode.invalid_unit_action"
-        );
-        invalidUnitAction.skill_ids.Add(groundSkill.SkillId);
-
-        EnemyAiStateDef state = TestResourceOwnership.Own(
-            new EnemyAiStateDef
-            {
-                state_id = "engage",
-            },
-            "enemy_action_target_mode.state"
-        );
-        state.actions.Add(validGroundAction);
-        state.actions.Add(invalidUnitAction);
-
-        EnemyAiBrainDef brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "target_mode_mismatch_brain",
-                default_state_id = state.state_id,
-            },
-            "enemy_action_target_mode.brain"
-        );
-        brain.states.Add(state);
-
-        EnemyContentSeed seed = TestResourceOwnership.Own(
-            new EnemyContentSeed(),
-            "enemy_action_target_mode.seed"
-        );
-        seed.enemy_ai_brains.Add(brain);
-
-        using TestContentResourceLoader loader = new();
-        loader.RegisterCanonical(TargetModeMismatchSeedPath, seed);
-        using EnemyContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.ConfigureSeedResource(
-            TargetModeMismatchSeedPath,
-            rebuildNow: false,
-            validateSeedDirCompleteness: false
-        );
-        registry.Rebuild(
-            new EnemyContentValidationContext(
-                new Dictionary<StringName, ItemDefinition>(),
-                skillDefinitions
-            )
-        );
-
-        IReadOnlyList<string> errors = registry.ValidateTyped();
-        _test.Eq(
-            errors.Count,
+            goblinArcher.DerivedAttackBonus,
             1,
-            $"只有 unit action 引用 ground skill 应被拒绝: {FormatErrors(errors)}"
+            "远程装备武器应按感知计算攻击加值。"
         );
-        string error = errors.Count == 1 ? errors[0] : "";
+        _test.True(Throws<NotSupportedException>(() => ((IDictionary<StringName, EnemyTemplateDefinition>)snapshot.EnemyTemplates).Add("forbidden", wolf)), "enemy snapshot dictionary 应不可变。");
+        _test.True(Throws<NotSupportedException>(() => ((IList<StringName>)wolf.Tags).Add("forbidden")), "enemy template nested list 应不可变。");
+
+        var reader = new GodotContentJsonSourceReader();
+        _test.Eq(EnemyContentJsonAuthoringDomains.CreateBrainDescriptor(EnemyContentJsonDomains.BrainDirectory, reader).Import().Entries.Count, 9, "brain JSON importer 应产出 9 个 plain import model。");
+        _test.Eq(EnemyContentJsonAuthoringDomains.CreateTemplateDescriptor(EnemyContentJsonDomains.TemplateDirectory, reader).Import().Entries.Count, 40, "template JSON importer 应产出 40 个 DTO。");
+        _test.Eq(EnemyContentJsonAuthoringDomains.CreateRosterDescriptor(EnemyContentJsonDomains.RosterDirectory, reader).Import().Entries.Count, 5, "roster JSON importer 应产出 5 个 DTO。");
+    }
+
+    private void TestClosedActionSpec()
+    {
+        var spec = new EnemyAiActionClosedKindSchemaSpec();
+        _test.Eq(spec.Branches.Count, 12, "EnemyAiActionKind closed spec 必须完整登记 12 个分支。");
+        var kinds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (ContentJsonSchemaClosedKindBranch branch in spec.Branches) kinds.Add(branch.Kind);
+        _test.Eq(kinds.Count, 12, "closed action spec 的 kind 必须唯一。");
+    }
+
+    private void TestClosedActionImportRejections()
+    {
+        const string validWaitPayload =
+            "{\"action_id\":\"wait\",\"score_bucket_id\":\"\",\"action_intent\":\"wait\","
+            + "\"active_rest_action_base_score\":0,\"active_rest_min_stamina_residue\":0}";
+        AssertBrainImportRejected(
+            BrainDocument("unknown_kind", $"{{\"kind\":\"mystery\",\"payload\":{validWaitPayload}}}"),
+            EnemyContentJsonRules.UnknownActionKind,
+            "/kind",
+            "未知 action kind 必须在 normalize 阶段 fail closed。"
+        );
+        AssertBrainImportRejected(
+            BrainDocument(
+                "mismatched_payload",
+                "{\"kind\":\"wait\",\"payload\":{\"action_id\":\"cast\","
+                    + "\"score_bucket_id\":\"test\",\"action_intent\":\"offense\","
+                    + "\"skill_ids\":[\"basic_attack\"],\"target_selector\":\"nearest_enemy\","
+                    + "\"minimum_effective_target_count\":1,\"maximum_friendly_fire_target_count\":0,"
+                    + "\"allow_friendly_lethal\":false,\"desired_min_distance\":1,"
+                    + "\"desired_max_distance\":1,\"distance_reference\":\"target_unit\"}}"
+            ),
+            EnemyContentJsonRules.InvalidActionPayload,
+            "/payload",
+            "kind 与 payload 形状错配必须由严格 DTO 拒绝。"
+        );
+        AssertBrainImportRejected(
+            BrainDocument(
+                "extra_payload_field",
+                "{\"kind\":\"wait\",\"payload\":{\"action_id\":\"wait\","
+                    + "\"score_bucket_id\":\"\",\"action_intent\":\"wait\","
+                    + "\"active_rest_action_base_score\":0,\"active_rest_min_stamina_residue\":0,"
+                    + "\"unexpected\":true}}"
+            ),
+            EnemyContentJsonRules.InvalidActionPayload,
+            "/payload",
+            "payload 额外字段必须由 JsonUnmappedMemberHandling.Disallow 拒绝。"
+        );
+
+        ContentImportBatch<EnemyAiBrainImportModel> invalidActionValues = ImportBrainDocument(
+            BrainDocument(
+                "invalid_action_values",
+                "{\"kind\":\"use_unit_skill\",\"payload\":{\"action_id\":\"cast\","
+                    + "\"score_bucket_id\":\"test\",\"action_intent\":\"offense\","
+                    + "\"skill_ids\":[\"basic_attack\"],\"target_selector\":\"not_a_selector\","
+                    + "\"minimum_effective_target_count\":1,\"maximum_friendly_fire_target_count\":0,"
+                    + "\"allow_friendly_lethal\":false,\"desired_min_distance\":1,"
+                    + "\"desired_max_distance\":1,\"distance_reference\":\"not_a_reference\"}}"
+            )
+        );
+        AssertRejectedPointer(invalidActionValues, "/target_selector", "非法 selector 必须在发布前被拒绝。");
+        AssertRejectedPointer(invalidActionValues, "/distance_reference", "非法 distance reference 必须在发布前被拒绝。");
+
+        const string invalidFamilySlot =
+            "[{\"slot_id\":\"offense\",\"slot_role\":\"offense\",\"order\":0,"
+            + "\"allowed_affordances\":[\"unit_hostile.damage\"],"
+            + "\"action_families\":[\"not_a_family\"],\"style_template_action_id\":\"\","
+            + "\"score_bucket_id\":\"\",\"target_selector\":\"\","
+            + "\"desired_min_distance\":-1,\"desired_max_distance\":-1,"
+            + "\"distance_reference\":\"\",\"suppression_policy\":\"suppress_matching_family\"}]";
+        ContentImportBatch<EnemyAiBrainImportModel> invalidFamily = ImportBrainDocument(
+            BrainDocument(
+                "invalid_action_family",
+                $"{{\"kind\":\"wait\",\"payload\":{validWaitPayload}}}",
+                invalidFamilySlot
+            )
+        );
+        AssertRejectedPointer(invalidFamily, "/action_families/0", "非法 action family 必须在发布前被拒绝。");
+    }
+
+    private void AssertBrainImportRejected(
+        string json,
+        string ruleId,
+        string pointerSuffix,
+        string message
+    )
+    {
+        ContentImportBatch<EnemyAiBrainImportModel> batch = ImportBrainDocument(json);
+        _test.Eq(batch.Entries.Count, 0, message);
         _test.True(
-            error.Contains("invalid_unit_action", StringComparison.Ordinal)
-                && error.Contains("fixture_ground_skill", StringComparison.Ordinal)
-                && error.Contains("target_mode unit", StringComparison.Ordinal)
-                && error.Contains("found ground", StringComparison.Ordinal),
-            $"诊断应包含 action、skill 和期望/实际 target mode: {FormatErrors(errors)}"
+            batch.Diagnostics.Any(diagnostic =>
+                diagnostic.RuleId == ruleId
+                && diagnostic.JsonPointer.Contains(pointerSuffix, StringComparison.Ordinal)
+            ),
+            message
         );
     }
 
-    private void TestRegistryRejectsTemplateLevelWithoutCompatibleCastOption()
+    private void AssertRejectedPointer(
+        ContentImportBatch<EnemyAiBrainImportModel> batch,
+        string pointerSuffix,
+        string message
+    )
     {
-        CombatEffectDefinition damageEffect =
-            TestSkillDefinitionProjection.BuildEffect("damage");
-        SkillDefinition highLevelVariantSkill =
-            TestSkillDefinitionProjection.BuildSkill(
-                "fixture_level_five_unit_skill",
-                maxLevel: 5,
-                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
-                    "fixture_level_five_unit_skill",
-                    targetMode: "unit",
-                    castVariants: new[]
-                    {
-                        TestSkillDefinitionProjection.BuildCastVariant(
-                            "level_five_unit",
-                            5,
-                            new[] { damageEffect },
-                            targetMode: "unit",
-                            footprintPattern: "single",
-                            requiredCoordCount: 1
-                        ),
-                    }
-                )
-            );
-        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
-        {
-            [highLevelVariantSkill.SkillId] = highLevelVariantSkill,
-        };
-
-        UseUnitSkillAction action = TestResourceOwnership.Own(
-            new UseUnitSkillAction
-            {
-                action_id = "level_locked_unit_action",
-                desired_min_distance = 1,
-                desired_max_distance = 1,
-                DistanceReferenceKind = EnemyAiDistanceReference.TargetUnit,
-            },
-            "enemy_action_skill_level.action"
-        );
-        action.skill_ids.Add(highLevelVariantSkill.SkillId);
-
-        EnemyAiStateDef state = TestResourceOwnership.Own(
-            new EnemyAiStateDef
-            {
-                state_id = "engage",
-            },
-            "enemy_action_skill_level.state"
-        );
-        state.actions.Add(action);
-
-        EnemyAiBrainDef brain = TestResourceOwnership.Own(
-            new EnemyAiBrainDef
-            {
-                brain_id = "level_locked_brain",
-                default_state_id = state.state_id,
-            },
-            "enemy_action_skill_level.brain"
-        );
-        brain.states.Add(state);
-
-        EnemyTemplateDef template = TestResourceOwnership.Own(
-            new EnemyTemplateDef
-            {
-                template_id = "level_one_enemy",
-                display_name = "Level One Enemy",
-                brain_id = brain.brain_id,
-                cognition_kind = "sapient",
-                initial_state_id = state.state_id,
-            },
-            "enemy_action_skill_level.template"
-        );
-        template.tags.Add("beast");
-        template.skill_ids.Add(highLevelVariantSkill.SkillId);
-        template.skill_level_map[highLevelVariantSkill.SkillId] = 1;
-        foreach (
-            StringName attributeId in new StringName[]
-            {
-                "strength",
-                "agility",
-                "constitution",
-                "perception",
-                "intelligence",
-                "willpower",
-            }
-        )
-        {
-            template.base_attribute_overrides[attributeId] = 10;
-        }
-
-        EnemyContentSeed seed = TestResourceOwnership.Own(
-            new EnemyContentSeed(),
-            "enemy_action_skill_level.seed"
-        );
-        seed.enemy_ai_brains.Add(brain);
-        seed.enemy_templates.Add(template);
-
-        using TestContentResourceLoader loader = new();
-        loader.RegisterCanonical(SkillLevelMismatchSeedPath, seed);
-        using EnemyContentRegistry registry = new(loader, loadDefaultContent: false);
-        registry.ConfigureSeedResource(
-            SkillLevelMismatchSeedPath,
-            rebuildNow: false,
-            validateSeedDirCompleteness: false
-        );
-        registry.Rebuild(
-            new EnemyContentValidationContext(
-                new Dictionary<StringName, ItemDefinition>(),
-                skillDefinitions
-            )
-        );
-
-        IReadOnlyList<string> errors = registry.ValidateTyped();
-        _test.Eq(
-            errors.Count,
-            1,
-            $"只有模板实际等级无法解锁 unit variant 应被拒绝: {FormatErrors(errors)}"
-        );
-        string error = errors.Count == 1 ? errors[0] : "";
+        _test.Eq(batch.Entries.Count, 0, message);
         _test.True(
-            error.Contains("level_one_enemy", StringComparison.Ordinal)
-                && error.Contains("level_locked_unit_action", StringComparison.Ordinal)
-                && error.Contains(
-                    "fixture_level_five_unit_skill",
-                    StringComparison.Ordinal
-                )
-                && error.Contains("at level 1", StringComparison.Ordinal)
-                && error.Contains("at skill level 1", StringComparison.Ordinal),
-            $"等级诊断应包含 template、action、skill 和实际等级: {FormatErrors(errors)}"
+            batch.Diagnostics.Any(diagnostic =>
+                diagnostic.RuleId == EnemyContentImportRules.ValueUnsupported
+                && diagnostic.JsonPointer.EndsWith(pointerSuffix, StringComparison.Ordinal)
+            ),
+            message
         );
+    }
 
-        template.skill_level_map[highLevelVariantSkill.SkillId] = "invalid";
-        registry.Rebuild(
-            new EnemyContentValidationContext(
-                new Dictionary<StringName, ItemDefinition>(),
-                skillDefinitions
+    private static ContentImportBatch<EnemyAiBrainImportModel> ImportBrainDocument(string json) =>
+        EnemyContentJsonAuthoringDomains
+            .CreateBrainDescriptor(
+                "res://tests/fixtures/enemy_json",
+                new FakeSourceReader(new ContentJsonSourceText("fixture.json", json))
             )
-        );
+            .Import();
 
-        IReadOnlyList<string> malformedLevelErrors = registry.ValidateTyped();
-        _test.Eq(
-            malformedLevelErrors.Count,
-            1,
-            $"无效等级值只应报告等级 schema 根因，不应再用回退等级制造兼容性误报: "
-                + $"{FormatErrors(malformedLevelErrors)}"
-        );
-        string malformedLevelError =
-            malformedLevelErrors.Count == 1 ? malformedLevelErrors[0] : "";
-        _test.True(
-            malformedLevelError.Contains(
-                "skill_level_map[fixture_level_five_unit_skill] must be an int",
-                StringComparison.Ordinal
-            )
-                && !malformedLevelError.Contains(
-                    "incompatible skill",
-                    StringComparison.Ordinal
-                ),
-            $"无效等级值应由 skill_level_map schema 独占诊断: {FormatErrors(malformedLevelErrors)}"
-        );
-    }
+    private static string BrainDocument(
+        string brainId,
+        string action,
+        string generationSlots = "[]"
+    ) =>
+        "{\"schema\":1,\"domain\":\"enemy_ai_brains\",\"family\":\"fixture\","
+        + "\"templates\":{},\"entries\":[{"
+        + $"\"brain_id\":\"{brainId}\",\"default_state_id\":\"idle\",\"score_profile\":null,"
+        + "\"states\":[{\"state_id\":\"idle\","
+        + $"\"actions\":[{action}],\"generation_slots\":{generationSlots}}}],"
+        + "\"transition_rules\":[]}]}";
 
-    private static string FormatErrors(IEnumerable<string> errors)
+    private sealed class FakeSourceReader : IContentJsonSourceReader
     {
-        List<string> values = new();
-        foreach (string error in errors)
-        {
-            values.Add(error ?? "");
-        }
-        return values.Count == 0 ? "[]" : $"[{string.Join(" | ", values)}]";
+        private readonly IReadOnlyList<ContentJsonSourceText> _sources;
+
+        internal FakeSourceReader(params ContentJsonSourceText[] sources) => _sources = sources;
+
+        public IReadOnlyList<ContentJsonSourceText> ReadUtf8Documents(string directoryPath) =>
+            _sources;
     }
 
-    private static IEnumerable<Type> EnumerateTypeGraph(Type root)
+    private void TestSharedWolfEncounterBehavior()
     {
-        var pending = new Stack<Type>();
-        var visited = new HashSet<Type>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            Type current = pending.Pop();
-            if (current == null || !visited.Add(current))
-                continue;
-            yield return current;
-            if (current.IsArray)
-                pending.Push(current.GetElementType());
-            if (current.IsGenericType)
-            {
-                foreach (Type argument in current.GetGenericArguments())
-                    pending.Push(argument);
-            }
-            foreach (
-                PropertyInfo property in current.GetProperties(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                )
-            )
-            {
-                if (property.DeclaringType == current)
-                    pending.Push(property.PropertyType);
-            }
-        }
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        _test.True(snapshot.EncounterRosters.TryGetValue("wolf_pack_skirmish", out WildEncounterRosterDefinition roster), "共享荒狼 roster 应继续发布。");
+        if (roster == null) return;
+        _test.Eq(roster.GetStageUnitEntries(0).Count, 1, "stage 0 应保留单一狼群条目。");
+        _test.True(snapshot.BattleEncounters.ContainsKey("wolf_wilds"), "依赖 roster 的 battle encounter 应继续发布。");
     }
 
-    private static bool Throws<TException>(Action action)
-        where TException : Exception
+    private static bool Throws<TException>(Action action) where TException : Exception
     {
-        try
-        {
-            action();
-            return false;
-        }
-        catch (TException)
-        {
-            return true;
-        }
+        try { action(); return false; }
+        catch (TException) { return true; }
     }
-
 }

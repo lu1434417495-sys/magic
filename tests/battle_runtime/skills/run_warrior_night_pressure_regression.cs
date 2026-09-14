@@ -234,7 +234,7 @@ public partial class run_warrior_night_pressure_regression : LifecycleTestSceneT
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/warrior_night_pressure.tres",
+            "warrior_night_pressure",
             "warrior_night_pressure_regression"
         );
 

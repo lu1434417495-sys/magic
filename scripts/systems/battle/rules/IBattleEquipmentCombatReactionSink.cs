@@ -13,10 +13,16 @@ internal interface IBattleEquipmentCombatReactionSink
         BattleEquipmentAbilityAfterHitContext context
     );
 
+    BattleEquipmentAbilityAfterHitResult ResolveAttackHit(
+        BattleEquipmentAbilityAfterHitContext context
+    ) => null;
+
     IReadOnlyList<StringName> RefreshEquipmentProjectionAfterDurabilityDestruction(
         BattleUnitState targetUnit,
         BattleEventBatch batch = null
     );
 
     bool ResolveDamageApplied(BattleEquipmentAbilityDamageAppliedContext context);
+
+    bool ResolveDamageTakenFinalized(BattleEquipmentAbilityDamageAppliedContext context) => false;
 }

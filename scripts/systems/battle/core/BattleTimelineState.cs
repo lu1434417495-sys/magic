@@ -6,7 +6,6 @@ using GDictionary = Godot.Collections.Dictionary;
 // 翻译自 battle_timeline_state.gd（2026-05-24，数据层 C# 迁移）。
 public class BattleTimelineState
 {
-    internal const int TuGranularity = 5;
 
     private static readonly string[] SchemaFields =
     {
@@ -17,14 +16,14 @@ public class BattleTimelineState
     };
 
     public int current_tu { get; set; }
-    public int tu_per_tick { get; set; } = TuGranularity;
+    public int tu_per_tick { get; set; } = BattleTimeRules.TuGranularity;
     public bool frozen { get; set; }
     public StringNameList ready_unit_ids { get; set; } = new();
 
     public void clear()
     {
         current_tu = 0;
-        tu_per_tick = TuGranularity;
+        tu_per_tick = BattleTimeRules.TuGranularity;
         frozen = false;
         ready_unit_ids.Clear();
     }

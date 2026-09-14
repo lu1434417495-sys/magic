@@ -28,7 +28,7 @@ public partial class run_archer_harrier_mark_regression : LifecycleTestSceneTree
         SkillDefinition skill = LoadSkill();
         if (skill == null)
         {
-            _test.Fail("应能加载真实技能资源 res://data/configs/skills/archer_harrier_mark.tres。");
+            _test.Fail("应能加载真实技能资源 archer_harrier_mark。");
             return;
         }
 
@@ -212,7 +212,7 @@ public partial class run_archer_harrier_mark_regression : LifecycleTestSceneTree
 
     private static SkillDefinition LoadSkill() =>
         TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/archer_harrier_mark.tres",
+            "archer_harrier_mark",
             "archer_harrier_mark_regression"
         );
 

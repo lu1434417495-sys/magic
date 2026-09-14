@@ -16,13 +16,16 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
         internal int CommittedItemCount { get; private set; }
         private readonly List<BattleLootEntry> _overflowEntries = new();
         internal IReadOnlyList<BattleLootEntry> OverflowEntries => _overflowEntries;
+        private readonly List<BattleLootEntry> _materializedEntries = new();
+        internal IReadOnlyList<BattleLootEntry> MaterializedEntries => _materializedEntries;
 
         internal static ItemCommitResult Create(
             bool ok,
             string errorCode,
             string blockedItemId,
             int committedItemCount,
-            IEnumerable<BattleLootEntry> overflowEntries
+            IEnumerable<BattleLootEntry> overflowEntries,
+            IEnumerable<BattleLootEntry> materializedEntries = null
         )
         {
             var result = new ItemCommitResult
@@ -37,6 +40,15 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 BattleLootEntry duplicate = entry?.Duplicate();
                 if (duplicate != null)
                     result._overflowEntries.Add(duplicate);
+            }
+            foreach (
+                BattleLootEntry entry in materializedEntries
+                    ?? System.Array.Empty<BattleLootEntry>()
+            )
+            {
+                BattleLootEntry duplicate = entry?.Duplicate();
+                if (duplicate != null && !duplicate.IsEmpty)
+                    result._materializedEntries.Add(duplicate);
             }
             return result;
         }
@@ -194,6 +206,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             battleResolutionResult
         );
         battleResolutionResult.SetLootEntries(effectiveLootEntries);
+        var materializedLootEntries = new List<BattleLootEntry>();
 
         foreach (BattleLootEntry lootEntry in battleResolutionResult.loot_entries)
         {
@@ -228,6 +241,7 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                     );
                     continue;
                 }
+                materializedLootEntries.Add(lootEntry);
                 committedItemCount += instanceCommitResult.CommittedItemCount;
                 AppendOverflowEntries(overflowEntries, instanceCommitResult.OverflowEntries);
                 continue;
@@ -256,8 +270,10 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                         equipmentCommitResult,
                         "battle_loot_random_equipment_failed"
                     );
+                    materializedLootEntries.Add(lootEntry);
                     continue;
                 }
+                materializedLootEntries.AddRange(equipmentCommitResult.MaterializedEntries);
                 committedItemCount += equipmentCommitResult.CommittedItemCount;
                 AppendOverflowEntries(overflowEntries, equipmentCommitResult.OverflowEntries);
                 continue;
@@ -284,14 +300,17 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                     itemCommitResult,
                     "battle_loot_item_missing_def"
                 );
+                materializedLootEntries.Add(lootEntry);
                 continue;
             }
+            materializedLootEntries.Add(lootEntry);
             committedItemCount += itemCommitResult.CommittedItemCount;
             if (IsOrdinaryBattleCalamityConversionEntry(lootEntry))
                 MarkRegularBattleCalamityShardsCommitted(itemCommitResult.CommittedItemCount);
             AppendOverflowEntries(overflowEntries, itemCommitResult.OverflowEntries);
         }
 
+        battleResolutionResult.SetLootEntries(materializedLootEntries);
         battleResolutionResult.SetOverflowEntries(overflowEntries);
         var overflowItemId = battleResolutionResult.overflow_entries.Count > 0
             ? battleResolutionResult.overflow_entries[0].ItemId.ToString()
@@ -380,6 +399,8 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
             );
         var committedItemCount = 0;
         var overflowQuantity = 0;
+        var materializedEntries = new List<BattleLootEntry>();
+        int ordinaryRolledQuantity = 0;
         foreach (EquipmentInstanceState rolledInstance in rolledInstances)
         {
             if (rolledInstance == null)
@@ -404,15 +425,43 @@ internal sealed class GameRuntimeBattleLootCommitService : IDisposable
                 );
             if (addResult.RemainingQuantity > 0)
             {
+                _port.TryReturnUniqueWorldEquipmentLoot(rolledInstance);
                 overflowQuantity++;
                 continue;
             }
             committedItemCount++;
+            if (_port.IsUniqueWorldEquipmentItem(rolledItemId))
+            {
+                materializedEntries.Add(
+                    BattleLootEntry.CreateEquipmentInstance(
+                        lootEntry.SourceKind,
+                        lootEntry.SourceId,
+                        lootEntry.SourceLabel,
+                        new StringName(
+                            $"{lootEntry.DropEntryId}_{rolledInstance.instance_id}"
+                        ),
+                        rolledInstance
+                    )
+                );
+            }
+            else
+            {
+                ordinaryRolledQuantity++;
+            }
         }
+        if (ordinaryRolledQuantity > 0)
+            materializedEntries.Add(lootEntry.WithQuantity(ordinaryRolledQuantity));
         var overflowEntries = new List<BattleLootEntry>();
         if (overflowQuantity > 0)
             overflowEntries.Add(BuildBattleOverflowEntry(lootEntry, overflowQuantity));
-        return ItemCommitResult.Create(true, "", "", committedItemCount, overflowEntries);
+        return ItemCommitResult.Create(
+            true,
+            "",
+            "",
+            committedItemCount,
+            overflowEntries,
+            materializedEntries
+        );
     }
 
     private ItemCommitResult CommitEquipmentInstanceLootEntry(BattleLootEntry lootEntry)

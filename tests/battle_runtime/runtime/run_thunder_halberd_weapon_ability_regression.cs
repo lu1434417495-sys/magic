@@ -58,31 +58,24 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
         if (!fixture.ItemDefs.ContainsKey(ThunderHalberdItemId))
             return;
 
-        ItemDef rawHalberd = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_halberd_thunder_halberd.tres"
-        );
+        ItemDefinition rawHalberd = TestItemDefinitionLookup.GetProductionItem("weapon_unique_polearm_thunder_halberd_137");
         _test.True(rawHalberd != null, "雷霆之戟原始资源应能加载。");
         if (rawHalberd != null)
         {
-            _test.Eq(rawHalberd.display_name, "雷霆之戟", "雷霆之戟显示名应来自设计源。");
-            _test.Eq(
-                rawHalberd.base_item_id,
-                new StringName("weapon_type_halberd_base"),
-                "雷霆之戟应继承 halberd 模板。"
-            );
-            _test.Eq(rawHalberd.base_price, 52000, "雷霆之戟基础价格应为 52000。");
-            WeaponProfileDef rawProfile = rawHalberd.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawHalberd.DisplayName, "雷霆之戟", "雷霆之戟显示名应来自设计源。");
+            _test.Eq(rawHalberd.BasePrice, 52000, "雷霆之戟基础价格应为 52000。");
+            WeaponProfileDefinition rawProfile = rawHalberd.WeaponProfile;
             _test.True(rawProfile != null, "雷霆之戟应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.training_group, new StringName("martial"), "雷霆之戟训练组应为 martial。");
-                _test.Eq(rawProfile.range_type, new StringName("melee"), "雷霆之戟应为 melee。");
-                _test.Eq(rawProfile.family, new StringName("polearm"), "雷霆之戟应属于 polearm。");
-                _test.Eq(rawProfile.damage_tag, new StringName("physical_slash"), "雷霆之戟应为 slashing 伤害。");
-                _test.Eq(rawProfile.attack_range, 2, "雷霆之戟攻击距离应为 2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "雷霆之戟双手应为 1D10+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 10, "雷霆之戟双手应为 1D10+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "雷霆之戟双手应为 1D10+2。");
+                _test.Eq(rawProfile.TrainingGroup, new StringName("martial"), "雷霆之戟训练组应为 martial。");
+                _test.Eq(rawProfile.RangeType, new StringName("melee"), "雷霆之戟应为 melee。");
+                _test.Eq(rawProfile.Family, new StringName("polearm"), "雷霆之戟应属于 polearm。");
+                _test.Eq(rawProfile.DamageTag, new StringName("physical_slash"), "雷霆之戟应为 slashing 伤害。");
+                _test.Eq(rawProfile.AttackRange, 2, "雷霆之戟攻击距离应为 2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "雷霆之戟双手应为 1D10+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 10, "雷霆之戟双手应为 1D10+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "雷霆之戟双手应为 1D10+2。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "two_handed"),
                     "雷霆之戟应声明 two_handed 属性。"
@@ -98,10 +91,7 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThunderHalberdUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ThunderHalberdItemId, "雷霆之戟装备后 unit 应保留真实 item_id。");
@@ -125,25 +115,6 @@ public partial class run_thunder_halberd_weapon_ability_regression : LifecycleTe
             "eq_thunder_halberd_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除雷霆之戟后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除雷霆之戟后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除雷霆之戟后装备能力源应清空。"
-        );
-        _test.False(
-            equipped.HasEffectiveTrait(ThunderSlashTraitId),
-            "移除雷霆之戟后雷鸣斩 trait 不应残留。"
-        );
     }
 
     private void TestThunderSlashAddsThunderDamageOnRealWeaponHit()

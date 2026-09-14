@@ -408,7 +408,7 @@ internal static class LifecycleSoakStatistics
         AddOrdinalStringDifference(cycle, nameof(expected.NativeScopesByDomain), expected.NativeScopesByDomain, actual.NativeScopesByDomain, failures);
         AddOrdinalStringDifference(cycle, nameof(expected.ProjectionLeasesByDomain), expected.ProjectionLeasesByDomain, actual.ProjectionLeasesByDomain, failures);
         AddDifference(cycle, nameof(expected.SnapshotEpoch), expected.SnapshotEpoch, actual.SnapshotEpoch, failures);
-        AddOrdinalStringDifference(cycle, nameof(expected.ProcessContentRootFingerprint), expected.ProcessContentRootFingerprint, actual.ProcessContentRootFingerprint, failures);
+        AddDifference(cycle, nameof(expected.PublishedEngineAssetCount), expected.PublishedEngineAssetCount, actual.PublishedEngineAssetCount, failures);
         AddDifference(cycle, nameof(expected.UnknownOwnershipViolations), expected.UnknownOwnershipViolations, actual.UnknownOwnershipViolations, failures);
         AddDifference(cycle, nameof(expected.OwnerConflictViolations), expected.OwnerConflictViolations, actual.OwnerConflictViolations, failures);
         AddDifference(cycle, nameof(expected.EscapedLeaseViolations), expected.EscapedLeaseViolations, actual.EscapedLeaseViolations, failures);

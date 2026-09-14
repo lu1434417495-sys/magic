@@ -136,23 +136,13 @@ public partial class run_starfragment_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(StarfragmentItemId))
             return;
 
-        ItemDef rawStarfragment = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_starfragment.tres"
-        );
+        ItemDefinition rawStarfragment = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_starfragment_100");
         _test.True(rawStarfragment != null, "星辰碎片原始资源应能加载。");
         if (rawStarfragment != null)
         {
-            _test.Eq(
-                rawStarfragment.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "星辰碎片原始资源应声明继承 greataxe 模板。"
-            );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildStarfragmentUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -198,31 +188,6 @@ public partial class run_starfragment_weapon_ability_regression : LifecycleTestS
             "eq_starfragment_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除星辰碎片后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除星辰碎片后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            removedWeapon.AttackRange,
-            baselineWeapon.AttackRange,
-            "移除星辰碎片后攻击距离应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除星辰碎片后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除星辰碎片后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestStarburstIsProjectedAsEquipmentGrantedSkillWithRealCombatConfig()

@@ -11,14 +11,6 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
 {
-    private readonly Stack<BattleEffectOrigin> _effectOriginStack = new();
-
-    internal override void DisposeRuntime()
-    {
-        base.DisposeRuntime();
-        _effectOriginStack.Clear();
-    }
-
     internal void AppendResultReportEntry(
         BattleEventBatch batch,
         AttackEffectResolutionResult result
@@ -69,42 +61,14 @@ internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
             batch.AddLogLine(entryText);
     }
 
-    internal IDisposable PushEffectOrigin(BattleEffectOrigin origin)
-    {
-        _effectOriginStack.Push(origin ?? BattleEffectOrigin.PlayerCommand());
-        return new EffectOriginScope(this);
-    }
-
-    internal BattleEffectOrigin CurrentEffectOrigin =>
-        _effectOriginStack.Count > 0 ? _effectOriginStack.Peek() : BattleEffectOrigin.PlayerCommand();
+    private BattleEffectOrigin CurrentEffectOrigin =>
+        _runtime.EffectExecutionContext.CurrentForReporting;
 
     private void AttachCurrentEffectOrigin(Dictionary<string, object> reportEntry)
     {
         if (reportEntry == null || reportEntry.Count == 0)
             return;
         reportEntry["effect_origin"] = CurrentEffectOrigin.ToPlainDictionary();
-    }
-
-    private void PopEffectOrigin()
-    {
-        if (_effectOriginStack.Count > 0)
-            _effectOriginStack.Pop();
-    }
-
-    private sealed class EffectOriginScope : IDisposable
-    {
-        private BattleMetricsReportService _service;
-
-        internal EffectOriginScope(BattleMetricsReportService service)
-        {
-            _service = service;
-        }
-
-        public void Dispose()
-        {
-            _service?.PopEffectOrigin();
-            _service = null;
-        }
     }
 
     internal void RecordEnemyDefeatedAchievement(

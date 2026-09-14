@@ -5,18 +5,19 @@ using Godot;
 internal static class EnemySkillLevelGenerationService
 {
     private const int LegacyCoreLevel = 3;
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
 
     internal static void ApplyGeneratedLevels(
         BattleUnitState unitState,
         EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         long generationSeed,
-        int unitIndex
+        int unitIndex,
+        StringName basicAttackSkillId = default
     )
     {
         if (unitState == null)
             return;
+        basicAttackSkillId ??= "";
 
         ApplyConfiguredLevels(unitState, template);
         if (template?.GeneratedCoreSkillCount <= 0)
@@ -26,6 +27,7 @@ internal static class EnemySkillLevelGenerationService
             unitState,
             template,
             skillDefinitions,
+            basicAttackSkillId,
             generationSeed,
             unitIndex
         );
@@ -62,11 +64,16 @@ internal static class EnemySkillLevelGenerationService
         BattleUnitState unitState,
         EnemyTemplateDefinition template,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName basicAttackSkillId,
         long generationSeed,
         int unitIndex
     )
     {
-        List<StringName> candidates = CollectCoreCandidates(template, skillDefinitions);
+        List<StringName> candidates = CollectCoreCandidates(
+            template,
+            skillDefinitions,
+            basicAttackSkillId
+        );
         var random = new RuntimeRandom(
             BuildUnitSeed(generationSeed, template.TemplateId, unitIndex)
         );
@@ -97,7 +104,8 @@ internal static class EnemySkillLevelGenerationService
 
     private static List<StringName> CollectCoreCandidates(
         EnemyTemplateDefinition template,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
+        StringName basicAttackSkillId
     )
     {
         var candidates = new List<StringName>();
@@ -109,7 +117,7 @@ internal static class EnemySkillLevelGenerationService
             StringName skillId = new(rawSkillId.ToString());
             if (
                 skillId == ""
-                || skillId == BasicAttackSkillId
+                || (basicAttackSkillId != "" && skillId == basicAttackSkillId)
                 || !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
                 || ResolveCoreSkillLevel(skillDefinition) <= 0
             )

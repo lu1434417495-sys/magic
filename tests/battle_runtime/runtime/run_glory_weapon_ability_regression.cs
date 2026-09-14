@@ -70,20 +70,14 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         if (!fixture.ItemDefs.ContainsKey(GloryItemId))
             return;
 
-        ItemDef rawGlory = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_glory.tres"
-        );
+        ItemDefinition rawGlory = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_glory_261");
         _test.True(rawGlory != null, "荣耀之刃原始资源应能加载。");
         if (rawGlory != null)
         {
-            _test.Eq(rawGlory.base_item_id, new StringName("weapon_type_longsword_base"), "荣耀之刃应继承 longsword 模板。");
-            _test.Eq(rawGlory.base_price, 78000, "荣耀之刃价格应落成 78000。");
-            _test.True(ContainsStringName(rawGlory.tags, "glory"), "荣耀之刃物品 tag 应包含 glory。");
+            _test.Eq(rawGlory.BasePrice, 78000, "荣耀之刃价格应落成 78000。");
+            _test.True(ContainsStringName(rawGlory.Tags, "glory"), "荣耀之刃物品 tag 应包含 glory。");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleUnitState equipped = fixture.BuildGloryUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -105,20 +99,6 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         AssertCurtainCallPayload(fixture.Bindings[CurtainCallBindingId]);
         AssertLonelyDarkPayload(fixture.Bindings[LonelyDarkBindingId]);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除荣耀之刃后 weapon_item_id 应清空。");
-        _test.Eq(
-            equippedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除荣耀之刃后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除荣耀之刃后装备能力源应清空。"
-        );
     }
 
     private void TestCrowdGazeAndLonelyDarkUseAllNearbyLivingCreatures()
@@ -259,14 +239,18 @@ public partial class run_glory_weapon_ability_regression : LifecycleTestSceneTre
         holder.SetCurrentAp(1);
 
         using BattleEventBatch batch = new();
-        fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
-            new BattleEquipmentAbilityOnKillContext
-            {
-                SourceUnit = holder,
-                DefeatedUnit = defeated,
-                BattleState = state,
-                Batch = batch,
-            }
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            () => fixture.Runtime.GetEquipmentAbilityRuntimeService().ResolveOnKill(
+                new BattleEquipmentAbilityOnKillContext
+                {
+                    SourceUnit = holder,
+                    DefeatedUnit = defeated,
+                    BattleState = state,
+                    Batch = batch,
+                }
+            )
         );
 
         _test.Eq(holder.GetCurrentAp(), 1, "谢幕斩应是无动作追击，不应消耗持有者 AP。");

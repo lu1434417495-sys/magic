@@ -2,13 +2,17 @@ using Godot;
 
 internal static class CombatEffectContentRules
 {
+    private static readonly StringName TriggerEventAttackHit = "attack_hit";
     private static readonly StringName TriggerEventCriticalHit = "critical_hit";
     private static readonly StringName TriggerEventOrdinaryHit = "ordinary_hit";
     private static readonly StringName TriggerEventSecondaryHit = "secondary_hit";
+    private static readonly StringName TriggerEventForcedMoveApplied = "forced_move_applied";
     private static readonly StringName TriggerConditionBattleStart = "battle_start";
     private static readonly StringName TriggerConditionOnFatalDamage = "on_fatal_damage";
     private static readonly StringName LifetimePolicyTimed = "timed";
     private static readonly StringName LifetimePolicyBattle = "battle";
+    private static readonly StringName TargetOrderLowestHpPercentThenUnitId =
+        "lowest_hp_percent_then_unit_id";
 
     internal const double MinJumpArcRatio = 0.15;
 
@@ -16,12 +20,16 @@ internal static class CombatEffectContentRules
     {
         if (value == "")
             return CombatEffectTriggerEvent.None;
+        if (value == TriggerEventAttackHit)
+            return CombatEffectTriggerEvent.AttackHit;
         if (value == TriggerEventCriticalHit)
             return CombatEffectTriggerEvent.CriticalHit;
         if (value == TriggerEventOrdinaryHit)
             return CombatEffectTriggerEvent.OrdinaryHit;
         if (value == TriggerEventSecondaryHit)
             return CombatEffectTriggerEvent.SecondaryHit;
+        if (value == TriggerEventForcedMoveApplied)
+            return CombatEffectTriggerEvent.ForcedMoveApplied;
         return CombatEffectTriggerEvent.Unknown;
     }
 
@@ -45,14 +53,25 @@ internal static class CombatEffectContentRules
         return CombatEffectLifetimePolicy.Unknown;
     }
 
+    internal static CombatEffectTargetOrder ToTargetOrder(StringName value)
+    {
+        if (value == "")
+            return CombatEffectTargetOrder.None;
+        if (value == TargetOrderLowestHpPercentThenUnitId)
+            return CombatEffectTargetOrder.LowestHpPercentThenUnitId;
+        return CombatEffectTargetOrder.Unknown;
+    }
+
     internal static StringName ToStringName(CombatEffectTriggerEvent triggerEvent)
     {
         return triggerEvent switch
         {
             CombatEffectTriggerEvent.None => "",
+            CombatEffectTriggerEvent.AttackHit => TriggerEventAttackHit,
             CombatEffectTriggerEvent.CriticalHit => TriggerEventCriticalHit,
             CombatEffectTriggerEvent.OrdinaryHit => TriggerEventOrdinaryHit,
             CombatEffectTriggerEvent.SecondaryHit => TriggerEventSecondaryHit,
+            CombatEffectTriggerEvent.ForcedMoveApplied => TriggerEventForcedMoveApplied,
             _ => "",
         };
     }
@@ -74,6 +93,18 @@ internal static class CombatEffectContentRules
         {
             CombatEffectLifetimePolicy.Timed => LifetimePolicyTimed,
             CombatEffectLifetimePolicy.Battle => LifetimePolicyBattle,
+            _ => "",
+        };
+    }
+
+
+    internal static StringName ToStringName(CombatEffectTargetOrder targetOrder)
+    {
+        return targetOrder switch
+        {
+            CombatEffectTargetOrder.None => "",
+            CombatEffectTargetOrder.LowestHpPercentThenUnitId =>
+                TargetOrderLowestHpPercentThenUnitId,
             _ => "",
         };
     }

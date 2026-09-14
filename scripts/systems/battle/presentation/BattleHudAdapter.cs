@@ -144,16 +144,31 @@ public sealed class BattleHudAdapter : IDisposable
         DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             runtimePreview
         );
-        if (!saveBranchPreview.IsEmpty)
+        if (SaveBranchReplacesDamagePreview(runtimePreview))
             damagePreview = DamagePreviewSummary.Empty;
         FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             runtimePreview
         );
+        BattleShieldPreviewData shieldPreview = runtimePreview?.ShieldPreviewTyped;
+        BattleEquipmentDurabilityPreviewData equipmentDurabilityPreview =
+            runtimePreview?.EquipmentDurabilityPreviewTyped;
+        BattlePositionSwapPreviewData positionSwapPreview =
+            runtimePreview?.PositionSwapPreviewTyped;
+        BattleForcedMovePreviewData forcedMovePreview =
+            runtimePreview?.ForcedMovePreviewTyped;
+        BattleRangedWeaponReactionPreviewData rangedWeaponReactionPreview =
+            runtimePreview?.RangedWeaponReactionPreviewTyped;
         string tooltipText = BuildSelectedSkillPreviewTooltip(
             hitPreview,
             fatePreview,
             damagePreview,
-            saveBranchPreview
+            saveBranchPreview,
+            shieldPreview,
+            equipmentDurabilityPreview,
+            forcedMovePreview,
+            positionSwapPreview,
+            rangedWeaponReactionPreview,
+            runtimePreview?.StatusContributionPreviewsTyped
         );
         string headerTitle = !string.IsNullOrWhiteSpace(encounter_display_name)
             ? encounter_display_name
@@ -223,8 +238,86 @@ public sealed class BattleHudAdapter : IDisposable
             barrierSummaryText: BuildBarrierSummaryText(barrierSnapshots),
             objectiveProgress: new BattleHudObjectiveProgressSnapshot(
                 new BattleStateReadView(battle_state).ObjectiveProgress
-            )
+            ),
+            gearSetSummaries: BuildGearSetSummaries(focusUnit)
         );
+    }
+
+    private IReadOnlyList<BattleHudGearSetSummarySnapshot> BuildGearSetSummaries(
+        BattleUnitState focusUnit
+    )
+    {
+        var summaries = new List<BattleHudGearSetSummarySnapshot>();
+        IBattleHudContext context = _context;
+        if (
+            context == null
+            || focusUnit == null
+            || IsEmpty(focusUnit.source_member_id)
+        )
+        {
+            return summaries.AsReadOnly();
+        }
+        GearSetEvaluationSnapshot evaluation = context.EvaluateUnitGearSets(focusUnit);
+        if (evaluation == null || evaluation.ActiveSets.Count == 0)
+            return summaries.AsReadOnly();
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            GearSetGrantedActionProjection.Build(
+                evaluation,
+                focusUnit.GetEquipmentView(),
+                context.GetEquipmentAbilityBindings(),
+                context.GetTraitDefinitions(),
+                GetItemDefinitions(),
+                GetSkillDefinitions(),
+                GetBattleWorldStep()
+            );
+        foreach (GearSetActivationSummary set in evaluation.ActiveSets)
+        {
+            if (set == null)
+                continue;
+            var thresholds = new List<BattleHudGearSetThresholdSnapshot>();
+            foreach (GearSetThresholdStatus threshold in set.Thresholds)
+            {
+                if (threshold == null)
+                    continue;
+                thresholds.Add(
+                    new BattleHudGearSetThresholdSnapshot(
+                        threshold.ThresholdId.ToString(),
+                        threshold.DisplayName ?? "",
+                        threshold.RequiredPieceCount,
+                        threshold.IsActive
+                    )
+                );
+            }
+            var actions = new List<BattleHudGearSetGrantedActionSnapshot>();
+            foreach (GearSetGrantedActionSummary action in grantedActions)
+            {
+                if (action == null || action.GearSetId != set.GearSetId)
+                    continue;
+                actions.Add(
+                    new BattleHudGearSetGrantedActionSnapshot(
+                        action.GrantedActionId.ToString(),
+                        action.SkillId.ToString(),
+                        action.DisplayName ?? "",
+                        EquipmentAbilityUsagePeriodKinds.ToStringName(action.UsagePeriodKind).ToString(),
+                        action.MaxUsesPerPeriod,
+                        action.IsAvailable,
+                        action.RemainingUses,
+                        action.DisabledReason.ToString()
+                    )
+                );
+            }
+            summaries.Add(
+                new BattleHudGearSetSummarySnapshot(
+                    set.GearSetId.ToString(),
+                    set.DisplayName ?? "",
+                    set.EquippedPieceCount,
+                    set.TotalPieceCount,
+                    thresholds,
+                    actions
+                )
+            );
+        }
+        return summaries.AsReadOnly();
     }
 
     private static IReadOnlyList<BattleHudBarrierSnapshot> BuildBarrierSnapshots(
@@ -366,7 +459,7 @@ public sealed class BattleHudAdapter : IDisposable
         DamagePreviewSummary damagePreview = BuildSelectedSkillDamagePreview(
             hover_runtime_preview
         );
-        if (!saveBranchPreview.IsEmpty)
+        if (SaveBranchReplacesDamagePreview(hover_runtime_preview))
             damagePreview = DamagePreviewSummary.Empty;
         FatePreviewFacts fatePreview = BuildSelectedSkillFatePreview(
             hover_runtime_preview
@@ -483,7 +576,8 @@ public sealed class BattleHudAdapter : IDisposable
                     Mathf.Max(status.stacks, 0),
                     status.duration,
                     isDebuff,
-                    BuildStatusEffectTooltip(label, status, isDebuff)
+                    BuildStatusEffectTooltip(label, status, isDebuff),
+                    status.GetSourceContributionsTyped().Count
                 )
             );
         }
@@ -500,6 +594,23 @@ public sealed class BattleHudAdapter : IDisposable
         if (status.stacks > 1)
             parts.Add($"层数 {status.stacks}");
         parts.Add(status.HasDuration() ? $"剩余 {status.duration} TU" : "持续到战斗结束或被解除");
+        IReadOnlyList<BattleStatusSourceContributionState> contributions =
+            status.GetSourceContributionsTyped();
+        if (contributions.Count > 0)
+        {
+            parts.Add($"{contributions.Count} 个独立来源");
+            for (int index = 0; index < contributions.Count; index++)
+            {
+                BattleStatusSourceContributionState contribution = contributions[index];
+                string durationText = contribution.DurationTu >= 0
+                    ? $"剩余 {contribution.DurationTu} TU"
+                    : "持续到战斗结束或被解除";
+                parts.Add(
+                    $"来源 {index + 1}：{contribution.Stacks} 层，{durationText}，每 {contribution.TickIntervalTu} TU 结算"
+                );
+            }
+            parts.Add("不同来源分别叠加和计时；解除该状态会清除全部来源");
+        }
         return string.Join(" · ", parts);
     }
 
@@ -653,7 +764,8 @@ public sealed class BattleHudAdapter : IDisposable
                 new Color(0.16f, 0.1f, 0.07f, 1.0f),
                 new Color(0.88f, 0.72f, 0.48f, 1.0f),
                 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-                BattleUnitState.DefaultMovePointsPerTurn
+                BattleUnitState.DefaultMovePointsPerTurn,
+                BattleHudReactionBudgetSnapshot.Hidden
             );
         }
 
@@ -707,8 +819,31 @@ public sealed class BattleHudAdapter : IDisposable
             Mathf.Max(apMax, 1),
             combatResources.MovePoints,
             moveMax,
+            BuildReactionBudgetSnapshot(unitState),
             BuildStatusEffectSnapshots(unitState)
         );
+    }
+
+    private static BattleHudReactionBudgetSnapshot
+        BuildReactionBudgetSnapshot(BattleUnitState unitState)
+    {
+        if (
+            unitState == null
+            || unitState.source_member_id == new StringName("")
+        )
+        {
+            return BattleHudReactionBudgetSnapshot.Hidden;
+        }
+        BattleUnitReactionSnapshot snapshot =
+            unitState.CaptureReactionRawTyped();
+        return snapshot.OwnerPresent
+            ? new BattleHudReactionBudgetSnapshot(
+                true,
+                snapshot.ChargesRemaining,
+                snapshot.ChargeCapacity,
+                snapshot.NextRechargeAtTu
+            )
+            : BattleHudReactionBudgetSnapshot.Hidden;
     }
 
     private BattleHudResourceInfoSnapshot BuildResourceInfo(BattleUnitState unitState)
@@ -845,9 +980,9 @@ public sealed class BattleHudAdapter : IDisposable
                 StringName skillId = entry.EntryRef.SkillId;
                 SkillDefinition skillDefinition = entry.SkillDefinition;
                 string displayName = GetSkillDisplayName(skillDefinition, skillId);
-                string iconKey = GetSkillIconKey(skillDefinition, skillId);
+                string iconKey = GetSkillIconKey(skillDefinition);
                 Color accentColor = BuildSkillColor(iconKey, displayName);
-                SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId);
+                SkillSlotState slotState = BuildSkillSlotState(activeUnit, skillDefinition, skillId, entry.SkillLevel);
                 string description =
                     skillDefinition != null ? skillDefinition.Description.StripEdges() : "";
                 skillSlots.Add(
@@ -873,7 +1008,8 @@ public sealed class BattleHudAdapter : IDisposable
                         accentColor.Darkened(0.48f),
                         accentColor.Lightened(0.16f),
                         slotState.Cooldown,
-                        slotState.DisabledReason
+                        slotState.DisabledReason,
+                        BuildSkillTooltip(activeUnit, skillDefinition, entry.SkillLevel)
                     )
                 );
             }
@@ -882,6 +1018,42 @@ public sealed class BattleHudAdapter : IDisposable
         for (int index = skillSlots.Count; index < SKILL_GRID_SIZE; index++)
             skillSlots.Add(new BattleHudSkillSlotSnapshot(index, true));
         return skillSlots.AsReadOnly();
+    }
+
+    private BattleHudSkillTooltipSnapshot BuildSkillTooltip(
+        BattleUnitState unit, SkillDefinition definition, int level
+    )
+    {
+        if (definition?.CombatProfile == null)
+            return null;
+        SkillEffectiveCombatDefinition effective = GetEffectiveCombatDefinition(definition, level);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(unit, definition, level);
+        int range = BattleRangeService.GetEffectiveSkillRange(unit, definition, GetSkillCatalog());
+        var context = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["range"] = range, ["ap"] = costs.ApCost, ["mp"] = costs.MpCost,
+            ["stamina"] = costs.StaminaCost, ["aura"] = costs.AuraCost,
+            ["cooldown"] = costs.CooldownTu,
+            ["con_mod"] = unit?.attribute_snapshot?.GetValue("constitution_modifier") ?? 0,
+            ["will_mod"] = unit?.attribute_snapshot?.GetValue("willpower_modifier") ?? 0,
+        };
+        return new BattleHudSkillTooltipSnapshot(costs, range, effective.CastingTimeTu,
+            SkillLevelDescriptionFormatter.BuildLevelDescriptionTyped(definition, level, context),
+            effective.MpCostPerTargetSlot > 0 || effective.StaminaCostPerTargetSlot > 0,
+            BuildSkillMastery(unit, definition));
+    }
+
+    private BattleHudSkillMasterySnapshot BuildSkillMastery(BattleUnitState unit, SkillDefinition definition)
+    {
+        UnitProgress progression = GetPartyMemberState(unit?.source_member_id)?.progression;
+        UnitSkillProgress progress = progression?.GetSkillProgress(definition.SkillId);
+        if (progress?.is_learned != true)
+            return null;
+        int maxLevel = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(definition, progress, progression);
+        int required = progress.skill_level >= maxLevel ? 0
+            : definition.GetMasteryRequiredForLevel(progress.skill_level);
+        return new BattleHudSkillMasterySnapshot(progress.current_mastery, required,
+            progress.skill_level, maxLevel);
     }
 
     private BattleSkillAvailabilityView BuildSkillAvailabilityView(BattleUnitState activeUnit)
@@ -939,8 +1111,8 @@ public sealed class BattleHudAdapter : IDisposable
         BattleUnitState activeUnit
     )
     {
-        const string title = "队伍共享背包（战斗局部）";
-        const string meta = "仅显示本场战斗复制出的队伍共享背包；据点共享仓库入口战中不可用。";
+        const string title = "队伍随身背包";
+        const string meta = "可为当前行动成员更换随身装备；仓库物品需在据点取出。";
         if (battleState == null)
         {
             return new BattleHudEquipmentPanelSnapshot(
@@ -953,7 +1125,7 @@ public sealed class BattleHudAdapter : IDisposable
                 "当前没有可换装单位。",
                 Array.Empty<BattleHudEquipmentSlotSnapshot>(),
                 Array.Empty<BattleHudBackpackEntrySnapshot>(),
-                "battle-local view 尚未就绪。"
+                "正在读取背包装备。"
             );
         }
 
@@ -978,7 +1150,7 @@ public sealed class BattleHudAdapter : IDisposable
             disabledReason,
             slots,
             backpackEntries,
-            $"当前行动单位：{activeUnitName}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备实例 {backpackEntries.Count} 件"
+            $"当前行动单位：{activeUnitName}  |  换装消耗 {CHANGE_EQUIPMENT_AP_COST} AP  |  背包装备 {backpackEntries.Count} 件"
         );
     }
 
@@ -1465,7 +1637,7 @@ public sealed class BattleHudAdapter : IDisposable
 
     private static string GetItemIcon(ItemDefinition itemDefinition)
     {
-        return itemDefinition != null ? itemDefinition.Icon : "";
+        return itemDefinition != null ? itemDefinition.IconAssetId : "";
     }
 
     private static IReadOnlyList<string> BuildSlotLabels(IEnumerable<StringName> slotIds)
@@ -1495,10 +1667,11 @@ public sealed class BattleHudAdapter : IDisposable
     private SkillSlotState BuildSkillSlotState(
         BattleUnitState activeUnit,
         SkillDefinition skillDefinition,
-        StringName skillId
+        StringName skillId,
+        int skillLevel
     )
     {
-        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDefinition);
+        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDefinition, skillLevel);
         int apCost = costs.ApCost;
         int mpCost = costs.MpCost;
         int staminaCost = costs.StaminaCost;
@@ -1700,12 +1873,11 @@ public sealed class BattleHudAdapter : IDisposable
         return skillId.ToString();
     }
 
-    private static string GetSkillIconKey(SkillDefinition skillDefinition, StringName skillId)
-    {
-        if (skillDefinition != null && !IsEmpty(skillDefinition.IconId))
-            return skillDefinition.IconId.ToString();
-        return skillId.ToString();
-    }
+    private static string GetSkillIconKey(SkillDefinition skillDefinition) =>
+        skillDefinition?.IconId?.ToString() ?? "";
+
+    internal static string GetSkillIconKeyForTest(SkillDefinition skillDefinition) =>
+        GetSkillIconKey(skillDefinition);
 
     private IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions()
     {
@@ -1763,6 +1935,13 @@ public sealed class BattleHudAdapter : IDisposable
     private static BattlePresentationPayload BuildSelectedSkillSaveBranchPreview(
         BattlePreview selectedSkillPreview
     ) => BattlePresentationPayload.FromSaveBranch(selectedSkillPreview?.SaveBranchPreviewTyped);
+
+    private static bool SaveBranchReplacesDamagePreview(BattlePreview preview)
+    {
+        StringName kind = preview?.SaveBranchPreviewTyped?.Kind ?? "";
+        return kind == new StringName("execute")
+            || kind == new StringName("graded_save_execute");
+    }
 
     private FatePreviewFacts BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
@@ -1890,7 +2069,13 @@ public sealed class BattleHudAdapter : IDisposable
         AttackPreviewData hitPreview,
         FatePreviewFacts fatePreview,
         DamagePreviewSummary damagePreview,
-        BattlePresentationPayload saveBranchPreview
+        BattlePresentationPayload saveBranchPreview,
+        BattleShieldPreviewData shieldPreview,
+        BattleEquipmentDurabilityPreviewData equipmentDurabilityPreview,
+        BattleForcedMovePreviewData forcedMovePreview,
+        BattlePositionSwapPreviewData positionSwapPreview,
+        BattleRangedWeaponReactionPreviewData rangedWeaponReactionPreview,
+        IReadOnlyList<BattleStatusContributionPreviewData> statusContributionPreviews
     )
     {
         var sections = new List<string>();
@@ -1903,6 +2088,29 @@ public sealed class BattleHudAdapter : IDisposable
         string damageText = damagePreview.SummaryText;
         if (!string.IsNullOrEmpty(damageText))
             sections.Add(damageText);
+        string shieldText = shieldPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(shieldText))
+            sections.Add(shieldText);
+        string equipmentDurabilityText = equipmentDurabilityPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(equipmentDurabilityText))
+            sections.Add(equipmentDurabilityText);
+        string forcedMoveText = forcedMovePreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(forcedMoveText))
+            sections.Add(forcedMoveText);
+        string positionSwapText = positionSwapPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(positionSwapText))
+            sections.Add(positionSwapText);
+        string rangedWeaponReactionText = rangedWeaponReactionPreview?.SummaryText ?? "";
+        if (!string.IsNullOrEmpty(rangedWeaponReactionText))
+            sections.Add(rangedWeaponReactionText);
+        foreach (
+            BattleStatusContributionPreviewData statusPreview
+            in statusContributionPreviews ?? Array.Empty<BattleStatusContributionPreviewData>()
+        )
+        {
+            if (!string.IsNullOrEmpty(statusPreview?.SummaryText))
+                sections.Add(statusPreview.SummaryText);
+        }
         string fateTooltip = fatePreview?.TooltipText ?? "";
         if (!string.IsNullOrEmpty(fateTooltip))
             sections.Add(fateTooltip);
@@ -2142,13 +2350,34 @@ public sealed class BattleHudAdapter : IDisposable
 
     private CombatSkillResourceCosts GetEffectiveSkillCosts(
         BattleUnitState activeUnit,
-        SkillDefinition skillDefinition
+        SkillDefinition skillDefinition,
+        int skillLevel
     )
     {
         if (skillDefinition?.CombatProfile == null)
             return CombatSkillResourceCosts.Zero;
-        int skillLevel = GetUnitSkillLevel(activeUnit, skillDefinition.SkillId);
-        return GetEffectiveCombatDefinition(skillDefinition, skillLevel).ResourceCosts;
+        CombatSkillResourceCosts costs = GetEffectiveCombatDefinition(
+            skillDefinition,
+            skillLevel
+        ).GetResourceCostsForTargetSlots(1);
+        CombatDirectionalPiercingDefinition piercing =
+            skillDefinition.CombatProfile.DirectionalPiercing;
+        if (activeUnit == null || piercing == null)
+            return costs;
+        return costs with
+        {
+            StaminaCost = BattleDirectionalPiercingRules.CalculateStaminaCost(
+                piercing,
+                BattleRangeService.GetEffectiveSkillRange(
+                    activeUnit,
+                    skillDefinition,
+                    GetSkillCatalog()
+                ),
+                activeUnit.attribute_snapshot?.GetValue(
+                    new StringName("strength_modifier")
+                ) ?? 0
+            ),
+        };
     }
 
     private ISkillCatalog GetSkillCatalog()

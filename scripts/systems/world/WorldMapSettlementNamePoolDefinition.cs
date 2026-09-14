@@ -3,29 +3,19 @@ using System.Collections.Generic;
 
 public sealed class WorldMapSettlementNamePoolDefinition
 {
-    public WorldMapSettlementNamePoolDefinition(IReadOnlyList<string> displayNames)
+    public WorldMapSettlementNamePoolDefinition(
+        SettlementTierKind settlementTier,
+        IReadOnlyList<string> displayNames
+    )
     {
+        SettlementTier = settlementTier;
         DisplayNames = BuildUniqueDisplayNames(displayNames);
     }
 
+    public SettlementTierKind SettlementTier { get; }
     public IReadOnlyList<string> DisplayNames { get; }
 
     public IReadOnlyList<string> BuildUniqueDisplayNames() => DisplayNames;
-
-    internal static WorldMapSettlementNamePoolDefinition FromResource(
-        WorldMapSettlementNamePool source,
-        string path
-    )
-    {
-        if (source == null)
-            throw WorldDefinitionProjection.Invalid(path, "resource is null");
-        return new WorldMapSettlementNamePoolDefinition(
-            WorldDefinitionProjection.CopyStrings(
-                source.SettlementDisplayNamesProjectionBorrowed,
-                path + ".settlement_display_names"
-            )
-        );
-    }
 
     private static IReadOnlyList<string> BuildUniqueDisplayNames(
         IReadOnlyList<string> displayNames

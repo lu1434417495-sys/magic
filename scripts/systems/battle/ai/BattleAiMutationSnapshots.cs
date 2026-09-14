@@ -629,7 +629,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private StringName _enemyTemplateId = "";
     private StringName _encounterActorId = "";
     private string _displayName = "";
-    private string _battleSpriteTexturePath = "";
+    private StringName _battleSpriteAssetId = "";
     private StringName _factionId = "";
     private StringName _controlMode = "";
     private StringName _aiBrainId = "";
@@ -685,6 +685,7 @@ internal sealed class BattleUnitFieldsSnapshot
     private bool _damageResistanceStateOwnerPresent = true;
     private StringNameStringNameMapSnapshot _damageResistances = new();
     private StringNameIntMapSnapshot _saveBonusByAbility = new();
+    private StringNameIntMapSnapshot _saveBonusByTag = new();
     private bool _effectiveTraitStateOwnerPresent = true;
     private List<BattleEffectiveTraitInstanceState> _effectiveTraitInstances = new();
     private List<StringName> _effectiveTraitIds = new();
@@ -714,6 +715,11 @@ internal sealed class BattleUnitFieldsSnapshot
     private bool _weaponUsesTwoHands;
     private bool _weaponIsHeavy;
     private StringName _weaponPhysicalDamageTag = "";
+    private BattleUnitReactionSnapshot _reactionSnapshot =
+        BattleUnitReactionSnapshot.MissingOwner;
+    private BattleUnitCounterattackCapabilitySnapshot
+        _counterattackCapabilitySnapshot =
+            BattleUnitCounterattackCapabilitySnapshot.MissingOwner;
     private StringNameIntMapSnapshot _cooldowns = new();
     private int _lastTurnTu;
     private StringNameIntMapSnapshot _perBattleCharges = new();
@@ -742,7 +748,7 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._enemyTemplateId = unit.enemy_template_id;
         snapshot._encounterActorId = unit.encounter_actor_id;
         snapshot._displayName = unit.display_name;
-        snapshot._battleSpriteTexturePath = unit.battle_sprite_texture_path;
+        snapshot._battleSpriteAssetId = unit.battle_sprite_asset_id;
         snapshot._factionId = unit.faction_id;
         snapshot._controlMode = unit.control_mode;
         snapshot._aiBrainId = unit.ai_brain_id;
@@ -879,6 +885,9 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._saveBonusByAbility = StringNameIntMapSnapshot.FromTypedMap(
             saveModifiers.BonusByAbility
         );
+        snapshot._saveBonusByTag = StringNameIntMapSnapshot.FromTypedMap(
+            saveModifiers.BonusByTag
+        );
         BattleUnitEffectiveTraitSnapshot effectiveTraits =
             unit.CaptureEffectiveTraitsForMutationSnapshotExact();
         snapshot._effectiveTraitStateOwnerPresent =
@@ -933,6 +942,10 @@ internal sealed class BattleUnitFieldsSnapshot
         snapshot._weaponIsHeavy = weaponValues.IsHeavy;
         snapshot._weaponPhysicalDamageTag =
             weaponValues.PhysicalDamageTag;
+        snapshot._reactionSnapshot =
+            unit.CaptureReactionRawTyped();
+        snapshot._counterattackCapabilitySnapshot =
+            unit.CaptureCounterattackCapabilitiesRawTyped();
         BattleUnitCooldownSnapshot cooldownState =
             unit.CaptureCooldownForMutationSnapshotExact();
         snapshot._cooldowns = StringNameIntMapSnapshot.FromTypedMap(
@@ -984,10 +997,8 @@ internal sealed class BattleUnitFieldsSnapshot
                 : StableValue.FromText(_displayName)
         );
         result.Set(
-            "battle_sprite_texture_path",
-            _battleSpriteTexturePath == null
-                ? StableValue.Nil()
-                : StableValue.FromText(_battleSpriteTexturePath)
+            "battle_sprite_asset_id",
+            BattleAiMutationStableProjection.StableNullableStringName(_battleSpriteAssetId)
         );
         result.Set("faction_id", BattleAiMutationStableProjection.StableNullableStringName(_factionId));
         result.Set("control_mode", BattleAiMutationStableProjection.StableNullableStringName(_controlMode));
@@ -1111,6 +1122,10 @@ internal sealed class BattleUnitFieldsSnapshot
             StableSaveModifierBonus()
         );
         result.Set(
+            "save_bonus_by_tag",
+            StableSaveModifierTagBonus()
+        );
+        result.Set(
             "effective_trait_instances",
             !_effectiveTraitStateOwnerPresent
                 ? StableValue.FromText(
@@ -1197,6 +1212,36 @@ internal sealed class BattleUnitFieldsSnapshot
         result.Set("weapon_uses_two_hands", StableValue.FromBool(_weaponUsesTwoHands));
         result.Set("weapon_is_heavy", StableValue.FromBool(_weaponIsHeavy));
         result.Set("weapon_physical_damage_tag", BattleAiMutationStableProjection.StableNullableStringName(_weaponPhysicalDamageTag));
+        result.Set(
+            "reaction_state_owner_present",
+            StableValue.FromBool(
+                _reactionSnapshot.OwnerPresent
+            )
+        );
+        result.Set(
+            "reaction_state_raw",
+            StableValue.FromMap(
+                BattleAiMutationStableProjection
+                    .StableReactionStateRaw(
+                        _reactionSnapshot
+                    )
+            )
+        );
+        result.Set(
+            "counterattack_capability_state_owner_present",
+            StableValue.FromBool(
+                _counterattackCapabilitySnapshot.OwnerPresent
+            )
+        );
+        result.Set(
+            "counterattack_capabilities_raw",
+            StableValue.FromArray(
+                BattleAiMutationStableProjection
+                    .StableCounterattackCapabilitiesRaw(
+                        _counterattackCapabilitySnapshot.Values
+                    )
+            )
+        );
         result.Set("cooldowns", _cooldowns.ToStableValue());
         result.Set("last_turn_tu", StableValue.FromInteger(_lastTurnTu));
         result.Set("per_battle_charges", _perBattleCharges.ToStableValue());
@@ -1293,6 +1338,12 @@ internal sealed class BattleUnitFieldsSnapshot
     private StableValue StableSaveModifierBonus() =>
         _saveModifierStateOwnerPresent
             ? _saveBonusByAbility?.ToStableValue()
+                ?? StableValue.Nil()
+            : StableValue.FromText("<missing-save-modifier-owner>");
+
+    private StableValue StableSaveModifierTagBonus() =>
+        _saveModifierStateOwnerPresent
+            ? _saveBonusByTag?.ToStableValue()
                 ?? StableValue.Nil()
             : StableValue.FromText("<missing-save-modifier-owner>");
 

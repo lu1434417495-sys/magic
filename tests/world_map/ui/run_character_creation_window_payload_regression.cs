@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -13,11 +11,12 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
 
     private readonly TestHarness _test = new();
 
-    public override async void _Initialize()
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private async void Run()
     {
         try
         {
-            TestAgeStageSelectionUsesManagedStorage();
             await TestConfirmationPayloadIncludesRolledAttributesAndIdentity();
             await TestIdentityCardsPopulate();
         }
@@ -27,22 +26,6 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         }
 
         RequestTestExit(_test.Finish("Character creation window payload regression"));
-    }
-
-    private void TestAgeStageSelectionUsesManagedStorage()
-    {
-        FieldInfo field = typeof(CharacterCreationWindow).GetField(
-            "_ageStageIds",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(field != null, "建卡窗口应保留 age stage 选择集合。");
-        if (field == null)
-            return;
-
-        _test.True(
-            typeof(IReadOnlyList<StringName>).IsAssignableFrom(field.FieldType),
-            "建卡窗口长期保存的 age stage 选择应为 managed IReadOnlyList，而不是 Godot collection。"
-        );
     }
 
     private async Task TestConfirmationPayloadIncludesRolledAttributesAndIdentity()
@@ -62,8 +45,11 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
         window.character_confirmed += payload => capturedPayload = payload;
 
         window.ShowWindow();
+        _test.True(window.name_phase.IsVisibleInTree(), "创建初始阶段应只展示姓名输入。");
+        AssertUnrevealedContentHidden(window, "属性", "种族", "亚种", "年龄", "身份");
         window.name_input.Text = "Payload Probe";
         window._on_name_confirmed();
+        AssertUnrevealedContentHidden(window, "种族", "亚种", "年龄", "身份");
         window._enter_race_phase();
         window._enter_age_phase();
         window._enter_identity_options_phase();
@@ -113,6 +99,30 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
             window.race_card_flow.GetChildCount() > 0,
             "进入种族阶段后应渲染至少一张种族卡片。"
         );
+        for (int i = 0; i < 5; i++) await ToSignal(this, SignalName.ProcessFrame);
+        Control panel = window.GetNode<Control>("CenterContainer/Panel");
+        _test.True(panel.GetGlobalRect().Position.Y >= 0 && panel.GetGlobalRect().End.Y <= window.Size.Y + 1,
+            "完整种族列表不应把建卡弹窗撑出屏幕。");
+        _test.True(window.race_next_button.GetGlobalRect().End.Y <= window.Size.Y,
+            "种族页下一步按钮必须始终留在屏幕内。");
+        var scroll = window.race_phase.GetNode<ScrollContainer>("BodyScroll");
+        _test.True(scroll.Size.Y > 100, "种族卡片区应获得可滚动的有效高度。");
+
+        var input = new E2eInputDriver(this, new E2eWait(this));
+        var firstChoice = window.race_card_flow.GetChild<PanelContainer>(0).GetNode<Button>("Select");
+        StringName originalRace = window._selected_race_id;
+        await input.ClickAsync(firstChoice);
+        StringName clickedRace = window._selected_race_id;
+        _test.True(clickedRace != originalRace, "点击种族选项应穿过展示文字并切换正式身份选择。");
+        await input.ClickAsync(window.race_card_flow.GetChild<PanelContainer>(0).GetNode<Button>("Select"));
+        _test.Eq(window._selected_race_id, clickedRace, "再次点击已选种族不应取消选择。");
+
+        var secondChoice = window.race_card_flow.GetChild<PanelContainer>(1).GetNode<Button>("Select");
+        secondChoice.GrabFocus();
+        await input.TapKeyAsync(Key.Space);
+        _test.True(window._selected_race_id != clickedRace, "键盘确认应能切换种族选项。");
+        _test.True(window._build_selected_identity_payload().Count > 0,
+            "鼠标和键盘选择后仍应生成有效的创建身份 payload。");
 
         window._enter_age_phase();
         _test.True(
@@ -120,8 +130,29 @@ public partial class run_character_creation_window_payload_regression : Lifecycl
             "进入年龄阶段后应渲染至少一张阶段卡片。"
         );
 
+        int cancelledCount = 0;
+        window.cancelled += () => cancelledCount++;
+        for (int i = 0; i < 3; i++) await ToSignal(this, SignalName.ProcessFrame);
+        await input.ClickAsync(window.age_cancel_button);
+        _test.Eq(cancelledCount, 1, "当前阶段的放弃创建应发出一次取消信号。");
+        _test.False(window.Visible, "放弃创建后应关闭创建界面。");
+
         window.QueueFree();
         await ToSignal(this, SignalName.ProcessFrame);
+    }
+
+    private void AssertUnrevealedContentHidden(CharacterCreationWindow window, params string[] hiddenTopics)
+    {
+        foreach (Node node in window.FindChildren("*", "Control", true, false))
+        {
+            if (node is not Control control || !control.IsVisibleInTree())
+                continue;
+            string text = control switch { Label label => label.Text, Button button => button.Text, _ => "" };
+            _test.False(text.Contains("上一步") || text.Contains("下一步"),
+                "创建界面不应显示向导式上一步 / 下一步导航。");
+            foreach (string topic in hiddenTopics)
+                _test.False(text.Contains(topic), $"确认当前阶段之前不能预告后续内容：{topic}。");
+        }
     }
 
     private static string DictString(GDictionary data, string key)

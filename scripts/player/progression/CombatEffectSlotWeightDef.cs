@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public sealed partial class CombatEffectSlotWeightDef : Resource
+public sealed partial class CombatEffectSlotWeightDef : RefCounted
 {
     [Export] public StringName slot_id { get; set; } = "";
     [Export] public int weight { get; set; }

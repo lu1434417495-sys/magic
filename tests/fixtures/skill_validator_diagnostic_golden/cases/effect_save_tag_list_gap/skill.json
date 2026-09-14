@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_save_tag_list_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_save_tag_list_gap",
+      "display_name": "Save tag list diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_save_tag_list_gap",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "save_immunity_tags": [
+              "poison",
+              "poison"
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_save_tag_list_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

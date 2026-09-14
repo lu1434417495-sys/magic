@@ -12,11 +12,15 @@ internal sealed class EquipmentAttackDefenseAdjustment
     private readonly List<StringName> _ignoredAcComponents = new();
     private readonly List<AcComponentMultiplierEntry> _componentMultipliers = new();
 
+    internal bool LockAgilityBonus { get; private set; }
     internal bool LockDodgeBonus { get; private set; }
     internal IReadOnlyList<StringName> IgnoredAcComponents => _ignoredAcComponents;
 
     internal bool IsEmpty =>
-        !LockDodgeBonus && _ignoredAcComponents.Count == 0 && _componentMultipliers.Count == 0;
+        !LockAgilityBonus
+        && !LockDodgeBonus
+        && _ignoredAcComponents.Count == 0
+        && _componentMultipliers.Count == 0;
 
     internal void AddIgnoredAcComponent(StringName componentId)
     {
@@ -50,6 +54,11 @@ internal sealed class EquipmentAttackDefenseAdjustment
     internal void AddLockDodgeBonus()
     {
         LockDodgeBonus = true;
+    }
+
+    internal void AddLockAgilityBonus()
+    {
+        LockAgilityBonus = true;
     }
 
     internal bool ShouldIgnoreAcComponent(StringName componentId)

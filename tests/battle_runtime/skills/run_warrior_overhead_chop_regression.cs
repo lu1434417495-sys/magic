@@ -14,7 +14,7 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
         try
         {
             SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
-                "res://data/configs/skills/warrior_overhead_chop.tres",
+                "warrior_overhead_chop",
                 "warrior_overhead_chop_regression"
             );
             TestAuthoredContract(skill);
@@ -321,7 +321,7 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
             BattleUnitState targetUnit,
             IEnumerable<CombatEffectDefinition> effectDefinitions,
             AttackCheckInput attackCheck,
-            AttackContext attackContext = null
+            AttackContext attackContext
         )
         {
             LastResult = base.ResolveAttackEffects(
@@ -362,5 +362,20 @@ public partial class run_warrior_overhead_chop_regression : LifecycleTestSceneTr
         public IReadOnlyList<BattleEquipmentAbilityDamageReductionResult> CollectDamageReductions(
             BattleEquipmentAbilityDamageReductionContext context
         ) => Array.Empty<BattleEquipmentAbilityDamageReductionResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationAuraResult> CollectMitigationAuras(
+            BattleEquipmentAbilityMitigationAuraContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationAuraResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityMitigationTierResult> CollectMitigationTiers(
+            BattleEquipmentAbilityMitigationTierContext context
+        ) => Array.Empty<BattleEquipmentAbilityMitigationTierResult>();
+
+        public IReadOnlyList<BattleEquipmentAbilityBonusDamageDiceResult>
+            CollectBonusDamageDiceForEffect(BattleEquipmentAbilityDirectDamageContext context)
+        {
+            return Array.Empty<BattleEquipmentAbilityBonusDamageDiceResult>();
+        }
+
     }
 }

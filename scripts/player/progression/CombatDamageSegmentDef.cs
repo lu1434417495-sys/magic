@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public sealed partial class CombatDamageSegmentDef : Resource
+public sealed partial class CombatDamageSegmentDef : RefCounted
 {
     [Export]
     public StringName damage_tag { get; set; } = "";
@@ -28,6 +28,9 @@ public sealed partial class CombatDamageSegmentDef : Resource
 
     [Export]
     public int dice_bonus { get; set; }
+
+    [Export]
+    public bool double_dice_on_critical { get; set; }
 
     [Export]
     public double pre_resistance_damage_multiplier { get; set; } = 1.0;

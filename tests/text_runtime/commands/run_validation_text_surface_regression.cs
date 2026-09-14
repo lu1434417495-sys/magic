@@ -188,7 +188,6 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
     private static ItemDefinition BuildInvalidSkillBookDefinition() =>
         new(
             "contract_invalid_skill_book",
-            "",
             "Invalid Skill Book",
             "Invalid skill-book fixture for validation text.",
             "",
@@ -214,17 +213,16 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             -1
         );
 
-    private static IReadOnlyDictionary<string, WorldGenerationDefinition> BuildInvalidWorldGenerations(
-        IReadOnlyDictionary<string, WorldGenerationDefinition> source
+    private static IReadOnlyDictionary<StringName, WorldGenerationDefinition> BuildInvalidWorldGenerations(
+        IReadOnlyDictionary<StringName, WorldGenerationDefinition> source
     )
     {
-        var result = new Dictionary<string, WorldGenerationDefinition>(
-            source ?? new Dictionary<string, WorldGenerationDefinition>(),
-            StringComparer.Ordinal
+        var result = new Dictionary<StringName, WorldGenerationDefinition>(
+            source ?? new Dictionary<StringName, WorldGenerationDefinition>()
         );
-        foreach ((string path, WorldGenerationDefinition definition) in result)
+        foreach ((StringName generationId, WorldGenerationDefinition definition) in result)
         {
-            result[path] = CloneWithMissingSettlement(definition);
+            result[generationId] = CloneWithMissingSettlement(definition);
             return result;
         }
         throw new InvalidOperationException(
@@ -236,7 +234,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
         WorldGenerationDefinition source
     ) =>
         new(
-            source.CanonicalPath,
+            source.GenerationId,
             source.Seed,
             source.WorldSizeInChunks,
             source.ChunkSize,
@@ -244,7 +242,7 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             source.PlayerVisionRange,
             source.ProceduralGenerationEnabled,
             source.ProceduralWildSpawnChunkChanceDenominator,
-            source.InjectDefaultMainWorldContent,
+            source.SharedContentId,
             source.ProceduralVillageCount,
             source.ProceduralTownCount,
             source.ProceduralCityCount,
@@ -282,10 +280,8 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return result;
         ConsoleProcessOutput.WriteStandard(result.Render());
-        _test.True(result.ok, $"命令失败：{commandText} | {result.message}");
+        _test.True(!result.skipped && result.ok, $"命令未实际执行或失败：{commandText} | {result.message}");
         return result;
     }
 

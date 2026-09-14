@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -9,26 +10,27 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 internal sealed class BattleSkillPreviewService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+
+    private WeakReference<IBattleSkillPreviewRuntimePort> _runtimeRef;
     private BattleSkillExecutionOrchestrator _owner;
     private BattleSkillTargetValidationService _targetValidationService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleSkillPreviewRuntimePort _runtime
     {
         get =>
             _runtimeRef != null
-            && _runtimeRef.TryGetTarget(out BattleRuntimeModule runtime)
+            && _runtimeRef.TryGetTarget(out IBattleSkillPreviewRuntimePort runtime)
                 ? runtime
                 : null;
         set =>
             _runtimeRef =
-                value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+                value != null ? new WeakReference<IBattleSkillPreviewRuntimePort>(value) : null;
     }
 
-    private BattleRuntimeModule Runtime => _runtime;
+    private IBattleSkillPreviewRuntimePort Runtime => _runtime;
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleSkillPreviewRuntimePort runtime,
         BattleSkillExecutionOrchestrator owner,
         BattleSkillTargetValidationService targetValidationService
     )
@@ -61,13 +63,13 @@ internal sealed class BattleSkillPreviewService
         BattlePreview preview
     )
     {
-        SkillDefinition skillDefinition = Runtime?.GetSkillDefinitionTyped(command.skill_id);
+        SkillDefinition skillDefinition = Runtime?.GetSkillDefinition(command.skill_id);
         if (skillDefinition?.CombatProfile == null)
         {
             preview.AddLogLine("技能或目标无效。");
             return;
         }
-        var runtime = _runtime as BattleRuntimeModule;
+        IBattleSkillPreviewRuntimePort runtime = _runtime;
         bool isMeteorSwarm =
             skillDefinition.CombatProfile.SpecialResolutionProfileId
             == new StringName("meteor_swarm");
@@ -76,14 +78,11 @@ internal sealed class BattleSkillPreviewService
             BattleSpecialProfileGateResult gateResult;
             using (new BattleAiTraceSpan("preview:skill.meteor_gate"))
             {
-                gateResult = runtime._special_profile_gate != null
-                    ? runtime._special_profile_gate.PreviewSkill(
-                        skillDefinition,
-                        command,
-                        active_unit,
-                        runtime._state
-                    )
-                    : null;
+                gateResult = runtime.PreviewSpecialProfileSkill(
+                    skillDefinition,
+                    command,
+                    active_unit
+                );
             }
             preview.special_profile_gate_result = gateResult;
             if (gateResult == null || !gateResult.Allowed)
@@ -107,14 +106,8 @@ internal sealed class BattleSkillPreviewService
                 preview.AddLogLine(blockReason);
                 return;
             }
-            if (runtime._meteor_swarm_resolver != null)
+            if (runtime.PopulateMeteorSwarmPreview(active_unit, command, skillDefinition, preview))
             {
-                runtime._meteor_swarm_resolver.PopulatePreview(
-                    active_unit,
-                    command,
-                    skillDefinition,
-                    preview
-                );
                 return;
             }
             preview.allowed = false;
@@ -126,7 +119,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:skill.resolve_options"))
         {
             bool allowRepeat = skillDefinition.CombatProfile.AllowRepeatTarget;
-            policy = Runtime?._skill_resolution_rules
+            policy = Runtime?.GetSkillResolutionRules()
                 ?.BuildSkillResolutionPolicy(
                     skillDefinition,
                     active_unit,
@@ -204,8 +197,14 @@ internal sealed class BattleSkillPreviewService
             return;
         }
         preview.ClearSourceRetreatPath();
+        preview.ClearSourceAdvancePath();
+        preview.ClearForcedMovePreview();
+        preview.ClearPositionSwapPreview();
         preview.ClearSaveBranchPreview();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
+        preview.ClearShieldPreview();
+        preview.ClearEquipmentDurabilityPreview();
+        preview.ClearStatusContributionPreviews();
+        castVariantDefinition ??= Runtime?.GetSkillResolutionRules()
             ?.ResolveUnitCastVariantDefinition(
                 skillDefinition,
                 active_unit,
@@ -219,6 +218,30 @@ internal sealed class BattleSkillPreviewService
         if (!string.IsNullOrEmpty(blockReason))
         {
             preview.AddLogLine(blockReason);
+            return;
+        }
+        if (
+            _owner.TryPreviewSequentialLineHitSkill(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                preview
+            )
+        )
+        {
+            return;
+        }
+        if (
+            _owner.TryPreviewLineThroughAttackSkill(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                preview
+            )
+        )
+        {
             return;
         }
         BattleWindupQuote? windupQuote = null;
@@ -250,9 +273,30 @@ internal sealed class BattleSkillPreviewService
                 castVariantDefinition
             );
         }
+        if (
+            validation.Allowed
+            && BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition)
+        )
+        {
+            string targetSlotCostBlockReason =
+                _owner._get_target_slot_cost_block_reason(
+                    active_unit,
+                    skillDefinition,
+                    validation.TargetUnits.Count
+                );
+            if (!string.IsNullOrEmpty(targetSlotCostBlockReason))
+            {
+                preview.allowed = false;
+                preview.AddLogLine(targetSlotCostBlockReason);
+                return;
+            }
+        }
         var previewTargetUnits = new List<BattleUnitReadView>();
         var previewTargetUnitIds = new List<StringName>();
         var barrierBlockLines = new List<string>();
+        BattleBarrierPreviewSession deterministicBarrierPreviewSession = null;
+        IReadOnlyList<CombatEffectDefinition> previewEffectDefinitions =
+            Array.Empty<CombatEffectDefinition>();
         bool hasDeterministicTargets = validation.TargetUnits.Count > 0;
         bool isRandomChain =
             skillDefinition?.CombatProfile?.TargetSelectionModeKind
@@ -261,8 +305,7 @@ internal sealed class BattleSkillPreviewService
             isRandomChain && validation.RandomChainCandidateUnitIds.Count > 0;
         if (validation.Allowed && (hasDeterministicTargets || hasRandomChainCandidates))
         {
-            IReadOnlyList<CombatEffectDefinition> previewEffectDefinitions =
-                _owner.CollectUnitSkillEffectDefinitions(
+            previewEffectDefinitions = _owner.CollectUnitSkillEffectDefinitions(
                     skillDefinition,
                     castVariantDefinition,
                     active_unit
@@ -275,30 +318,93 @@ internal sealed class BattleSkillPreviewService
                 );
             }
             BattleLayeredBarrierService layeredBarrierService =
-                Runtime?._layered_barrier_service;
+                Runtime?.GetLayeredBarrierService();
             if (hasDeterministicTargets)
             {
-                BattleBarrierPreviewSession barrierPreviewSession =
+                deterministicBarrierPreviewSession =
                     layeredBarrierService?.BeginSkillBarrierPreviewSession();
-                foreach (BattleUnitReadView targetUnit in validation.TargetUnits)
+                if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
                 {
-                    BattleBarrierInteractionResult barrierResult =
-                        layeredBarrierService?.PreviewSkillBarrierInteractionResult(
+                    foreach (BattleUnitReadView targetUnit in validation.TargetUnits)
+                    {
+                        IReadOnlyDictionary<
+                            CombatEffectDefinition,
+                            IReadOnlyList<BattleUnitReadView>
+                        > targetPlan = _owner.BuildUnitEffectTargetPlan(
                             active_unit,
-                            targetUnit,
                             skillDefinition,
                             previewEffectDefinitions,
-                            barrierPreviewSession,
-                            castVariantDefinition
-                        ) ?? new BattleBarrierInteractionResult(false, false);
-                    if (barrierResult.Blocked)
-                    {
-                        if (!string.IsNullOrEmpty(barrierResult.PreviewText))
-                            barrierBlockLines.Add(barrierResult.PreviewText);
-                        continue;
+                            new[] { targetUnit }
+                        );
+                        IReadOnlyList<CombatEffectDefinition> targetEffects =
+                            BattleSkillExecutionOrchestrator.CollectPlannedEffectsForTarget(
+                                previewEffectDefinitions,
+                                targetPlan,
+                                targetUnit.UnitId
+                            );
+                        if (targetEffects.Count == 0)
+                            continue;
+                        BattleBarrierInteractionResult barrierResult =
+                            layeredBarrierService?.PreviewSkillBarrierInteractionResult(
+                                active_unit,
+                                targetUnit,
+                                skillDefinition,
+                                targetEffects,
+                                deterministicBarrierPreviewSession,
+                                castVariantDefinition
+                            ) ?? new BattleBarrierInteractionResult(false, false);
+                        if (barrierResult.Blocked)
+                        {
+                            if (!string.IsNullOrEmpty(barrierResult.PreviewText))
+                                barrierBlockLines.Add(barrierResult.PreviewText);
+                            continue;
+                        }
+                        previewTargetUnits.Add(targetUnit);
+                        previewTargetUnitIds.Add(targetUnit.UnitId);
                     }
-                    previewTargetUnits.Add(targetUnit);
-                    previewTargetUnitIds.Add(targetUnit.UnitId);
+                }
+                else
+                {
+                    IReadOnlyDictionary<
+                        CombatEffectDefinition,
+                        IReadOnlyList<BattleUnitReadView>
+                    > targetPlan = _owner.BuildUnitEffectTargetPlan(
+                        active_unit,
+                        skillDefinition,
+                        previewEffectDefinitions,
+                        validation.TargetUnits
+                    );
+                    IReadOnlyList<BattleUnitReadView> plannedTargets =
+                        BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                            previewEffectDefinitions,
+                            targetPlan
+                        );
+                    foreach (BattleUnitReadView targetUnit in plannedTargets)
+                    {
+                        IReadOnlyList<CombatEffectDefinition> targetEffects =
+                            BattleSkillExecutionOrchestrator.CollectPlannedEffectsForTarget(
+                                previewEffectDefinitions,
+                                targetPlan,
+                                targetUnit.UnitId
+                            );
+                        BattleBarrierInteractionResult barrierResult =
+                            layeredBarrierService?.PreviewSkillBarrierInteractionResult(
+                                active_unit,
+                                targetUnit,
+                                skillDefinition,
+                                targetEffects,
+                                deterministicBarrierPreviewSession,
+                                castVariantDefinition
+                            ) ?? new BattleBarrierInteractionResult(false, false);
+                        if (barrierResult.Blocked)
+                        {
+                            if (!string.IsNullOrEmpty(barrierResult.PreviewText))
+                                barrierBlockLines.Add(barrierResult.PreviewText);
+                            continue;
+                        }
+                        previewTargetUnits.Add(targetUnit);
+                        previewTargetUnitIds.Add(targetUnit.UnitId);
+                    }
                 }
             }
             else
@@ -381,6 +487,27 @@ internal sealed class BattleSkillPreviewService
                 }
             }
         }
+        BattleChainDamagePreviewData chainDamagePreview = null;
+        if (
+            validation.Allowed
+            && hasDeterministicTargets
+            && validation.TargetUnits.Count == 1
+            && previewTargetUnitIds.Contains(validation.TargetUnits[0].UnitId)
+        )
+        {
+            chainDamagePreview = BuildChainDamagePreview(
+                active_unit,
+                validation.TargetUnits[0],
+                skillDefinition,
+                castVariantDefinition,
+                previewEffectDefinitions,
+                deterministicBarrierPreviewSession,
+                previewTargetUnits,
+                previewTargetUnitIds,
+                barrierBlockLines
+            );
+        }
+        preview.SetChainDamagePreview(chainDamagePreview);
         bool hasPreviewImpactTargets = previewTargetUnits.Count > 0;
         IReadOnlyList<Vector2I> previewCoords = validation.PreviewCoords;
         if (
@@ -410,16 +537,37 @@ internal sealed class BattleSkillPreviewService
         }
         if (
             preview.allowed
-            && validation.TargetUnits.Count == 1
+            && previewTargetUnits.Count == 1
         )
         {
+            AppendPositionSwapPreview(
+                preview,
+                active_unit,
+                previewTargetUnits[0],
+                skillDefinition,
+                castVariantDefinition
+            );
             AppendSourceRetreatPreview(
                 preview,
                 active_unit,
-                validation.TargetUnits[0],
+                previewTargetUnits[0],
                 command,
                 skillDefinition,
                 castVariantDefinition
+            );
+            AppendAirbornePullPreview(
+                preview,
+                active_unit,
+                previewTargetUnits[0],
+                command,
+                skillDefinition,
+                castVariantDefinition
+            );
+            AppendApproachAttackPreview(
+                preview,
+                active_unit,
+                previewTargetUnits[0],
+                skillDefinition
             );
         }
         if (preview.allowed)
@@ -431,9 +579,16 @@ internal sealed class BattleSkillPreviewService
             {
                 using (new BattleAiTraceSpan("preview:unit_skill.hit_preview"))
                 {
+                    IReadOnlyList<BattleUnitReadView> hitPreviewTargets =
+                        BattleTargetSlotCostRules.UsesOrderedTargetSlots(
+                            skillDefinition
+                        )
+                        && previewTargetUnits.Count > 0
+                            ? new[] { previewTargetUnits[0] }
+                            : previewTargetUnits;
                     preview.hit_preview = _owner._build_unit_skill_hit_preview(
                         active_unit,
-                        previewTargetUnits,
+                        hitPreviewTargets,
                         skillDefinition,
                         castVariantDefinition
                     );
@@ -458,6 +613,41 @@ internal sealed class BattleSkillPreviewService
                     );
                 }
             }
+            preview.SetShieldPreview(
+                BuildShieldPreviewTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewEffectDefinitions,
+                    previewTargetUnitIds
+                )
+            );
+            preview.SetEquipmentDurabilityPreview(
+                BuildEquipmentDurabilityPreviewTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewEffectDefinitions,
+                    previewTargetUnitIds
+                )
+            );
+            preview.SetRangedWeaponReactionPreview(
+                BattleRangedWeaponReactionPreviewBuilder.Build(
+                    active_unit,
+                    skillDefinition,
+                    previewEffectDefinitions
+                )
+            );
+            foreach (
+                BattleStatusContributionPreviewData statusPreview
+                in BuildStatusContributionPreviewsTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewEffectDefinitions,
+                    previewTargetUnitIds
+                )
+            )
+            {
+                preview.AddStatusContributionPreview(statusPreview);
+            }
             using BattleAiTraceSpan logLinesTrace = new("preview:unit_skill.log_lines");
             string skillLabel = _owner._format_skill_variant_label(skillDefinition, castVariantDefinition);
             foreach (string barrierBlockLine in barrierBlockLines)
@@ -466,6 +656,66 @@ internal sealed class BattleSkillPreviewService
             {
                 preview.AddLogLine(
                     $"蓄力 {quotedWindup.Tier} 挡：{quotedWindup.TotalWindupTu} TU，{quotedWindup.TotalStaminaCost} 体力，伤害 {quotedWindup.WeaponDiceMultiplier}W；开始后不能主动取消。"
+                );
+            }
+            if (preview.ShieldPreviewTyped is BattleShieldPreviewData shieldPreview)
+            {
+                preview.AddLogLine(shieldPreview.SummaryText);
+            }
+            if (
+                preview.PositionSwapPreviewTyped
+                is BattlePositionSwapPreviewData positionSwapPreview
+            )
+            {
+                preview.AddLogLine(positionSwapPreview.SummaryText);
+            }
+            if (
+                preview.EquipmentDurabilityPreviewTyped
+                is BattleEquipmentDurabilityPreviewData durabilityPreview
+            )
+            {
+                preview.AddLogLine(durabilityPreview.SummaryText);
+            }
+            if (
+                preview.RangedWeaponReactionPreviewTyped
+                is BattleRangedWeaponReactionPreviewData rangedWeaponReactionPreview
+            )
+            {
+                preview.AddLogLine(rangedWeaponReactionPreview.SummaryText);
+            }
+            if (preview.ChainDamagePreviewTyped is BattleChainDamagePreviewData chainPreview)
+                preview.AddLogLine(chainPreview.SummaryText);
+            foreach (
+                BattleStatusContributionPreviewData statusPreview
+                in preview.StatusContributionPreviewsTyped
+            )
+            {
+                preview.AddLogLine(statusPreview.SummaryText);
+            }
+            if (BattleTargetSlotCostRules.UsesOrderedTargetSlots(skillDefinition))
+            {
+                int targetSlotCount = validation.TargetUnits.Count;
+                int skillLevel = active_unit.GetKnownSkillLevel(skillDefinition.SkillId);
+                CombatSkillResourceCosts selectedCosts =
+                    _owner._get_effective_skill_resource_costs(
+                        active_unit,
+                        skillDefinition,
+                        targetSlotCount
+                    );
+                int mpPerSlot = Math.Max(
+                    skillDefinition.CombatProfile.GetEffectiveMpCostPerTargetSlot(
+                        skillLevel
+                    ),
+                    0
+                );
+                int staminaPerSlot = Math.Max(
+                    skillDefinition.CombatProfile.GetEffectiveStaminaCostPerTargetSlot(
+                        skillLevel
+                    ),
+                    0
+                );
+                preview.AddLogLine(
+                    $"本次编排 {targetSlotCount} 发：单发 {mpPerSlot} 法力/{staminaPerSlot} 体力，合计 {selectedCosts.MpCost} 法力/{selectedCosts.StaminaCost} 体力。"
                 );
             }
             if (isRandomChain)
@@ -529,6 +779,262 @@ internal sealed class BattleSkillPreviewService
         );
     }
 
+    private BattleChainDamagePreviewData BuildChainDamagePreview(
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView primaryTarget,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        BattleBarrierPreviewSession normalBarrierSession,
+        List<BattleUnitReadView> previewTargetUnits,
+        List<StringName> previewTargetUnitIds,
+        List<string> barrierBlockLines
+    )
+    {
+        BattlePreparedChainDamage normalPrepared =
+            _owner.BuildPreparedChainPreviewPlan(
+                sourceUnit,
+                primaryTarget,
+                skillDefinition,
+                effectDefinitions,
+                backlashTriggered: false
+            );
+        if (!normalPrepared.IsConfigured)
+            return null;
+        BattleLayeredBarrierService barrierService = Runtime?.GetLayeredBarrierService();
+        BattleStateReadView state = _owner.RtState()?.AsReadView() ?? default;
+        List<BattleChainDamagePreviewHopData> normalHops = BuildChainPreviewHops(
+            normalPrepared,
+            sourceUnit,
+            skillDefinition,
+            castVariantDefinition,
+            normalBarrierSession,
+            barrierService,
+            state,
+            previewTargetUnits,
+            previewTargetUnitIds,
+            barrierBlockLines
+        );
+
+        BattlePreparedChainDamage backlashPrepared =
+            _owner.BuildPreparedChainPreviewPlan(
+                sourceUnit,
+                primaryTarget,
+                skillDefinition,
+                effectDefinitions,
+                backlashTriggered: true
+            );
+        var backlashHops = new List<BattleChainDamagePreviewHopData>();
+        if (backlashPrepared.IsConfigured)
+        {
+            BattleBarrierPreviewSession backlashBarrierSession =
+                barrierService?.BeginSkillBarrierPreviewSession();
+            BattleBarrierInteractionResult primaryBarrier =
+                barrierService?.PreviewSkillBarrierInteractionResult(
+                    sourceUnit,
+                    primaryTarget,
+                    skillDefinition,
+                    effectDefinitions,
+                    backlashBarrierSession,
+                    castVariantDefinition
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            if (!primaryBarrier.Blocked)
+            {
+                backlashHops = BuildChainPreviewHops(
+                    backlashPrepared,
+                    sourceUnit,
+                    skillDefinition,
+                    castVariantDefinition,
+                    backlashBarrierSession,
+                    barrierService,
+                    state,
+                    previewTargetUnits: null,
+                    previewTargetUnitIds: null,
+                    barrierBlockLines: null
+                );
+            }
+        }
+
+        string normalRoute = BuildChainRouteLabel(
+            state,
+            primaryTarget,
+            normalHops
+        );
+        string backlashRoute = BuildChainRouteLabel(
+            state,
+            primaryTarget,
+            backlashHops
+        );
+        string summary = $"普通连锁路线：{normalRoute}。";
+        if (!string.Equals(normalRoute, backlashRoute, StringComparison.Ordinal))
+            summary += $" 未受保护的大失败反噬潜在路线：{backlashRoute}。";
+        return new BattleChainDamagePreviewData(
+            primaryTarget.UnitId,
+            normalHops,
+            backlashHops,
+            summary
+        );
+    }
+
+    private static List<BattleChainDamagePreviewHopData> BuildChainPreviewHops(
+        BattlePreparedChainDamage prepared,
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition,
+        BattleBarrierPreviewSession barrierSession,
+        BattleLayeredBarrierService barrierService,
+        BattleStateReadView state,
+        List<BattleUnitReadView> previewTargetUnits,
+        List<StringName> previewTargetUnitIds,
+        List<string> barrierBlockLines
+    )
+    {
+        var result = new List<BattleChainDamagePreviewHopData>();
+        foreach (BattleChainDamageHopPlan hop in prepared.Plan.Hops)
+        {
+            BattleUnitReadView targetUnit = state.GetAliveUnit(hop.TargetUnitId);
+            if (!targetUnit.IsValid)
+                break;
+            BattleBarrierInteractionResult barrierResult =
+                barrierService?.PreviewSkillBarrierInteractionBetweenCoordsResult(
+                    sourceUnit,
+                    hop.OriginCoord,
+                    targetUnit,
+                    hop.TargetCoord,
+                    skillDefinition,
+                    prepared.TargetEffects,
+                    barrierSession,
+                    castVariantDefinition
+                ) ?? new BattleBarrierInteractionResult(false, false);
+            result.Add(
+                new BattleChainDamagePreviewHopData(
+                    hop.HopIndex,
+                    hop.OriginUnitId,
+                    hop.OriginCoord,
+                    hop.TargetUnitId,
+                    hop.TargetCoord,
+                    hop.Distance,
+                    hop.OutgoingRange,
+                    hop.OriginWasConductive,
+                    barrierResult.Blocked
+                )
+            );
+            if (barrierResult.Blocked)
+            {
+                if (
+                    barrierBlockLines != null
+                    && !string.IsNullOrEmpty(barrierResult.PreviewText)
+                )
+                    barrierBlockLines.Add(barrierResult.PreviewText);
+                break;
+            }
+            if (previewTargetUnitIds != null && !previewTargetUnitIds.Contains(targetUnit.UnitId))
+            {
+                previewTargetUnits?.Add(targetUnit);
+                previewTargetUnitIds.Add(targetUnit.UnitId);
+            }
+        }
+        return result;
+    }
+
+    private static string BuildChainRouteLabel(
+        BattleStateReadView state,
+        BattleUnitReadView primaryTarget,
+        IReadOnlyList<BattleChainDamagePreviewHopData> hops
+    )
+    {
+        var labels = new List<string>
+        {
+            string.IsNullOrEmpty(primaryTarget.DisplayName)
+                ? primaryTarget.UnitId.ToString()
+                : primaryTarget.DisplayName,
+        };
+        foreach (
+            BattleChainDamagePreviewHopData hop in hops
+                ?? Array.Empty<BattleChainDamagePreviewHopData>()
+        )
+        {
+            BattleUnitReadView target = state.GetUnit(hop.TargetUnitId);
+            string label = target.IsValid && !string.IsNullOrEmpty(target.DisplayName)
+                ? target.DisplayName
+                : hop.TargetUnitId.ToString();
+            labels.Add(hop.Blocked ? $"{label}（被屏障阻断）" : label);
+            if (hop.Blocked)
+                break;
+        }
+        return string.Join(" → ", labels);
+    }
+
+    private void AppendPositionSwapPreview(
+        BattlePreview preview,
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                sourceUnit
+            );
+        CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(
+            effectDefinitions
+        );
+        if (effect == null)
+            return;
+        BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?.GetLayeredBarrierService(),
+            sourceUnit,
+            targetUnit
+        );
+        if (!plan.Allowed)
+            return;
+
+        BattleSaveProbabilityResult probability = plan.RequiresEnemySave
+            ? BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                sourceUnit.UnsafeUnitForReadOnlyRules,
+                targetUnit.UnsafeUnitForReadOnlyRules,
+                effect,
+                BattleSaveContext.ForSkill(skillDefinition.SkillId)
+            )
+            : BattleSaveProbabilityResult.Empty("");
+        int swapProbabilityBasisPoints =
+            plan.RequiresEnemySave
+                ? probability.FailureProbabilityBasisPoints
+                : 10000;
+        string saveText = plan.RequiresEnemySave
+            ? $"；意志豁免成功率 {probability.SuccessProbabilityBasisPoints / 100.0:0.#}%"
+            : "；友军自愿换位，无需豁免";
+        preview.SetPositionSwapPreview(
+            new BattlePositionSwapPreviewData
+            {
+                SourceUnitId = sourceUnit.UnitId,
+                TargetUnitId = targetUnit.UnitId,
+                SourceFrom = plan.SourceFrom,
+                SourceTo = plan.SourceTo,
+                TargetFrom = plan.TargetFrom,
+                TargetTo = plan.TargetTo,
+                RequiresEnemySave = plan.RequiresEnemySave,
+                SaveDc = plan.RequiresEnemySave ? probability.Dc : 0,
+                SaveAbility = plan.RequiresEnemySave ? probability.Ability : "",
+                SaveTag = plan.RequiresEnemySave ? probability.SaveTag : "",
+                SaveSuccessProbabilityBasisPoints =
+                    plan.RequiresEnemySave
+                        ? probability.SuccessProbabilityBasisPoints
+                        : 0,
+                SwapProbabilityBasisPoints = swapProbabilityBasisPoints,
+                SummaryText =
+                    $"交换位置：施法者 ({plan.SourceFrom.X}, {plan.SourceFrom.Y}) → ({plan.SourceTo.X}, {plan.SourceTo.Y})，目标 ({plan.TargetFrom.X}, {plan.TargetFrom.Y}) → ({plan.TargetTo.X}, {plan.TargetTo.Y}){saveText}。",
+            }
+        );
+        preview.resolved_anchor_coord = plan.SourceTo;
+        preview.move_cost = 0;
+    }
+
     private void AppendSourceRetreatPreview(
         BattlePreview preview,
         BattleUnitReadView sourceUnit,
@@ -549,7 +1055,7 @@ internal sealed class BattleSkillPreviewService
         if (sourceRetreatEffect == null)
             return;
 
-        BattleSourceRetreatPlan plan = Runtime?._movement_service.BuildSourceRetreatPlan(
+        BattleSourceRetreatPlan plan = Runtime?.BuildSourceRetreatPlan(
             sourceUnit,
             targetUnit.Coord,
             command?.source_retreat_direction ?? Vector2I.Zero,
@@ -568,6 +1074,120 @@ internal sealed class BattleSkillPreviewService
         );
     }
 
+    private void AppendApproachAttackPreview(
+        BattlePreview preview,
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!BattleApproachAttackRules.IsApproachAttackSkill(skillDefinition))
+            return;
+
+        BattleApproachAttackPlan plan = Runtime?.BuildApproachAttackPlan(sourceUnit, targetUnit, skillDefinition);
+        if (plan?.Allowed != true)
+            return;
+
+        preview.SetSourceAdvancePath(plan.Path);
+        preview.resolved_anchor_coord = plan.FinalCoord;
+        preview.move_cost = 0;
+        preview.AddLogLine(
+            $"预计沿直线推进 {plan.AdvanceDistance} 格至武器射程内；所有路径格均须与起始格同高，且不消耗移动力。"
+        );
+    }
+
+    private void AppendAirbornePullPreview(
+        BattlePreview preview,
+        BattleUnitReadView sourceUnit,
+        BattleUnitReadView targetUnit,
+        BattleCommand command,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariantDefinition
+    )
+    {
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            _owner.CollectUnitSkillEffectDefinitions(
+                skillDefinition,
+                castVariantDefinition,
+                sourceUnit
+            );
+        CombatEffectDefinition effect = BattleAirbornePullRules.FindEffect(
+            effectDefinitions
+        );
+        if (effect == null)
+            return;
+        BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
+            _owner.RtState(),
+            Runtime?.GetGridService(),
+            Runtime?.GetLayeredBarrierService(),
+            sourceUnit,
+            targetUnit,
+            effect,
+            command?.forced_move_destination_coord ?? new Vector2I(-1, -1)
+        );
+        if (!plan.Allowed)
+            return;
+        preview.SetForcedMovePreview(
+            new BattleForcedMovePreviewData
+            {
+                Mode = BattleTypedNames.ToStringName(BattleForcedMoveMode.AirbornePull),
+                TargetUnitId = targetUnit.UnitId,
+                SourceCoord = plan.SourceCoord,
+                DestinationCoord = plan.DestinationCoord,
+                Distance = plan.Distance,
+                MaximumDistance = plan.MaximumDistance,
+                TargetBodySize = plan.TargetBodySize,
+                MaximumTargetBodySize = plan.MaximumTargetBodySize,
+                IgnoresIntermediateUnits = true,
+                IgnoresHeightDifference = true,
+                AppliesLandingContact = true,
+            }
+        );
+        string followUpSummary = BuildForcedMoveAppliedEffectPreviewSummary(effectDefinitions);
+        preview.AddLogLine(
+            $"预计将 {targetUnit.DisplayName} 升至空中并牵引 {plan.Distance} 格至 ({plan.DestinationCoord.X}, {plan.DestinationCoord.Y})；不经过中间单位格且不受高低差限制，落地时结算一次地形接触{followUpSummary}。"
+        );
+    }
+
+    private static string BuildForcedMoveAppliedEffectPreviewSummary(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        var parts = new List<string>();
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions
+            ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (
+                effectDefinition == null
+                || effectDefinition.TriggerEventKind
+                    != CombatEffectTriggerEvent.ForcedMoveApplied
+            )
+            {
+                continue;
+            }
+            if (effectDefinition.EffectKind == BattleEffectKind.EraseStatus)
+            {
+                StringName statusId = effectDefinition.StatusId != ""
+                    ? effectDefinition.StatusId
+                    : effectDefinition.TriggerStatusId;
+                if (statusId != "")
+                    parts.Add($"消耗状态“{statusId}”");
+            }
+            else if (
+                effectDefinition.EffectKind == BattleEffectKind.Status
+                || effectDefinition.EffectKind == BattleEffectKind.ApplyStatus
+            )
+            {
+                parts.Add(
+                    effectDefinition.DurationTu > 0
+                        ? $"施加 {effectDefinition.DurationTu}TU 状态“{effectDefinition.StatusId}”"
+                        : $"施加状态“{effectDefinition.StatusId}”"
+                );
+            }
+        }
+        return parts.Count > 0 ? $"，并在牵引成功后{string.Join("、", parts)}" : "";
+    }
+
     private IReadOnlyList<Vector2I> _collect_unit_skill_preview_coords(
         BattleUnitReadView activeUnit,
         SkillDefinition skillDefinition,
@@ -580,9 +1200,8 @@ internal sealed class BattleSkillPreviewService
             return Array.Empty<Vector2I>();
         IReadOnlyList<Vector2I> emptyTargetCoords = Array.Empty<Vector2I>();
         BattleTargetCollectionResult collectedTargetCoords =
-            Runtime?._target_collection_service.CollectCombatProfileTargetCoords(
+            Runtime?.CollectCombatProfileTargetCoords(
                 state,
-                Runtime.GetGridService(),
                 activeUnit.Coord,
                 combatProfile,
                 emptyTargetCoords,
@@ -624,12 +1243,29 @@ internal sealed class BattleSkillPreviewService
             return;
         }
         preview.ClearSaveBranchPreview();
-        castVariantDefinition ??= Runtime?._skill_resolution_rules
+        preview.ClearShieldPreview();
+        preview.ClearEquipmentDurabilityPreview();
+        preview.ClearForcedMovePreview();
+        preview.ClearDamagePreview();
+        preview.ClearStatusContributionPreviews();
+        castVariantDefinition ??= Runtime?.GetSkillResolutionRules()
             ?.ResolveGroundCastVariantDefinition(
                 skillDefinition,
                 active_unit,
                 command != null ? command.skill_variant_id : new StringName("")
             );
+        if (
+            _owner.TryPreviewDirectionalPiercingSkill(
+                active_unit,
+                command,
+                skillDefinition,
+                castVariantDefinition,
+                preview
+            )
+        )
+        {
+            return;
+        }
         string blockReason = _owner._get_skill_command_block_reason(
             active_unit,
             skillDefinition,
@@ -644,7 +1280,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:ground_skill.validate"))
         {
             validation =
-                Runtime?.ValidateGroundSkillCommandResultTyped(
+                Runtime?.ValidateGroundSkillCommandResult(
                     active_unit,
                     skillDefinition,
                     castVariantDefinition,
@@ -668,7 +1304,7 @@ internal sealed class BattleSkillPreviewService
                     ? active_unit.Coord
                     : new Vector2I(-1, -1);
                 IReadOnlyList<Vector2I> builtCoords =
-                    Runtime?.BuildGroundEffectCoordsTyped(
+                    Runtime?.BuildGroundEffectCoords(
                         skillDefinition,
                         validation.TargetCoords,
                         sourceCoord,
@@ -680,9 +1316,9 @@ internal sealed class BattleSkillPreviewService
             preview.resolved_anchor_coord = validation.ResolvedAnchorCoord;
             allowed = validation.Allowed;
             bool chargePathPreview = false;
-            if (allowed && Runtime?._charge_resolver != null)
+            if (allowed && Runtime?.GetChargeResolver() != null)
             {
-                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                CombatEffectDefinition pathStepAoeEffect = Runtime.GetChargeResolver()
                     .GetChargePathStepAoeEffectDefinition(
                         castVariantDefinition,
                         skillDefinition,
@@ -691,7 +1327,7 @@ internal sealed class BattleSkillPreviewService
                 if (pathStepAoeEffect != null)
                 {
                     chargePathPreview = true;
-                    previewCoords = Runtime._charge_resolver.BuildChargeStepAoePreviewCoords(
+                    previewCoords = Runtime.GetChargeResolver().BuildChargeStepAoePreviewCoords(
                         active_unit,
                         skillDefinition,
                         validation.Direction,
@@ -704,7 +1340,7 @@ internal sealed class BattleSkillPreviewService
             if (chargePathPreview)
             {
                 previewUnitEffectDefinitions =
-                    Runtime?.CollectGroundUnitEffectDefinitionsTyped(
+                    Runtime?.CollectGroundUnitEffectDefinitions(
                         skillDefinition,
                         castVariantDefinition,
                         active_unit
@@ -731,7 +1367,7 @@ internal sealed class BattleSkillPreviewService
         using (new BattleAiTraceSpan("preview:ground_skill.collect_unit_ids"))
         {
             IReadOnlyList<StringName> previewUnitIds =
-                Runtime?.CollectGroundPreviewUnitIdsTyped(
+                Runtime?.CollectGroundPreviewUnitIds(
                     active_unit,
                     skillDefinition,
                     previewUnitEffectDefinitions,
@@ -739,11 +1375,11 @@ internal sealed class BattleSkillPreviewService
                 ) ?? Array.Empty<StringName>();
             preview.SetTargetUnitIds(previewUnitIds);
         }
-        if (allowed && Runtime?._charge_resolver != null)
+        if (allowed && Runtime?.GetChargeResolver() != null)
         {
             using (new BattleAiTraceSpan("preview:ground_skill.path_step_aoe"))
             {
-                CombatEffectDefinition pathStepAoeEffect = Runtime._charge_resolver
+                CombatEffectDefinition pathStepAoeEffect = Runtime.GetChargeResolver()
                     .GetChargePathStepAoeEffectDefinition(
                         castVariantDefinition,
                         skillDefinition,
@@ -752,7 +1388,7 @@ internal sealed class BattleSkillPreviewService
                 if (pathStepAoeEffect != null)
                 {
                     StringName pathStepTargetFilter =
-                        Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+                        Runtime?.GetSkillResolutionRules()?.ResolveEffectTargetFilter(
                             skillDefinition,
                             pathStepAoeEffect
                         ) ?? new StringName("");
@@ -784,6 +1420,27 @@ internal sealed class BattleSkillPreviewService
         preview.allowed = allowed;
         if (preview.allowed)
         {
+            AppendGroundWindPushPreview(
+                preview,
+                active_unit,
+                skillDefinition,
+                previewUnitEffectDefinitions,
+                validation.TargetCoords
+            );
+            preview.SetDamagePreview(
+                BattleDamagePreviewRangeService.BuildSkillDamagePreview(
+                    active_unit,
+                    previewUnitEffectDefinitions
+                )
+            );
+            preview.SetShieldPreview(
+                BuildShieldPreviewTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewUnitEffectDefinitions,
+                    preview.TargetUnitIdsTyped
+                )
+            );
             preview.SetSaveBranchPreview(
                 BuildGroundSkillGradedSaveExecutePreview(
                     active_unit,
@@ -792,14 +1449,74 @@ internal sealed class BattleSkillPreviewService
                     preview.TargetUnitIdsTyped
                 )
             );
+            foreach (
+                BattleStatusContributionPreviewData statusPreview
+                in BuildStatusContributionPreviewsTyped(
+                    active_unit,
+                    skillDefinition,
+                    previewUnitEffectDefinitions,
+                    preview.TargetUnitIdsTyped
+                )
+            )
+            {
+                preview.AddStatusContributionPreview(statusPreview);
+            }
+            IReadOnlyList<CombatEffectDefinition> terrainEffectDefinitions =
+                Runtime?.CollectGroundTerrainEffectDefinitions(
+                    skillDefinition,
+                    castVariantDefinition,
+                    active_unit
+                ) ?? Array.Empty<CombatEffectDefinition>();
+            foreach (CombatEffectDefinition terrainEffect in terrainEffectDefinitions)
+            {
+                if (
+                    terrainEffect?.TerrainContactModeKind
+                    != CombatTerrainContactMode.InterruptMovementOnFailedSave
+                )
+                {
+                    continue;
+                }
+                preview.SetTerrainContactPreview(
+                    new BattleTerrainContactPreviewData(
+                        terrainEffect.TerrainContactMode,
+                        terrainEffect.SaveDc,
+                        terrainEffect.SaveAbility,
+                        terrainEffect.TerrainEffectiveTriggerCount,
+                        terrainEffect.DurationTu,
+                        terrainEffect.TerrainRecheckFromInside,
+                        terrainEffect.TerrainRequiresGroundContact
+                    )
+                );
+                break;
+            }
         }
         using (new BattleAiTraceSpan("preview:ground_skill.log_lines"))
         {
             if (preview.allowed)
             {
+                BattleTerrainContactPreviewData terrainContact =
+                    preview.TerrainContactPreviewTyped;
                 preview.AddLogLine(
-                    $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
+                    terrainContact != null
+                        ? $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，布置 {preview.TargetCoordsTyped.Count} 格地面机关：敏捷豁免 DC {terrainContact.SaveDc}，失败拦停，可有效阻挡 {terrainContact.EffectiveTriggerCount} 次，持续 {terrainContact.DurationTu}TU。"
+                        : $"{active_unit.DisplayName} 可使用 {_owner._format_skill_variant_label(skillDefinition, castVariantDefinition)}，预计影响 {preview.TargetCoordsTyped.Count} 个地格、{preview.TargetUnitIdsTyped.Count} 个单位。"
                 );
+                if (preview.ShieldPreviewTyped is BattleShieldPreviewData shieldPreview)
+                {
+                    preview.AddLogLine(shieldPreview.SummaryText);
+                }
+                if (preview.ForcedMovePreviewTyped is BattleForcedMovePreviewData forcedMovePreview)
+                {
+                    preview.AddLogLine(forcedMovePreview.SummaryText);
+                }
+                _owner._append_damage_preview_line(preview);
+                foreach (
+                    BattleStatusContributionPreviewData statusPreview
+                    in preview.StatusContributionPreviewsTyped
+                )
+                {
+                    preview.AddLogLine(statusPreview.SummaryText);
+                }
             }
             else
             {
@@ -809,6 +1526,59 @@ internal sealed class BattleSkillPreviewService
                         : validation.Message
                 );
             }
+        }
+    }
+
+    private void AppendGroundWindPushPreview(
+        BattlePreview preview,
+        BattleUnitReadView sourceUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<Vector2I> targetCoords
+    )
+    {
+        CombatEffectDefinition windPushEffect = BattleWindPushRules.FindEffect(
+            effectDefinitions
+        );
+        BattleState state = _owner.RtState();
+        if (
+            preview == null
+            || windPushEffect == null
+            || state == null
+            || !state.TryGetUnitTyped(sourceUnit.UnitId, out BattleUnitState mutableSource)
+            || mutableSource == null
+        )
+        {
+            return;
+        }
+        Vector2I direction =
+            targetCoords != null && targetCoords.Count > 0
+                ? targetCoords[0] - sourceUnit.Coord
+                : Vector2I.Zero;
+        BattleForcedMovePreviewData windPreview = BattleWindPushRules.BuildPreview(
+            state,
+            Runtime?.GetGridService(),
+            Runtime?.GetLayeredBarrierService(),
+            mutableSource,
+            windPushEffect,
+            preview.TargetUnitIdsTyped,
+            direction,
+            skillDefinition?.SkillId ?? new StringName("")
+        );
+        if (windPreview == null)
+            return;
+        preview.SetForcedMovePreview(windPreview);
+        if (BattleWindPushRules.IsPureWindPushEffectSet(effectDefinitions))
+        {
+            preview.SetTargetUnitIds(
+                windPreview.Targets
+                    .Where(target =>
+                        target != null
+                        && target.CanMoveOnFailedSave
+                        && target.SaveFailureProbabilityBasisPoints > 0
+                    )
+                    .Select(target => target.TargetUnitId)
+            );
         }
     }
 
@@ -830,7 +1600,7 @@ internal sealed class BattleSkillPreviewService
         }
 
         CombatEffectDefinition effectDefinition = FindFirstValidGradedSaveExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectGroundUnitEffectDefinitions(
+            Runtime?.GetSkillResolutionRules()?.CollectGroundUnitEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -852,7 +1622,7 @@ internal sealed class BattleSkillPreviewService
         }
 
         StringName targetFilter =
-            Runtime?._skill_resolution_rules?.ResolveEffectTargetFilter(
+            Runtime?.GetSkillResolutionRules()?.ResolveEffectTargetFilter(
                 skillDefinition,
                 effectDefinition
             ) ?? new StringName("");
@@ -1074,7 +1844,7 @@ internal sealed class BattleSkillPreviewService
         AttackEffectResolutionResult result
     )
     {
-        Runtime?._report_formatter.AppendDamageResultLogLines(
+        Runtime?.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -1093,7 +1863,7 @@ internal sealed class BattleSkillPreviewService
         {
             return null;
         }
-        List<CombatEffectDefinition> effectDefinitions = Runtime?._skill_resolution_rules
+        List<CombatEffectDefinition> effectDefinitions = Runtime?.GetSkillResolutionRules()
             ?.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
@@ -1108,10 +1878,214 @@ internal sealed class BattleSkillPreviewService
                 )
             );
         }
+        CombatEffectDefinition repeatAttackEffect = null;
+        foreach (CombatEffectDefinition effectDefinition in effectDefinitions)
+        {
+            if (
+                effectDefinition?.EffectKind
+                is BattleEffectKind.RepeatAttackUntilFail
+                    or BattleEffectKind.FixedRepeatAttack
+            )
+            {
+                repeatAttackEffect = effectDefinition;
+                break;
+            }
+        }
+        if (repeatAttackEffect != null)
+        {
+            int stageCount =
+                BattleRepeatAttackResolver.resolve_repeat_attack_preview_stage_count(
+                    active_unit,
+                    skillDefinition,
+                    repeatAttackEffect
+                );
+            effectDefinitions = BattleRepeatAttackResolver.BuildRepeatAttackPreviewEffects(
+                effectDefinitions,
+                repeatAttackEffect,
+                stageCount
+            );
+        }
         return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
             active_unit,
             effectDefinitions
         );
+    }
+
+    private IReadOnlyList<BattleStatusContributionPreviewData>
+        BuildStatusContributionPreviewsTyped(
+            BattleUnitReadView activeUnit,
+            SkillDefinition skillDefinition,
+            IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+            IReadOnlyList<StringName> targetUnitIds
+        )
+    {
+        var result = new List<BattleStatusContributionPreviewData>();
+        BattleState state = _owner.RtState();
+        if (
+            state == null
+            || !activeUnit.IsValid
+            || skillDefinition == null
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceUnit)
+        )
+        {
+            return result;
+        }
+
+        var relevantEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition
+            in effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (
+                ResolveStatusContributionPreviewStatusId(
+                    effectDefinition,
+                    out _,
+                    out _
+                ) != ""
+            )
+            {
+                relevantEffects.Add(effectDefinition);
+            }
+        }
+        if (relevantEffects.Count == 0)
+            return result;
+
+        var targetUnits = new List<BattleUnitState>();
+        foreach (StringName targetUnitId in targetUnitIds ?? Array.Empty<StringName>())
+        {
+            if (state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit))
+                targetUnits.Add(targetUnit);
+        }
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
+            _owner.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                relevantEffects,
+                targetUnits
+            );
+        BattleStatusSourceIdentity sourceIdentity = BattleStatusSourceIdentity.Skill(
+            activeUnit.UnitId,
+            skillDefinition.SkillId
+        );
+        foreach (CombatEffectDefinition effectDefinition in relevantEffects)
+        {
+            StringName statusId = ResolveStatusContributionPreviewStatusId(
+                effectDefinition,
+                out bool appliesOnSaveFailure,
+                out BattleStatusSemantic semantic
+            );
+            if (
+                statusId == ""
+                || !targetPlan.TryGetValue(
+                    effectDefinition,
+                    out IReadOnlyList<BattleUnitState> plannedTargets
+                )
+            )
+            {
+                continue;
+            }
+            foreach (BattleUnitState targetUnit in plannedTargets)
+            {
+                BattleStatusEffectState existing = targetUnit.GetStatusEffect(statusId);
+                BattleStatusSourceContributionState previousContribution =
+                    existing?.GetSourceContributionTyped(sourceIdentity);
+                BattleStatusEffectState merged = BattleStatusSemanticTable.MergeStatus(
+                    effectDefinition,
+                    activeUnit.UnitId,
+                    existing,
+                    statusId,
+                    sourceIdentity
+                );
+                if (
+                    semantic.StackingScope != BattleStatusStackingScope.SourceDefinition
+                    && effectDefinition.HealMultiplierPercent < 100
+                )
+                {
+                    if (merged == null)
+                        continue;
+                    result.Add(
+                        new BattleStatusContributionPreviewData(
+                            targetUnit.unit_id,
+                            targetUnit.display_name,
+                            statusId,
+                            sourceIdentity.KindId,
+                            sourceIdentity.SourceDefinitionId,
+                            appliesOnSaveFailure,
+                            existing == null,
+                            Math.Max(existing?.stacks ?? 0, 0),
+                            Math.Max(merged.stacks, 0),
+                            Math.Max(semantic.MaxStacks, 0),
+                            Math.Max(merged.stacks, 0),
+                            1,
+                            merged.duration,
+                            merged.tick_interval_tu,
+                            BattleStatusSemanticTable.GetDisplayLabel(statusId),
+                            effectDefinition.HealMultiplierPercent
+                        )
+                    );
+                    continue;
+                }
+                BattleStatusSourceContributionState resultContribution =
+                    merged?.GetSourceContributionTyped(sourceIdentity);
+                if (merged == null || resultContribution == null)
+                    continue;
+                result.Add(
+                    new BattleStatusContributionPreviewData(
+                        targetUnit.unit_id,
+                        targetUnit.display_name,
+                        statusId,
+                        sourceIdentity.KindId,
+                        sourceIdentity.SourceDefinitionId,
+                        appliesOnSaveFailure,
+                        previousContribution == null,
+                        Math.Max(previousContribution?.Stacks ?? 0, 0),
+                        Math.Max(resultContribution.Stacks, 0),
+                        Math.Max(semantic.MaxStacks, 0),
+                        Math.Max(merged.stacks, 0),
+                        merged.GetSourceContributionsTyped().Count,
+                        resultContribution.DurationTu,
+                        resultContribution.TickIntervalTu,
+                        BattleStatusSemanticTable.GetDisplayLabel(statusId)
+                    )
+                );
+            }
+        }
+        return result;
+    }
+
+    private static StringName ResolveStatusContributionPreviewStatusId(
+        CombatEffectDefinition effectDefinition,
+        out bool appliesOnSaveFailure,
+        out BattleStatusSemantic semantic
+    )
+    {
+        appliesOnSaveFailure = false;
+        semantic = default;
+        if (effectDefinition == null)
+            return "";
+        StringName statusId = "";
+        if (
+            effectDefinition.EffectKind == BattleEffectKind.Damage
+            && effectDefinition.SaveFailureStatusId != ""
+        )
+        {
+            statusId = effectDefinition.SaveFailureStatusId;
+            appliesOnSaveFailure = true;
+        }
+        else if (
+            effectDefinition.EffectKind
+            is BattleEffectKind.Status or BattleEffectKind.ApplyStatus
+        )
+        {
+            statusId = effectDefinition.StatusId;
+            appliesOnSaveFailure = effectDefinition.SaveDc > 0;
+        }
+        semantic = BattleStatusSemanticTable.GetSemantic(statusId);
+        return semantic.StackingScope == BattleStatusStackingScope.SourceDefinition
+            || effectDefinition.HealMultiplierPercent < 100
+            ? statusId
+            : new StringName("");
     }
 
     private BattleSaveBranchPreviewData BuildUnitSkillSaveBranchPreview(
@@ -1132,13 +2106,79 @@ internal sealed class BattleSkillPreviewService
             return null;
         }
 
-        var lookup = _targetValidationService.FindSingleExecuteEffect(
-            Runtime?._skill_resolution_rules?.CollectUnitSkillEffectDefinitions(
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions =
+            Runtime?.GetSkillResolutionRules()?.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
-            ) ?? new List<CombatEffectDefinition>()
-        );
+            ) ?? new List<CombatEffectDefinition>();
+
+        BattleState state = _owner.RtState();
+        if (
+            state == null
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceState)
+            || !state.TryGetUnitTyped(targetUnit.UnitId, out BattleUnitState targetState)
+        )
+        {
+            return null;
+        }
+
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if ((effectDefinition?.SaveFailureStatusOutcomes?.Count ?? 0) == 0)
+                continue;
+            BattleSaveProbabilityResult weightedProbability =
+                BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
+                    sourceState,
+                    targetState,
+                    effectDefinition,
+                    BattleSaveContext.ForSkill(skillDefinition.SkillId)
+                );
+            if (!weightedProbability.HasSave)
+                continue;
+            int weightedSaveSuccessBps = Mathf.Clamp(
+                weightedProbability.SuccessProbabilityBasisPoints,
+                0,
+                10000
+            );
+            int saveFailureBps = Mathf.Clamp(
+                weightedProbability.FailureProbabilityBasisPoints,
+                0,
+                10000
+            );
+            IReadOnlyList<BattleWeightedStatusOutcomePreviewData> outcomes =
+                BattleWeightedStatusOutcomeRules.BuildPreview(
+                    effectDefinition.SaveFailureStatusOutcomes,
+                    saveFailureBps
+                );
+            string outcomeText = string.Join(
+                " / ",
+                outcomes.Select(outcome =>
+                    $"{outcome.DisplayName} {FormatBasisPointPercent(outcome.ConditionalProbabilityBasisPoints)}"
+                )
+            );
+            return new BattleSaveBranchPreviewData
+            {
+                Kind = new StringName("weighted_status_on_save_failure"),
+                Branch = new StringName("save_failure_random_status"),
+                SaveTag = weightedProbability.SaveTag,
+                SaveAbility = weightedProbability.Ability,
+                SaveDc = weightedProbability.Dc,
+                SaveAdvantageState = weightedProbability.AdvantageState,
+                SaveSuccessChanceBasisPoints = weightedSaveSuccessBps,
+                HitChanceBasisPoints = saveFailureBps,
+                FailureBranchText = $"全额伤害并随机施加：{outcomeText}",
+                SuccessBranchText = "半额伤害且不施加控制",
+                SummaryText =
+                    $"豁免成功 {FormatBasisPointPercent(weightedSaveSuccessBps)} · 失败：全伤 + 随机控制（{outcomeText}） · 成功：半伤、无控制",
+                ResidualValues = BuildWeightedStatusOutcomePreviewPayload(outcomes),
+            };
+        }
+
+        var lookup = _targetValidationService.FindSingleExecuteEffect(effectDefinitions);
         if (lookup.Effect == null || !string.IsNullOrEmpty(lookup.ErrorMessage))
         {
             return null;
@@ -1150,16 +2190,6 @@ internal sealed class BattleSkillPreviewService
             BattleExecutionRuleParams.FromEffect(lookup.Effect, skillDefinition.SkillId)
         );
         if (!plan.CanExecute)
-        {
-            return null;
-        }
-
-        BattleState state = _owner.RtState();
-        if (
-            state == null
-            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceState)
-            || !state.TryGetUnitTyped(targetUnit.UnitId, out BattleUnitState targetState)
-        )
         {
             return null;
         }
@@ -1196,6 +2226,46 @@ internal sealed class BattleSkillPreviewService
         };
     }
 
+    private static IReadOnlyDictionary<string, object> BuildWeightedStatusOutcomePreviewPayload(
+        IReadOnlyList<BattleWeightedStatusOutcomePreviewData> outcomes
+    )
+    {
+        var outcomePayloads = new List<object>();
+        foreach (
+            BattleWeightedStatusOutcomePreviewData outcome in
+                outcomes ?? Array.Empty<BattleWeightedStatusOutcomePreviewData>()
+        )
+        {
+            if (outcome == null)
+                continue;
+            outcomePayloads.Add(
+                new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["outcome_id"] = outcome.OutcomeId.ToString(),
+                    ["status_id"] = outcome.StatusId.ToString(),
+                    ["display_name"] = outcome.DisplayName ?? "",
+                    ["weight"] = outcome.Weight,
+                    ["total_weight"] = outcome.TotalWeight,
+                    ["conditional_probability_basis_points"] =
+                        outcome.ConditionalProbabilityBasisPoints,
+                    ["application_probability_basis_points"] =
+                        outcome.ApplicationProbabilityBasisPoints,
+                    ["duration_tu"] = outcome.DurationTu,
+                    ["power"] = outcome.Power,
+                    ["attack_roll_penalty"] = outcome.AttackRollPenalty,
+                    ["lock_counterattack"] = outcome.LockCounterattack,
+                    ["lock_guard"] = outcome.LockGuard,
+                    ["lock_dodge_bonus"] = outcome.LockDodgeBonus,
+                    ["lock_crit"] = outcome.LockCrit,
+                }
+            );
+        }
+        return new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["save_failure_status_outcomes"] = outcomePayloads,
+        };
+    }
+
     private static string FormatBasisPointPercent(int basisPoints)
     {
         int clamped = Mathf.Clamp(basisPoints, 0, 10000);
@@ -1204,5 +2274,97 @@ internal sealed class BattleSkillPreviewService
             return $"{clamped / 100}%";
         }
         return $"{clamped / 100.0f:0.#}%";
+    }
+
+    private BattleShieldPreviewData BuildShieldPreviewTyped(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<StringName> targetUnitIds
+    )
+    {
+        BattleState state = _owner.RtState();
+        if (
+            state == null
+            || !activeUnit.IsValid
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceUnit)
+        )
+        {
+            return null;
+        }
+        var targetUnits = new List<BattleUnitState>();
+        foreach (StringName targetUnitId in targetUnitIds ?? Array.Empty<StringName>())
+        {
+            if (state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit))
+            {
+                targetUnits.Add(targetUnit);
+            }
+        }
+        var shieldEffects = new List<CombatEffectDefinition>();
+        foreach (
+            CombatEffectDefinition effectDefinition
+            in effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition?.EffectKind == BattleEffectKind.Shield)
+            {
+                shieldEffects.Add(effectDefinition);
+            }
+        }
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>> targetPlan =
+            _owner.BuildUnitEffectTargetPlan(
+                sourceUnit,
+                skillDefinition,
+                shieldEffects,
+                targetUnits
+            );
+        IReadOnlyList<BattleUnitState> shieldTargetUnits =
+            BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+                shieldEffects,
+                targetPlan
+            );
+        return BattleShieldPreviewRules.BuildPreview(
+            sourceUnit,
+            skillDefinition,
+            shieldEffects,
+            shieldTargetUnits
+        );
+    }
+
+    private BattleEquipmentDurabilityPreviewData BuildEquipmentDurabilityPreviewTyped(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
+        IReadOnlyList<StringName> targetUnitIds
+    )
+    {
+        BattleState state = _owner.RtState();
+        if (
+            state == null
+            || !activeUnit.IsValid
+            || !state.TryGetUnitTyped(activeUnit.UnitId, out BattleUnitState sourceUnit)
+            || targetUnitIds == null
+            || targetUnitIds.Count == 0
+            || !state.TryGetUnitTyped(targetUnitIds[0], out BattleUnitState targetUnit)
+        )
+        {
+            return null;
+        }
+        foreach (
+            CombatEffectDefinition effectDefinition in effectDefinitions
+                ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition?.EffectKind != BattleEffectKind.EquipmentDurabilityDamage)
+                continue;
+            return new BattleEquipmentDurabilityResolver().BuildPreview(
+                sourceUnit,
+                targetUnit,
+                effectDefinition,
+                skillDefinition?.SkillId ?? "",
+                Runtime?.GetItemDefIndex()
+            );
+        }
+        return null;
     }
 }

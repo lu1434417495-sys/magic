@@ -12,17 +12,274 @@ public partial class run_party_management_window_regression : LifecycleTestScene
 
     private readonly TestHarness _test = new();
 
-    public override async void _Initialize()
+    public override void _Initialize()
     {
-        await TestWindowUsesHalfViewportWithMinimumSize();
-        await TestLeaderToReserveEmitsRosterBeforeLeader();
-        await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
-        await TestMemberDetailsUseSkillDefinitionSnapshot();
-        await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
-        RequestTestExit(_test.Finish("Party management window regression"));
+        RunAfterProcessStartup(Run);
     }
 
-    private async Task TestWindowUsesHalfViewportWithMinimumSize()
+    private async void Run()
+    {
+        try
+        {
+            await TestWindowUsesBoundedReadableSize();
+            await TestLeaderToReserveEmitsRosterBeforeLeader();
+            await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
+            await TestMemberDetailsUseSkillDefinitionSnapshot();
+            await TestMemberDetailsUseInjectedCharacterManagementSnapshot();
+            await TestEquipmentTabRendersRealGearSetProgress();
+            await TestEquipmentTabShowsDragonScaleGrantedActionUsage();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Party management window regression"));
+        }
+    }
+
+    private async Task TestEquipmentTabRendersRealGearSetProgress()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        var manager = new CharacterManagementModule();
+        try
+        {
+            ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+            _test.True(
+                content.GearSets.TryGetValue(
+                    new StringName("phoenix_rebirth_set"),
+                    out GearSetDefinition phoenixSet
+                ),
+                "正式内容快照应包含凤凰重生套装。"
+            );
+            if (phoenixSet == null)
+                return;
+
+            PartyState partyState = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState hero = partyState.GetMemberState("hero");
+            for (int index = 0; index < 5; index++)
+            {
+                StringName itemId = phoenixSet.MemberItemIds[index];
+                _test.True(
+                    content.Items.TryGetValue(itemId, out ItemDefinition itemDefinition),
+                    $"正式内容快照应包含凤凰成员 {itemId}。"
+                );
+                if (itemDefinition == null)
+                    continue;
+                List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
+                _test.True(allowedSlots.Count > 0, $"凤凰成员 {itemId} 应声明装备槽位。");
+                if (allowedSlots.Count == 0)
+                    continue;
+                StringName entrySlotId = allowedSlots[0];
+                bool equipped = hero.equipment_state.SetEquippedEntry(
+                    entrySlotId,
+                    itemId,
+                    itemDefinition.GetFinalOccupiedSlotIdsTyped(entrySlotId),
+                    EquipmentInstanceState.CreateInstance(
+                        itemId,
+                        new StringName($"eq_party_window_phoenix_{index}")
+                    )
+                );
+                _test.True(equipped, $"测试应能把凤凰成员 {itemId} 装入 {entrySlotId}。");
+            }
+
+            manager.setup(
+                partyState,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetItemDefs(content.Items);
+            window.SetTraitDefs(content.Traits);
+            window.SetCharacterManagement(manager);
+            window.ShowParty(partyState);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备五件凤凰的成员。");
+            await ProcessFrames(1);
+
+            string equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("套装进度"), "战外装备页应展示套装进度区块。");
+            _test.True(equipmentText.Contains("凤凰重生"), "战外装备页应展示套装名称。");
+            _test.True(equipmentText.Contains("5/10件"), "战外装备页应展示当前五件与总十件。");
+            _test.True(
+                equipmentText.Contains("不灭心火") && equipmentText.Contains("已激活"),
+                "战外装备页应展示五件阈值已激活。"
+            );
+            _test.True(
+                equipmentText.Contains("余烬展翼") && equipmentText.Contains("未激活"),
+                "战外装备页应展示下一档七件阈值尚未激活。"
+            );
+        }
+        finally
+        {
+            await DisposeNode(window);
+            manager.Dispose();
+        }
+    }
+
+    private async Task TestEquipmentTabShowsDragonScaleGrantedActionUsage()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        var manager = new CharacterManagementModule();
+        try
+        {
+            ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+            _test.True(
+                content.GearSets.TryGetValue(
+                    new StringName("dragon_scale_set"),
+                    out GearSetDefinition dragonScaleSet
+                ),
+                "正式内容快照应包含龙鳞铠甲套装。"
+            );
+            if (dragonScaleSet == null)
+                return;
+
+            PartyState partyState = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState hero = partyState.GetMemberState("hero");
+            EquipDragonScalePieces(hero, content, new[] { 0, 1, 2, 3 }, "eq_party_window_dragon");
+
+            manager.setup(
+                partyState,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetItemDefs(content.Items);
+            window.SetTraitDefs(content.Traits);
+            window.SetSkillDefinitions(content.Skills);
+            window.SetEquipmentAbilityBindings(content.EquipmentAbilityBindings);
+            window.SetWorldStepProvider(() => 27);
+            window.SetCharacterManagement(manager);
+            window.ShowParty(partyState);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备四件龙鳞的成员。");
+            await ProcessFrames(1);
+
+            string equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("龙鳞铠甲"), "战外装备页应展示龙鳞铠甲套装名。");
+            _test.True(equipmentText.Contains("4/4件"), "战外装备页应展示四件已满。");
+            _test.True(
+                equipmentText.Contains("技能「龙血沸腾」："),
+                "四件激活时战外装备页应展示龙血沸腾 granted action。"
+            );
+            _test.True(
+                equipmentText.Contains("今日剩余 1/1 次"),
+                "未使用时战外装备页应展示龙血沸腾今日剩余 1/1 次。"
+            );
+
+            EquipmentInstanceState anchor = hero.equipment_state.GetEquippedInstance("head");
+            _test.True(anchor != null, "龙鳞头盔锚点实例应已装备。");
+            anchor?.ability_usage_periods.Add(
+                new EquipmentAbilityUsagePeriodState
+                {
+                    AbilityId = "grant.dragon_scale.oath.dragon_blood_boil",
+                    PeriodKind = "per_world_day",
+                    PeriodIndex = 1,
+                    UsedCount = 1,
+                }
+            );
+            window.RefreshView();
+            await ProcessFrames(1);
+
+            equipmentText = window.equipment_label.Text;
+            _test.True(
+                equipmentText.Contains("今日剩余 0/1 次"),
+                "当日已用后战外装备页应展示龙血沸腾剩余 0/1 次。"
+            );
+            _test.True(
+                equipmentText.Contains("次数已用完"),
+                "当日已用后战外装备页应展示龙血沸腾 disabled reason。"
+            );
+
+            PartyState twoPieceParty = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState twoPieceHero = twoPieceParty.GetMemberState("hero");
+            EquipDragonScalePieces(twoPieceHero, content, new[] { 0, 1 }, "eq_party_window_dragon_two");
+            manager.Dispose();
+            manager = new CharacterManagementModule();
+            manager.setup(
+                twoPieceParty,
+                content.Skills,
+                content.Professions,
+                content.Achievements,
+                content.Items,
+                content.Quests,
+                content.Traits,
+                () => new StringName("eq_party_window_unused"),
+                content.IdentityCatalog,
+                content.GearSets
+            );
+            window.SetCharacterManagement(manager);
+            window.ShowParty(twoPieceParty);
+            await ProcessFrames(1);
+            _test.True(window.SelectMember("hero"), "测试应能选中装备两件龙鳞的成员。");
+            await ProcessFrames(1);
+
+            equipmentText = window.equipment_label.Text;
+            _test.True(equipmentText.Contains("2/4件"), "两件时战外装备页应展示 2/4 件。");
+            _test.True(
+                equipmentText.Contains("屠龙者之誓") && equipmentText.Contains("未激活"),
+                "两件时战外装备页应展示四件阈值未激活。"
+            );
+            _test.False(
+                equipmentText.Contains("技能「龙血沸腾」："),
+                "两件时战外装备页不得展示四件阈值的龙血沸腾 granted action。"
+            );
+        }
+        finally
+        {
+            await DisposeNode(window);
+            manager.Dispose();
+        }
+    }
+
+    private void EquipDragonScalePieces(
+        PartyMemberState member,
+        ContentSnapshot content,
+        IReadOnlyList<int> memberIndexes,
+        string instanceLabel
+    )
+    {
+        content.GearSets.TryGetValue(
+            new StringName("dragon_scale_set"),
+            out GearSetDefinition dragonScaleSet
+        );
+        if (member == null || dragonScaleSet == null)
+            return;
+        foreach (int index in memberIndexes)
+        {
+            StringName itemId = dragonScaleSet.MemberItemIds[index];
+            if (!content.Items.TryGetValue(itemId, out ItemDefinition itemDefinition))
+                continue;
+            List<StringName> allowedSlots = itemDefinition.GetEquipmentSlotIdsTyped();
+            if (allowedSlots.Count == 0)
+                continue;
+            StringName entrySlotId = allowedSlots[0];
+            member.equipment_state.SetEquippedEntry(
+                entrySlotId,
+                itemId,
+                itemDefinition.GetFinalOccupiedSlotIdsTyped(entrySlotId),
+                EquipmentInstanceState.CreateInstance(
+                    itemId,
+                    new StringName($"{instanceLabel}_{index}")
+                )
+            );
+        }
+    }
+
+    private async Task TestWindowUsesBoundedReadableSize()
     {
         Root.Size = new Vector2I(1920, 1080);
         PartyManagementWindow window = await CreateWindow(new Vector2(1920, 1080));
@@ -30,7 +287,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         await ProcessFrames(1);
 
         Control panel = window.GetNode<Control>("%Panel");
-        AssertVector2Near(panel.CustomMinimumSize, new Vector2(960, 540), 0.1f, "1920x1080 下队伍管理窗口应使用半屏尺寸。");
+        AssertVector2Near(panel.CustomMinimumSize, new Vector2(1360, 850), 0.1f, "大屏下应扩大详情区并限制文本行宽。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/概览/OverviewLabel") != null, "概览应在右侧详情标签页内。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/属性/AttributesLabel") != null, "属性标签页应保留。");
         _test.True(window.GetNodeOrNull("CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备/EquipmentLabel") != null, "装备标签页应保留。");
@@ -45,7 +302,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         await ProcessFrames(1);
 
         panel = window.GetNode<Control>("%Panel");
-        AssertVector2Near(panel.CustomMinimumSize, new Vector2(860, 540), 0.1f, "小窗口下队伍管理窗口应使用可读保底尺寸。");
+        AssertVector2Near(panel.CustomMinimumSize, new Vector2(860, 574), 0.1f, "小窗口下队伍管理窗口应保留安全边距。");
         _test.True(panel.CustomMinimumSize.X <= 1000.0f - 96.0f, "保底宽度不应超过横向安全区域。");
         _test.True(panel.CustomMinimumSize.Y <= 700.0f - 60.0f, "保底高度不应超过纵向安全区域。");
 
@@ -304,12 +561,13 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "消耗 {ap_cost} AP，最大 {dynamic_max_level}；{custom_text}",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, SkillDescriptionVariables>
             {
-                [1] = new Dictionary<string, object>
+                [1] = new SkillDescriptionVariables(
+                    new Dictionary<string, string>
                 {
                     ["custom_text"] = "快照文本",
-                },
+                }),
             },
             BuildWindowCombatDefinition(skillId)
         );
@@ -337,13 +595,9 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             0,
             "",
             0,
-            new Dictionary<int, IReadOnlyDictionary<string, object>>
+            new Dictionary<int, CombatSkillLevelOverrideImportModel>
             {
-                [2] = new Dictionary<string, object>
-                {
-                    ["ap_cost"] = 5,
-                    ["cooldown_tu"] = 20,
-                },
+                [2] = new CombatSkillLevelOverrideImportModel(apCost: 5, cooldownTu: 20),
             },
             "",
             "",

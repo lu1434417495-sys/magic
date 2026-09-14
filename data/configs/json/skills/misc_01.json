@@ -1,0 +1,843 @@
+{
+  "entries": [
+    {
+      "skill_id": "basic_attack",
+      "display_name": "攻击",
+      "description": "基础攻击动作。使用当前武器、空手或天生武器的伤害骰与物理伤害类型。",
+      "max_level": 0,
+      "learn_source": "innate",
+      "tags": [
+        "basic",
+        "melee",
+        "output"
+      ],
+      "combat_profile": {
+        "skill_id": "basic_attack",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "add_weapon_dice": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "stamina_cost": 8,
+        "mastery_trigger_mode": "weapon_attack_quality",
+        "projectile_kind": "current_weapon"
+      },
+      "icon_id": "basic_attack"
+    },
+    {
+      "skill_id": "basic_meditation",
+      "icon_id": "basic_meditation",
+      "display_name": "基础冥想法",
+      "description": "最基础的冥想修炼法，用于感知、容纳并逐步增长法力。",
+      "skill_type": "passive",
+      "max_level": 5,
+      "learn_source": "player",
+      "tags": [
+        "meditation"
+      ],
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "mastery_sources": [
+        "training"
+      ],
+      "practice_tier": "basic",
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "black_contract_push",
+      "icon_id": "black_contract_push",
+      "runtime_behavior": "black_contract_push",
+      "display_name": "黑契推进",
+      "description": "主动失去生命 / Guard / 下一回合行动力，换取一次必定命中但不暴击的推进打击。",
+      "tags": [
+        "fate",
+        "misfortune",
+        "tactical",
+        "sacrifice"
+      ],
+      "combat_profile": {
+        "skill_id": "black_contract_push",
+        "attack_resolution_mode": "force_hit_no_crit",
+        "range_value": 5,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_blunt"
+          }
+        ],
+        "cast_variants": [
+          {
+            "variant_id": "blood_tithe",
+            "display_name": "血契",
+            "description": "主动失去生命，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          },
+          {
+            "variant_id": "guard_tithe",
+            "display_name": "护契",
+            "description": "主动拆解 Guard，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          },
+          {
+            "variant_id": "action_tithe",
+            "display_name": "行契",
+            "description": "主动透支下一回合行动力，换取一次必定命中但不暴击的推进打击。",
+            "target_mode": "unit"
+          }
+        ]
+      },
+      "mastery_curve": [
+        48
+      ]
+    },
+    {
+      "skill_id": "black_crown_seal",
+      "icon_id": "black_crown_seal",
+      "runtime_behavior": "black_crown_seal",
+      "display_name": "黑冠封印",
+      "description": "每战 1 次，只能对 boss 施放 1 回合封印：可选择不能反击或不能暴击。",
+      "tags": [
+        "fate",
+        "misfortune",
+        "seal",
+        "boss"
+      ],
+      "combat_profile": {
+        "skill_id": "black_crown_seal",
+        "range_value": 5,
+        "cast_variants": [
+          {
+            "variant_id": "counterattack_lock",
+            "display_name": "禁反击",
+            "description": "对 boss 施加 1 回合封印，目标不能反击。",
+            "target_mode": "unit",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "black_crown_seal_counterattack",
+                "counts_as_debuff_override": true,
+                "counts_as_debuff": true,
+                "lock_counterattack": true
+              }
+            ]
+          },
+          {
+            "variant_id": "crit_lock",
+            "display_name": "禁暴击",
+            "description": "对 boss 施加 1 回合封印，目标不能暴击。",
+            "target_mode": "unit",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "black_crown_seal_crit",
+                "counts_as_debuff_override": true,
+                "counts_as_debuff": true,
+                "lock_crit": true
+              }
+            ]
+          }
+        ]
+      },
+      "mastery_curve": [
+        52
+      ]
+    },
+    {
+      "skill_id": "black_star_brand",
+      "icon_id": "black_star_brand",
+      "runtime_behavior": "black_star_brand",
+      "display_name": "黑星烙印",
+      "description": "每战首次免费施放；之后每次施放消耗 1 点 calamity。普通敌人被封锁反击与格挡，elite/boss 则失去暴击、命中下降，并在第一次受击时被穿透部分格挡。",
+      "tags": [
+        "misfortune",
+        "doom",
+        "calamity"
+      ],
+      "combat_profile": {
+        "skill_id": "black_star_brand",
+        "range_value": 5
+      },
+      "mastery_curve": [
+        36
+      ]
+    },
+    {
+      "skill_id": "bow_training",
+      "icon_id": "bow_training",
+      "display_name": "弓术训练",
+      "description": "通过弓类武器的高质量攻击积累熟练度。",
+      "skill_type": "passive",
+      "max_level": 5,
+      "learn_source": "innate",
+      "tags": [
+        "weapon_training",
+        "bow",
+        "passive"
+      ],
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600
+      ],
+      "mastery_sources": [
+        "battle"
+      ],
+      "template": "max_level_5"
+    },
+    {
+      "skill_id": "charge",
+      "icon_id": "charge",
+      "display_name": "冲锋",
+      "description": "朝四个正交方向发起位移并推挤沿途单位。技能本身不造成伤害；推挤可能触发地形碰撞或坠落伤害。",
+      "max_level": 7,
+      "tags": [
+        "melee",
+        "mobility",
+        "charge"
+      ],
+      "level_description_template": "直线冲锋{range_value}格，消耗{ap_cost}AP/{stamina_cost}体力，冷却{cooldown_tu}TU。技能本身不造成伤害；推挤可能触发地形碰撞或坠落伤害。{{?trap_immunity}}免疫陷阱造成的冲锋中断。{{/trap_immunity}}",
+      "level_description_configs": {
+        "7": {
+          "trap_immunity": "true"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "charge",
+        "target_mode": "ground",
+        "target_team_filter": "any",
+        "range_value": 3,
+        "cooldown_tu": 50,
+        "level_overrides": {
+          "1": {
+            "range_value": 4
+          },
+          "2": {
+            "stamina_cost": 35
+          },
+          "3": {
+            "range_value": 5
+          },
+          "4": {
+            "stamina_cost": 30
+          },
+          "5": {
+            "range_value": 6
+          },
+          "6": {
+            "stamina_cost": 25
+          },
+          "7": {
+            "range_value": 7
+          }
+        },
+        "stamina_cost": 50,
+        "cast_variants": [
+          {
+            "variant_id": "charge_line",
+            "display_name": "直线冲锋",
+            "description": "选择同一行或同一列的目标格，沿该方向逐格冲锋。",
+            "effect_defs": [
+              {
+                "effect_type": "charge",
+                "payload": {},
+                "charge_trap_immunity_min_skill_level": 7
+              }
+            ]
+          }
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        100,
+        250,
+        550,
+        1000,
+        1600,
+        2350,
+        3250
+      ],
+      "attribute_requirements": {
+        "agility": 14,
+        "strength": 12
+      },
+      "mastery_sources": [
+        "training",
+        "battle"
+      ],
+      "growth_tier": "intermediate",
+      "attribute_growth_progress": {
+        "agility": 100,
+        "strength": 20
+      },
+      "template": "non_core_max_level_5"
+    },
+    {
+      "skill_id": "crown_break",
+      "icon_id": "crown_break",
+      "runtime_behavior": "crown_break",
+      "display_name": "折冠",
+      "description": "消耗 2 点 calamity，只能对已被黑星烙印的 elite / boss 施放；断牙禁暴击，折手禁反击与追击，遮目禁闪避，持续 2 回合。",
+      "tags": [
+        "misfortune",
+        "doom",
+        "calamity",
+        "seal"
+      ],
+      "combat_profile": {
+        "skill_id": "crown_break",
+        "target_mode": "ground",
+        "range_value": 5,
+        "cast_variants": [
+          {
+            "variant_id": "broken_fang",
+            "display_name": "断牙",
+            "description": "封印 2 回合，目标无法暴击。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_broken_fang"
+              }
+            ]
+          },
+          {
+            "variant_id": "broken_hand",
+            "display_name": "折手",
+            "description": "封印 2 回合，目标不能反击或追击。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_broken_hand"
+              }
+            ]
+          },
+          {
+            "variant_id": "blinded_eye",
+            "display_name": "遮目",
+            "description": "封印 2 回合，目标无法闪避。",
+            "effect_defs": [
+              {
+                "effect_type": "status",
+                "duration_tu": 60,
+                "payload": {},
+                "status_id": "crown_break_blinded_eye"
+              }
+            ]
+          }
+        ]
+      },
+      "mastery_curve": [
+        48
+      ]
+    },
+    {
+      "skill_id": "doom_sentence",
+      "icon_id": "doom_sentence",
+      "runtime_behavior": "doom_sentence",
+      "display_name": "厄命宣判",
+      "description": "每战 1 次，消耗 5 点 calamity；仅能对 elite / boss 施放 2 回合【厄命宣判】：目标不能暴击、反击或闪避，且进入全伤害易伤；若其已有 2 个以上 debuff，则主技能失效。",
+      "tags": [
+        "misfortune",
+        "doom",
+        "calamity",
+        "sentence"
+      ],
+      "combat_profile": {
+        "skill_id": "doom_sentence",
+        "range_value": 5,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "duration_tu": 60,
+            "payload": {},
+            "mitigation_tier": "double",
+            "status_id": "doom_sentence_verdict",
+            "counts_as_debuff_override": true,
+            "lock_counterattack": true,
+            "lock_dodge_bonus": true,
+            "lock_crit": true,
+            "main_skill_lock_other_debuff_count": 2
+          }
+        ]
+      },
+      "mastery_curve": [
+        60
+      ]
+    },
+    {
+      "skill_id": "doom_shift",
+      "icon_id": "doom_shift",
+      "runtime_behavior": "doom_shift",
+      "display_name": "断命换位",
+      "description": "自给 1 个 debuff，并立刻与 3 格内队友交换位置。",
+      "tags": [
+        "fate",
+        "misfortune",
+        "position",
+        "tactical"
+      ],
+      "combat_profile": {
+        "skill_id": "doom_shift",
+        "target_team_filter": "ally",
+        "range_value": 3
+      },
+      "mastery_curve": [
+        48
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_acid_line",
+      "icon_id": "dragon_breath_acid_line",
+      "display_name": "龙息：酸蚀直线",
+      "description": "沿直线喷吐酸液。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "acid"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_acid_line",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "acid",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_fire_cone",
+      "icon_id": "dragon_breath_fire_cone",
+      "display_name": "龙息：火焰锥形",
+      "description": "以锥形喷吐火焰。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_fire_cone",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "fire",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_fire_line",
+      "icon_id": "dragon_breath_fire_line",
+      "display_name": "龙息：火焰直线",
+      "description": "沿直线喷吐火焰。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "fire"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_fire_line",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "fire",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_freeze_cone",
+      "icon_id": "dragon_breath_freeze_cone",
+      "display_name": "龙息：寒霜锥形",
+      "description": "以锥形喷吐寒霜。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "freeze"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_freeze_cone",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "freeze",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_lightning_line",
+      "icon_id": "dragon_breath_lightning_line",
+      "display_name": "龙息：闪电直线",
+      "description": "沿直线喷吐闪电。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "lightning"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_lightning_line",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "line",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "lightning",
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_breath_poison_cone",
+      "icon_id": "dragon_breath_poison_cone",
+      "display_name": "龙息：毒素锥形",
+      "description": "以锥形喷吐毒息。目标进行体质豁免，成功则伤害减半。",
+      "learn_source": "subrace",
+      "tags": [
+        "dragon_breath",
+        "poison"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_breath_poison_cone",
+        "target_mode": "ground",
+        "range_value": 3,
+        "area_pattern": "cone",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "poison",
+            "effect_categories": [
+              "poison"
+            ],
+            "save_dc": 12,
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "dragon_breath"
+          }
+        ],
+        "area_value": 2,
+        "delivery_categories": [
+          "breath_weapon",
+          "gas"
+        ]
+      },
+      "mastery_curve": [
+        20
+      ]
+    },
+    {
+      "skill_id": "dragon_frightful_presence",
+      "icon_id": "dragon_frightful_presence",
+      "display_name": "龙威",
+      "description": "巨龙释放令人窒息的威压。半径4格内的敌人进行 DC15 意志豁免（dragon_frightful_presence），失败则陷入60 TU恐惧。",
+      "learn_source": "internal",
+      "tags": [
+        "dragon",
+        "fear",
+        "control"
+      ],
+      "combat_profile": {
+        "skill_id": "dragon_frightful_presence",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frightened",
+            "stack_limit": 1,
+            "save_dc": 15,
+            "save_ability": "willpower",
+            "save_failure_status_id": "frightened",
+            "save_tag": "dragon_frightful_presence",
+            "counts_as_debuff_override": true,
+            "counts_as_debuff": true,
+            "effect_tags": [
+              "fear",
+              "dragon"
+            ]
+          }
+        ],
+        "area_value": 4,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "dragon",
+          "fear",
+          "control"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "equipment_phoenix_rebirth_ash_ring_fire",
+      "icon_id": "equipment_phoenix_rebirth_ash_ring_fire",
+      "display_name": "灰烬之火",
+      "description": "装备技能。消耗1 AP：选择自身或1格内友方时恢复2D10 HP；选择1格内敌人时造成3D10 fire。两个分支共享每个世界日一次的装备实例次数。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "heal",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_ash_ring_fire",
+        "target_team_filter": "any",
+        "effect_defs": [
+          {
+            "effect_type": "heal",
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 10,
+            "effect_target_team_filter": "ally"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "damage_tags": [
+              "fire"
+            ],
+            "dice_count": 3,
+            "dice_sides": 10,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "requires_los": true,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "phoenix_rebirth",
+          "heal",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "equipment_phoenix_rebirth_badge_blessing",
+      "icon_id": "equipment_phoenix_rebirth_badge_blessing",
+      "display_name": "凤凰祝福",
+      "description": "装备技能。消耗2 AP，使自身及半径2格内所有存活友方获得120 TU凤凰祝福：攻击附加1D6 fire；每名受益者每场战斗一次，普通致死伤害将其生命恢复1D10。每日一次。",
+      "learn_source": "innate",
+      "tags": [
+        "equipment",
+        "phoenix_rebirth",
+        "support",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_badge_blessing",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 120,
+            "payload": {},
+            "display_name": "凤凰祝福",
+            "undispellable": true,
+            "effect_target_team_filter": "ally",
+            "status_id": "phoenix_blessing",
+            "stack_limit": 1,
+            "counts_as_debuff_override": true
+          }
+        ],
+        "area_value": 2,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "equipment",
+          "phoenix_rebirth",
+          "support",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    },
+    {
+      "skill_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+      "icon_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+      "display_name": "凤凰怒火",
+      "description": "凤凰烈焰披风的内部结算：每场战斗第一次因外部非自身、非装备能力生成的正原始伤害从高于50%生命降至不高于50%时，对佩戴者半径1格内所有敌人造成2D6 fire，无豁免；即使范围内没有敌人也消耗本场次数。",
+      "learn_source": "internal",
+      "tags": [
+        "internal",
+        "equipment",
+        "phoenix_rebirth",
+        "fire",
+        "legendary"
+      ],
+      "combat_profile": {
+        "skill_id": "equipment_phoenix_rebirth_cloak_low_hp_burst",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "radius",
+        "ap_cost": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "damage_tags": [
+              "fire"
+            ],
+            "dice_count": 2,
+            "dice_sides": 6,
+            "effect_target_team_filter": "enemy"
+          }
+        ],
+        "area_value": 1,
+        "attack_resolution_mode": "direct_effect",
+        "delivery_categories": [
+          "internal",
+          "equipment",
+          "phoenix_rebirth",
+          "fire"
+        ]
+      },
+      "non_core_max_level": 1,
+      "mastery_curve": [
+        20
+      ],
+      "template": "non_core_max_level_1"
+    }
+  ],
+  "family": "misc_01",
+  "templates": {
+    "max_level_5": {
+      "max_level": 5
+    },
+    "non_core_max_level_1": {
+      "non_core_max_level": 1
+    },
+    "non_core_max_level_5": {
+      "non_core_max_level": 5
+    }
+  },
+  "domain": "skills",
+  "schema": 1
+}

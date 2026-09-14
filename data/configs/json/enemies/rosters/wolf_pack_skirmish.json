@@ -1,0 +1,55 @@
+{
+  "domain": "encounter_rosters",
+  "entries": [
+    {
+      "display_name": "\u8352\u72FC\u7FA4",
+      "growth_step_interval": 1,
+      "initial_stage": 0,
+      "profile_id": "wolf_pack_skirmish",
+      "stages": [
+        {
+          "stage": 0,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "wolf_pack"
+            }
+          ]
+        },
+        {
+          "stage": 1,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 5,
+              "display_name": "",
+              "template_id": "wolf_pack"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 3,
+              "display_name": "",
+              "template_id": "wolf_pack"
+            },
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "worg"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "family": "wolf_pack_skirmish",
+  "schema": 1,
+  "templates": {}
+}

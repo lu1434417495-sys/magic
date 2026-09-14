@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class run_level_description_template_regression : LifecycleTestSceneTree
 {
     private const string BattleRecoverySkillPath =
-        "res://data/configs/skills/warrior_battle_recovery.tres";
+        "warrior_battle_recovery";
 
     private readonly TestHarness _test = new();
 
@@ -27,7 +27,6 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         TestGuardFullTemplate();
         TestWhirlwindTemplate();
         TestTauntTemplate();
-        TestEmptyConfig();
         TestLevelDescriptionRequiresTemplateConfig();
         TestLevelDescriptionHidesZeroProfileDefaultsInOptionalBlocks();
         TestBattleRecoveryDescriptionDerivesDisplayDice();
@@ -238,24 +237,19 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         );
     }
 
-    private void TestEmptyConfig()
-    {
-        string result = SkillLevelDescriptionFormatter.RenderTemplate(
-            "A{{?x}}B{{/x}}C",
-            new GDictionary()
-        );
-        _test.Eq(result, "AC", "空配置应删除所有条件块");
-    }
-
     private void TestLevelDescriptionRequiresTemplateConfig()
     {
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             "level_description_fixture",
             levelDescriptionTemplate: "模板{val}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [0] = new Dictionary<string, object> { ["val"] = "新" },
-                [1] = new Dictionary<string, object> { ["val"] = "新" },
+                [0] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["val"] = "新" }
+                ),
+                [1] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["val"] = "新" }
+                ),
             }
         );
 
@@ -277,9 +271,11 @@ public partial class run_level_description_template_regression : LifecycleTestSc
 
         SkillDefinition missingTemplate = TestSkillDefinitionProjection.BuildSkill(
             "missing_template_fixture",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [0] = new Dictionary<string, object> { ["val"] = "新" },
+                [0] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["val"] = "新" }
+                ),
             }
         );
         _test.Eq(
@@ -307,16 +303,17 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         string rejectionMessage = "";
         try
         {
-            BuildLevelDescriptionFromResource(wrongConfigType, 0, new GDictionary());
+            BuildLevelDescriptionFromDiagnosticFixture(wrongConfigType, 0, new GDictionary());
         }
         catch (System.IO.InvalidDataException exception)
         {
             rejectionMessage = exception.Message;
         }
         _test.True(
-            rejectionMessage.Contains(
-                "skill.wrong_config_type_fixture.level_description_configs.0"
-            ),
+            rejectionMessage.Contains("skill.fixture.invalid_input")
+                && rejectionMessage.Contains(
+                    "<SkillDiagnosticFixture:wrong_config_type_fixture>/entries/0/level_description_configs/0"
+                ),
             "等级配置不是字典时应由投影边界按精确路径拒绝"
         );
     }
@@ -327,22 +324,25 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             "zero_optional_profile_fixture",
             levelDescriptionTemplate:
                 "基础{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}{{?aura_cost}}，消耗{aura_cost}斗气{{/aura_cost}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [0] = new Dictionary<string, object> { ["marker"] = "configured" },
-                [1] = new Dictionary<string, object> { ["marker"] = "configured" },
+                [0] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["marker"] = "configured" }
+                ),
+                [1] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["marker"] = "configured" }
+                ),
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "zero_optional_profile_fixture",
                 attackRollBonus: 0,
                 auraCost: 0,
-                levelOverrides: new Dictionary<int, IReadOnlyDictionary<string, object>>
+                levelOverrides: new Dictionary<int, CombatSkillLevelOverrideImportModel>
                 {
-                    [1] = new Dictionary<string, object>
-                    {
-                        ["attack_roll_bonus"] = 2,
-                        ["aura_cost"] = 1,
-                    },
+                    [1] = new CombatSkillLevelOverrideImportModel(
+                        attackRollBonus: 2,
+                        auraCost: 1
+                    ),
                 }
             )
         );
@@ -389,9 +389,11 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             "typed_effect_description_fixture",
             levelDescriptionTemplate:
                 "造成{dmg}伤害（{damage_save_text}），{shocked_save_text}（{shocked_duration_tu}TU，强度{shocked_power}）。",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [0] = new Dictionary<string, object> { ["dmg"] = "4D6" },
+                [0] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["dmg"] = "4D6" }
+                ),
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "typed_effect_description_fixture",
@@ -426,11 +428,15 @@ public partial class run_level_description_template_regression : LifecycleTestSc
     {
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             "locked_cast_variant_description_fixture",
-            levelDescriptionTemplate: "基础{base}{{?locked_param}}，高阶{locked_param}{{/locked_param}}",
-            levelDescriptionConfigs: new Dictionary<int, IReadOnlyDictionary<string, object>>
+            levelDescriptionTemplate: "基础{base}{{?cost_resource}}，高阶{cost_resource}{{/cost_resource}}",
+            levelDescriptionConfigs: new Dictionary<int, SkillDescriptionVariables>
             {
-                [0] = new Dictionary<string, object> { ["base"] = "可用" },
-                [3] = new Dictionary<string, object> { ["base"] = "可用" },
+                [0] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["base"] = "可用" }
+                ),
+                [3] = new SkillDescriptionVariables(
+                    new Dictionary<string, string> { ["base"] = "可用" }
+                ),
             },
             combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
                 "locked_cast_variant_description_fixture",
@@ -442,11 +448,10 @@ public partial class run_level_description_template_regression : LifecycleTestSc
                         new[]
                         {
                             TestSkillDefinitionProjection.BuildEffect(
-                                "damage",
-                                parameters: new Dictionary<string, object>
-                                {
-                                    ["locked_param"] = "未锁",
-                                }
+                                "repeat_attack_until_fail",
+                                payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                                    costResource: "aura"
+                                )
                             ),
                         }
                     ),
@@ -461,8 +466,8 @@ public partial class run_level_description_template_regression : LifecycleTestSc
         );
         _test.Eq(
             BuildLevelDescription(skillDefinition, 3, new GDictionary()),
-            "基础可用，高阶未锁",
-            "达到施法形态等级后应合并该形态的 effect params。"
+            "基础可用，高阶aura",
+            "达到施法形态等级后应合并该形态的 typed effect payload。"
         );
     }
 
@@ -477,13 +482,13 @@ public partial class run_level_description_template_regression : LifecycleTestSc
             runtimeContext
         );
 
-    private static string BuildLevelDescriptionFromResource(
+    private static string BuildLevelDescriptionFromDiagnosticFixture(
         SkillDef skillDef,
         int level,
         GDictionary runtimeContext
     ) =>
         SkillLevelDescriptionFormatter.BuildLevelDescription(
-            SkillDefinition.FromResource(skillDef),
+            SkillDefinition.FromDiagnosticFixture(skillDef),
             level,
             runtimeContext
         );

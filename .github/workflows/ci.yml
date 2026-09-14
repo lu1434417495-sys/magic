@@ -16,10 +16,14 @@ env:
   GODOT_BIN: /usr/local/bin/godot
 
 jobs:
-  validate:
-    name: Build and Headless Smoke
+  regressions:
+    name: Regression shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
 
     steps:
       - name: Checkout
@@ -32,6 +36,9 @@ jobs:
 
       - name: Run architecture analyzer tests
         run: dotnet run --project tools/architecture/Magic.ArchitectureAnalyzers.Tests/Magic.ArchitectureAnalyzers.Tests.csproj
+
+      - name: Test regression partitioning and coverage tooling
+        run: python -m unittest discover -s tests/tooling -p 'test_run_*suite.py'
 
       - name: Install Godot .NET
         shell: bash
@@ -70,7 +77,7 @@ jobs:
 
           "${GODOT_BIN}" --headless --import --quit --path .
 
-      - name: Run full regression suite
+      - name: Run full regression suite with production coverage
         shell: bash
         run: |
           set -euo pipefail
@@ -80,10 +87,73 @@ jobs:
             cpu_count=1
           fi
           test_jobs="$(( (cpu_count + 1) / 2 ))"
-          echo "Detected ${cpu_count} logical CPU(s); running the full regression suite with ${test_jobs} parallel job(s)."
+          echo "Detected ${cpu_count} logical CPU(s); running shard ${{ matrix.shard }} of 4 with ${test_jobs} parallel job(s)."
 
-          python tests/run_regression_suite.py \
+          python tests/run_coverage_suite.py \
             --jobs "${test_jobs}" \
+            -- \
+            --shard-index ${{ matrix.shard }} \
+            --shard-count 4 \
             --test-timeout-seconds 180 \
             --fail-on-output-error \
             --lifecycle-correctness
+
+      - name: Upload production coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-code-coverage-shard-${{ matrix.shard }}
+          path: artifacts/coverage/coverage.cobertura.xml
+          if-no-files-found: ignore
+
+  validate:
+    name: Build and Headless Smoke
+    needs: regressions
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require every regression shard to pass
+        env:
+          SHARD_RESULT: ${{ needs.regressions.result }}
+        run: test "${SHARD_RESULT}" = success
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download coverage shards
+        uses: actions/download-artifact@v8
+        with:
+          pattern: production-code-coverage-shard-*
+          path: artifacts/shards
+
+      - name: Merge and validate production coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          coverage_files=(artifacts/shards/*/coverage.cobertura.xml)
+          test "${#coverage_files[@]}" -eq 4
+          dotnet tool restore
+          mkdir -p artifacts/coverage
+          dotnet tool run dotnet-coverage merge "${coverage_files[@]}" \
+            --output artifacts/coverage/coverage.cobertura.xml \
+            --output-format cobertura
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path("tests").resolve()))
+          from run_coverage_suite import parse_coverage_summary
+          parse_coverage_summary(Path("artifacts/coverage/coverage.cobertura.xml").resolve(), Path.cwd())
+          PY
+
+      - name: Upload production coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-code-coverage
+          path: artifacts/coverage/coverage.cobertura.xml
+          if-no-files-found: error

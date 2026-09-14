@@ -1,536 +1,85 @@
-# 战斗技能系统实现纪要 — 可落地执行版
+# 战斗技能系统规则扩展提案（Phase 5+）
 
-更新日期：`2026-04-22`
+> 状态：`Proposal / Partially landed`
+> 更新日期：`2026-08-16`
 
-## 关联上下文单元
+## 定位
 
-- CU-13：progression 内容定义、条件模型、seed 内容
-- CU-15：战斗运行时总编排
-- CU-16：战斗状态模型、边规则、伤害、AI 规则层
+本文**只记录尚未落地的规则扩展**，是当前实现之外的后续方案。
 
-当前实现边界以 [`project_context_units.md`](../../design/project_context_units.md) 为准；本文记录战斗技能资源、命中模型、状态语义、范围计算与 AI 评分规格。
+战斗技能系统的当前实现真相（资源链路、命中/豁免/伤害结算、状态语义、范围计算、AI 评分、所有权边界）以 [`../../design/battle/skill_runtime.md`](../../design/battle/skill_runtime.md) 为准；本文中的任何现状描述都不构成当前合同。上下文单元见 [`../../design/project_context_units.md`](../../design/project_context_units.md) 的 CU-13 / CU-15 / CU-16。
 
-## 1. 文档目的
+设计红线（沿用且仍然有效）：
 
-本文件是战斗技能系统的**当前实现与后续扩展规格书**，覆盖：
+- 技能定义以 `SkillDef -> CombatSkillDef -> CombatEffectDef` 为唯一真相源，不另起平行系统
+- 新规则必须落在通用 service/table 层，不得按技能 id、装备 id 或职业 tag 分支
+- 命中/暴击/豁免真相源收敛后再加新字段，避免双入口
+- 命中模型扩展不升 `SAVE_VERSION`，不重命名 `hit_rate / evasion` 属性
 
-1. 仓内已落地的技能资源链路、命中模型、状态语义、范围计算、AI 评分实际结构
-2. 字段级的文档→代码对齐表
-3. 每个子系统的当前能力与已识别缺口
-4. 下一阶段（Phase 4+）的扩展边界与验收标准
+## 历史阶段回顾（已关闭）
 
-设计红线：
-
-- 技能定义以 `SkillDef -> CombatSkillDef -> CombatEffectDef` 为唯一真相源，不再另起平行系统
-- 战斗执行以 `BattleRuntimeModule` 为入口；普通命中预览与 repeat attack 检定走 `BattleHitResolver`，fate-aware 暴击 / 大失败 / 命中结果由 `BattleDamageResolver` 消费同一份 attack check 后结算
-- 命中结算走 **3.5e 风格 BAB + 降序 AC + d20**，不走 2E THAC0 口径（与 `docs/proposals/progression/player_growth_system.md` 的大等级压制设计同源）
-- 旧 `hit_rate / evasion` 属性名保留为运行时字段，由 `BattleHitResolver` 现场转换为 BAB/AC，不再做全链路重命名
-- 新技能内容统一走通用技能书，不绑定职业主动授予
-- `aura / 斗气` 是独立资源，与 `MP` / `Stamina` / `AP` 并列
-- 场景与运行时边界以 `GameRuntimeFacade + WorldMapRuntimeProxy + WorldMapSystem` 三层为准；`WorldMapSystem` 负责场景接线与 UI 同步，不再是唯一运行时真相源
-
----
-
-## 2. 与现有代码的对齐
-
-### 2.1 核心文件清单
-
-| 组件 | 文件 | 状态 |
+| 阶段 | 结果 | 备注 |
 | --- | --- | --- |
-| 技能顶层定义 | `scripts/player/progression/skill_def.gd` | 稳定 |
-| 战斗档 | `scripts/player/progression/combat_skill_def.gd` | 扩展完成：`aura_cost / area_origin_mode / area_direction_mode / ai_tags / target_selection_mode` |
-| 效果档 | `scripts/player/progression/combat_effect_def.gd` | 扩展完成：`damage_ratio_percent / forced_move_mode / forced_move_distance / stack_limit / bonus_condition / trigger_event` |
-| 施法变体 | `scripts/player/progression/combat_cast_variant_def.gd` | 稳定 |
-| 技能注册中心 | `scripts/player/progression/progression_content_registry.gd` | 稳定 |
-| 技能语义校验 | `scripts/player/progression/skill_content_registry.gd` | 已接入 `forced_move / charge` 等 effect 校验 |
-| 战斗命中 | `scripts/systems/battle_hit_resolver.gd` | 已落地 BAB+AC+d20 + 天然 1/20；随机数由 `TrueRandomSeedService` 分配，`attack_roll_nonce` 只记录消耗次数 |
-| 战斗主流程 | `scripts/systems/battle_runtime_module.gd` | 已接入资源校验 / 扣费 / CD 写入 / 命中路由 |
-| 伤害结算 | `scripts/systems/battle_damage_resolver.gd` | 稳定 |
-| 连段结算 | `scripts/systems/battle_repeat_attack_resolver.gd` | 已接入分阶段命中独立掷骰 |
-| 冲锋结算 | `scripts/systems/battle_charge_resolver.gd` | 稳定 |
-| 范围计算 | `scripts/systems/battle_grid_service.gd` | 已支持 `single / diamond / square / cross / radius / line / cone / self` |
-| 状态语义 | `scripts/systems/battle_status_semantic_table.gd` | 已登记 20+ 状态语义模板 |
-| 战斗预览 | `scripts/systems/battle_preview.gd` | 已带 `hit_preview` 结构化字段 |
-| AI 决策 | `scripts/systems/battle_ai_service.gd` | 已改为候选打分 + state 分流 |
-| AI 评分 | `scripts/systems/battle_ai_score_service.gd` | 已统一技能 / 移动 / 撤退 / 等待评分 |
-| AI 评分入参 | `scripts/systems/battle_ai_score_input.gd` | 已导出 `score_input` 摘要 |
+| Phase 0–3 规则底座与技能池 | ✅ 已落地并超额 | 技能资源已扩展到 700+ `.tres`，内容侧复用同一 effect/status/shape 模板 |
+| Phase 4 优势/劣势 | ✅ 已落地（实现路径与本文件原计划不同） | 双骰取高/取低在 `scripts/systems/battle/rules/BattleHitResolver.cs`（`_roll_attack_die` + `NormalizeAdvantageState`）；来源合成在 `BattleAttackCheckPolicyService` 的 modifier bundle，由状态（`AttackRollAdvantage`）与装备能力驱动，而非新建 `battle_roll_disposition_resolver` 文件；回归为 `tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.cs`、`tests/battle_runtime/ai/run_battle_ai_advantage_behavior_regression.cs`、`tests/battle_runtime/fate/run_fate_attack_formula_regression.cs`；HUD 劣势文案见 `BattleHudAdapter` |
+| Phase 6 前半：Saving Throw | ✅ 已提前落地 | `scripts/systems/battle/rules/BattleSaveResolver.cs`（法术 DC 基数 8 + 属性修正 + save advantage state）+ `BattleDamageResolver.SaveBranch.cs`；回归为 `tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs`、`tests/progression/schema/run_battle_save_skill_schema_regression.cs` |
+| 边墙（authored edge feature） | ✅ 已移除并完成残留清理（2026-08-16） | 格上静态边特征（墙/门/闸门）、接缝墙地图模板与 `edge_clear` 效果已删除。残留清理同日完成：`BattleUnitLineOfSightRules`（恒 true）整个文件删除、4 个退化调用点收敛；`BattleCellState.edge_feature_east/south` 从 state 与存档 schema 移除（SaveVersion 18→19）；`blocks_los` / `feature_blocks_los` 虽已无消费者但**保留**——移除 `ApplyEdgeFeatureActionPayloadDef` 的该 `[Export]` 会让 `run_resource_validation_regression` 以约 80% 概率在 GC finalizer 崩溃（`Handle is not initialized`；实测与 `.tres` 引用无关，清 `.godot` 缓存也无效，恢复该 export 后 5/5 通过），改由 validator fail-closed 拒绝内容配置；`BattleDirectionalPiercingPlan.BlockedBeforeCoord` 不可达链与 `BattleEdgeService.HasFeatureBetween` 孤儿方法删除。边界阻断唯一语义是虹光法球系的 layered barrier。虚空斧 `apply_edge_feature` 临时边特征保留，是 runtime feature face 的唯一来源。**不要顺手删 `CombatSkillDef.requires_los`**：它不属于这条链路，仍在门禁地面技能的 barrier 穿越校验 |
+| `mage_passwall` 效果体 | ⚠️ 空壳待接回（2026-08-16） | 移除边墙时该技能曾被一并删除，导致虹光法球绿色层 `breaker_skill_ids` 变空、永久无法破解（破层唯一提交点 `BattleBarrierService._BreakActiveLayer` 的两个调用方都以 `_SkillBreaksLayer` 为门，`passage_outcomes` 不破层）。已恢复技能与 green.tres 绑定，但 `edge_clear` 无运行时、cast variant 的 `effect_defs` 目前为空。**空效果体不会真正破层**：ground 目标走 `BattleBarrierService` 的地面效果裁剪路径，该路径要求技能自身的单位/地形效果产生跨界地格，零效果时直接 `continue`。待规划中的 R4 格级障碍物落地后，用「移除格级障碍物」效果接回该技能；在此之前绿色层实战仍不可破。另注：当前没有任何职业/书籍/任务授予 `mage_passwall`，接回时需一并补授予渠道 |
 
-### 2.2 旧计划与实现的偏差
+原计划中技能级 `roll_disposition` 导出字段**未实现且已被替代**：优势/劣势经状态与装备能力进入攻击检定（内容示例：`warrior_one_inch_advantage.tres`、`weapon_sword_cowardice_scurry.tres`），`CombatSkillDef` 没有也不计划保留该字段，除非下节决策项另有结论。
 
-| 原计划 | 当前实现 | 说明 |
+## 剩余工作
+
+### R1. 战场情境表（原 Phase 5，主要待办）
+
+目标：把战场位置因素统一注入攻击检定，让玩家感到"数值差距在棋盘上可感知"。
+
+注入通道**已存在**：`AttackCheckInput.SituationalAttackBonus / SituationalAttackPenalty`（`scripts/systems/battle/core/AttackCheckInput.cs`）已被 `BattleHitResolver` 消费，当前由 `flat_bonus / flat_penalty` 与状态攻击加值 delta 喂入。缺的是四个战场来源的计算：
+
+| 来源 | 语义 | 建议归属 |
 | --- | --- | --- |
-| `CombatSkillDef.hit_rate` → `attack_roll_bonus` | 保持 `hit_rate`，`BattleHitResolver` 现场换算 | 避免全仓技能资源大规模迁移 |
-| 属性 `HIT_RATE / EVASION` → `THAC0 / ARMOR_CLASS` | 仍为 `hit_rate / evasion` | 仅解析层换算为 BAB/AC，外层接口不改 |
-| `roll_disposition` 作为 `CombatSkillDef` 字段 | **未新增**；`BattleHitResolver` 仍用它表达普通命中分类 | fate-aware 攻击已有 `BattleState.is_attack_disadvantage()` + 双骰取低，但尚未做成技能字段 |
-| 2E THAC0 | **改为 3.5e BAB + 降序 AC** | 命中随等级差扩张，支持大等级碾压感 |
-| `SAVE_VERSION` 不升 | 实际未升 | 与旧存档兼容 |
-| Demo 15 警士技能 | 15 个里有 14 个落地，`warrior_shield_wall` 已删 | 当前通过 `warrior_guard` + `warrior_taunt` 覆盖防御姿态 |
-| 文档约束 80 个技能目标 | 已登记 ≈ 185 个技能资源（warrior 16 / archer 32 / mage 135 / priest 1 / saint 1） | 扩展远超原目标，内容侧用同一 effect/status/shape 模板复用 |
+| 高地 | 攻击方格高于目标格时获得 attack bonus | `BattleGridService` 提供高度差查询，`BattleAttackCheckPolicyService` 合成为 situational bonus |
+| 掩体 | 防御方站在树（`base_terrain = forest`）格时获得 AC 加成 | `BattleTerrainRules` / `BattleGridService` 查询目标格地形，命中侧归入 `target_armor_class` 分量 |
+| 贴身远程 | 远程技能/武器在被敌方贴身时受 attack penalty | `BattleHitResolver` / policy service 按 `projectile_kind` 与邻接敌情判定，不从技能 id 推断 |
+| 包夹 | 多个友军毗邻目标时提供 attack bonus | policy service 按目标邻接友军计数 |
 
----
+配套要求：
 
-## 3. 核心运行时数据结构
+- 掩体载体已定为**树（森林地形格）**：`BattleTerrainKind.Forest` 已存在且由 `BattleTerrainGenerator` 正常生成，无需新增内容标注。原候选的边特征 `low_wall` 已从 `BattleEdgeFeatureKind` 移除（2026-08-16），掩体不走边特征路线。数值惯例参考 [`dnd35e_combat_vision.md`](dnd35e_combat_vision.md) §12（硬掩体 +4 AC、高地 +1/-1），落地时再定是否原样采用
+- `BattlePreview.hit_preview` 增加 `situational_sources[]` 结构化明细，HUD 展示来源文案
+- `BattleAiScoreService` 把情境 bonus 纳入预期命中率；AI 走位已有的 `high_ground` 模式（`BattleAiMoveToAdvantageActionEvaluator`）目前只影响 AI 评分、不影响真实命中，落地后两者必须同源
+- 回归：覆盖四来源各自独立与叠加、与天然 1/20 及优势/劣势的交互、preview 与 execution 同结果
 
-以下结构以当前仓库真实实现为准。资源层 (`.tres`) 只负责模板，`BattleRuntimeModule` 在开战时深拷贝进运行时实例。
+### R2. 通用暴击资源化（原 Phase 6 剩余，远期）
 
-### 3.1 技能定义对象图
+- 前置：收敛 `BattleHitResolver` 与 `BattleDamageResolver` 的暴击真相源（当前暴击走命运骰 `FateAttackFormula` crit gate，与幸运/劣势交互）
+- 收敛后才评估新增通用字段：`crit_multiplier`（CombatSkillDef / 武器层）、武器威胁范围（天然命中扩 crit 区间）
+- 不引入与命运骰并行的第二套暴击判定
 
-```mermaid
-flowchart TD
-	S["SkillDef
-	skill_id
-	display_name
-	icon_id
-	description
-	max_level
-	mastery_curve
-	tags[]
-	combat_profile"]
+### R3. Phase 4 收尾决策项（小）
 
-	C["CombatSkillDef
-	skill_id
-	target_mode / target_team_filter
-	range_pattern / range_value
-	area_pattern / area_value
-	area_origin_mode / area_direction_mode
-	ap_cost / mp_cost / stamina_cost / aura_cost
-	cooldown_tu
-	hit_rate (legacy %, converted to bonus)
-	ai_tags[]
-	target_selection_mode
-	min_target_count / max_target_count
-	selection_order_mode
-	effect_defs[]
-	cast_variants[]"]
+- **技能级 `roll_disposition` 字段是否需要**：当前状态/装备能力驱动已覆盖设计意图，默认结论是不需要；若未来出现"技能固有优势"内容（不依赖状态），再评估新增字段
+- **攻击预览的优势标签**：HUD 已有劣势文案与 save 的 `save_advantage_state`，普通攻击预览的"需 X+ · 优势"展示尚未补；如补齐，与 R1 的 `situational_sources[]` 合并展示
 
-	E["CombatEffectDef
-	effect_type / tick_effect_type
-	power / damage_ratio_percent
-	scaling_attribute_id
-	defense_attribute_id
-	status_id
-	terrain_effect_id / terrain_replace_to
-	height_delta
-	forced_move_mode / forced_move_distance
-	duration_tu / tick_interval_tu
-	stack_behavior / stack_limit
-	bonus_condition / trigger_event
-	params{}"]
+### R4. 格级障碍物（已拍板要做，独立于 R1）
 
-	V["CombatCastVariantDef
-	variant_id
-	min_skill_level
-	effect_defs[] (overrides)"]
+**设计决定（2026-08-16）**：
 
-	S -->|"owns"| C
-	C -->|"effect_defs[]"| E
-	C -->|"cast_variants[]"| V
-	V -->|"effect_defs[]"| E
-```
+- 战场需要“石头”这类**占一整格**的障碍物；玩家心智单位是格，边特征（墙）不承载这个语义
+- 障碍物**只阻断站位与通行，不阻断视线**——远程/法术可以越过石头攻击；游戏已无任何 LOS 阻断机制（边墙已于 2026-08-16 移除）
+- 掩体不走障碍物路线（已由 R1 的森林格承载），障碍物不提供 AC 加成
 
-### 3.2 BattleUnitState 关键字段
+**实现边界**：
 
-| 字段 | 含义 |
-| --- | --- |
-| `unit_id` / `display_name` / `faction_id` | 单位识别三件套 |
-| `control_mode` | `manual` / `ai`，AI 分流只看这个字段 |
-| `ai_brain_id` / `ai_state_id` | AI 控脑与当前状态 |
-| `current_hp / mp / stamina / aura / ap` | 五种资源，`aura` 默认 0 |
-| `attribute_snapshot` | 派生属性快照，读写 `hit_rate` / `evasion` / `physical_attack` / `magic_attack` 等 |
-| `cooldowns: Dictionary` | `{ skill_id: remaining_tu }` |
-| `status_effects: Dictionary` | `{ status_id: BattleStatusEffectState }` |
-| `movement_tags: Array` | 地格移动标签 |
-| `known_active_skill_ids: Array` | 本场战斗可用的主动技能列表 |
-| `known_skill_level_map: Dictionary` | 技能等级，决定可用 cast variants |
+- 障碍物不是单位、不是边特征：`BattleCellState` 需要新增 typed 障碍字段（现有 `occupant_unit_id` 只认单位，`prop_ids` 只是渲染标记，规则层不得读 `prop_ids`）
+- 必须接入的通行/站位判定面：`BattleGridService` / `BattleEdgeService` 寻路与 traversable、多格 footprint 放置、强制位移（击退/拉拽/风推）、冲锋路径、传送/交换/跳斩落点校验、AI 路径树与移动评分——障碍物格对这些入口视同不可站
+- 展示走现有 prop 链路（`battle_board_prop.tscn`），由障碍字段同步渲染，不反向驱动规则
+- 内容由 `BattleTerrainGenerator` 在地图模板中摆放；技能造/拆障碍物留待后续评估，不在首期范围
 
-### 3.3 BattleState 关键字段
+**验收**：障碍格不可进入/不可落点/不可穿越；视线与命中完全不受障碍物影响；AI 路径绕开障碍格；存档 schema 兼容（不升 `SAVE_VERSION`，缺失字段按无障碍处理）
 
-| 字段 | 含义 |
-| --- | --- |
-| `battle_id` / `seed` | 战斗唯一标识与主随机种子 |
-| `phase` | `timeline_running` / `unit_acting` / `battle_ended` 等 |
-| `active_unit_id` | 当前行动单位 |
-| `units: Dictionary[StringName, BattleUnitState]` | 单位索引 |
-| `timeline` | TU 推进状态 |
-| `attack_roll_nonce` | 攻击掷骰消耗计数；当前不再驱动随机序列，只用于记录 d20 / crit gate 等攻击骰消耗次数 |
-| `log_entries` | 日志行 |
-| `ally_unit_ids / enemy_unit_ids` | 按 faction 分组的单位列表 |
-| `winner_faction_id` | 胜方 faction |
+## 集成边界
 
----
-
-## 4. 命中系统（BAB + 降序 AC + d20）
-
-### 4.1 攻击检定公式
-
-`BattleHitResolver.build_skill_attack_check()` 的正式公式：
-
-```text
-required_roll =
-    ATTACK_CHECK_TARGET   (固定 21)
-  - attacker_bab
-  - target_armor_class
-  - skill_attack_bonus
-  - situational_attack_bonus
-  + situational_attack_penalty
-
-hit_rate_percent = clamp((21 - required_roll) * 5, 0, 100)
-
-resolution:
-  if d20 == 1  → 天然失手（natural_1_auto_miss）
-  if d20 == 20 → 天然命中（natural_20_auto_hit）
-  if d20 >= required_roll → 命中
-  else → 未命中
-```
-
-映射细节：
-
-- `attacker_bab = _convert_legacy_hit_rate_to_bab(active_unit.hit_rate)`
-- `target_armor_class = _convert_legacy_evasion_to_armor_class(target_unit.evasion)`
-- `skill_attack_bonus = _convert_legacy_percent_to_attack_bonus(combat_profile.hit_rate)`
-- 以上换算步长 `ATTACK_BONUS_STEP = 5.0`，即 5% 命中率约等于 1 点攻击加值。
-
-### 4.2 连段攻击
-
-`BattleHitResolver.build_repeat_attack_stage_hit_check()`：
-
-- 每一段独立掷骰，独立写入 `attack_roll_nonce`
-- `repeat_attack_effect.params.base_hit_rate` → 基础段位加值
-- `repeat_attack_effect.params.follow_up_hit_rate_penalty` × `stage_index` → 阶段递减
-- `cost_resource` 支持 `aura / mp / stamina / ap`，默认 `aura`
-- 预览用 `_resolve_repeat_attack_preview_stage_count()` 按当前资源推算最多可执行阶段
-
-### 4.3 攻击掷骰随机源
-
-当前 `_roll_battle_d20()` 不再用 `battle_id + seed + attack_roll_nonce` 重建确定性序列。正式口径是：
-
-```text
-attack_roll_nonce += 1
-roll = TrueRandomSeedService.randi_range(1, 20)
-```
-
-- `BattleSessionFacade` 为每场战斗分配 battle map seed，但攻击骰本身逐次调用 `TrueRandomSeedService`。
-- `BattleHitResolver._roll_battle_d20()` 与 `BattleDamageResolver._roll_true_random_attack_range()` 都会递增 `battle_state.attack_roll_nonce`，该字段现在是消费计数，不是随机源。
-- 因此测试不应再断言相同 `seed + battle_id + nonce` 能复现完全相同的命中骰序。
-
-### 4.4 优势 / 劣势（roll_disposition）
-
-当前 `roll_disposition` 仍只是普通命中结果的分类枚举：
-
-- `threshold_hit` / `threshold_miss`
-- `natural_1_auto_miss` / `natural_20_auto_hit`
-
-`CombatSkillDef` 仍没有 `roll_disposition` 配置字段。fate-aware 攻击路径已经通过 `BattleState.is_attack_disadvantage()` 支持 disadvantage 双骰取低，并把结果写入 `attack_metadata.is_disadvantage`；但这不是通用技能字段，也没有 advantage 双骰取高的资源化入口。
-
----
-
-## 5. 范围与选点系统
-
-`BattleGridService.get_area_coords()` 已支持的 `area_pattern`：
-
-| 图案 | 语义 | 计算方式 |
-| --- | --- | --- |
-| `single` | 单格 | 返回 `center_coord` |
-| `self` | 施法者自身 | 同 single，实际中心由调用方传入 |
-| `diamond` | 曼哈顿距离 ≤ radius | `|dx| + |dy| <= r` |
-| `square` / `radius` | 切比雪夫距离 ≤ radius | `max(|dx|, |dy|) <= r` |
-| `cross` | 十字延伸 | `dx == 0 or dy == 0` |
-| `line` | 直线延伸 | 方向由 `facing_direction` 决定（x 轴或 y 轴） |
-| `cone` | 锥形延伸 | 方向由 `facing_direction` 决定 |
-
-`area_origin_mode` / `area_direction_mode` 分别控制中心点与方向：
-
-- `area_origin_mode`：`target` / `caster` / `anchor_coord`
-- `area_direction_mode`：`target_vector`（由施法者到目标格的向量确定）/ `caster_facing`
-
-当前**不引入单位朝向系统**，line/cone 的方向完全由瞄点向量决定。
-
----
-
-## 6. 状态语义表
-
-`BattleStatusSemanticTable` 负责集中维护状态行为模板。已登记的状态：
-
-| 状态 ID | stack_mode | tick_mode | 说明 |
-| --- | --- | --- | --- |
-| `archer_pre_aim` | refresh | none | 预瞄：增加下一次攻击检定 |
-| `archer_range_up` | refresh | none | 射程增益 |
-| `armor_break` | refresh | none | 破甲 |
-| `attack_up` | refresh | none | 攻击力增益 |
-| `burning` | **add** | turn_start_damage | 叠层烧伤，回合起始结算持续伤害 |
-| `damage_reduction_up` | refresh | none | 受伤减免 |
-| `death_ward` | refresh | none | 致死免伤 |
-| `evasion_up` | refresh | none | 闪避增益（降 AC） |
-| `frozen` | refresh | none | 冰冻 |
-| `guarding` | refresh | none | 格挡姿态 |
-| `hex_of_frailty` | refresh | none | 脆弱诅咒 |
-| `magic_shield` | refresh | none | 法术盾 |
-| `marked` | refresh | none | 标记 |
-| `pinned` | refresh | none | 钉射 |
-| `prismatic_barrier` | refresh | none | 棱彩屏障 |
-| `rooted` | refresh | none | 束缚 |
-| `shocked` | refresh | none | 导电 |
-| `slow` | refresh | none | 迟缓，移动代价 +1 |
-| `spellward` | refresh | none | 护咒 |
-| `staggered` | refresh | none | 踉跄 |
-| `taunted` | refresh | none | 挑衅 |
-| `tendon_cut` | refresh | none | 断筋 |
-
-所有状态时间粒度 `TU_GRANULARITY = 5`，需在 TU 轴上对齐。
-
-### 6.1 已接入的状态效应
-
-- `archer_pre_aim`：提供下次攻击检定 `+2` 等价加成
-- `evasion_up`：等价 `armor_class -2`
-- `burning`：`stack_mode = add`，最大叠 3 层，回合起始造成持续伤害
-- `slow`：`move_cost_delta = 1`，移动代价永久 +1 直到消失
-- 其他均走 `refresh` timeline 模板，按 `duration_tu` 自行衰减
-
----
-
-## 7. AI 评分系统
-
-### 7.1 候选打分结构
-
-`BattleAiScoreService.build_skill_score_input()` 与 `build_action_score_input()` 产出统一 `BattleAiScoreInput`，字段包含：
-
-```text
-score_input:
-  action_kind            # skill / move / retreat / wait
-  action_label
-  score_bucket_id
-  score_bucket_priority
-  command / skill_def / preview
-  primary_coord
-  target_unit_ids[] / target_coords[]
-  target_count
-
-  hit_payoff_score       # 伤害 + 治疗 + 状态 + 地形 + 高度差 * 命中率
-  estimated_damage / estimated_healing
-  estimated_status_count / estimated_terrain_effect_count
-  estimated_height_delta
-  estimated_hit_rate_percent
-
-  ap_cost / mp_cost / stamina_cost / aura_cost / cooldown_tu
-  resource_cost_score
-
-  move_cost
-  position_objective_kind
-  desired_min_distance / desired_max_distance
-  position_anchor_coord
-  distance_to_primary_coord
-  position_objective_score
-
-  total_score
-```
-
-### 7.2 总分公式
-
-技能动作：
-
-```text
-total_score = action_base_score
-            + hit_payoff_score
-            + target_count * target_count_weight
-            - resource_cost_score
-            + position_objective_score
-```
-
-移动 / 撤退 / 等待动作：
-
-```text
-total_score = action_base_score
-            + position_objective_score
-            + target_count * metadata.target_count_weight
-            - move_cost * movement_cost_weight
-```
-
-### 7.3 候选比较顺序
-
-当多个动作都有评分时，`BattleAiService` 的比较顺序：
-
-1. `score_bucket_priority` 高者优先
-2. `total_score` 高者优先
-3. `hit_payoff_score` 高者优先
-4. `target_count` 高者优先
-5. `position_objective_score` 高者优先
-6. `resource_cost_score` 低者优先
-7. 相等则按 action 列表先后
-
----
-
-## 8. 技能内容池现状
-
-### 8.1 内容规模
-
-| 类别 | 数量 | 位置 |
-| --- | --- | --- |
-| warrior | 16 | `data/configs/skills/warrior_*.tres` |
-| archer | 32 | `data/configs/skills/archer_*.tres` |
-| mage | 135 | `data/configs/skills/mage_*.tres` |
-| priest | 1 | `data/configs/skills/priest_aid.tres` |
-| saint | 1 | `data/configs/skills/saint_blade_combo.tres` |
-| **总计** | **≈ 185** | 所有技能资源 |
-
-特殊说明：
-
-- `charge` 作为 `effect_type` 存在（见 `skill_content_registry.gd` 校验），挂在需要冲锋落点判定的技能上（如 `warrior_whirlwind_slash` 的冲锋 cast variant），不以独立 tres 形式出现。
-- `warrior_shield_wall` 已删除，防御姿态由 `warrior_guard` + `warrior_taunt` 覆盖。
-
-### 8.2 旧 Demo 15 的落地对照
-
-| 原 Demo 15 | 当前资源 | 状态 |
-| --- | --- | --- |
-| 重击 | `warrior_heavy_strike` | ✓ |
-| 横扫 | `warrior_sweeping_slash` / `warrior_whirlwind_slash` | ✓（拆成双技能） |
-| 穿刺 | `warrior_piercing_thrust` | ✓ |
-| 裂甲斩 | `warrior_guard_break` | ✓（改名） |
-| 断头斩 | `warrior_execution_cleave` | ✓ |
-| 冲锋 | `warrior_whirlwind_slash.charge variant` | ✓（以 cast variant 接入） |
-| 跳斩 | `warrior_jump_slash` | ✓ |
-| 后撤步 | `warrior_backstep` | ✓ |
-| 格挡 | `warrior_guard` | ✓ |
-| 护盾墙 | —— | 删除，防御姿态收敛到 `warrior_guard` |
-| 战斗回复 | `warrior_battle_recovery` | ✓ |
-| 盾击 | `warrior_shield_bash` | ✓ |
-| 挑衅 | `warrior_taunt` | ✓ |
-| 战吼 | `warrior_war_cry` | ✓ |
-| 真龙斩 | `warrior_true_dragon_slash` | ✓ |
-
-额外落地：`warrior_aura_slash` / `warrior_combo_strike`（连段骨架）/ `warrior_whirlwind_slash`（含冲锋变体）。
-
----
-
-## 9. 分步实现计划
-
-### 9.1 Phase 0 / 1 / 2 / 3 回顾
-
-| 阶段 | 目标 | 当前状态 |
-| --- | --- | --- |
-| Phase 1 规则底座 | Aura / `BattleHitResolver` / BAB+AC+d20 / `BattlePreview` / 冷却推进 / 状态注册表 / 强制位移 / 范围图形 / AI 评分骨架 / HUD | **已落地** |
-| Phase 2 Demo 技能池 | 15 个示范 warrior 技能 | **14/15 落地**，`warrior_shield_wall` 已删除 |
-| Phase 3 补齐 80 技能 | 沿用 effect/status/shape 模板扩展 | **已超额**（≈ 185 技能资源） |
-
-### 9.2 Phase 4：规则扩展（待办）
-
-| 任务 | 文件 | 改动 |
-| --- | --- | --- |
-| 1. `roll_disposition` 字段 | `combat_skill_def.gd` | 新增 `@export roll_disposition: StringName`，支持 `normal / advantage / disadvantage` |
-| 2. 双骰取舍 | `battle_hit_resolver.gd` | `_roll_battle_d20()` 支持一次取两骰，按 disposition 取 max/min |
-| 3. 预览展示 | `battle_preview.gd` / `battle_hud_adapter.gd` | `hit_preview` 补 `roll_disposition` 字段，HUD 展示 "优势 / 劣势" 标签 |
-| 4. 战场规则来源 | 新文件 `scripts/systems/battle_roll_disposition_resolver.gd` | 高地 / 掩体 / 贴身远程 / 包夹等战场来源合成最终 disposition |
-| 5. 回归测试 | `tests/battle_runtime/rules/run_battle_roll_disposition_regression.gd` | 覆盖双骰取高 / 取低 / 与天然 1/20 的互动 |
-
-**验收标准**：
-
-- `CombatSkillDef.roll_disposition = &"advantage"` 时，同一场景下命中率显著提升
-- 天然 1 / 天然 20 规则优先级不被 disposition 改变
-- HUD 预览可视化 "需 X+ · 优势" 文案
-- headless trace 记录双骰的两个原始结果
-
-### 9.3 Phase 5：战场情境表（可延后）
-
-| 任务 | 说明 |
-| --- | --- |
-| 高地判定 | `battle_grid_service.get_height_delta()` 注入 attack bonus |
-| 掩体判定 | 通过地格的 `terrain_effect_ids` 给防御方提供 AC 加成 |
-| 贴身远程惩罚 | `BattleHitResolver` 按 skill tag 和近战距离触发负加成 |
-| 包夹 | 多个友军毗邻目标时提供 attack bonus |
-
-这些情境目前都**未接入**，留待 Phase 5 统一通过 `situational_attack_bonus` 通道注入。
-
-### 9.4 Phase 6：Saving Throw / 暴击重构（长远）
-
-- 救援检定：受害方按属性对 effect 发起 d20 抵抗，未过则全额生效
-- 暴击重构：fate-aware 攻击路径当前已有 `crit_gate_die`、高位大成功、低端大失败与 disadvantage 交互；但通用技能资源层仍没有独立 `crit_multiplier`、武器威胁范围或 saving throw。后续如果要做 D&D 式暴击倍率，应先收敛 `BattleHitResolver` 与 `BattleDamageResolver` 的命中真相源，再新增通用字段。
-
-Phase 6 目前**未启动**，不影响 Phase 0~3 内容继续迭代。
-
----
-
-## 10. 与现有系统的集成边界
-
-### 10.1 修改边界
-
-| 现有系统 | Phase 4 改动 | Phase 5+ 改动 |
-| --- | --- | --- |
-| `CombatSkillDef` | 评估是否新增技能级 `roll_disposition`；当前 fate disadvantage 不通过此字段表达 | 无 |
-| `BattleHitResolver` | 与 `BattleDamageResolver` 收敛 fate-aware 命中 / 暴击入口；普通命中预览保持 BAB+AC+d20 | 情境表注入 `situational_attack_bonus` |
-| `BattlePreview` | `hit_preview.roll_disposition` | `hit_preview.situational_sources[]` |
-| `BattleGridService` | 无 | 新增 `get_cover_bonus()` / `get_height_bonus()` 接口 |
-| `BattleAiScoreService` | 0% 命中候选排除 | 将情境 bonus 纳入预期命中率 |
-| `BattleHudAdapter` | 优势/劣势标签 | 情境来源明细展示 |
-
-### 10.2 不应触碰的系统
-
-- `SaveSerializer` — 命中模型不升 `SAVE_VERSION`，存档兼容保持
-- `AttributeService.HIT_RATE / EVASION` — 保留原名，避免 ripple 全仓资源迁移
-- `HeadlessGameTestSession` — 新增 text command 域即可，不改核心结构
-- `GameRuntimeFacade / WorldMapRuntimeProxy / WorldMapSystem` 主流程 — 技能扩展不应牵动 world map 的战斗启动链路
-
-### 10.3 资源 / 工具链对齐
-
-- 技能资源变更后需跑 `run_skill_schema_regression.gd`（schema 级校验）
-- 命中公式变更后需跑 `run_battle_runtime_ai_regression.gd` 与 `run_warrior_skill_semantics_regression.gd`
-- 大规模内容平衡可走 `docs/design/battle/balance_simulation.md` 的批量模拟链路
-
----
-
-## 11. 测试清单
-
-### 规则测试
-
-- BAB + 降序 AC + d20 公式正确（`_convert_legacy_*` 链路覆盖）
-- 天然 1 / 天然 20 在任何 disposition 下都优先生效
-- Aura / Stamina / AP / CD 校验与扣除路径
-- 状态 `stack_mode` / `tick_mode` / `duration_tu` 的生命周期
-- 强制位移（击退 / 拉拽 / 跳斩）正确更新坐标与占位
-- 击杀刷新行动只在条件满足时触发
-- 连段攻击逐段独立掷骰、阶段惩罚正确
-- 攻击掷骰会递增 `attack_roll_nonce`，并通过 `TrueRandomSeedService` 取值；回归应验证结构化字段、边界结果与日志语义，不再验证 `seed + battle_id + nonce` 复现骰序
-
-### 技能测试
-
-- 每个 warrior Demo 技能覆盖"合法释放"与"非法目标"两类
-- `warrior_taunt` 验证 AI 转火
-- `warrior_guard` 验证减伤姿态
-- `warrior_execution_cleave` 验证低血增伤条件
-- `warrior_true_dragon_slash` 验证直线大范围命中
-- multi-unit 技能验证逐目标独立命中与聚合预览
-- self / ally 向技能不走攻击检定
-
-### UI / 预览测试
-
-- HUD 展示最终命中率与"需 X+"文案
-- 资源不足时技能槽禁用态
-- 范围预览显示选点与受影响格
-- 文本快照 / headless snapshot 能读到 `hit_preview` 摘要
-
-### AI 测试
-
-- 击杀优先 / 控制高威胁 / 低血保命 / AOE 最大收益 / 位移接敌五类行为
-- 0% 命中候选被正确排除
-- `score_bucket_priority` 优先级生效
-
----
-
-## 12. 总结
-
-当前战斗技能系统已经具备完整闭环：
-
-- **数据层** — `SkillDef / CombatSkillDef / CombatEffectDef / CastVariantDef` 覆盖所有内容需求，`damage_ratio_percent` 与 `forced_move_*` 填平了旧字段缺口
-- **执行层** — `BattleHitResolver` 负责 BAB + 降序 AC + d20 的普通检定与预览；fate-aware 攻击结果仍有一部分在 `BattleDamageResolver` 中结算，随机源统一调用 `TrueRandomSeedService`
-- **范围层** — `BattleGridService` 覆盖 `single / self / line / cone / radius / diamond / square / cross` 八种图案，方向由瞄点向量推算
-- **状态层** — `BattleStatusSemanticTable` 登记 20+ 状态模板，`refresh / add` 叠层与 `turn_start_damage` tick 已接入
-- **AI 层** — 候选打分统一到 `BattleAiScoreInput`，支持技能 / 移动 / 撤退 / 等待同平面比较
-- **内容层** — 约 185 个技能资源，已超出原 80 个的目标
-
-实施优先级：
-
-1. **Phase 4（近期）**：收敛 fate-aware 命中真相源，并决定是否把 `roll_disposition` 做成通用技能字段
-2. **Phase 5（中期）**：高地 / 掩体 / 包夹 / 贴身远程惩罚等情境表
-3. **Phase 6（远期）**：Saving Throw、独立暴击倍率、跨阵营救援检定
-
-最理想的体验是让玩家感到：
-
-> **数值差距在棋盘上可感知、命中是可预览的决策、技能丰度不会压到资源与冷却之外的规则骨架。**
+- 可改：`BattleHitResolver`、`BattleAttackCheckPolicyService`、`BattleGridService`、`BattlePreview` / HUD adapter、`BattleAiScoreService`、新增情境规则文件与对应 `tests/battle_runtime/rules/` 回归
+- 不碰：`SaveSerializer`（不升版本）、`AttributeService` 的 `HIT_RATE / EVASION` 命名、`HeadlessGameTestSession` 核心结构、world map 战斗启动链路
+- 命中公式变更后按 `skill_runtime.md` 的代表性回归清单重跑相关 runner

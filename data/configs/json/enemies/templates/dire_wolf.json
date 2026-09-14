@@ -1,0 +1,61 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 15,
+        "constitution": 15,
+        "intelligence": 3,
+        "perception": 14,
+        "strength": 17,
+        "willpower": 7
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "melee_aggressor",
+      "cognition_kind": "instinctive",
+      "creature_level": 4,
+      "damage_resistances": {},
+      "display_name": "\u6050\u72FC",
+      "drop_entries": [
+        {
+          "drop_entry_id": "dire_wolf_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 2
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 10,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "charm"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "charge"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "beast",
+        "wolf",
+        "bite"
+      ],
+      "target_rank": "elite",
+      "template_id": "dire_wolf"
+    }
+  ],
+  "family": "dire_wolf",
+  "schema": 1,
+  "templates": {}
+}

@@ -3,7 +3,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
 public partial class SelectableListWindow : ModalWindowShell
 {
     private ItemList _itemList;

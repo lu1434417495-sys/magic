@@ -80,11 +80,14 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertFixedLegacyGolden(payload);
             AssertMeteorSchema(payload);
             AssertLayeredBarrierSchema(payload);
+            AssertShieldScoreSchema(payload);
+            AssertEquipmentDurabilityScoreSchema(payload);
+            AssertForcedMoveScoreSchema(payload);
             AssertLegacyTraceReference(trace, payload);
             AssertFingerprint(
                 payload,
-                12205,
-                "67e896c96a9d7e19b324058e76e11d3872b2eb37d92c4635020ed4abd3ad5083",
+                13090,
+                "63aebbcb7e3a462feb41832ad5d3dfc9d5d85175350eb75549119352ccdb60b0",
                 "full AI trace payload"
             );
             AssertDictionaryKeysAreStrings(payload, "trace");
@@ -242,26 +245,25 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             ].AsGodotDictionary();
             using GArray targetEstimates = estimates["target"].AsGodotArray();
             using GDictionary compact = targetEstimates[0].AsGodotDictionary();
-            Dictionary<string, object> legacy = estimate.ToTraceDictionary();
             _test.Eq(
                 compact["hit_count"].AsInt32(),
-                (int)legacy["hit_count"],
-                "Typed compact save hit_count must retain f25 clamp semantics."
+                1,
+                "Typed compact save hit_count must clamp the fixture's zero hit count to one."
             );
             _test.Eq(
                 compact["ability"].AsString(),
-                (string)legacy["ability"],
-                "Typed compact save ability null semantics."
+                "",
+                "Typed compact save ability should project null as an empty string."
             );
             _test.Eq(
                 compact["save_tag"].AsString(),
-                (string)legacy["save_tag"],
-                "Save tag null semantics."
+                "",
+                "Typed compact save tag should project null as an empty string."
             );
             _test.Eq(
                 compact["advantage_state"].AsString(),
-                (string)legacy["advantage_state"],
-                "Advantage-state null semantics."
+                "",
+                "Typed compact advantage state should project null as an empty string."
             );
         }
         AssertReturnedToBaseline(baseline, "compact save edge parity");
@@ -420,7 +422,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         using GDictionary command = payload["command"].AsGodotDictionary();
         AssertKeyOrder(
             command,
-            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords,source_retreat_direction",
+            "command_type,unit_id,skill_id,skill_variant_id,target_unit_id,target_unit_ids,target_coord,target_coords,source_retreat_direction,forced_move_destination_coord",
             "command"
         );
         _test.Eq(ReadText(command, "command_type"), "skill", "Command type golden.");
@@ -554,6 +556,79 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         );
     }
 
+    private void AssertShieldScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        _test.True(
+            scoreInput.ContainsKey("estimated_shield_gain_basis_points"),
+            "AI trace score schema must expose total expected shield gain."
+        );
+        _test.True(
+            scoreInput.ContainsKey("estimated_ally_shield_gain_basis_points"),
+            "AI trace score schema must expose ally expected shield gain."
+        );
+        _test.Eq(
+            scoreInput["estimated_shield_gain_basis_points"].AsInt32(),
+            0,
+            "Non-shield trace fixture should project zero expected shield gain."
+        );
+        _test.Eq(
+            scoreInput["estimated_ally_shield_gain_basis_points"].AsInt32(),
+            0,
+            "Non-shield trace fixture should project zero ally shield gain."
+        );
+    }
+
+    private void AssertEquipmentDurabilityScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        _test.True(
+            scoreInput.ContainsKey("estimated_equipment_durability_loss_basis_points"),
+            "AI trace score schema must expose expected equipment durability loss."
+        );
+        _test.True(
+            scoreInput.ContainsKey("estimated_equipment_destruction_probability_basis_points"),
+            "AI trace score schema must expose equipment destruction probability."
+        );
+        _test.Eq(
+            scoreInput["estimated_equipment_durability_loss_basis_points"].AsInt32(),
+            0,
+            "Non-durability trace fixture should project zero expected durability loss."
+        );
+        _test.Eq(
+            scoreInput["estimated_equipment_destruction_probability_basis_points"].AsInt32(),
+            0,
+            "Non-durability trace fixture should project zero destruction probability."
+        );
+    }
+
+    private void AssertForcedMoveScoreSchema(GDictionary payload)
+    {
+        using GDictionary scoreInput = payload["score_input"].AsGodotDictionary();
+        foreach (
+            string key in new[]
+            {
+                "forced_move_distance",
+                "forced_move_engagement_delta",
+                "forced_move_landing_terrain_effect_delta",
+                "forced_move_height_delta",
+                "forced_move_caster_exposure_penalty",
+                "forced_move_position_score",
+            }
+        )
+        {
+            _test.True(
+                scoreInput.ContainsKey(key),
+                $"AI trace score schema must expose typed forced-move fact '{key}'."
+            );
+            _test.Eq(
+                scoreInput[key].AsInt32(),
+                0,
+                $"Non-forced-move trace fixture should project zero for '{key}'."
+            );
+        }
+    }
+
     private void AssertLegacyLabelArray(
         GDictionary component,
         string key,
@@ -631,8 +706,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 lease.Value,
-                9737,
-                "5f13015b2774ff61fcea68ca05f05755a99770057a7029845691feb87b459272",
+                10458,
+                "7c3952d0df540aea502f2b3d800b28f9bf0f5f1f3f0864ecacfd5c7f41db6df9",
                 "full standalone AI score payload"
             );
         }
@@ -684,7 +759,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             GDictionary payload = BattleAiScoreProjection.WriteProfile(
                 lease,
-                BattleAiScoreProfileDefinition.FromResource(profile),
+                BattleAiScoreProfileDefinition.FromDiagnosticFixture(profile),
                 "profile-map-test.payload"
             );
             using GDictionary actionScores = payload["action_base_scores"].AsGodotDictionary();
@@ -812,7 +887,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         {
             AssertKeyOrder(
                 lease.Value,
-                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_asset_id,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,save_bonus_by_tag,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects,reaction_state,counterattack_capability_state",
                 "real unit snapshot"
             );
             using GDictionary projectedCooldowns =
@@ -853,10 +928,11 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 3,
                 "status save bonus map"
             );
+            // 2026-08-15 行动节奏敏捷派生：action_threshold 默认值 120 -> 40，payload 短 1 字符。
             AssertFingerprint(
                 lease.Value,
-                2126,
-                "50524c863288c6e1ecc9681567b15f5ca085cd3eee4f97320d2e521f228deb83",
+                2345,
+                "008f44ad980dd18bc432fe4875ccf77b3129ef823fa1892d411fd0c7e84942c6",
                 "full real unit snapshot payload"
             );
         }
@@ -913,10 +989,11 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 0,
                 "Successful simulation runs must expose an empty start failure payload."
             );
+            // 同上：action_threshold 默认值 120 -> 40。
             AssertFingerprint(
                 reportLease.Value,
-                16460,
-                "15e919b08deb7d0f4180818dc047034a219e00994c9a4a42546e0e0841ac0e6d",
+                17564,
+                "1479c4074822adf8efcdea08e84ff8335099110f734b427dbc83d458bf2ce608",
                 "full simulation report payload"
             );
         }
@@ -969,8 +1046,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             );
             AssertFingerprint(
                 summaryLease.Value,
-                6432,
-                "297b77d61b13269a5d3c5d7eefc0578d7073fd8e16a26239bba0e0eb54621b25",
+                7234,
+                "d80acec63ba7df214be66edf48d6626fa4d7ac0129175f6156322073d89b3695",
                 "full compact trace summary payload"
             );
         }

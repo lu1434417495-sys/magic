@@ -6,10 +6,6 @@ using System;
 
 public sealed class EncounterRosterBuilder : IDisposable
 {
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
-    private static readonly IReadOnlyDictionary<StringName, int> EmptyIntMap =
-        new Dictionary<StringName, int>();
-
     private sealed class ParsedDropDefinition
     {
         public ParsedDropDefinition(
@@ -131,11 +127,13 @@ public sealed class EncounterRosterBuilder : IDisposable
     private Dictionary<StringName, WildEncounterRosterDefinition> _wildEncounterRosterIndex = new();
     private Dictionary<StringName, EnemyTemplateDefinition> _enemyTemplateIndex = new();
     private Dictionary<StringName, BattleEncounterDefinition> _battleEncounterIndex = new();
+    private StringName _basicAttackSkillId = "";
 
     internal void Setup(
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
         IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> wildEncounterRosters,
-        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates
+        IReadOnlyDictionary<StringName, EnemyTemplateDefinition> enemyTemplates,
+        StringName basicAttackSkillId = default
     )
     {
         _battleEncounterIndex = new Dictionary<StringName, BattleEncounterDefinition>(
@@ -147,6 +145,12 @@ public sealed class EncounterRosterBuilder : IDisposable
         _enemyTemplateIndex = new Dictionary<StringName, EnemyTemplateDefinition>(
             enemyTemplates ?? new Dictionary<StringName, EnemyTemplateDefinition>()
         );
+        SetBasicAttackSkillId(basicAttackSkillId);
+    }
+
+    internal void SetBasicAttackSkillId(StringName basicAttackSkillId)
+    {
+        _basicAttackSkillId = basicAttackSkillId ?? "";
     }
 
     // Canonical Godot projection boundary only. Formal battle startup must
@@ -763,7 +767,7 @@ public sealed class EncounterRosterBuilder : IDisposable
                     resolvedUnitCount,
                     useNumericSuffix
                 ),
-                battle_sprite_texture_path = template?.BattleSpriteTexturePath ?? "",
+                battle_sprite_asset_id = template?.BattleSpriteAssetId ?? "",
                 faction_id =
                     encounterAnchor != null && encounterAnchor.faction_id != ""
                         ? encounterAnchor.faction_id
@@ -776,17 +780,18 @@ public sealed class EncounterRosterBuilder : IDisposable
                         : new StringName("engage"),
                 ai_blackboard = new BattleAiBlackboard(),
             };
-            unitState.SetActionThresholdTyped(
-                template != null
-                    ? template.ActionThreshold
-                    : BattleUnitState.DefaultActionThreshold
-            );
             unitState.SetBodySizeProjection(Mathf.Max(template != null ? template.BodySize : 1, 1));
             unitState.SetBaseCognitionKindTyped(
                 template?.CognitionKind
                 ?? BattleCognitionKind.Sapient
             );
-            ApplyEnemyWeaponProjection(unitState, template, buildContext.ItemDefs);
+            unitState.SetEquipmentView(
+                EnemyBattleEquipmentProjectionService.BuildEquipmentState(
+                    template,
+                    unitState.unit_id,
+                    buildContext.ItemDefs
+                )
+            );
             unitState.ReplaceCreatureTypeTagsTyped(
                 BattleEquipmentAbilityProjectionService.ProjectCreatureTypeTags(
                     template
@@ -810,11 +815,26 @@ public sealed class EncounterRosterBuilder : IDisposable
                 equipmentAbilityProjection
                     .CognitionCeilingModifiers
             );
+            ApplyEnemyWeaponProjection(
+                unitState,
+                template,
+                buildContext.ItemDefs,
+                buildContext.EquipmentAbilityBindings
+            );
             unitState.attribute_snapshot = BuildEnemySnapshotFromTemplate(
                 template,
-                buildContext.ItemDefs
+                buildContext.ItemDefs,
+                unitState.GetEquipmentView()
             );
             var snapshot = unitState.attribute_snapshot as AttributeSnapshot;
+            // 行动阈值单一真源：与角色一样由 agility 派生，模板不再配置 action_threshold。
+            unitState.SetActionThresholdTyped(
+                snapshot != null
+                    && snapshot.HasValue(AttributeService.ACTION_THRESHOLD)
+                    && snapshot.GetValue(AttributeService.ACTION_THRESHOLD) > 0
+                    ? snapshot.GetValue(AttributeService.ACTION_THRESHOLD)
+                    : BattleUnitState.DefaultActionThreshold
+            );
             unitState.SetCombatResources(
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)) : 0,
                 snapshot != null ? snapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)) : 0,
@@ -849,7 +869,8 @@ public sealed class EncounterRosterBuilder : IDisposable
                 template,
                 buildContext.SkillDefinitions,
                 buildContext.GenerationSeed,
-                globalIndex
+                globalIndex,
+                _basicAttackSkillId
             );
             SyncEnemyUnlockedResources(unitState, buildContext.SkillDefinitions);
             enemyUnits.Add(unitState);
@@ -883,87 +904,22 @@ public sealed class EncounterRosterBuilder : IDisposable
 
     private AttributeSnapshot BuildEnemySnapshotFromTemplate(
         EnemyTemplateDefinition template,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        EquipmentState equipmentState
     )
     {
-        IReadOnlyDictionary<StringName, int> baseAttributes =
-            template?.BaseAttributeOverrides ?? EmptyIntMap;
-        var unitProgress = new UnitProgress();
-        foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
-        {
-            unitProgress.unit_base_attributes.SetAttributeValue(
-                attributeId,
-                baseAttributes.TryGetValue(attributeId, out int value) ? value : 0
-            );
-        }
-        IReadOnlyDictionary<StringName, int> stats =
-            template?.AttributeOverrides ?? EmptyIntMap;
-        ApplyEnemyAcComponentOverridesToProgress(unitProgress, stats);
-        var attributeService = new AttributeService();
-        attributeService.Setup(unitProgress);
-        AttributeSnapshot snapshot = attributeService.GetSnapshot();
-        ApplyEnemyAttributeOverrides(snapshot, stats);
-        ApplyEnemyDerivedCombatStats(snapshot, template, stats, itemDefs);
-        if (template != null)
-        {
-            ApplyEnemyTargetRank(snapshot, template.TargetRankKind);
-        }
-        return snapshot;
-    }
-
-    private static void ApplyEnemyDerivedCombatStats(
-        AttributeSnapshot snapshot,
-        EnemyTemplateDefinition template,
-        IReadOnlyDictionary<StringName, int> declaredStats,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
-    )
-    {
-        if (snapshot == null || template == null)
-        {
-            return;
-        }
-        StringName hpMaxId = AttributeService.ToStringName(AttributeIdKind.HpMax);
-        if (!declaredStats.ContainsKey(hpMaxId))
-        {
-            snapshot.SetValue(hpMaxId, template.DerivedHpMax);
-        }
-        StringName attackBonusId = AttributeService.ToStringName(AttributeIdKind.AttackBonus);
-        if (!declaredStats.ContainsKey(attackBonusId))
-        {
-            snapshot.SetValue(attackBonusId, template.DerivedAttackBonus);
-        }
-    }
-
-    private static void ApplyEnemyTargetRank(
-        AttributeSnapshot snapshot,
-        EnemyTargetRankKind targetRank
-    )
-    {
-        if (snapshot == null)
-        {
-            return;
-        }
-        if (targetRank == EnemyTargetRankKind.Boss)
-        {
-            snapshot.SetValue("fortune_mark_target", 2);
-            snapshot.SetValue("boss_target", 1);
-        }
-        else if (targetRank == EnemyTargetRankKind.Elite)
-        {
-            snapshot.SetValue("fortune_mark_target", 1);
-            snapshot.SetValue("boss_target", 0);
-        }
-        else
-        {
-            snapshot.SetValue("fortune_mark_target", 0);
-            snapshot.SetValue("boss_target", 0);
-        }
+        return EnemyBattleEquipmentProjectionService.BuildAttributeSnapshot(
+            template,
+            equipmentState,
+            itemDefs
+        );
     }
 
     private static void ApplyEnemyWeaponProjection(
         BattleUnitState unitState,
         EnemyTemplateDefinition template,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings
     )
     {
         if (unitState == null)
@@ -976,62 +932,13 @@ public sealed class EncounterRosterBuilder : IDisposable
             unitState.ClearWeaponProjection();
             return;
         }
+        projection = EquipmentWeaponProfileOverlayService.ApplyOverlays(
+            unitState,
+            projection,
+            equipmentAbilityBindings,
+            itemDefs
+        );
         unitState.ApplyWeaponProjectionTyped(projection);
-    }
-
-    private static void ApplyEnemyAttributeOverrides(
-        AttributeSnapshot snapshot,
-        IReadOnlyDictionary<StringName, int> stats
-    )
-    {
-        if (snapshot == null || stats == null)
-        {
-            return;
-        }
-        foreach ((StringName attributeId, int configuredValue) in stats)
-        {
-            int value = configuredValue;
-            if (attributeId == AttributeService.ToStringName(AttributeIdKind.HpMax))
-            {
-                value = Mathf.Max(value, 1);
-            }
-            else if (
-                attributeId == AttributeService.ToStringName(AttributeIdKind.MpMax)
-                || attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax)
-                || attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax)
-            )
-            {
-                value = Mathf.Max(value, 0);
-            }
-            else if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
-            {
-                value = Mathf.Max(value, 1);
-            }
-            snapshot.SetValue(attributeId, value);
-        }
-    }
-
-    private static void ApplyEnemyAcComponentOverridesToProgress(
-        UnitProgress unitProgress,
-        IReadOnlyDictionary<StringName, int> stats
-    )
-    {
-        if (unitProgress == null || unitProgress.unit_base_attributes == null || stats == null)
-        {
-            return;
-        }
-        foreach (
-            StringName componentId in AttributeContentRules.ArmorClassComponentAttributeIds
-        )
-        {
-            if (stats.TryGetValue(componentId, out int componentValue))
-            {
-                unitProgress.unit_base_attributes.SetAttributeValue(
-                    componentId,
-                    Mathf.Max(componentValue, 0)
-                );
-            }
-        }
     }
 
     private static void ReportMissingEncounterRoster(EncounterAnchorData encounterAnchor)
@@ -1047,17 +954,18 @@ public sealed class EncounterRosterBuilder : IDisposable
         );
     }
 
-    private static IReadOnlyList<StringName> PickDefaultEnemySkillIds(
+    private IReadOnlyList<StringName> PickDefaultEnemySkillIds(
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        StringName[] preferredSkillIds =
+        var preferredSkillIds = new List<StringName>
         {
-            BasicAttackSkillId,
             "warrior_heavy_strike",
             "warrior_combo_strike",
             "warrior_guard_break",
         };
+        if (_basicAttackSkillId != "")
+            preferredSkillIds.Insert(0, _basicAttackSkillId);
         foreach (StringName preferredSkillId in preferredSkillIds)
         {
             if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, preferredSkillId)))
@@ -1102,20 +1010,21 @@ public sealed class EncounterRosterBuilder : IDisposable
         return combatProfile.TargetFilterKind == BattleTargetFilter.Enemy;
     }
 
-    private static void EnsureBasicAttackSkill(
+    private void EnsureBasicAttackSkill(
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
         if (
             unitState == null
+            || _basicAttackSkillId == ""
             || skillDefinitions == null
-            || !skillDefinitions.ContainsKey(BasicAttackSkillId)
+            || !skillDefinitions.ContainsKey(_basicAttackSkillId)
         )
         {
             return;
         }
-        unitState.AddKnownActiveSkill(BasicAttackSkillId);
+        unitState.AddKnownActiveSkill(_basicAttackSkillId);
     }
 
     private static void SyncEnemyUnlockedResources(
@@ -1155,7 +1064,11 @@ public sealed class EncounterRosterBuilder : IDisposable
             int skillLevel = unitState.HasKnownSkillLevelTyped(skillId)
                 ? Mathf.Max(unitState.GetKnownSkillLevelTyped(skillId), 1)
                 : 1;
-            CombatSkillResourceCosts costs = combatProfile.GetEffectiveResourceCostValues(skillLevel);
+            CombatSkillResourceCosts costs = BattleTargetSlotCostRules.Resolve(
+                combatProfile,
+                skillLevel,
+                1
+            );
             if (costs.MpCost > 0)
             {
                 unitState.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));

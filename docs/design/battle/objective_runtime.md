@@ -1,7 +1,7 @@
 # 战斗目标与终局运行时
 
 > 状态：`Current / Implemented (9/9: elimination + boss + rescue + escape + escort + defense + intercept + node_operation + control)`
-> 核对日期：`2026-07-25`
+> 核对日期：`2026-08-19`
 
 九种模式的玩家体验、当前正式样例、关卡节奏、敌方/地图制作原则和后续内容池见 [`../../content/battle/objective_modes.md`](../../content/battle/objective_modes.md)。本文只维护运行时与内容 schema 的当前实现真相。
 
@@ -9,7 +9,7 @@
 
 当前代码已经建立统一的战斗目标与终局管线，`elimination`（歼灭）、`boss`（击败首领）、`rescue`（拯救）、`escape`（逃离）、`escort`（护送）、`defense`（防守）、`intercept`（截击）、`node_operation`（节点作业）和 `control`（区域占领）九种模式均具备可创作内容、运行时求值、HUD/快照投影、AI affordance、正式内容和回归。
 
-这一区分仍是硬边界：mode 出现在 enum 中不等于该模式已经可玩。`BattleEncounterContentRegistry` 只接受九种已有完整实现的 objective Resource，包括 `BattleNodeOperationObjectiveDef` 与 `BattleControlObjectiveDef`；其他 objective Resource 必须校验失败。
+这一区分仍是硬边界：mode 出现在 enum 中不等于该模式已经可玩。`BattleEncounterContentRegistry` 只接受 `BattleObjectiveKind` 的九种 closed `kind + payload` 分支；未知 kind、错配 payload 或额外字段必须在 strict JSON import 阶段失败。
 
 ## 内容所有权
 
@@ -24,7 +24,7 @@ EncounterAnchorData.encounter_profile_id
     -> world_resolution -> success / failure / draw policy
 ```
 
-`BattleEncounterDef` 是遭遇级 authoring owner。敌方编队、胜负目标和战后世界处理在这里汇合；世界锚点不再保存 `enemy_roster_template_id`，运行时也不得从敌人存在与否推断默认歼灭目标。缺失或不存在的 `encounter_profile_id` 必须在内容校验或开战入口失败，不能回退到旧 schema。
+`data/configs/json/battle_encounters/` 的 encounter entry 是遭遇级 code-owned authoring owner。敌方编队、胜负目标和战后世界处理在这里汇合，经 plain import model 与唯一 projector 发布 `BattleEncounterDefinition`；世界锚点不再保存 `enemy_roster_template_id`，运行时也不得从敌人存在与否推断默认歼灭目标。缺失或不存在的 `encounter_profile_id` 必须在内容校验或开战入口失败，不能回退到旧 schema。
 
 当前正式内容：
 
@@ -76,7 +76,7 @@ Control 的 `control_zones` 可声明任意正数个区域。每个区域配置�
 
 ### 场景参与者
 
-`BattleEncounterDef.scenario_actors` 是救援、护送与防守 NPC 的正式 authoring owner。每个 actor 配置稳定 `actor_id`、正式 enemy template、显示名、入口 zone id、类型化边与纵深。内容校验要求 actor id 在 encounter 内唯一、template 存在，并要求 Rescue/Escort/Defense 目标恰好绑定一个 scenario actor；当前其他 objective 不允许声明 scenario actor，避免未定义的单位归属与结算语义。
+encounter JSON 的 `scenario_actors` 是救援、护送与防守 NPC 的正式 authoring owner。每个 actor 配置稳定 `actor_id`、正式 enemy template、显示名、入口 zone id、类型化边与纵深。内容校验要求 actor id 在 encounter 内唯一、template 存在，并要求 Rescue/Escort/Defense 目标恰好绑定一个 scenario actor；当前其他 objective 不允许声明 scenario actor，避免未定义的单位归属与结算语义。
 
 `EncounterRosterBuilder` 复用 enemy template 的属性、体型、技能、装备和 AI brain 投影创建 battle-only 单位，再强制写入玩家友方阵营、AI control、稳定 `encounter_actor_id` 和空 `source_member_id`。运行时按实际地图解析入口区并放置；scenario actor 不进入玩家队伍成长、装备、资源、死亡或奖励写回，也不生成敌方战利品。
 

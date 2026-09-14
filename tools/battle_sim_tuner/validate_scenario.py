@@ -8,7 +8,7 @@ A scenario that stalemates or is lopsided cannot tune the sustain/survival param
 This does NOT run on import. Invoke explicitly, e.g. from tools/:
 
     battle_sim_tuner/.venv/bin/python -m battle_sim_tuner.validate_scenario \
-        --scenario res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres \
+        --scenario attrition_sustain_2v2 \
         --workers 8
 
 Total battles = workers x (#seeds in the scenario). Use workers>=7 for n>=20.
@@ -21,7 +21,7 @@ import argparse
 from .evaluator import evaluate_genome, is_formal_fixture_scenario
 from .search_space import SCORE_DEFAULTS, score_weight_space
 
-DEFAULT_SCENARIO = "res://data/configs/battle_sim/scenarios/attrition_sustain_2v2.tres"
+DEFAULT_SCENARIO = "attrition_sustain_2v2"
 
 
 def main() -> None:

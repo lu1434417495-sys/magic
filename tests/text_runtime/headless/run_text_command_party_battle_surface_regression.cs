@@ -111,10 +111,14 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
                 runner.ExecuteLine("battle confirm"),
                 "battle confirm 应成功。"
             );
+            Dictionary<StringName, (int CurrentHp, int MaxHp)> manualUnitHp =
+                PrimeManualUnitSurvival(runtime);
             AdvanceToManualBattleTurn(runner);
+            RestoreManualUnitHp(runtime, manualUnitHp);
 
             PrimeActiveManualSkillBlocker(runtime, 0, 0);
             GameTextCommandResult skillBlockedResult = runner.ExecuteLine("battle skill 1");
+            _test.True(!skillBlockedResult.skipped, "体力不足的 skill 命令必须实际进入 runtime。");
             _test.False(skillBlockedResult.ok, "体力不足时 battle skill 1 应失败。");
             _test.Eq(
                 skillBlockedResult.code,
@@ -127,14 +131,28 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
                 "skill blocker 失败后不应保留 selected skill。"
             );
 
-            AssertCommandOk(runner.ExecuteLine("battle clear"), "battle clear 应成功。");
+            PrimeActiveManualMultiVariantSkill(runtime);
+            AssertCommandOk(runner.ExecuteLine("battle skill 1"), "battle skill 1 应选中多形态技能。");
+            _test.Eq(
+                runtime.GetSelectedBattleSkillId(),
+                new StringName("mage_delayed_fireball"),
+                "多形态前置应选中正式 mage_delayed_fireball 定义。"
+            );
+            StringName initialVariantId = runtime.GetSelectedBattleSkillVariantId();
+            _test.True(initialVariantId != "", "选中多形态技能后应有默认 variant。");
             AssertCommandOk(runner.ExecuteLine("battle option next"), "battle option next 应成功。");
+            _test.True(
+                runtime.GetSelectedBattleSkillVariantId() != ""
+                    && runtime.GetSelectedBattleSkillVariantId() != initialVariantId,
+                "battle option next 应把已选 variant 切换到另一个已解锁形态。"
+            );
 
             const string NonSelfTargetUnitId = "non_self_target_unit";
             PrimeActiveManualSkillBlocker(runtime, 2, 0);
             GameTextCommandResult targetBlockedResult = runner.ExecuteLine(
                 $"battle equip main_hand bronze_sword target_unit_id={NonSelfTargetUnitId}"
             );
+            _test.True(!targetBlockedResult.skipped, "battle equip 负例必须实际进入 runtime。");
             _test.False(
                 targetBlockedResult.ok,
                 "指定其他目标时 battle equip 应失败。"
@@ -202,13 +220,34 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
             _test.True(moveTarget != new Vector2I(-1, -1), "应能找到一个可达 battle move 目标。");
             if (moveTarget != new Vector2I(-1, -1))
             {
+                BattleUnitState movingUnit = runtime.GetBattleState()?.GetUnit(
+                    runtime.GetBattleState().active_unit_id
+                );
+                int movePointsBefore = movingUnit?.GetCurrentMovePoints() ?? -1;
                 AssertCommandOk(
                     runner.ExecuteLine($"battle move {moveTarget.X} {moveTarget.Y}"),
                     "battle move <x> <y> 应成功。"
                 );
+                _test.Eq(
+                    movingUnit?.GetAnchorCoord() ?? new Vector2I(-1, -1),
+                    moveTarget,
+                    "battle move 应真正更新行动单位的 anchor coord。"
+                );
+                _test.True(
+                    movingUnit != null
+                        && movePointsBefore > movingUnit.GetCurrentMovePoints(),
+                    "battle move 应按路径消耗正式移动力。"
+                );
             }
 
+            StringName waitingUnitId = runtime.GetBattleState()?.active_unit_id ?? "";
+            _test.True(waitingUnitId != "", "battle wait 前应仍有手动行动单位。");
             AssertCommandOk(runner.ExecuteLine("battle wait"), "battle wait 应成功。");
+            _test.Eq(
+                runtime.GetBattleState()?.active_unit_id ?? "",
+                new StringName(),
+                "battle wait 应真正结束当前回合并交回 timeline。"
+            );
         }
         finally
         {
@@ -258,6 +297,40 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
         _test.Fail("文本 party/battle surface 回归未能进入手动单位回合。");
     }
 
+    private static Dictionary<StringName, (int CurrentHp, int MaxHp)> PrimeManualUnitSurvival(
+        GameRuntimeFacade runtime
+    )
+    {
+        var snapshots = new Dictionary<StringName, (int CurrentHp, int MaxHp)>();
+        foreach (BattleUnitState unit in runtime?.GetBattleState()?.GetUnitsTyped() ?? new List<BattleUnitState>())
+        {
+            if (unit?.control_mode != "manual" || unit.attribute_snapshot == null)
+                continue;
+            snapshots[unit.unit_id] = (
+                unit.GetCurrentHp(),
+                unit.attribute_snapshot.GetValue("hp_max")
+            );
+            unit.attribute_snapshot.SetValue("hp_max", 100);
+            unit.SetCurrentHp(100);
+        }
+        return snapshots;
+    }
+
+    private static void RestoreManualUnitHp(
+        GameRuntimeFacade runtime,
+        IReadOnlyDictionary<StringName, (int CurrentHp, int MaxHp)> snapshots
+    )
+    {
+        foreach ((StringName unitId, (int currentHp, int maxHp)) in snapshots)
+        {
+            BattleUnitState unit = runtime?.GetBattleState()?.GetUnit(unitId);
+            if (unit?.attribute_snapshot == null)
+                continue;
+            unit.attribute_snapshot.SetValue("hp_max", maxHp);
+            unit.SetCurrentHp(currentHp);
+        }
+    }
+
     private static void PrimeActiveManualSkillBlocker(
         GameRuntimeFacade runtime,
         int currentStamina,
@@ -288,6 +361,40 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
         {
             activeUnit.attribute_snapshot.SetValue("action_points", 2);
             activeUnit.attribute_snapshot.SetValue("stamina_max", Mathf.Max(currentStamina, 2));
+        }
+        runtime.CommandBattleClearSkillTyped();
+        runtime.RefreshBattleSelectionState();
+    }
+
+    private static void PrimeActiveManualMultiVariantSkill(GameRuntimeFacade runtime)
+    {
+        BattleState battleState = runtime?.GetBattleState();
+        if (battleState == null || battleState.IsEmpty() || battleState.active_unit_id == "")
+            return;
+        BattleUnitState activeUnit = battleState.ContainsUnit(battleState.active_unit_id)
+            ? battleState.GetUnit(battleState.active_unit_id)
+            : null;
+        if (activeUnit == null)
+            return;
+        activeUnit.SetKnownActiveSkillIds(new[] { new StringName("mage_delayed_fireball") });
+        activeUnit.SetKnownSkillLevelsTyped(
+            new Dictionary<StringName, int>
+            {
+                ["mage_delayed_fireball"] = 1,
+            }
+        );
+        activeUnit.SetCurrentAp(3);
+        activeUnit.SetCurrentMp(100);
+        activeUnit.SetCurrentStamina(50);
+        activeUnit.UnlockCombatResource(
+            CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
+        );
+        activeUnit.SetCooldownsTyped(null);
+        if (activeUnit.attribute_snapshot != null)
+        {
+            activeUnit.attribute_snapshot.SetValue("action_points", 3);
+            activeUnit.attribute_snapshot.SetValue("mp_max", 100);
+            activeUnit.attribute_snapshot.SetValue("stamina_max", 50);
         }
         runtime.CommandBattleClearSkillTyped();
         runtime.RefreshBattleSelectionState();
@@ -367,6 +474,9 @@ public partial class run_text_command_party_battle_surface_regression : Lifecycl
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {
-        _test.True(result != null && result.ok, $"{message} message={result?.message}");
+        _test.True(
+            result != null && !result.skipped && result.ok,
+            $"{message} skipped={result?.skipped} message={result?.message}"
+        );
     }
 }

@@ -1,9 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public partial class run_battle_session_promotion_prompt_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -40,7 +40,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
             runtime.Setup(gameSession);
             facade.Setup(runtime);
 
-            PendingProfessionChoice pendingChoice = new();
+            PendingProfessionChoice pendingChoice = new() { DefaultSelection = new PromotionCommitRequest("warrior_heavy_strike", 1, new StringName[] { "warrior_heavy_strike" }, System.Array.Empty<StringName>()) };
             pendingChoice.SetCandidateProfessionIds(
                 new StringNameList
                 {
@@ -195,7 +195,7 @@ public partial class run_battle_session_promotion_prompt_regression : LifecycleT
 
     private static CharacterProgressionDelta BuildPromotionDelta()
     {
-        PendingProfessionChoice pendingChoice = new();
+        PendingProfessionChoice pendingChoice = new() { DefaultSelection = new PromotionCommitRequest("warrior_heavy_strike", 1, new StringName[] { "warrior_heavy_strike" }, System.Array.Empty<StringName>()) };
         pendingChoice.SetCandidateProfessionIds(new StringNameList { "warrior" });
         pendingChoice.SetTargetRank("warrior", 1);
 

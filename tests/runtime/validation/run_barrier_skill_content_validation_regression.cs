@@ -11,9 +11,8 @@ public partial class run_barrier_skill_content_validation_regression : Lifecycle
     {
         try
         {
-            using var loader = new TestContentResourceLoader();
-            using var progression = new ProgressionContentRegistry(loader);
-            using var barriers = new BarrierContentRegistry(loader);
+            using var progression = new ProgressionContentRegistry();
+            using var barriers = new BarrierContentRegistry();
 
             IReadOnlyDictionary<StringName, SkillDefinition> officialSkills =
                 progression.GetSkillDefinitionsTyped();
@@ -119,12 +118,12 @@ public partial class run_barrier_skill_content_validation_regression : Lifecycle
     {
         CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
             "layered_barrier",
-            parameters: new Dictionary<string, object>
-            {
-                ["profile_id"] = profileId,
-                ["radius_cells"] = 2L,
-                ["area_pattern"] = new StringName("diamond"),
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: profileId,
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

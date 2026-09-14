@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:gear_sets:v1",
+  "title": "Magic gear-set JSON authoring schema",
+  "description": "Expanded gear-set thresholds with explicit item and trait IDs.",
+  "$ref": "#/$defs/GearSetJsonDocumentDto",
+  "$defs": {
+    "GearSetAttributeModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "flat",
+            "percent"
+          ]
+        },
+        "value": {
+          "type": "integer"
+        },
+        "value_per_rank": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attribute_id",
+        "mode",
+        "value",
+        "value_per_rank"
+      ]
+    },
+    "GearSetJsonDocumentDto": {
+      "description": "Gear-set authoring document with file-local templates.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "gear_sets"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GearSetJsonDto__authoring_gear_set_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/GearSetJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "GearSetJsonDto": {
+      "description": "Strict expanded gear-set entry with stable item and trait references.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "gear_set_id": {
+          "type": "string"
+        },
+        "member_item_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "thresholds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GearSetThresholdJsonDto"
+          }
+        },
+        "usage_anchor_item_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "display_name",
+        "gear_set_id",
+        "member_item_ids",
+        "thresholds",
+        "usage_anchor_item_id"
+      ]
+    },
+    "GearSetJsonDto__authoring_gear_set_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded gear-set entry with stable item and trait references.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GearSetJsonDto"
+        },
+        {
+          "$ref": "#/$defs/GearSetJsonDto__templated_gear_set_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "GearSetJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded gear-set entry with stable item and trait references.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "gear_set_id": {
+          "type": "string"
+        },
+        "member_item_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "thresholds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GearSetThresholdJsonDto"
+          }
+        },
+        "usage_anchor_item_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "GearSetJsonDto__templated_gear_set_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "description": "Strict expanded gear-set entry with stable item and trait references.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "gear_set_id": {
+          "type": "string"
+        },
+        "member_item_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "thresholds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GearSetThresholdJsonDto"
+          }
+        },
+        "usage_anchor_item_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "gear_set_id",
+        "template"
+      ]
+    },
+    "GearSetThresholdJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_modifiers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GearSetAttributeModifierJsonDto"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "granted_trait_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mandatory_member_item_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_piece_count": {
+          "type": "integer"
+        },
+        "threshold_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attribute_modifiers",
+        "description",
+        "display_name",
+        "granted_trait_ids",
+        "mandatory_member_item_ids",
+        "required_piece_count",
+        "threshold_id"
+      ]
+    }
+  }
+}

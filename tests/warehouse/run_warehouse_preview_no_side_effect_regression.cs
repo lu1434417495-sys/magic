@@ -101,10 +101,10 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
         RequestTestExit(_test.Finish("warehouse preview has no allocator or inventory side effects"));
     }
 
-    private ItemDef BuildItemDef()
+    private TestItemDefinitionBuilder BuildItemDef()
     {
         return _runtimeScope.OwnWrapper(
-            new ItemDef
+            new TestItemDefinitionBuilder
             {
                 item_id = "sword",
                 display_name = "Sword",
@@ -112,13 +112,13 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
                 is_stackable = false,
                 max_stack = 1,
-                trait_roll_groups = new Godot.Collections.Array<TraitRollGroupDef>
+                trait_roll_groups = new List<TestTraitRollGroupDefinitionBuilder>
                 {
                     new()
                     {
                         group_id = "prefix",
                         roll_count = 1,
-                        entries = new Godot.Collections.Array<TraitRollGroupEntryDef>
+                        entries = new List<TestTraitRollGroupEntryDefinitionBuilder>
                         {
                             new()
                             {
@@ -154,6 +154,7 @@ public partial class run_warehouse_preview_no_side_effect_regression : Lifecycle
             System.Array.Empty<StringName>(),
             System.Array.Empty<TraitDamageResistanceEntryDefinition>(),
             System.Array.Empty<TraitSaveBonusEntryDefinition>(),
+            System.Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             System.Array.Empty<TraitPassiveStatusEffectDefinition>(),
             new TraitRollValueSchemaEntryDefinition[]
             {

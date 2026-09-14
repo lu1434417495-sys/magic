@@ -105,7 +105,7 @@ public sealed partial class BattleRuntimeModule
     /// Advances the control-objective score by one timeline step. The score is
     /// measured in TU of exclusive control, so <paramref name="tuDelta"/> is the TU
     /// elapsed this tick (the timeline's <c>tu_per_tick</c>). It MUST be a positive
-    /// multiple of <see cref="BattleTimelineState.TuGranularity"/>: the whole TU
+    /// multiple of <see cref="BattleTimeRules.TuGranularity"/>: the whole TU
     /// system (score_target, duration_tu, cooldowns, ...) lives on that 5-TU grid,
     /// and <see cref="BattleControlObjectiveRuntimeState.TryAdvanceScores"/> throws
     /// on an off-grid delta by design so a mis-configured tick step fails fast

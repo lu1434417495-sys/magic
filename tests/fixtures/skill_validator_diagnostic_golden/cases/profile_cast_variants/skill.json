@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_cast_variants",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_cast_variants",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_cast_variants",
+        "cast_variants": [
+          {
+            "variant_id": "diagnostic_variant",
+            "target_mode": "unit"
+          },
+          {
+            "variant_id": "diagnostic_value",
+            "min_skill_level": -1,
+            "required_coord_count": 0
+          },
+          {
+            "variant_id": "duplicate"
+          },
+          {
+            "variant_id": "duplicate"
+          },
+          {
+            "variant_id": "overlevel",
+            "min_skill_level": 2
+          }
+        ]
+      },
+      "icon_id": "diagnostic_cast_variants",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

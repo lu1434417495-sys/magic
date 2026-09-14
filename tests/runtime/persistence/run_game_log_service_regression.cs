@@ -182,10 +182,39 @@ public partial class run_game_log_service_regression : LifecycleTestSceneTree
             GameLog.Debug("filtered", "log.dispatch.debug", "test");
             GameLog.Warning("dispatch", "log.dispatch.test", "test", "{\"step\":1}");
 
-            _test.Eq(recordingSink.Records.Count, 1, "关闭 debug 时只应派发 warning 记录。");
-            if (recordingSink.Records.Count == 1)
+            // throwingSink 抛出后，失败报告会退到其余健康 sink 上：关闭 console 输出时
+            // （headless / 测试）这是唯一还能留痕的通道，原先这里直接丢弃。
+            _test.Eq(
+                recordingSink.Records.Count,
+                2,
+                "关闭 debug 时应派发 warning 记录，外加一条 sink 失败报告。"
+            );
+            // throwingSink 排在 recordingSink 之前，失败报告在派发循环内即时发出，
+            // 因此先于触发它的那条记录落到 recordingSink 上。
+            if (recordingSink.Records.Count == 2)
             {
-                GameLogRecord record = recordingSink.Records[0];
+                GameLogRecord sinkFailure = recordingSink.Records[0];
+                _test.Eq(
+                    sinkFailure.EventId,
+                    "log.sink.failed",
+                    "sink 抛出后应向其余 sink 报告 log.sink.failed。"
+                );
+                _test.Eq(
+                    sinkFailure.Level,
+                    GameLogLevel.Error,
+                    "sink 失败报告应为 Error 级。"
+                );
+                _test.True(
+                    sinkFailure.Message.Contains(
+                        nameof(ThrowingLogSink),
+                        StringComparison.Ordinal
+                    ),
+                    "sink 失败报告应指明是哪个 sink 抛的。"
+                );
+            }
+            if (recordingSink.Records.Count == 2)
+            {
+                GameLogRecord record = recordingSink.Records[1];
                 _test.Eq(record.Level, GameLogLevel.Warning, "sink 应收到 typed level。");
                 _test.Eq(record.EventId, "log.dispatch.test", "sink 应收到稳定 event_id。");
                 _test.Eq(record.Domain, "test", "sink 应收到 domain。");

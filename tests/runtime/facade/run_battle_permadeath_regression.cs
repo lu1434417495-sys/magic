@@ -5,7 +5,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -173,7 +173,20 @@ public partial class run_battle_permadeath_regression : LifecycleTestSceneTree
             _test.False(gameSession.HasPendingSave(), "GameOver 分支不应继续保留待刷新的 battle save。");
             _test.False(gameSession.IsBattleSaveLocked(), "GameOver 结束后应解除 battle save lock。");
 
+            int exitFlushError = facade.FlushCanonicalRuntimeState("test.game_over.return_title");
+            _test.Eq(
+                exitFlushError,
+                (int)Error.Ok,
+                "GameOver 返回标题时应丢弃运行时状态，而不是尝试持久化死亡后的队伍。"
+            );
+            _test.False(
+                gameSession.HasPendingSave(),
+                "GameOver 的 canonical flush 应保持 pending save 为空。"
+            );
+
             string persistedSaveId = gameSession.GetActiveSaveId();
+            facade.Dispose();
+            facade = null;
             gameSession.UnloadActiveWorld();
             _test.False(gameSession.HasActiveWorld(), "主角死亡后返回标题前应清掉 GameSession 当前内存态。");
             _test.Eq(gameSession.GetActiveSaveId(), "", "卸载运行时后不应继续保留 active save id。");

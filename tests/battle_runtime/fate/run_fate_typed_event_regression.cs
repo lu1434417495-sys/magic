@@ -1,7 +1,4 @@
-using System;
-using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
 {
@@ -16,7 +13,6 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
     {
         TestTypedFateEventCannotLoseAttackerMemberIdToDictionaryTypo();
         TestTypedMisfortuneRequestCannotLoseUnitStateToDictionaryTypo();
-        TestRawDictionaryFateEventSurfaceIsAbsent();
 
         RequestTestExit(_test.Finish("Fate typed event regression"));
     }
@@ -31,7 +27,10 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
             fateRuntime.Setup(
                 fate_event_bus: bus,
                 unit_by_member_id_resolver: memberId =>
-                    memberId == new StringName("hero_member") ? hero : null
+                    memberId == new StringName("hero_member") ? hero : null,
+                // 门禁判定只能从 SkillDefinition 读行为；这个夹具不带技能内容，
+                // 但 resolver 仍必须接上，否则 MisfortuneService 会按装配缺陷抛错。
+                skill_definition_resolver: _ => null
             );
             fateRuntime.BeginBattle(new BattleCalamityStore());
 
@@ -67,7 +66,8 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
             hero.SetCurrentHp(1);
             fateRuntime.Setup(
                 unit_by_member_id_resolver: memberId =>
-                    memberId == new StringName("low_hp_member") ? hero : null
+                    memberId == new StringName("low_hp_member") ? hero : null,
+                skill_definition_resolver: _ => null
             );
             fateRuntime.BeginBattle(new BattleCalamityStore());
 
@@ -85,43 +85,6 @@ public partial class run_fate_typed_event_regression : LifecycleTestSceneTree
         {
             fateRuntime.DisposeRuntime();
             BattleTestFixture.DisposeBattleUnit(hero);
-        }
-    }
-
-    private void TestRawDictionaryFateEventSurfaceIsAbsent()
-    {
-        foreach (
-            MethodInfo method in typeof(BattleFateEventBus).GetMethods(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            )
-        )
-        {
-            foreach (ParameterInfo parameter in method.GetParameters())
-            {
-                _test.True(
-                    parameter.ParameterType != typeof(GDictionary),
-                    $"BattleFateEventBus.{method.Name} should not expose raw Dictionary parameter '{parameter.Name}'."
-                );
-            }
-        }
-
-        EventInfo eventInfo = typeof(BattleFateEventBus).GetEvent(
-            "EventDispatched",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-        );
-        MethodInfo invoke = eventInfo?.EventHandlerType?.GetMethod("Invoke");
-        _test.True(invoke != null, "BattleFateEventBus.EventDispatched should remain available.");
-        if (invoke == null)
-        {
-            return;
-        }
-
-        foreach (ParameterInfo parameter in invoke.GetParameters())
-        {
-            _test.True(
-                parameter.ParameterType != typeof(GDictionary),
-                $"BattleFateEventBus.EventDispatched should not expose raw Dictionary parameter '{parameter.Name}'."
-            );
         }
     }
 

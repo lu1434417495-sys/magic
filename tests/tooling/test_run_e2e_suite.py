@@ -229,101 +229,75 @@ class E2eSuiteRunnerTests(unittest.TestCase):
 		self.assertEqual("39208", battle_env["MAGIC_E2E_RANDOM_SEED"])
 		self.assertNotIn("MAGIC_E2E_RANDOM_SEED", cold_boot_env)
 
-	def test_new_and_load_steps_run_serially_in_the_same_sandbox_group(self) -> None:
-		calls: list[tuple[str, dict[str, str]]] = []
-
-		def completed_process(
-			_godot: str,
-			_repo_root: Path,
-			test_path: str,
-			env: dict[str, str],
-			_realtime: bool,
-			_timeout: float,
-		):
-			calls.append((test_path, dict(env)))
-			return 0, "", "", ()
-
-		scenario = runner.select_scenarios(["new_and_load"], "")[0]
-		with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
-			runner.regression_runner,
-			"run_godot_process",
-			side_effect=completed_process,
-		):
-			with contextlib.redirect_stdout(io.StringIO()):
-				results = runner.run_scenarios(
-					"godot",
-					Path.cwd(),
-					(scenario,),
-					Path(temp_dir),
-					True,
-					30.0,
-					False,
-					False,
-					False,
-					{"BASE": "1"},
-				)
-
-		self.assertEqual(
-			[
-				"tests/e2e/run_new_game_e2e.cs",
-				"tests/e2e/run_load_game_e2e.cs",
-			],
-			[path for path, _env in calls],
+	def test_multi_step_scenarios_run_serially_in_the_same_sandbox_group(self) -> None:
+		cases = (
+			(
+				"new_and_load",
+				(
+					"tests/e2e/run_new_game_e2e.cs",
+					"tests/e2e/run_load_game_e2e.cs",
+				),
+				("new_game", "load_game"),
+			),
+			(
+				"world_save_round_trip",
+				(
+					"tests/e2e/run_world_save_mutation_e2e.cs",
+					"tests/e2e/run_world_save_reload_e2e.cs",
+				),
+				("world_save_mutation", "world_save_reload"),
+			),
 		)
-		self.assertEqual(2, len(results))
-		self.assertEqual(calls[0][1]["XDG_DATA_HOME"], calls[1][1]["XDG_DATA_HOME"])
-		self.assertEqual(calls[0][1].get("APPDATA"), calls[1][1].get("APPDATA"))
-		self.assertEqual("new_game", calls[0][1]["MAGIC_E2E_STEP"])
-		self.assertEqual("load_game", calls[1][1]["MAGIC_E2E_STEP"])
-		self.assertTrue(all(result.returncode == 0 for result in results))
 
-	def test_world_save_round_trip_steps_run_serially_in_the_same_sandbox_group(self) -> None:
-		calls: list[tuple[str, dict[str, str]]] = []
+		for scenario_name, expected_paths, expected_steps in cases:
+			with self.subTest(scenario=scenario_name):
+				calls: list[tuple[str, dict[str, str]]] = []
 
-		def completed_process(
-			_godot: str,
-			_repo_root: Path,
-			test_path: str,
-			env: dict[str, str],
-			_realtime: bool,
-			_timeout: float,
-		):
-			calls.append((test_path, dict(env)))
-			return 0, "", "", ()
+				def completed_process(
+					_godot: str,
+					_repo_root: Path,
+					test_path: str,
+					env: dict[str, str],
+					_realtime: bool,
+					_timeout: float,
+				):
+					calls.append((test_path, dict(env)))
+					return 0, "", "", ()
 
-		scenario = runner.select_scenarios(["world_save_round_trip"], "")[0]
-		with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
-			runner.regression_runner,
-			"run_godot_process",
-			side_effect=completed_process,
-		):
-			with contextlib.redirect_stdout(io.StringIO()):
-				results = runner.run_scenarios(
-					"godot",
-					Path.cwd(),
-					(scenario,),
-					Path(temp_dir),
-					True,
-					30.0,
-					False,
-					False,
-					False,
-					{"BASE": "1"},
+				scenario = runner.select_scenarios([scenario_name], "")[0]
+				with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+					runner.regression_runner,
+					"run_godot_process",
+					side_effect=completed_process,
+				), contextlib.redirect_stdout(io.StringIO()):
+					results = runner.run_scenarios(
+						"godot",
+						Path.cwd(),
+						(scenario,),
+						Path(temp_dir),
+						True,
+						30.0,
+						False,
+						False,
+						False,
+						{"BASE": "1"},
+					)
+
+				self.assertEqual(expected_paths, tuple(path for path, _env in calls))
+				self.assertEqual(2, len(results))
+				self.assertEqual(
+					calls[0][1]["XDG_DATA_HOME"],
+					calls[1][1]["XDG_DATA_HOME"],
 				)
-
-		self.assertEqual(
-			[
-				"tests/e2e/run_world_save_mutation_e2e.cs",
-				"tests/e2e/run_world_save_reload_e2e.cs",
-			],
-			[path for path, _env in calls],
-		)
-		self.assertEqual(2, len(results))
-		self.assertEqual(calls[0][1]["XDG_DATA_HOME"], calls[1][1]["XDG_DATA_HOME"])
-		self.assertEqual(calls[0][1].get("APPDATA"), calls[1][1].get("APPDATA"))
-		self.assertEqual("world_save_mutation", calls[0][1]["MAGIC_E2E_STEP"])
-		self.assertEqual("world_save_reload", calls[1][1]["MAGIC_E2E_STEP"])
-		self.assertTrue(all(result.returncode == 0 for result in results))
+				self.assertEqual(
+					calls[0][1].get("APPDATA"),
+					calls[1][1].get("APPDATA"),
+				)
+				self.assertEqual(
+					expected_steps,
+					tuple(env["MAGIC_E2E_STEP"] for _path, env in calls),
+				)
+				self.assertTrue(all(result.returncode == 0 for result in results))
 
 	def test_generic_output_gate_is_optional_but_lifecycle_fatal_is_always_enforced(self) -> None:
 		scenario = runner.select_scenarios(["cold_boot"], "")[0]

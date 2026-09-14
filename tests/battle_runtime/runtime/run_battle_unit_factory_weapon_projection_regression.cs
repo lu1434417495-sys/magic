@@ -20,7 +20,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         _contentSnapshot = GameSessionTestFactory.GetProcessSnapshot();
         try
         {
-            TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts();
+            TestBattleUnitFactoryProjectsLearnedActiveSkillLevel();
             TestBattleUnitFactoryProjectsPlayerWeaponProfiles();
             TestBattleUnitFactoryProjectsEffectiveTraits();
             TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment();
@@ -37,34 +37,34 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryProjectsPlayerWeaponProfiles()
     {
-        ItemDef bronzeSword = MakeWeapon(
+        TestItemDefinitionBuilder bronzeSword = MakeWeapon(
             "bronze_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
             Array.Empty<StringName>()
         );
-        ItemDef ironGreatsword = MakeWeapon(
+        TestItemDefinitionBuilder ironGreatsword = MakeWeapon(
             "iron_greatsword",
             "greatsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             null,
             MakeWeaponDice(2, 6, 0),
             new[] { new StringName("two_handed"), new StringName("heavy") }
         );
-        ItemDef trainingLongsword = MakeWeapon(
+        TestItemDefinitionBuilder trainingLongsword = MakeWeapon(
             "training_longsword",
             "longsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 8, 0),
             MakeWeaponDice(1, 10, 0),
             new[] { new StringName("versatile") }
         );
-        ItemDef trainingShield = MakeOffHandEquipment("training_shield");
+        TestItemDefinitionBuilder trainingShield = MakeOffHandEquipment("training_shield");
 
         using BattleRuntimeScope runtimeScope = BuildRuntimeWithMemberItems(
             bronzeSword,
@@ -97,7 +97,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
         _test.Eq(
             unarmedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Blunt),
             "unarmed player should project blunt damage tag."
         );
         _test.Eq(
@@ -114,8 +114,14 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             MakeEquipmentInstance(bronzeSword.item_id, "weapon_projection_bronze")
         );
         BattleUnitState oneHanded = BuildSingleAllyUnit(factory, partyState, "one-handed");
+        _test.True(oneHanded != null, "one-handed weapon fixture should build a battle unit.");
+        if (oneHanded == null)
+        {
+            return;
+        }
+
         BattleWeaponProjectionValues oneHandedWeapon =
-            oneHanded?.GetWeaponProjectionReadViewTyped().Values ?? default;
+            oneHanded.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
             oneHandedWeapon.ProfileKind,
             BattleUnitState.ToStringName(BattleWeaponProfileKind.Equipped),
@@ -137,12 +143,12 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             "one-handed weapon should preserve 1D6 dice."
         );
         _test.True(
-            oneHanded == null || !oneHandedWeapon.TwoHandedDice.HasUsableDice,
+            !oneHandedWeapon.TwoHandedDice.HasUsableDice,
             "one-handed weapon should not project two-handed dice."
         );
         _test.Eq(
             oneHandedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             "one-handed weapon should preserve damage tag."
         );
         _test.True(
@@ -158,15 +164,21 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             MakeEquipmentInstance(ironGreatsword.item_id, "weapon_projection_greatsword")
         );
         BattleUnitState twoHanded = BuildSingleAllyUnit(factory, partyState, "two-handed");
+        _test.True(twoHanded != null, "two-handed weapon fixture should build a battle unit.");
+        if (twoHanded == null)
+        {
+            return;
+        }
+
         BattleWeaponProjectionValues twoHandedWeapon =
-            twoHanded?.GetWeaponProjectionReadViewTyped().Values ?? default;
+            twoHanded.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(
             twoHandedWeapon.ProfileTypeId,
             (StringName)"greatsword",
             "two-handed weapon should preserve greatsword profile."
         );
         _test.True(
-            twoHanded == null || !twoHandedWeapon.OneHandedDice.HasUsableDice,
+            !twoHandedWeapon.OneHandedDice.HasUsableDice,
             "two-handed weapon should not project one-handed dice."
         );
         _test.Eq(
@@ -176,7 +188,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
         _test.Eq(
             twoHandedWeapon.PhysicalDamageTag,
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             "two-handed weapon should preserve slash damage tag."
         );
         _test.Eq(
@@ -259,19 +271,19 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryRefreshUsesBattleLocalEquipmentView()
     {
-        ItemDef bronzeSword = MakeWeapon(
+        TestItemDefinitionBuilder bronzeSword = MakeWeapon(
             "bronze_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Pierce),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
             Array.Empty<StringName>()
         );
-        ItemDef ironGreatsword = MakeWeapon(
+        TestItemDefinitionBuilder ironGreatsword = MakeWeapon(
             "iron_greatsword",
             "greatsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             null,
             MakeWeaponDice(2, 6, 0),
@@ -389,10 +401,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryRefreshesEffectiveTraitsFromBattleLocalEquipment()
     {
-        ItemDef luckySword = MakeWeapon(
+        TestItemDefinitionBuilder luckySword = MakeWeapon(
             "lucky_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -466,10 +478,10 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
 
     private void TestBattleUnitFactoryProjectsPlayerEquipmentAbilitySources()
     {
-        ItemDef flameSword = MakeWeapon(
+        TestItemDefinitionBuilder flameSword = MakeWeapon(
             "flame_sword",
             "shortsword",
-            ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
+            TestItemDefinitionBuilder.ToStringName(WeaponPhysicalDamageTagKind.Slash),
             1,
             MakeWeaponDice(1, 6, 0),
             null,
@@ -482,18 +494,43 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         BattleUnitFactory factory = runtimeScope.Runtime._unit_factory;
         PartyMemberState memberState = runtimeScope.PartyState.GetMemberState("hero");
         memberState.equipment_state = new EquipmentState();
-        memberState.equipment_state.SetEquippedEntry(
-            "main_hand",
-            flameSword.item_id,
-            SlotIds("main_hand"),
-            MakeEquipmentInstance(flameSword.item_id, "eq_flame_sword")
+        BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-ability");
+        BattleWeaponProjectionValues baselineWeapon =
+            unit.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(
+            unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
+            0,
+            "unit without equipped content should start without equipment ability sources."
+        );
+        _test.False(
+            unit.HasEffectiveTrait("trait.weapon.flame"),
+            "unit without equipped content should start without the equipment trait."
         );
 
-        BattleUnitState unit = BuildSingleAllyUnit(factory, runtimeScope.PartyState, "equipment-ability");
+        unit.GetEquipmentView()
+            .SetEquippedEntry(
+                "main_hand",
+                flameSword.item_id,
+                SlotIds("main_hand"),
+                MakeEquipmentInstance(flameSword.item_id, "eq_flame_sword")
+            );
+        factory.RefreshBattleUnit(unit);
+
+        BattleWeaponProjectionValues equippedWeapon =
+            unit.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(
+            equippedWeapon.ItemId,
+            flameSword.item_id,
+            "refresh_battle_unit should project the equipped battle-local weapon."
+        );
+        _test.True(
+            unit.HasEffectiveTrait("trait.weapon.flame"),
+            "refresh_battle_unit should project the equipped fixed trait."
+        );
         _test.Eq(
             unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             1,
-            "BattleUnitFactory should project matching player equipment ability source."
+            "refresh_battle_unit should project the matching equipment ability source."
         );
         BattleEquipmentAbilitySourceReadView source =
             unit.GetEquipmentAbilitySourcesReadViewTyped()[0];
@@ -518,23 +555,161 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         );
 
         unit.GetEquipmentView().ClearSlot("main_hand");
-        factory.RefreshEquipmentProjection(unit);
+        factory.RefreshBattleUnit(unit);
+
+        BattleWeaponProjectionValues removedWeapon =
+            unit.GetWeaponProjectionReadViewTyped().Values;
+        _test.Eq(
+            removedWeapon.ItemId,
+            new StringName(""),
+            "refresh_battle_unit should clear the removed weapon item id."
+        );
+        _test.Eq(
+            removedWeapon.ProfileTypeId,
+            baselineWeapon.ProfileTypeId,
+            "refresh_battle_unit should restore the baseline weapon profile after removal."
+        );
+        _test.False(
+            unit.HasEffectiveTrait("trait.weapon.flame"),
+            "refresh_battle_unit should clear the removed equipment trait."
+        );
         _test.Eq(
             unit.GetEquipmentAbilitySourcesReadViewTyped().Count,
             0,
-            "refresh_equipment_projection should clear ability sources after equipment removal."
+            "refresh_battle_unit should clear ability sources after equipment removal."
         );
     }
 
-    private void TestBattleUnitFactoryUsesTypedSkillLevelsAndResourceCosts()
+    private void TestBattleUnitFactoryProjectsLearnedActiveSkillLevel()
     {
+        var learnedActiveSkillId = new StringName("factory_level_probe");
+        var unlearnedActiveSkillId = new StringName("factory_unlearned_probe");
+        var passiveSkillId = new StringName("factory_passive_probe");
+        var nonCombatActiveSkillId = new StringName("factory_non_combat_probe");
+        var skillDefinitions = new Dictionary<StringName, SkillDefinition>
+        {
+            [learnedActiveSkillId] = TestSkillDefinitionProjection.BuildSkill(
+                learnedActiveSkillId,
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    learnedActiveSkillId
+                ),
+                maxLevel: 5,
+                nonCoreMaxLevel: 5
+            ),
+            [unlearnedActiveSkillId] = TestSkillDefinitionProjection.BuildSkill(
+                unlearnedActiveSkillId,
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    unlearnedActiveSkillId
+                )
+            ),
+            [passiveSkillId] = TestSkillDefinitionProjection.BuildSkill(
+                passiveSkillId,
+                combatProfile: TestSkillDefinitionProjection.BuildCombatProfile(
+                    passiveSkillId
+                ),
+                skillType: "passive"
+            ),
+            [nonCombatActiveSkillId] = TestSkillDefinitionProjection.BuildSkill(
+                nonCombatActiveSkillId
+            ),
+        };
+        PartyState partyState = BuildPartyState("hero");
+        PartyMemberState memberState = partyState.GetMemberState("hero");
+        memberState.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = learnedActiveSkillId,
+                is_learned = true,
+                skill_level = 4,
+            }
+        );
+        memberState.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = unlearnedActiveSkillId,
+                is_learned = false,
+                skill_level = 3,
+            }
+        );
+        memberState.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = passiveSkillId,
+                is_learned = true,
+                skill_level = 2,
+            }
+        );
+        memberState.progression.SetSkillProgress(
+            new UnitSkillProgress
+            {
+                skill_id = nonCombatActiveSkillId,
+                is_learned = true,
+                skill_level = 2,
+            }
+        );
+
+        var characterManagement = new CharacterManagementModule();
+        characterManagement.setup(
+            partyState,
+            skillDefinitions,
+            _contentSnapshot.Professions,
+            item_defs: new Dictionary<StringName, ItemDefinition>()
+        );
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            characterManagement,
+            skillDefinitions,
+            item_defs: new Dictionary<StringName, ItemDefinition>()
+        );
+        using BattleRuntimeScope scope =
+            new(runtime, partyState, characterManagement);
+
+        BattleUnitState unit = BuildSingleAllyUnit(
+            runtime._unit_factory,
+            partyState,
+            "typed skill level"
+        );
+
+        _test.True(
+            unit.KnowsActiveSkill(learnedActiveSkillId),
+            "BuildAllyUnits 应把已学习且可用于战斗的 active skill 投影到战斗单位。"
+        );
+        _test.True(
+            unit.HasKnownSkillLevelTyped(learnedActiveSkillId),
+            "BuildAllyUnits 应为已学习 active skill 建立 typed 等级条目。"
+        );
+        _test.Eq(
+            unit.GetKnownSkillLevelTyped(learnedActiveSkillId, fallback: -1),
+            4,
+            "BuildAllyUnits 应保留角色进度中的实际技能等级。"
+        );
+        _test.False(
+            unit.KnowsActiveSkill(unlearnedActiveSkillId),
+            "BuildAllyUnits 不应把未学习技能投影为可用 active skill。"
+        );
+        _test.False(
+            unit.HasKnownSkillLevelTyped(unlearnedActiveSkillId),
+            "BuildAllyUnits 不应为未学习技能建立 typed 等级条目。"
+        );
+        _test.False(
+            unit.KnowsActiveSkill(passiveSkillId),
+            "BuildAllyUnits 不应把 passive skill 投影为 active skill。"
+        );
+        _test.False(
+            unit.HasKnownSkillLevelTyped(passiveSkillId),
+            "BuildAllyUnits 不应把 passive skill 写入 active skill 等级投影。"
+        );
+        _test.False(
+            unit.KnowsActiveSkill(nonCombatActiveSkillId),
+            "BuildAllyUnits 不应把 CanUseInCombat=false 的 active definition 投影为可用技能。"
+        );
     }
 
-    private BattleRuntimeScope BuildRuntimeWithMemberItems(params ItemDef[] itemDefs)
+    private BattleRuntimeScope BuildRuntimeWithMemberItems(params TestItemDefinitionBuilder[] itemDefs)
     {
         PartyState partyState = BuildPartyState("hero");
         var typedItemDefs = new Dictionary<StringName, ItemDefinition>();
-        foreach (ItemDef itemDef in itemDefs)
+        foreach (TestItemDefinitionBuilder itemDef in itemDefs)
         {
             if (itemDef != null)
             {
@@ -610,7 +785,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private BattleRuntimeScope BuildRuntimeWithEquipmentTrait(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentTrait(TestItemDefinitionBuilder itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
@@ -656,7 +831,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return new BattleRuntimeScope(runtime, partyState, characterManagement);
     }
 
-    private BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(ItemDef itemDef)
+    private BattleRuntimeScope BuildRuntimeWithEquipmentAbilityBinding(TestItemDefinitionBuilder itemDef)
     {
         PartyState partyState = BuildPartyState("hero");
         var itemDefs = new Dictionary<StringName, ItemDefinition>();
@@ -763,6 +938,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             Array.Empty<StringName>(),
             Array.Empty<TraitDamageResistanceEntryDefinition>(),
             Array.Empty<TraitSaveBonusEntryDefinition>(),
+            Array.Empty<TraitSaveTagBonusEntryDefinition>(),
             Array.Empty<TraitPassiveStatusEffectDefinition>(),
             Array.Empty<TraitRollValueSchemaEntryDefinition>()
         );
@@ -800,17 +976,17 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return partyState;
     }
 
-    private static ItemDef MakeWeapon(
+    private static TestItemDefinitionBuilder MakeWeapon(
         StringName itemId,
         StringName weaponTypeId,
         StringName damageTag,
         int attackRange,
-        WeaponDamageDiceDef oneHandedDice,
-        WeaponDamageDiceDef twoHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder oneHandedDice,
+        TestWeaponDamageDiceDefinitionBuilder twoHandedDice,
         IReadOnlyList<StringName> properties
     )
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -820,7 +996,7 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             max_stack = 1,
             tags = new GStringNameArray { "melee" },
         };
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = weaponTypeId,
             training_group = "martial",
@@ -830,7 +1006,6 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
             attack_range = attackRange,
             one_handed_dice = oneHandedDice,
             two_handed_dice = twoHandedDice,
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
         };
         foreach (StringName property in properties ?? Array.Empty<StringName>())
         {
@@ -843,9 +1018,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         return itemDef;
     }
 
-    private static ItemDef MakeOffHandEquipment(StringName itemId)
+    private static TestItemDefinitionBuilder MakeOffHandEquipment(StringName itemId)
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -856,9 +1031,9 @@ public partial class run_battle_unit_factory_weapon_projection_regression : Life
         };
     }
 
-    private static WeaponDamageDiceDef MakeWeaponDice(int count, int sides, int bonus)
+    private static TestWeaponDamageDiceDefinitionBuilder MakeWeaponDice(int count, int sides, int bonus)
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = count,
             dice_sides = sides,

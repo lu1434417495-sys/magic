@@ -286,47 +286,40 @@ public partial class run_battle_sim_start_failure_regression : LifecycleTestScen
 
     private static BattleSimScenarioDefinition BuildEmptyRosterScenario()
     {
-        BattleSimScenarioDef scenario = TestResourceOwnership.Own(
-            new BattleSimScenarioDef
-            {
-                scenario_id = "battle_sim_invalid_start_units_regression",
-                display_name = "Battle Sim Invalid Start Units Regression",
-                map_size = new Vector2I(3, 3),
-                max_iterations = 10,
-                seeds = new[] { 101 },
-            },
-            "BattleSimStartFailure.empty-roster-scenario"
-        );
+        var scenario = new BattleSimTestScenarioBuilder
+        {
+            scenario_id = "battle_sim_invalid_start_units_regression",
+            display_name = "Battle Sim Invalid Start Units Regression",
+            map_size = new Vector2I(3, 3),
+            max_iterations = 10,
+            seeds = new[] { 101 },
+        };
         return scenario.ToDefinition();
     }
 
     private static BattleSimScenarioDefinition BuildValidRosterScenario()
     {
-        BattleSimScenarioDef scenario = TestResourceOwnership.Own(
-            new BattleSimScenarioDef
-            {
-                scenario_id = "battle_sim_placement_exhausted_regression",
-                display_name = "Battle Sim Placement Exhausted Regression",
-                map_size = new Vector2I(3, 3),
-                max_iterations = 10,
-                seeds = new[] { 202 },
-            },
-            "BattleSimStartFailure.placement-scenario"
-        );
+        var scenario = new BattleSimTestScenarioBuilder
+        {
+            scenario_id = "battle_sim_placement_exhausted_regression",
+            display_name = "Battle Sim Placement Exhausted Regression",
+            map_size = new Vector2I(3, 3),
+            max_iterations = 10,
+            seeds = new[] { 202 },
+        };
         scenario.ally_units.Add(BuildUnit("placement_ally", "player", new Vector2I(2, 1)));
         scenario.enemy_units.Add(BuildUnit("placement_enemy", "hostile", new Vector2I(0, 1)));
         return scenario.ToDefinition();
     }
 
-    private static BattleSimUnitSpec BuildUnit(
+    private static BattleSimTestUnitBuilder BuildUnit(
         StringName unitId,
         StringName factionId,
         Vector2I coord
     )
     {
-        return TestResourceOwnership.Own(
-            new BattleSimUnitSpec
-            {
+        return new BattleSimTestUnitBuilder
+        {
                 unit_id = unitId,
                 display_name = unitId.ToString(),
                 faction_id = factionId,
@@ -351,9 +344,7 @@ public partial class run_battle_sim_start_failure_regression : LifecycleTestScen
                     ["action_points"] = 1,
                     ["armor_ac_bonus"] = 4,
                 },
-            },
-            $"BattleSimStartFailure.unit.{unitId}"
-        );
+        };
     }
 
     private static BattleSimProfileDefinition BuildBaselineProfile() =>

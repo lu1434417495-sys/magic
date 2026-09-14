@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -16,7 +15,7 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         TestTypedSettlementFactoriesPreserveDecodeContract();
         TestTypedSettlementUpdateProjectsToPayload();
         TestResourceNodesRoundTripThroughTypedWorldData();
-        TestContextAndRuntimeTransactionUseTypedWorldData();
+        TestContextBindsTypedWorldData();
         TestSaveWorldStateAcceptsTypedWorldData();
         RequestTestExit(_test.Finish("World runtime data typed regression"));
     }
@@ -300,7 +299,7 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         );
     }
 
-    private void TestContextAndRuntimeTransactionUseTypedWorldData()
+    private void TestContextBindsTypedWorldData()
     {
         WorldMapDataContext context = new();
         context.BindRootWorldData(BuildWorldData(12));
@@ -308,16 +307,6 @@ public partial class run_world_runtime_data_typed_regression : LifecycleTestScen
         _test.True(context.RootRuntimeData != null, "WorldMapDataContext 应拥有 typed root world data。");
         _test.Eq(context.RootRuntimeData.WorldStep, 12, "typed root world data 应反映 world_step。");
 
-        FieldInfo worldDataField = typeof(RuntimeTransactionRollbackState).GetField(
-            "_worldData",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        _test.True(worldDataField != null, "rollback state 应保留 world data snapshot 字段。");
-        _test.Eq(
-            worldDataField.FieldType,
-            typeof(WorldRuntimeData),
-            "RuntimeTransactionRollbackState 应直接保存 WorldRuntimeData typed snapshot。"
-        );
     }
 
     private void TestSaveWorldStateAcceptsTypedWorldData()

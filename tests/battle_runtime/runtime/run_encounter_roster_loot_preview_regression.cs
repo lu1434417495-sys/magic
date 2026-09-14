@@ -21,25 +21,19 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
     private void TestTemplateLootSchemaUsesFormalBoundary()
     {
         using EncounterRosterBuilder builder = new();
-        EnemyTemplateDef template = BuildDropTemplate(
+        EnemyTemplateDefinition template = BuildDropTemplate(
             "canonical_drop_template",
             "荒狼掉落测试",
             2,
-            new DropEntryDef
-            {
-                drop_entry_id = "wolf_hide_bundle",
-                drop_type = "item",
-                item_id = "beast_hide",
-                quantity = 1,
-            }
+            new DropEntryDefinition("wolf_hide_bundle", "item", "beast_hide", 1)
         );
         WildEncounterRosterDefinition roster = BuildRosterDefinition(
             "canonical_drop_roster",
             "荒狼掉落测试",
             new WildEncounterRosterUnitEntryDefinition(
-                template.template_id,
+                template.TemplateId,
                 2,
-                template.display_name
+                template.DisplayName
             )
         );
         BattleEncounterDefinition encounter = BuildEliminationEncounterDefinition(
@@ -58,7 +52,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [template.template_id] = ProjectTemplate(template),
+                [template.TemplateId] = template,
             }
         );
 
@@ -126,25 +120,19 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
     private void TestTemplateLootSchemaRejectsMissingDropSourceLabel()
     {
         using EncounterRosterBuilder builder = new();
-        EnemyTemplateDef template = BuildDropTemplate(
+        EnemyTemplateDefinition template = BuildDropTemplate(
             "missing_label_drop_template",
             "",
             1,
-            new DropEntryDef
-            {
-                drop_entry_id = "missing_label_hide",
-                drop_type = "item",
-                item_id = "beast_hide",
-                quantity = 1,
-            }
+            new DropEntryDefinition("missing_label_hide", "item", "beast_hide", 1)
         );
         WildEncounterRosterDefinition roster = BuildRosterDefinition(
             "missing_label_drop_roster",
             "",
             new WildEncounterRosterUnitEntryDefinition(
-                template.template_id,
+                template.TemplateId,
                 1,
-                template.display_name
+                template.DisplayName
             )
         );
         BattleEncounterDefinition encounter = BuildEliminationEncounterDefinition(
@@ -163,7 +151,7 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [template.template_id] = ProjectTemplate(template),
+                [template.TemplateId] = template,
             }
         );
 
@@ -181,29 +169,17 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
     private void TestRosterLootPreviewAggregatesEntriesByItemId()
     {
         using EncounterRosterBuilder builder = new();
-        EnemyTemplateDef wolfA = BuildDropTemplate(
+        EnemyTemplateDefinition wolfA = BuildDropTemplate(
             "wolf_a",
             "荒狼 A",
             1,
-            new DropEntryDef
-            {
-                drop_entry_id = "hide_a",
-                drop_type = "item",
-                item_id = "beast_hide",
-                quantity = 1,
-            }
+            new DropEntryDefinition("hide_a", "item", "beast_hide", 1)
         );
-        EnemyTemplateDef wolfB = BuildDropTemplate(
+        EnemyTemplateDefinition wolfB = BuildDropTemplate(
             "wolf_b",
             "荒狼 B",
             1,
-            new DropEntryDef
-            {
-                drop_entry_id = "hide_b",
-                drop_type = "item",
-                item_id = "beast_hide",
-                quantity = 3,
-            }
+            new DropEntryDefinition("hide_b", "item", "beast_hide", 3)
         );
         WildEncounterRosterDefinition roster = BuildRosterDefinition(
             "wolf_den",
@@ -227,8 +203,8 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
             },
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [wolfA.template_id] = ProjectTemplate(wolfA),
-                [wolfB.template_id] = ProjectTemplate(wolfB),
+                [wolfA.TemplateId] = wolfA,
+                [wolfB.TemplateId] = wolfB,
             }
         );
 
@@ -275,24 +251,21 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
         );
     }
 
-    private static EnemyTemplateDef BuildDropTemplate(
+    private static EnemyTemplateDefinition BuildDropTemplate(
         StringName templateId,
         string displayName,
         int enemyCount,
-        params DropEntryDef[] dropEntries
+        params DropEntryDefinition[] dropEntries
     )
     {
-        EnemyTemplateDef template = new()
+        var builder = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = displayName,
-            enemy_count = enemyCount,
+            TemplateId = templateId,
+            DisplayName = displayName,
+            EnemyCount = enemyCount,
         };
-        foreach (DropEntryDef dropEntry in dropEntries)
-        {
-            template.drop_entries.Add(dropEntry);
-        }
-        return template;
+        builder.DropEntries.AddRange(dropEntries);
+        return builder.Build();
     }
 
     private static WildEncounterRosterDefinition BuildRosterDefinition(
@@ -327,9 +300,6 @@ public partial class run_encounter_roster_loot_preview_regression : LifecycleTes
                 0
             )
         );
-
-    private static EnemyTemplateDefinition ProjectTemplate(EnemyTemplateDef template) =>
-        template.ToDefinition(new Dictionary<StringName, ItemDefinition>());
 
     private static EncounterAnchorData BuildEncounterAnchor(
         StringName entityId,

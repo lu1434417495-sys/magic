@@ -1,0 +1,23 @@
+Running 6 test(s) with 2 parallel job(s).
+Per-test Godot user data root: C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-qpunmjqs
+
+[1/6] [RUN] tests/progression/core/run_promotion_selection_typed_regression.cs
+
+[2/6] [RUN] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs
+[1/6] [DONE] tests/progression/core/run_promotion_selection_typed_regression.cs - 成功 (17.92s)
+
+[3/6] [RUN] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs
+[2/6] [DONE] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs - 成功 (18.47s)
+
+[4/6] [RUN] tests/text_runtime/headless/run_promotion_auto_prompt_regression.cs
+[3/6] [DONE] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs - 成功 (19.75s)
+
+[5/6] [RUN] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs
+[4/6] [DONE] tests/text_runtime/headless/run_promotion_auto_prompt_regression.cs - 成功 (19.97s)
+
+[6/6] [RUN] tests/world_map/ui/run_promotion_window_flow_regression.cs
+[5/6] [DONE] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs - 成功 (17.70s)
+[6/6] [DONE] tests/world_map/ui/run_promotion_window_flow_regression.cs - 成功 (19.61s)
+
+Passed: 6
+Failed: 0

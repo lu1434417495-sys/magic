@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public sealed class GameRuntimePromotionChoiceContext
 {
     private readonly IReadOnlyList<StringName> _grantedSkillIds;
-    private readonly PromotionSelectionData _selection;
+    private readonly PromotionCommitRequest _selection;
 
     public StringName ProfessionId { get; }
     public string DisplayName { get; }
@@ -13,7 +14,7 @@ public sealed class GameRuntimePromotionChoiceContext
     public string Description { get; }
     public IReadOnlyList<StringName> GrantedSkillIds => _grantedSkillIds;
     public string SelectionHint { get; }
-    public PromotionSelectionData Selection => CloneSelection(_selection);
+    public PromotionCommitRequest Selection => _selection;
 
     public GameRuntimePromotionChoiceContext(
         StringName professionId,
@@ -22,7 +23,7 @@ public sealed class GameRuntimePromotionChoiceContext
         string description,
         IEnumerable<StringName> grantedSkillIds,
         string selectionHint,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         ProfessionId = professionId;
@@ -35,7 +36,7 @@ public sealed class GameRuntimePromotionChoiceContext
                 : Array.Empty<StringName>()
         );
         SelectionHint = selectionHint ?? "";
-        _selection = CloneSelection(selection);
+        _selection = selection;
     }
 
     internal Dictionary<string, object> ToPlainSnapshot()
@@ -55,21 +56,12 @@ public sealed class GameRuntimePromotionChoiceContext
         };
     }
 
-    internal bool ContainsSelection(PromotionSelectionData selection) =>
+    internal bool ContainsSelection(PromotionCommitRequest selection) =>
         _selection.SelectionEquals(selection);
 
-    private static PromotionSelectionData CloneSelection(PromotionSelectionData selection)
-    {
-        selection ??= PromotionSelectionData.Empty;
-        return new PromotionSelectionData(
-            selection.AssignedCoreSkillIds,
-            selection.QualifierSkillIds,
-            selection.TriggerSkillIds,
-            selection.HasAssignedCoreSkillIds,
-            selection.HasQualifierSkillIds,
-            selection.HasTriggerSkillIds
-        );
-    }
+    internal GameRuntimePromotionChoiceContext WithPromptId(string promptId) => new(
+        ProfessionId, DisplayName, Summary, Description, GrantedSkillIds, SelectionHint, _selection.WithPromptId(promptId));
+
 }
 
 public sealed class GameRuntimePromotionPromptContext
@@ -90,43 +82,36 @@ public sealed class GameRuntimePromotionPromptContext
         IEnumerable<GameRuntimePromotionChoiceContext> choices
     )
     {
-        MemberId = memberId;
+        MemberId = memberId ?? "";
         MemberName = memberName ?? "";
+        string promptId = Guid.NewGuid().ToString("N");
         _choices = Array.AsReadOnly(
             choices != null
                 ? new List<GameRuntimePromotionChoiceContext>(choices)
-                    .FindAll(choice => choice != null)
-                    .ToArray()
+                    .FindAll(choice => choice?.Selection?.IsWellFormed == true)
+                    .Select(choice => choice.WithPromptId(promptId)).ToArray()
                 : Array.Empty<GameRuntimePromotionChoiceContext>()
         );
     }
 
-    public bool TryGetChoice(
-        StringName professionId,
-        out GameRuntimePromotionChoiceContext choice
-    )
+    public bool TryGetChoice(StringName professionId, out GameRuntimePromotionChoiceContext choice,
+        StringName triggerSkillId = default)
     {
+        choice = null;
+        triggerSkillId ??= "";
         foreach (GameRuntimePromotionChoiceContext candidate in _choices)
         {
-            if (candidate.ProfessionId != professionId)
-                continue;
+            if (candidate.ProfessionId != professionId
+                || (triggerSkillId != "" && candidate.Selection.GrowthTriggerSkillId != triggerSkillId)) continue;
+            if (choice != null) { choice = null; return false; }
             choice = candidate;
-            return true;
         }
-        choice = null;
-        return false;
+        return choice != null;
     }
 
-    public bool ContainsChoice(
-        StringName memberId,
-        StringName professionId,
-        PromotionSelectionData selection
-    )
-    {
-        return MemberId == memberId
-            && TryGetChoice(professionId, out GameRuntimePromotionChoiceContext choice)
-            && choice.ContainsSelection(selection);
-    }
+    public bool ContainsChoice(StringName memberId, StringName professionId, PromotionCommitRequest selection) =>
+        MemberId == memberId && selection != null
+        && _choices.Any(choice => choice.ProfessionId == professionId && choice.ContainsSelection(selection));
 
     public IReadOnlyDictionary<string, object> ToPlainSnapshot()
     {

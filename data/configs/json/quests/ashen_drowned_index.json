@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_drowned_index",
+      "display_name": "溺水的索引",
+      "description": "沉钟书库的中庭被水淹没。需要木材搭建通道——但水里的东西不喜欢被打扰。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "ashen_intersection",
+        "library"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "gather_lumber",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "hardwood_lumber",
+            "target_value": 5
+          }
+        },
+        {
+          "objective_id": "defeat_harriers",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "mist_harrier",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 500
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "attribute_progress",
+                "payload": {
+                  "target_id": "intelligence",
+                  "amount": 25
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

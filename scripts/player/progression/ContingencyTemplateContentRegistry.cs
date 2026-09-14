@@ -1,3 +1,6 @@
+#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -5,126 +8,61 @@ using Godot;
 
 internal sealed class ContingencyTemplateContentRegistry
 {
-    private const string TemplateConfigDirectory = "res://data/configs/contingency_templates";
-
-    private readonly Dictionary<StringName, ContingencySetupTemplateDefinition> _templateDefs =
-        new();
+    private readonly Dictionary<StringName, ContingencySetupTemplateDefinition> _templateDefs = new();
     private readonly List<string> _validationErrors = new();
-    private readonly IContentResourceLoader _resourceLoader;
+    private readonly IContentJsonSourceReader _sourceReader;
 
-    internal ContingencyTemplateContentRegistry(IContentResourceLoader resourceLoader)
+    internal ContingencyTemplateContentRegistry()
+        : this(new GodotContentJsonSourceReader()) { }
+
+    internal ContingencyTemplateContentRegistry(IContentJsonSourceReader sourceReader)
     {
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
+        _sourceReader = sourceReader ?? throw new ArgumentNullException(nameof(sourceReader));
     }
 
-    public void Rebuild()
-    {
-        LoadFromDirectory(TemplateConfigDirectory);
-    }
+    public void Rebuild() => LoadFromDirectory(ContingencyJsonContentDomain.DirectoryPath);
 
     internal void LoadFromDirectory(string directoryPath)
     {
         _templateDefs.Clear();
         _validationErrors.Clear();
-
-        string globalPath = ProjectSettings.GlobalizePath(directoryPath);
-        if (!DirAccess.DirExistsAbsolute(globalPath))
+        ContentImportBatch<ContingencyTemplateImportModel> batch = ContingencyJsonContentDomain
+            .CreateDescriptor(directoryPath, _sourceReader)
+            .Import();
+        AppendDiagnostics(batch.Diagnostics);
+        foreach (ContentImportEntry<ContingencyTemplateImportModel> entry in batch.Entries)
         {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry could not find {directoryPath}."
-            );
-            return;
-        }
-
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry could not open {directoryPath}."
-            );
-            return;
-        }
-
-        try
-        {
-            string[] files = directory.GetFiles();
-            foreach (string fileName in files)
+            try
             {
-                if (!fileName.EndsWith(".tres"))
+                ContingencySetupTemplateDefinition definition =
+                    ContingencySetupTemplateDefinition.FromImport(
+                        entry.Import,
+                        entry.Context.SourceLabel
+                    );
+                string smokeError = GetTemplateSmokeValidationError(definition);
+                if (smokeError.Length > 0)
+                {
+                    _validationErrors.Add(
+                        $"ContingencyTemplateContentRegistry: {entry.Context.SourceLabel} failed validation: {smokeError}"
+                    );
                     continue;
-
-                string resourcePath = $"{directoryPath}/{fileName}";
-                RegisterTemplateResource(resourcePath);
+                }
+                if (!_templateDefs.TryAdd(definition.TemplateId, definition))
+                {
+                    _validationErrors.Add(
+                        $"ContingencyTemplateContentRegistry: duplicate template_id '{definition.TemplateId}'."
+                    );
+                }
             }
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
-    }
-
-    private void RegisterTemplateResource(string resourcePath)
-    {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry failed to load {resourcePath}."
-            );
-            return;
-        }
-
-        if (resource is not ContingencySetupTemplateDef templateDef)
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry: {resourcePath} is not a ContingencySetupTemplateDef."
-            );
-            return;
-        }
-
-        StringName templateId = templateDef.template_id;
-        if (templateId == "")
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry: {resourcePath} is missing template_id."
-            );
-            return;
-        }
-
-        if (_templateDefs.ContainsKey(templateId))
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry: duplicate template_id '{templateId}' ({resourcePath})."
-            );
-            return;
-        }
-
-        try
-        {
-            ContingencySetupTemplateDefinition definition =
-                ContingencySetupTemplateDefinition.FromResource(templateDef, resourcePath);
-            string smokeError = GetTemplateSmokeValidationError(definition);
-            if (smokeError.Length > 0)
+            catch (InvalidDataException exception)
             {
                 _validationErrors.Add(
-                    $"ContingencyTemplateContentRegistry: {resourcePath} failed validation: {smokeError}"
+                    $"ContingencyTemplateContentRegistry: {entry.Context.SourceLabel} projection failed: {exception.Message}"
                 );
-                return;
             }
-            _templateDefs.Add(definition.TemplateId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validationErrors.Add(
-                $"ContingencyTemplateContentRegistry: {resourcePath} projection failed: {exception.Message}"
-            );
         }
     }
 
-    // Stamp the template with level-1 dynamic fields and run it through the schema
-    // authority, so authoring mistakes surface at content load instead of at the
-    // first player click.
     private static string GetTemplateSmokeValidationError(
         ContingencySetupTemplateDefinition templateDefinition
     )
@@ -137,24 +75,35 @@ internal sealed class ContingencyTemplateContentRegistry
         var smokeCastLevels = new Dictionary<StringName, int>();
         foreach (ContingencyTemplateStoredSpellInfo spell in storedSpells)
             smokeCastLevels[spell.StoredSkillId] = 1;
-
         ContingencyMatrixSetupState setup = ContingencyContentRules.BuildSetupStateFromTemplate(
             templateDefinition,
             1,
             smokeCastLevels
         );
-        if (setup == null)
-            return "stamped payload was rejected by ContingencyMatrixSetupState schema.";
-        return "";
+        return setup == null
+            ? "stamped payload was rejected by ContingencyMatrixSetupState schema."
+            : "";
     }
 
-    internal IReadOnlyDictionary<
-        StringName,
-        ContingencySetupTemplateDefinition
-    > GetTemplateDefsTyped() =>
+    internal bool TryGetDefinition(
+        StringName templateId,
+        out ContingencySetupTemplateDefinition? definition
+    ) => _templateDefs.TryGetValue(templateId, out definition);
+
+    internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> GetTemplateDefsTyped() =>
         new ReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition>(
             new Dictionary<StringName, ContingencySetupTemplateDefinition>(_templateDefs)
         );
 
     internal IReadOnlyList<string> GetValidationErrors() => _validationErrors;
+
+    private void AppendDiagnostics(IReadOnlyList<ContentJsonDiagnostic> diagnostics)
+    {
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics)
+        {
+            _validationErrors.Add(
+                $"[{diagnostic.RuleId}] {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+    }
 }

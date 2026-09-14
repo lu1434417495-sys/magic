@@ -664,7 +664,6 @@ internal sealed class BattleEquipmentTargetMarkResolver
     {
         if (
             targetUnit == null
-            || targetUnit.source_member_id == ""
             || _runtime?._unit_factory == null
         )
         {

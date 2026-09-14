@@ -214,8 +214,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["charged"] = result.Charged,
             ["reserved_mp_max"] = result.ReservedMpMax,
             ["effective_mp_max"] = result.EffectiveMpMax,
-            ["material_item_id"] = "special_contingency_gem",
-            ["material_quantity"] = GetContingencyMaterialQuantity(result.MaterialCosts),
+            ["material_costs"] = BuildContingencyMaterialCosts(result.MaterialCosts),
         };
     }
 
@@ -260,7 +259,7 @@ public sealed class GameRuntimeSnapshotBuilder
             ["display_name"] = setup.DisplayName,
             ["charged"] = setup.Charged,
             ["reserved_mp_max"] = setup.ReservedMpMax,
-            ["material_quantity"] = GetContingencyMaterialQuantity(setup.MaterialCosts),
+            ["material_costs"] = BuildContingencyMaterialCosts(setup.MaterialCosts),
             ["trigger"] = BuildContingencyTriggerSnapshot(setup.Trigger),
             ["release_mode"] = setup.ReleaseMode.ToString(),
             ["stored_spells"] = BuildContingencyStoredSpellSnapshots(setup.StoredSpells),
@@ -303,17 +302,22 @@ public sealed class GameRuntimeSnapshotBuilder
         return result;
     }
 
-    private static int GetContingencyMaterialQuantity(
+    private static PlainList BuildContingencyMaterialCosts(
         IReadOnlyList<ContingencyMaterialCostState> costs
     )
     {
-        int total = 0;
+        var result = new PlainList();
         foreach (ContingencyMaterialCostState cost in costs ?? System.Array.Empty<ContingencyMaterialCostState>())
         {
-            if (cost != null && cost.ItemId == "special_contingency_gem")
-                total += cost.Quantity;
+            if (cost == null)
+                continue;
+            result.Add(new PlainDictionary(StringComparer.Ordinal)
+            {
+                ["item_id"] = cost.ItemId.ToString(),
+                ["quantity"] = cost.Quantity,
+            });
         }
-        return total;
+        return result;
     }
 
     private PlainDictionary BuildQuestSnapshot(PartyState partyState)
@@ -518,11 +522,9 @@ public sealed class GameRuntimeSnapshotBuilder
                     ? progression.ActiveCoreSkillIdsTyped
                     : System.Array.Empty<StringName>()
             ),
-            ["active_level_trigger_core_skill_id"] =
-                progression != null ? progression.active_level_trigger_core_skill_id.ToString() : "",
-            ["locked_level_trigger_skill_ids"] = BuildSortedStringNameArray(
+            ["used_growth_trigger_skill_ids"] = BuildSortedStringNameArray(
                 progression != null
-                    ? progression.LockedLevelTriggerSkillIdsTyped
+                    ? progression.GetUsedGrowthTriggerIds()
                     : System.Array.Empty<StringName>()
             ),
             ["blocked_relearn_skill_ids"] = BuildSortedStringNameArray(
@@ -542,7 +544,72 @@ public sealed class GameRuntimeSnapshotBuilder
                     : new PlainDictionary(StringComparer.Ordinal),
             ["equipment"] = equipmentEntries,
             ["equipment_count"] = equipmentEntries.Count,
+            ["gear_sets"] = BuildMemberGearSetSnapshots(memberId),
         };
+    }
+
+    private PlainList BuildMemberGearSetSnapshots(StringName memberId)
+    {
+        var result = new PlainList();
+        GearSetEvaluationSnapshot evaluation = _runtime.GetMemberGearSetEvaluationTyped(memberId);
+        if (evaluation == null || evaluation.ActiveSets.Count == 0)
+            return result;
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            _runtime.GetMemberGearSetGrantedActionSummariesTyped(memberId)
+            ?? System.Array.Empty<GearSetGrantedActionSummary>();
+        foreach (GearSetActivationSummary set in evaluation.ActiveSets)
+        {
+            if (set == null)
+                continue;
+            var thresholds = new PlainList();
+            foreach (GearSetThresholdStatus threshold in set.Thresholds)
+            {
+                if (threshold == null)
+                    continue;
+                thresholds.Add(
+                    new PlainDictionary(StringComparer.Ordinal)
+                    {
+                        ["threshold_id"] = threshold.ThresholdId.ToString(),
+                        ["display_name"] = threshold.DisplayName ?? "",
+                        ["required_piece_count"] = threshold.RequiredPieceCount,
+                        ["is_active"] = threshold.IsActive,
+                    }
+                );
+            }
+            var actions = new PlainList();
+            foreach (GearSetGrantedActionSummary action in grantedActions)
+            {
+                if (action == null || action.GearSetId != set.GearSetId)
+                    continue;
+                actions.Add(
+                    new PlainDictionary(StringComparer.Ordinal)
+                    {
+                        ["granted_action_id"] = action.GrantedActionId.ToString(),
+                        ["skill_id"] = action.SkillId.ToString(),
+                        ["display_name"] = action.DisplayName ?? "",
+                        ["usage_period_kind"] = EquipmentAbilityUsagePeriodKinds
+                            .ToStringName(action.UsagePeriodKind)
+                            .ToString(),
+                        ["max_uses_per_period"] = action.MaxUsesPerPeriod,
+                        ["is_available"] = action.IsAvailable,
+                        ["remaining_uses"] = action.RemainingUses,
+                        ["disabled_reason"] = action.DisabledReason.ToString(),
+                    }
+                );
+            }
+            result.Add(
+                new PlainDictionary(StringComparer.Ordinal)
+                {
+                    ["gear_set_id"] = set.GearSetId.ToString(),
+                    ["display_name"] = set.DisplayName ?? "",
+                    ["equipped_piece_count"] = set.EquippedPieceCount,
+                    ["total_piece_count"] = set.TotalPieceCount,
+                    ["thresholds"] = thresholds,
+                    ["granted_actions"] = actions,
+                }
+            );
+        }
+        return result;
     }
 
     private PlainList BuildMemberLearnedSkillIds(PartyMemberState memberState)
@@ -600,9 +667,7 @@ public sealed class GameRuntimeSnapshotBuilder
                     ["level"] = skillProgress.skill_level,
                     ["is_core"] = skillProgress.is_core,
                     ["assigned_profession_id"] = skillProgress.assigned_profession_id.ToString(),
-                    ["is_level_trigger_active"] = skillProgress.is_level_trigger_active,
-                    ["is_level_trigger_locked"] = skillProgress.is_level_trigger_locked,
-                    ["core_max_growth_claimed"] = skillProgress.core_max_growth_claimed,
+                    ["growth_completed"] = progression.HasUsedGrowthTrigger(skillId),
                     ["granted_source_type"] = skillProgress.granted_source_type.ToString(),
                     ["granted_source_id"] = skillProgress.granted_source_id.ToString(),
                 }

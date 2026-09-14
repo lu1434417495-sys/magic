@@ -15,25 +15,17 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
         SettlementShopService service = null;
         try
         {
-            var itemDefs = _runtimeScope.OwnWrapper(
-                new GDictionary
-                {
-                    [new StringName("potion")] = _runtimeScope.OwnWrapper(
-                        new ItemDef
-                        {
-                            item_id = "potion",
-                            display_name = "Potion",
-                            base_price = 10,
-                            max_stack = 99,
-                            sellable = true,
-                        },
-                        "potion-item"
-                    ),
-                },
-                "item-defs"
-            );
-            ItemDefinition potionDefinition = ((ItemDef)
-                itemDefs[new StringName("potion")]).ToDefinition();
+            ItemDefinition potionDefinition = new TestItemDefinitionBuilder
+            {
+                item_id = "potion",
+                display_name = "Potion",
+                base_price = 10,
+                buy_price = 10,
+                sell_price = 5,
+                max_stack = 99,
+                sellable = true,
+                icon_asset_id = "fixture.item.potion",
+            }.ToDefinition();
             var typedItemDefs = new Dictionary<StringName, ItemDefinition>
             {
                 [new StringName("potion")] = potionDefinition,
@@ -97,7 +89,7 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 }
             );
 
-            service = new SettlementShopService();
+            service = new SettlementShopService(BuildShopDefinitions());
             SettlementShopWindowBuildResult windowResult = service.BuildWindowDataTyped(
                 "service_basic_supply",
                 new GDictionary
@@ -116,6 +108,8 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
                 windowResult.StateChanged,
                 "未到刷新周期时打开商店不应制造顶层镜像状态变更。"
             );
+            _test.Eq(windowResult.WindowData.Entries[0].IconAssetId, potionDefinition.IconAssetId,
+                "买入条目应携带物品定义的图标资产 id。");
             SettlementShopStateData unchangedPrimary = windowResult.UpdatedSettlementState
                 .GetShopState("village_basic_supply");
             SettlementShopStateData unchangedOther = windowResult.UpdatedSettlementState
@@ -175,6 +169,17 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
             );
             _test.True(result.Success, $"buy should succeed: {result.Message}");
 
+            SettlementShopWindowBuildResult afterPurchase = service.BuildWindowDataTyped(
+                "service_basic_supply",
+                new GDictionary { ["display_name"] = "Village", ["settlement_id"] = "village" },
+                result.UpdatedSettlementState, 7, "", typedItemDefs, warehouse, party.GetGold());
+            _test.Eq(afterPurchase.WindowData.Entries.Count, 1,
+                "买光库存后应保留仓库中物品的卖出条目。");
+            _test.True(afterPurchase.WindowData.Entries[0].Selection is SettlementShopSelectionData
+                { ActionKind: SettlementShopActionKind.Sell }, "买入物品应能从仓库卖出。");
+            _test.Eq(afterPurchase.WindowData.Entries[0].IconAssetId, potionDefinition.IconAssetId,
+                "卖出条目应携带相同物品的图标资产 id。");
+
             IReadOnlyList<SettlementShopStockEntryData> inventory = result
                 .UpdatedSettlementState
                 .GetShopState("village_basic_supply")
@@ -206,5 +211,25 @@ public partial class run_settlement_shop_stock_persistence_regression : Lifecycl
         }
 
         RequestTestExit(_test.Finish("shop stock mutation persists in settlement state"));
+    }
+
+    private static IReadOnlyDictionary<StringName, SettlementShopDefinition>
+        BuildShopDefinitions()
+    {
+        var definition = new SettlementShopDefinition(
+            "service_basic_supply",
+            "village_basic_supply",
+            "Fixture Supply",
+            12,
+            new[] { new SettlementShopItemDefinition("potion", 1, 1, 0, 10000) },
+            System.Array.Empty<SettlementShopItemDefinition>(),
+            0,
+            0,
+            10000
+        );
+        return new Dictionary<StringName, SettlementShopDefinition>
+        {
+            [definition.InteractionScriptId] = definition,
+        };
     }
 }

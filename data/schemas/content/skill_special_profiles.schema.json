@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:skill_special_profiles:v1",
+  "title": "Magic battle special profile JSON authoring schema",
+  "description": "Strict closed-kind battle special profile payload contract without resource paths.",
+  "$ref": "#/$defs/BattleSpecialProfileJsonDocumentDto",
+  "$defs": {
+    "BattleAttackRollModifierJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applies_to": {
+          "type": "string"
+        },
+        "distance_max_inclusive": {
+          "type": "integer"
+        },
+        "distance_min_exclusive": {
+          "type": "integer"
+        },
+        "endpoint_mode": {
+          "type": "string"
+        },
+        "footprint_mode": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "modifier_delta": {
+          "type": "integer"
+        },
+        "roll_kind_filter": {
+          "type": "string"
+        },
+        "source_domain": {
+          "type": "string"
+        },
+        "stack_key": {
+          "type": "string"
+        },
+        "stack_mode": {
+          "type": "string"
+        },
+        "target_team_filter": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "applies_to",
+        "distance_max_inclusive",
+        "distance_min_exclusive",
+        "endpoint_mode",
+        "footprint_mode",
+        "label",
+        "modifier_delta",
+        "roll_kind_filter",
+        "source_domain",
+        "stack_key",
+        "stack_mode",
+        "target_team_filter"
+      ]
+    },
+    "BattleSpecialProfileBodyJsonDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSpecialProfileBodyJsonDto__meteor_swarm"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "meteor_swarm": "#/$defs/BattleSpecialProfileBodyJsonDto__meteor_swarm"
+        }
+      }
+    },
+    "BattleSpecialProfileBodyJsonDto__meteor_swarm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "meteor_swarm"
+        },
+        "payload": {
+          "$ref": "#/$defs/MeteorSwarmProfilePayloadJsonDto"
+        }
+      },
+      "required": [
+        "kind",
+        "payload"
+      ]
+    },
+    "BattleSpecialProfileBodyJsonDto__partial": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BattleSpecialProfileBodyJsonDto__partial__meteor_swarm"
+        }
+      ]
+    },
+    "BattleSpecialProfileBodyJsonDto__partial__meteor_swarm": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "meteor_swarm"
+        },
+        "payload": {
+          "$ref": "#/$defs/MeteorSwarmProfilePayloadJsonDto__partial"
+        }
+      }
+    },
+    "BattleSpecialProfileJsonDocumentDto": {
+      "description": "Battle special profile document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "skill_special_profiles"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BattleSpecialProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/BattleSpecialProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "BattleSpecialProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/BattleSpecialProfileBodyJsonDto"
+        },
+        "profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "profile_id"
+      ]
+    },
+    "BattleSpecialProfileJsonDto__authoring_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/BattleSpecialProfileJsonDto"
+        },
+        {
+          "$ref": "#/$defs/BattleSpecialProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "BattleSpecialProfileJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/BattleSpecialProfileBodyJsonDto__partial"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "BattleSpecialProfileJsonDto__templated_profile_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/BattleSpecialProfileBodyJsonDto__partial"
+        },
+        "profile_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "profile_id",
+        "template"
+      ]
+    },
+    "MeteorSwarmImpactComponentJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_power": {
+          "type": "integer"
+        },
+        "can_crit": {
+          "type": "boolean"
+        },
+        "component_id": {
+          "type": "string"
+        },
+        "damage_tag": {
+          "type": "string"
+        },
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        },
+        "mastery_weight": {
+          "type": "number"
+        },
+        "ring_damage_scale_bp": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        },
+        "ring_max": {
+          "type": "integer"
+        },
+        "ring_min": {
+          "type": "integer"
+        },
+        "ring_weight": {
+          "type": "number"
+        },
+        "role_label": {
+          "type": "string"
+        },
+        "save_profile_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "base_power",
+        "can_crit",
+        "component_id",
+        "damage_tag",
+        "dice_count",
+        "dice_sides",
+        "mastery_weight",
+        "ring_damage_scale_bp",
+        "ring_max",
+        "ring_min",
+        "ring_weight",
+        "role_label",
+        "save_profile_id"
+      ]
+    },
+    "MeteorSwarmProfilePayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concussed_status_id": {
+          "type": "string"
+        },
+        "coverage_shape_id": {
+          "type": "string"
+        },
+        "friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "impact_components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeteorSwarmImpactComponentJsonDto"
+          }
+        },
+        "profile_version": {
+          "type": "integer"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "terrain_profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeteorSwarmTerrainProfileJsonDto"
+          }
+        }
+      },
+      "required": [
+        "concussed_status_id",
+        "coverage_shape_id",
+        "friendly_fire_hard_expected_hp_percent",
+        "friendly_fire_hard_worst_case_hp_percent",
+        "friendly_fire_soft_expected_hp_percent",
+        "impact_components",
+        "profile_version",
+        "radius",
+        "terrain_profiles"
+      ]
+    },
+    "MeteorSwarmProfilePayloadJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "concussed_status_id": {
+          "type": "string"
+        },
+        "coverage_shape_id": {
+          "type": "string"
+        },
+        "friendly_fire_hard_expected_hp_percent": {
+          "type": "integer"
+        },
+        "friendly_fire_hard_worst_case_hp_percent": {
+          "type": "integer"
+        },
+        "friendly_fire_soft_expected_hp_percent": {
+          "type": "integer"
+        },
+        "impact_components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeteorSwarmImpactComponentJsonDto"
+          }
+        },
+        "profile_version": {
+          "type": "integer"
+        },
+        "radius": {
+          "type": "integer"
+        },
+        "terrain_profiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeteorSwarmTerrainProfileJsonDto"
+          }
+        }
+      }
+    },
+    "MeteorSwarmTerrainProfileJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accuracy_modifier_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BattleAttackRollModifierJsonDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "lifetime_policy": {
+          "type": "string"
+        },
+        "move_cost_delta": {
+          "type": "integer"
+        },
+        "move_cost_stack_key": {
+          "type": "string"
+        },
+        "move_cost_stack_mode": {
+          "type": "string"
+        },
+        "overlay_priority": {
+          "type": "integer"
+        },
+        "render_overlay_id": {
+          "type": "string"
+        },
+        "ring_max": {
+          "type": "integer"
+        },
+        "ring_min": {
+          "type": "integer"
+        },
+        "terrain_profile_id": {
+          "type": "string"
+        },
+        "tick_effect_type": {
+          "type": "string"
+        },
+        "tick_interval_tu": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "duration_tu",
+        "lifetime_policy",
+        "move_cost_delta",
+        "move_cost_stack_key",
+        "move_cost_stack_mode",
+        "overlay_priority",
+        "render_overlay_id",
+        "ring_max",
+        "ring_min",
+        "terrain_profile_id",
+        "tick_effect_type",
+        "tick_interval_tu"
+      ]
+    }
+  }
+}

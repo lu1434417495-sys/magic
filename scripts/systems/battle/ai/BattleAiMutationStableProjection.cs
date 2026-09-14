@@ -6,6 +6,89 @@ using Godot;
 
 internal static class BattleAiMutationStableProjection
 {
+    internal static StableMap StableReactionStateRaw(
+        BattleUnitReactionSnapshot snapshot
+    )
+    {
+        StableMap result = new();
+        result.Set(
+            "charges_remaining",
+            StableValue.FromInteger(snapshot.ChargesRemaining)
+        );
+        result.Set(
+            "charge_capacity",
+            StableValue.FromInteger(snapshot.ChargeCapacity)
+        );
+        result.Set(
+            "recharge_interval_tu",
+            StableValue.FromInteger(snapshot.RechargeIntervalTu)
+        );
+        result.Set(
+            "next_recharge_at_tu",
+            StableValue.FromInteger(snapshot.NextRechargeAtTu)
+        );
+        return result;
+    }
+
+    internal static List<StableValue>
+        StableCounterattackCapabilitiesRaw(
+            IEnumerable<BattleCounterattackCapability> values
+        )
+    {
+        var result = new List<StableValue>();
+        foreach (
+            BattleCounterattackCapability capability
+                in values
+                    ?? Array.Empty<
+                        BattleCounterattackCapability
+                    >()
+        )
+        {
+            StableMap entry = new();
+            entry.Set(
+                "instance_id",
+                StableNullableStringName(
+                    capability.InstanceId
+                )
+            );
+            entry.Set(
+                "trigger_kind",
+                StableNullableStringName(
+                    BattleCounterattackTriggerNames
+                        .ToStringName(
+                            capability.TriggerKind
+                        )
+                )
+            );
+            entry.Set(
+                "selection_priority",
+                StableValue.FromInteger(
+                    capability.SelectionPriority
+                )
+            );
+            entry.Set(
+                "chance_percent",
+                StableValue.FromInteger(
+                    capability.ChancePercent
+                )
+            );
+            entry.Set(
+                "attack_roll_bonus",
+                StableValue.FromInteger(
+                    capability.AttackRollBonus
+                )
+            );
+            entry.Set(
+                "weapon_action_definition_id",
+                StableNullableStringName(
+                    capability.WeaponActionDefinitionId
+                )
+            );
+            result.Add(StableValue.FromMap(entry));
+        }
+        return result;
+    }
+
     internal static StableMap StableBattleUnitState(BattleUnitState unit)
     {
         if (unit == null)
@@ -67,8 +150,6 @@ internal static class BattleAiMutationStableProjection
                 : StableValue.FromArray(StableTerrainEffectArray(cell.timed_terrain_effects))
         );
         result.Set("flow_direction", StableValue.FromVector2I(cell.flow_direction));
-        result.Set("edge_feature_east", StableValue.FromMap(StableEdgeFeature(cell.edge_feature_east)));
-        result.Set("edge_feature_south", StableValue.FromMap(StableEdgeFeature(cell.edge_feature_south)));
         return result;
     }
 
@@ -122,6 +203,12 @@ internal static class BattleAiMutationStableProjection
             "params",
             StableValue.FromMap(
                 StableMap.FromTypedDictionary(statusEffect.ParamsSnapshotPlain)
+            )
+        );
+        result.Set(
+            "source_contributions",
+            BattleAiMutationSnapshotModel.ReadStableTypedValue(
+                statusEffect.BuildSourceContributionSnapshotsPlain()
             )
         );
         return result;

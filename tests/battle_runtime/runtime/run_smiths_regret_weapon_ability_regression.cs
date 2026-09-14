@@ -84,21 +84,14 @@ public partial class run_smiths_regret_weapon_ability_regression : LifecycleTest
             "真实装备能力内容应包含摩拉丁的谅解 binding。"
         );
 
-        ItemDef raw = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_smiths_regret.tres"
-        );
+        ItemDefinition raw = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_smiths_regret");
         _test.True(raw != null, "铁匠的悔恨原始资源应能加载。");
         if (raw != null)
         {
-            _test.Eq(raw.item_id, ItemId, "铁匠的悔恨 item_id 应使用无数字 longsword 文件名。");
-            _test.Eq(raw.display_name, "铁匠的悔恨", "铁匠的悔恨显示名应来自设计源。");
-            _test.Eq(
-                raw.base_item_id,
-                new StringName("weapon_type_longsword_base"),
-                "铁匠的悔恨应继承 longsword 模板。"
-            );
-            _test.Eq(raw.base_price, 52000, "铁匠的悔恨基础价格应为 52000。");
-            _test.Eq(raw.trait_ids.Count, 4, "物品应显式挂载 4 个 trait，其中不完美共鸣与元素超载由缺陷之美配置落地。");
+            _test.Eq(raw.ItemId, ItemId, "铁匠的悔恨 item_id 应使用无数字 longsword 文件名。");
+            _test.Eq(raw.DisplayName, "铁匠的悔恨", "铁匠的悔恨显示名应来自设计源。");
+            _test.Eq(raw.BasePrice, 52000, "铁匠的悔恨基础价格应为 52000。");
+            _test.Eq(raw.TraitIds.Count, 4, "物品应显式挂载 4 个 trait，其中不完美共鸣与元素超载由缺陷之美配置落地。");
         }
 
         BattleUnitState equipped = fixture.BuildSmithUnit("projection");

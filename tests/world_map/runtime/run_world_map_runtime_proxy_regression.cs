@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_runtime_proxy_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 
@@ -18,8 +18,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     private sealed class RuntimeFixture : IDisposable
     {
         public GameRuntimeFacade Runtime { get; init; }
-        public WorldMapGenerationConfig GenerationConfig { get; init; }
-        public GDictionary ItemDefs { get; init; }
+        public Dictionary<StringName, ItemDefinition> ItemDefs { get; init; }
 
         public void Dispose()
         {
@@ -158,7 +157,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         {
             RuntimeCommandResult openResult = proxy.CommandOpenParty();
             _test.True(openResult.Ok, $"CommandOpenParty() 应委托 runtime。message={openResult.Message}");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Party, "CommandOpenParty() 成功后应更新 runtime modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Party, "CommandOpenParty() 成功后应更新 runtime modal。");
             _test.Eq(proxy.GetPartySelectedMemberId().ToString(), "hero", "CommandOpenParty() 应通过 runtime 选中上阵第一人。");
 
             RuntimeCommandResult selectResult = proxy.CommandSelectPartyMember("mage");
@@ -167,8 +166,8 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
 
             RuntimeCommandResult warehouseResult = proxy.CommandOpenPartyWarehouse();
             _test.True(warehouseResult.Ok, $"CommandOpenPartyWarehouse() 应委托 runtime。message={warehouseResult.Message}");
-            _test.Eq(runtime._active_modal_kind, RuntimeModalKind.Warehouse, "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
-            _test.Eq(runtime._active_warehouse_entry_label, "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Warehouse, "CommandOpenPartyWarehouse() 成功后应打开 warehouse modal。");
+            _test.Eq(runtime.GetActiveWarehouseEntryLabel(), "队伍管理", "CommandOpenPartyWarehouse() 应保留正式入口标签。");
         }
         finally
         {
@@ -413,18 +412,16 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
     private static RuntimeFixture BuildRuntime(PartyState partyState)
     {
         Dictionary<StringName, SkillDefinition> skillDefinitions = BuildSkillDefinitions();
-        GDictionary itemDefs = BuildItemDefs();
-        WorldMapGenerationConfig generationConfig = new();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
         WorldGenerationDefinition generationDefinition =
-            TestWorldGenerationDefinitionFactory.Project(
-                "res://tests/world_map/runtime/runtime_proxy_generation.tres",
-                generationConfig
-            );
+            TestWorldGenerationDefinitionFactory.Create("runtime_proxy_fixture");
         GameRuntimeFacade runtime = new()
         {
-            _party_state = partyState,
             _generation_definition = generationDefinition,
         };
+        runtime.SetupForTestFixture(
+            partyState: partyState
+        );
         runtime._world_map_data_context.active_generation_definition = generationDefinition;
         runtime._world_map_data_context.SetActiveWorldData(new GDictionary
         {
@@ -437,12 +434,12 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             skillDefinitions,
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildTypedItemDefs(itemDefs)
+            itemDefs
         );
-        runtime._party_warehouse_service.Setup(partyState, BuildTypedItemDefs(itemDefs));
+        runtime._party_warehouse_service.Setup(partyState, itemDefs);
         runtime._party_item_use_service.Setup(
             partyState,
-            BuildTypedItemDefs(itemDefs),
+            itemDefs,
             skillDefinitions,
             runtime._party_warehouse_service,
             runtime._character_management
@@ -455,46 +452,25 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         return new RuntimeFixture
         {
             Runtime = runtime,
-            GenerationConfig = generationConfig,
             ItemDefs = itemDefs,
         };
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        GDictionary result = TestResourceOwnership.OwnWrapper(
-            new GDictionary(),
-            "world_map_runtime_proxy.item_defs"
-        );
-        result[new StringName("skill_book_focus")] = TestResourceOwnership.Own(
-            new ItemDef
-            {
-                item_id = "skill_book_focus",
-                display_name = "Focus Manual",
-                CategoryKind = ItemCategoryKind.SkillBook,
-                is_stackable = true,
-                max_stack = 20,
-                granted_skill_id = "focus",
-            },
-            "world_map_runtime_proxy.skill_book_focus"
-        );
-        return result;
-    }
-
-    private static Dictionary<StringName, ItemDefinition> BuildTypedItemDefs(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDefinition> result = new();
-        foreach (Variant rawKey in itemDefs.Keys)
+        TestItemDefinitionBuilder item = new()
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef.ToDefinition();
-        }
-        return result;
+            item_id = "skill_book_focus",
+            display_name = "Focus Manual",
+            CategoryKind = ItemCategoryKind.SkillBook,
+            is_stackable = true,
+            max_stack = 20,
+            granted_skill_id = "focus",
+        };
+        return new Dictionary<StringName, ItemDefinition>
+        {
+            [item.item_id] = item.ToDefinition(),
+        };
     }
 
     private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitions()
@@ -530,7 +506,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
         return result;

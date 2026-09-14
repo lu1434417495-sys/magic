@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-public sealed class BattleBoardController : IDisposable
+public sealed partial class BattleBoardController : IDisposable
 {
     public sealed class TileSetCacheEntry
     {
@@ -10,7 +10,8 @@ public sealed class BattleBoardController : IDisposable
         public Dictionary<StringName, List<int>> SourceIds { get; init; } = new();
     }
 
-    private const int MAX_HEIGHT_LAYERS = 9;
+    private const int MIN_RENDER_HEIGHT = BattleBoardRenderProfile.MinimumHeight;
+    private const int MAX_RENDER_HEIGHT = BattleBoardRenderProfile.MaximumHeight;
     private const int TOP_LAYER_Z_BASE = 0;
     private const int LAYER_Z_STRIDE = 10;
     private const int EDGE_DROP_EAST_LAYER_Z_OFFSET = -4;
@@ -28,16 +29,11 @@ public sealed class BattleBoardController : IDisposable
     private const int PROP_LAYER_Z = 0;
     private const int UNIT_LAYER_Z = 0;
     private const int TARGET_HIGHLIGHT_LAYER_Z = 1300;
-    private static readonly Vector2 UNIT_GLYPH_LABEL_SIZE = new(28.0f, 28.0f);
+    private static readonly Vector2 UNIT_GLYPH_LABEL_SIZE = new(64.0f, 56.0f);
     private const float UNIT_SPRITE_TILE_WIDTH_RATIO = 0.95f;
-    private const float UNIT_SPRITE_GROUND_ANCHOR_RATIO = 0.85f;
-    private static readonly Vector2 UNIT_SPRITE_SHADOW_HALF_SIZE = new(20.0f, 6.0f);
-    private static readonly Color UNIT_SPRITE_SHADOW_COLOR = new(0.0f, 0.0f, 0.0f, 0.45f);
-    private static readonly Vector2 UNIT_SPRITE_HIGHLIGHT_HALF_SIZE = new(22.0f, 8.0f);
-    private static readonly Color UNIT_SPRITE_HIGHLIGHT_COLOR = new(1.0f, 0.94f, 0.76f, 0.92f);
-    private const int UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT = 28;
-    private static readonly Vector2 UNIT_HEALTH_BAR_SIZE = new(56.0f, 14.0f);
-    private const float UNIT_HEALTH_BAR_Y_OFFSET = -50.0f;
+    private const float UNIT_SPRITE_MAX_HEIGHT_TO_TILE_WIDTH = 0.8f;
+    private static readonly Vector2 UNIT_HEALTH_BAR_SIZE = new(96.0f, 24.0f);
+    private const float UNIT_HEALTH_BAR_Y_OFFSET = -82.0f;
 
     // 贴图单位的血条要落在贴图实际顶部之上(贴图很高,固定 -50 会压在身体中部)。
     private const float UNIT_SPRITE_OVERLAY_GAP = 4.0f;
@@ -46,7 +42,7 @@ public sealed class BattleBoardController : IDisposable
     private static readonly Color UNIT_HEALTH_BAR_HIGH_COLOR = new(0.3f, 0.86f, 0.42f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_MID_COLOR = new(0.9f, 0.76f, 0.24f, 0.96f);
     private static readonly Color UNIT_HEALTH_BAR_LOW_COLOR = new(0.9f, 0.28f, 0.22f, 0.96f);
-    private static readonly Color ACTIVE_SELECTED_MARKER_COLOR = new(0.0f, 0.0f, 1.0f, 1.0f);
+    private static readonly Color ACTIVE_SELECTED_MARKER_COLOR = new(0.22f, 0.58f, 0.86f, 0.42f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_DARK = new(0.14f, 0.37f, 0.5f, 1.0f);
     private static readonly Color MOVE_REACHABLE_MARKER_COLOR_LIGHT = new(
         0.46f,
@@ -127,6 +123,8 @@ public sealed class BattleBoardController : IDisposable
     private NativeLeaseScope _renderLease;
     private bool _disposed;
     private readonly Dictionary<StringName, Node2D> _unitNodesById = new();
+    private readonly Dictionary<Texture2D, Rect2I> _unitSpriteVisibleRects =
+        new(GodotWrapperReferenceComparer.Instance);
     internal BattleBoardRenderSnapshot _snapshot;
     public Vector2I _selected_coord = new(-1, -1);
     public readonly List<Vector2I> _preview_target_coords = new();
@@ -170,6 +168,7 @@ public sealed class BattleBoardController : IDisposable
             _apply_tileset_to_layers();
             _apply_layer_offsets();
             _apply_layer_draw_order();
+            InitializeTerrainArt();
         }
         catch (Exception constructionFailure)
         {
@@ -336,6 +335,7 @@ public sealed class BattleBoardController : IDisposable
 
     private void ClearBorrowedFields()
     {
+        ClearTerrainArtResources();
         _snapshot = null;
         _tile_set = null;
         _render_profile = null;
@@ -350,6 +350,7 @@ public sealed class BattleBoardController : IDisposable
         _texture_cache.Clear();
         _tileset_cache.Clear();
         _unitNodesById.Clear();
+        _unitSpriteVisibleRects.Clear();
         _input_layer = null;
         _top_layers.Clear();
         _edge_drop_east_layers.Clear();
@@ -442,6 +443,8 @@ public sealed class BattleBoardController : IDisposable
             return false;
         if (_count_rendered_top_cells() < _count_expected_drawable_cells())
             return false;
+        if (PaintedSurfaceCount != _count_expected_drawable_cells())
+            return false;
         if (_count_rendered_units() != _count_expected_rendered_units())
             return false;
         if (_count_rendered_props() != _count_expected_rendered_props())
@@ -476,7 +479,7 @@ public sealed class BattleBoardController : IDisposable
             Vector2I coord = cellState.Coord;
             if (!_is_cell_inside_battle(coord))
                 continue;
-            int heightIndex = Mathf.Clamp(cellState.Height, 0, MAX_HEIGHT_LAYERS - 1);
+            int heightIndex = _height_to_layer_index(cellState.Height);
             int topSourceId = _get_top_source_id(cellState.BaseTerrain.ToString(), coord);
             if (topSourceId >= 0 && heightIndex < _top_layers.Count)
                 _top_layers[heightIndex].SetCell(coord, topSourceId, Vector2I.Zero, 0);
@@ -485,6 +488,7 @@ public sealed class BattleBoardController : IDisposable
                 _overlay_layers[heightIndex].SetCell(coord, overlaySourceId, Vector2I.Zero, 0);
         }
         _draw_edge_faces();
+        DrawTerrainArt(cells);
     }
 
     private void _draw_edge_faces()
@@ -513,7 +517,7 @@ public sealed class BattleBoardController : IDisposable
         Vector2I renderCoord = _get_edge_render_coord(edge_face);
         foreach (int renderHeight in edge_face.DropFaceLayerHeights)
         {
-            int layerIndex = renderHeight - 1;
+            int layerIndex = renderHeight - MIN_RENDER_HEIGHT - 1;
             if (layerIndex < 0 || layerIndex >= layers.Count)
                 continue;
             layers[layerIndex]
@@ -539,11 +543,7 @@ public sealed class BattleBoardController : IDisposable
         Vector2I renderCoord = _get_edge_render_coord(edge_face);
         for (int layerOffset = 0; layerOffset < edge_face.FeatureLayers; layerOffset++)
         {
-            int layerIndex = Mathf.Clamp(
-                edge_face.FromHeight - layerOffset,
-                0,
-                MAX_HEIGHT_LAYERS - 1
-            );
+            int layerIndex = _height_to_layer_index(edge_face.FromHeight - layerOffset);
             if (layerIndex < 0 || layerIndex >= layers.Count)
                 continue;
             layers[layerIndex]
@@ -576,6 +576,7 @@ public sealed class BattleBoardController : IDisposable
         if (
             _target_selection_mode == "movement"
             || _target_selection_mode == "source_retreat_direction"
+            || _target_selection_mode == "forced_move_destination"
         )
         {
             foreach (Vector2I reachableCoord in _valid_target_coords)
@@ -679,62 +680,18 @@ public sealed class BattleBoardController : IDisposable
         token.SetMeta("sort_depth", renderDepth);
         token.SetMeta("board_coord", unit_state.AnchorCoord);
         Texture2D spriteTexture = _resolve_unit_sprite_texture(unit_state);
+        token.AddChild(new BattleUnitTokenDecoration
+        {
+            Name = "UnitDecoration",
+            FactionColor = _get_unit_color(unit_state),
+            GroundAnchor = new Vector2(0, -_get_unit_anchor_bias().Y),
+            IsActive = unit_state.UnitId == _snapshot?.ActiveUnitId,
+            ShowMedallion = spriteTexture == null,
+            ZIndex = -1,
+        });
         if (spriteTexture != null)
         {
             _attach_unit_sprite_visuals(token, unit_state, spriteTexture);
-        }
-        else
-        {
-            var body = new Polygon2D
-            {
-                Polygon = new[]
-                {
-                    new Vector2(0.0f, -14.0f),
-                    new Vector2(12.0f, 0.0f),
-                    new Vector2(0.0f, 14.0f),
-                    new Vector2(-12.0f, 0.0f),
-                },
-                Color = _get_unit_color(unit_state),
-                Antialiased = true,
-            };
-            token.AddChild(body);
-            var outline = new Line2D
-            {
-                Points = new[]
-                {
-                    new Vector2(0.0f, -14.0f),
-                    new Vector2(12.0f, 0.0f),
-                    new Vector2(0.0f, 14.0f),
-                    new Vector2(-12.0f, 0.0f),
-                    new Vector2(0.0f, -14.0f),
-                },
-                Width = 2.0f,
-                DefaultColor = new Color(0.18f, 0.11f, 0.06f, 0.96f),
-                Antialiased = true,
-            };
-            token.AddChild(outline);
-        }
-        if (
-            spriteTexture == null
-            && _snapshot != null
-            && unit_state.UnitId == _snapshot.ActiveUnitId
-        )
-        {
-            var activeOutline = new Line2D
-            {
-                Points = new[]
-                {
-                    new Vector2(0.0f, -18.0f),
-                    new Vector2(16.0f, 0.0f),
-                    new Vector2(0.0f, 18.0f),
-                    new Vector2(-16.0f, 0.0f),
-                    new Vector2(0.0f, -18.0f),
-                },
-                Width = 2.0f,
-                DefaultColor = new Color(1.0f, 0.94f, 0.76f, 0.96f),
-                Antialiased = true,
-            };
-            token.AddChild(activeOutline);
         }
         var label = new Label
         {
@@ -751,7 +708,8 @@ public sealed class BattleBoardController : IDisposable
             ZIndex = UNIT_OVERLAY_ABSOLUTE_Z,
             ZAsRelative = false,
         };
-        label.AddThemeFontSizeOverride("font_size", 15);
+        label.Visible = spriteTexture == null;
+        label.AddThemeFontSizeOverride("font_size", 30);
         label.AddThemeColorOverride("font_color", new Color(0.98f, 0.96f, 0.9f, 0.98f));
         label.AddThemeColorOverride("font_shadow_color", new Color(0.16f, 0.1f, 0.06f, 0.92f));
         label.AddThemeConstantOverride("shadow_offset_x", 1);
@@ -784,44 +742,21 @@ public sealed class BattleBoardController : IDisposable
         if (token == null || unit_state == null || spriteTexture == null)
             return;
         float groundY = -_get_unit_anchor_bias().Y;
-        var shadow = new Polygon2D
-        {
-            Name = "UnitSpriteShadow",
-            Polygon = _build_unit_ellipse_polygon(UNIT_SPRITE_SHADOW_HALF_SIZE),
-            Color = UNIT_SPRITE_SHADOW_COLOR,
-            Position = new Vector2(0.0f, groundY),
-            Antialiased = true,
-            ZIndex = -2,
-        };
-        token.AddChild(shadow);
-        if (_snapshot != null && unit_state.UnitId == _snapshot.ActiveUnitId)
-        {
-            var highlight = new Polygon2D
-            {
-                Name = "UnitSpriteActiveHighlight",
-                Polygon = _build_unit_ellipse_polygon(UNIT_SPRITE_HIGHLIGHT_HALF_SIZE),
-                Color = UNIT_SPRITE_HIGHLIGHT_COLOR,
-                Position = new Vector2(0.0f, groundY),
-                Antialiased = true,
-                ZIndex = -1,
-            };
-            token.AddChild(highlight);
-        }
         Vector2 textureSize = spriteTexture.GetSize();
         if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
             return;
-        Vector2I tileSize = _get_board_tile_size();
-        float targetWidth = Mathf.Max((float)tileSize.X * UNIT_SPRITE_TILE_WIDTH_RATIO, 1.0f);
-        float spriteScale = targetWidth / textureSize.X;
+        float spriteScale = GetUnitSpriteScale(spriteTexture);
+        Rect2I visibleRect = GetUnitSpriteVisibleRect(spriteTexture);
         var sprite = new Sprite2D
         {
             Name = "UnitSprite",
             Texture = spriteTexture,
+            TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
             Centered = true,
             Scale = Vector2.One * spriteScale,
             Position = new Vector2(
-                0.0f,
-                groundY + (0.5f - UNIT_SPRITE_GROUND_ANCHOR_RATIO) * textureSize.Y * spriteScale
+                (textureSize.X * 0.5f - (visibleRect.Position.X + visibleRect.Size.X * 0.5f)) * spriteScale,
+                groundY + (textureSize.Y * 0.5f - visibleRect.End.Y) * spriteScale
             ),
             ZIndex = 0,
         };
@@ -830,43 +765,69 @@ public sealed class BattleBoardController : IDisposable
 
     private Texture2D _resolve_unit_sprite_texture(BattleBoardUnitSnapshot unitState)
     {
-        string path = unitState?.BattleSpriteTexturePath ?? "";
-        return string.IsNullOrEmpty(path) ? null : _load_texture_from_png(path);
+        StringName assetId = unitState?.BattleSpriteAssetId ?? "";
+        return assetId == ""
+            ? null
+            : EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(assetId);
     }
 
-    // 贴图缩放后的可见高度(像素,token 本地坐标)。与 _attach_unit_sprite_visuals 的
-    // 缩放算法一致:宽度按格宽比缩放,等比得到高度。
-    private float _get_unit_sprite_scaled_height(Vector2 textureSize)
+    private Rect2I GetUnitSpriteVisibleRect(Texture2D texture)
     {
-        if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
-            return 0.0f;
-        Vector2I tileSize = _get_board_tile_size();
-        float targetWidth = Mathf.Max((float)tileSize.X * UNIT_SPRITE_TILE_WIDTH_RATIO, 1.0f);
-        float spriteScale = targetWidth / textureSize.X;
-        return textureSize.Y * spriteScale;
+        if (_unitSpriteVisibleRects.TryGetValue(texture, out Rect2I cached))
+            return cached;
+        using var scope = new NativeLeaseScope("BattleBoardController.sprite-visible-rect", LifetimeDomain.Request);
+        Image image = scope.Own(texture.GetImage(), "sprite alpha bounds");
+        if (image.IsCompressed() && image.Decompress() != Error.Ok)
+            throw new InvalidOperationException($"Cannot read battle sprite alpha: {texture.ResourcePath}");
+        // Ignore the faint antialiasing/shadow fringe when placing feet. A
+        // nonzero-alpha bound makes soft PNG shadows look like empty padding.
+        image.Convert(Image.Format.Rgba8);
+        byte[] pixels = image.GetData();
+        int width = image.GetWidth();
+        int height = image.GetHeight();
+        int minX = width, minY = height, maxX = -1, maxY = -1;
+        for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+        {
+            if (pixels[(y * width + x) * 4 + 3] < 128)
+                continue;
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+        }
+        Rect2I bounds = maxX >= minX
+            ? new Rect2I(minX, minY, maxX - minX + 1, maxY - minY + 1)
+            : image.GetUsedRect();
+        if (!bounds.HasArea())
+            bounds = new Rect2I(Vector2I.Zero, (Vector2I)texture.GetSize());
+        else if (texture is AtlasTexture atlas)
+        {
+            // AtlasTexture.GetImage() exposes the cropped region without its
+            // logical margin. Sprite2D draws with that margin, so align feet
+            // and health bars in the same logical texture coordinates.
+            bounds.Position += new Vector2I(Mathf.RoundToInt(atlas.Margin.Position.X),
+                Mathf.RoundToInt(atlas.Margin.Position.Y));
+        }
+        _unitSpriteVisibleRects[texture] = bounds;
+        return bounds;
     }
 
     // 贴图顶部在 token 本地坐标的 Y(脚底锚点为基准,向上为负)。
     private float _get_unit_sprite_top_y(Texture2D spriteTexture)
     {
         float groundY = -_get_unit_anchor_bias().Y;
-        float scaledHeight = _get_unit_sprite_scaled_height(spriteTexture.GetSize());
-        return groundY - UNIT_SPRITE_GROUND_ANCHOR_RATIO * scaledHeight;
+        float spriteScale = GetUnitSpriteScale(spriteTexture);
+        return groundY - GetUnitSpriteVisibleRect(spriteTexture).Size.Y * spriteScale;
     }
 
-    private Vector2[] _build_unit_ellipse_polygon(Vector2 half_size)
+    private float GetUnitSpriteScale(Texture2D texture)
     {
-        Vector2 safeHalfSize = new(Mathf.Max(half_size.X, 1.0f), Mathf.Max(half_size.Y, 1.0f));
-        var points = new Vector2[UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT];
-        for (int index = 0; index < UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT; index++)
-        {
-            float angle = Mathf.Tau * (float)index / (float)UNIT_SPRITE_ELLIPSE_SEGMENT_COUNT;
-            points[index] = new Vector2(
-                Mathf.Cos(angle) * safeHalfSize.X,
-                Mathf.Sin(angle) * safeHalfSize.Y
-            );
-        }
-        return points;
+        float tileWidth = _get_board_tile_size().X;
+        // Portrait sprites must not tower across several rows just because
+        // their canvas is taller than the existing animal sprite canvases.
+        return Mathf.Min(tileWidth * UNIT_SPRITE_TILE_WIDTH_RATIO / texture.GetWidth(),
+            tileWidth * UNIT_SPRITE_MAX_HEIGHT_TO_TILE_WIDTH / GetUnitSpriteVisibleRect(texture).Size.Y);
     }
 
     private Control _create_unit_health_bar(BattleBoardUnitSnapshot unit_state)
@@ -896,6 +857,7 @@ public sealed class BattleBoardController : IDisposable
             Position = Vector2.One,
             Size = new Vector2(fillWidth, Mathf.Max(UNIT_HEALTH_BAR_SIZE.Y - 2.0f, 0.0f)),
             Color = _get_unit_health_bar_fill_color(hpRatio),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         healthBar.AddChild(fill);
         var valueLabel = new Label
@@ -908,7 +870,7 @@ public sealed class BattleBoardController : IDisposable
             VerticalAlignment = VerticalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        valueLabel.AddThemeFontSizeOverride("font_size", 9);
+        valueLabel.AddThemeFontSizeOverride("font_size", 16);
         valueLabel.AddThemeColorOverride("font_color", new Color(0.98f, 0.97f, 0.94f, 1.0f));
         valueLabel.AddThemeColorOverride(
             "font_shadow_color",
@@ -948,7 +910,7 @@ public sealed class BattleBoardController : IDisposable
         {
             BattleBoardCellSnapshot cell = _snapshot.GetCell(occupiedCoord);
             int heightValue =
-                cell != null ? Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1) : 0;
+                cell != null ? Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT) : 0;
             bestDepth = Mathf.Max(bestDepth, _get_cell_render_depth(occupiedCoord, heightValue));
         }
         return bestDepth == int.MinValue
@@ -968,7 +930,7 @@ public sealed class BattleBoardController : IDisposable
             BattleBoardCellSnapshot cell = _snapshot.GetCell(occupiedCoord);
             float heightValue =
                 cell != null
-                    ? (float)Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1)
+                    ? (float)Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT)
                     : 0.0f;
             bestKey = Mathf.Max(
                 bestKey,
@@ -982,6 +944,7 @@ public sealed class BattleBoardController : IDisposable
 
     private void _clear_tile_layers(List<Exception> failures)
     {
+        ExecuteCleanup(ClearTerrainArtNodes, failures);
         ClearLayers(_top_layers, failures);
         ClearLayers(_edge_drop_east_layers, failures);
         ClearLayers(_edge_drop_south_layers, failures);
@@ -1030,6 +993,7 @@ public sealed class BattleBoardController : IDisposable
         if (
             _target_selection_mode == "movement"
             || _target_selection_mode == "source_retreat_direction"
+            || _target_selection_mode == "forced_move_destination"
         )
             return;
         var previewCoordSet = new HashSet<Vector2I>();
@@ -1135,7 +1099,7 @@ public sealed class BattleBoardController : IDisposable
         var badge = new PanelContainer
         {
             Position =
-                _get_cell_anchor_position(target_coord, _get_cell_height_index(target_coord))
+                _get_cell_anchor_position(target_coord, _get_cell_height(target_coord))
                 + HIT_BADGE_OFFSET,
             CustomMinimumSize = HIT_BADGE_SIZE,
             Size = HIT_BADGE_SIZE,
@@ -1234,7 +1198,7 @@ public sealed class BattleBoardController : IDisposable
         {
             Position = _get_cell_anchor_position(
                 target_coord,
-                _get_cell_height_index(target_coord)
+                _get_cell_height(target_coord)
             ),
             Polygon = _build_target_highlight_polygon(scale),
             Color = finalColor,
@@ -1248,7 +1212,7 @@ public sealed class BattleBoardController : IDisposable
     {
         if (source_id < 0)
             return;
-        int heightIndex = _get_cell_height_index(coord);
+        int heightIndex = _height_to_layer_index(_get_cell_height(coord));
         if (heightIndex < 0 || heightIndex >= _marker_layers.Count)
             return;
         _marker_layers[heightIndex]?.SetCell(coord, source_id, Vector2I.Zero, 0);
@@ -1379,66 +1343,66 @@ public sealed class BattleBoardController : IDisposable
         float heightStep = _get_visual_height_step();
         for (int index = 0; index < _top_layers.Count; index++)
             if (_top_layers[index] != null)
-                _top_layers[index].Position = new Vector2(0.0f, -(float)index * heightStep);
+                _top_layers[index].Position = new Vector2(0.0f, -(float)(index + MIN_RENDER_HEIGHT) * heightStep);
         for (int index = 0; index < _edge_drop_east_layers.Count; index++)
             if (_edge_drop_east_layers[index] != null)
                 _edge_drop_east_layers[index].Position = new Vector2(
                     0.0f,
-                    -(float)(index + 1) * heightStep
+                    -(float)(index + MIN_RENDER_HEIGHT + 1) * heightStep
                 );
         for (int index = 0; index < _edge_drop_south_layers.Count; index++)
             if (_edge_drop_south_layers[index] != null)
                 _edge_drop_south_layers[index].Position = new Vector2(
                     0.0f,
-                    -(float)(index + 1) * heightStep
+                    -(float)(index + MIN_RENDER_HEIGHT + 1) * heightStep
                 );
         for (int index = 0; index < _wall_east_layers.Count; index++)
             if (_wall_east_layers[index] != null)
-                _wall_east_layers[index].Position = new Vector2(0.0f, -(float)index * heightStep);
+                _wall_east_layers[index].Position = new Vector2(0.0f, -(float)(index + MIN_RENDER_HEIGHT) * heightStep);
         for (int index = 0; index < _wall_south_layers.Count; index++)
             if (_wall_south_layers[index] != null)
-                _wall_south_layers[index].Position = new Vector2(0.0f, -(float)index * heightStep);
+                _wall_south_layers[index].Position = new Vector2(0.0f, -(float)(index + MIN_RENDER_HEIGHT) * heightStep);
         for (int index = 0; index < _overlay_layers.Count; index++)
             if (_overlay_layers[index] != null)
-                _overlay_layers[index].Position = new Vector2(0.0f, -(float)index * heightStep);
+                _overlay_layers[index].Position = new Vector2(0.0f, -(float)(index + MIN_RENDER_HEIGHT) * heightStep);
         for (int index = 0; index < _marker_layers.Count; index++)
             if (_marker_layers[index] != null)
-                _marker_layers[index].Position = new Vector2(0.0f, -(float)index * heightStep);
+                _marker_layers[index].Position = new Vector2(0.0f, -(float)(index + MIN_RENDER_HEIGHT) * heightStep);
     }
 
     private void _apply_layer_draw_order()
     {
         if (_input_layer != null)
-            _input_layer.ZIndex = TOP_LAYER_Z_BASE - LAYER_Z_STRIDE;
+            _input_layer.ZIndex = TOP_LAYER_Z_BASE + (MIN_RENDER_HEIGHT - 1) * LAYER_Z_STRIDE;
         for (int index = 0; index < _top_layers.Count; index++)
             if (_top_layers[index] != null)
-                _top_layers[index].ZIndex = TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE;
+                _top_layers[index].ZIndex = TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT) * LAYER_Z_STRIDE;
         for (int index = 0; index < _edge_drop_east_layers.Count; index++)
             if (_edge_drop_east_layers[index] != null)
                 _edge_drop_east_layers[index].ZIndex =
-                    TOP_LAYER_Z_BASE + (index + 1) * LAYER_Z_STRIDE + EDGE_DROP_EAST_LAYER_Z_OFFSET;
+                    TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT + 1) * LAYER_Z_STRIDE + EDGE_DROP_EAST_LAYER_Z_OFFSET;
         for (int index = 0; index < _edge_drop_south_layers.Count; index++)
             if (_edge_drop_south_layers[index] != null)
                 _edge_drop_south_layers[index].ZIndex =
                     TOP_LAYER_Z_BASE
-                    + (index + 1) * LAYER_Z_STRIDE
+                    + (index + MIN_RENDER_HEIGHT + 1) * LAYER_Z_STRIDE
                     + EDGE_DROP_SOUTH_LAYER_Z_OFFSET;
         for (int index = 0; index < _wall_east_layers.Count; index++)
             if (_wall_east_layers[index] != null)
                 _wall_east_layers[index].ZIndex =
-                    TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE + WALL_EAST_LAYER_Z_OFFSET;
+                    TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT) * LAYER_Z_STRIDE + WALL_EAST_LAYER_Z_OFFSET;
         for (int index = 0; index < _wall_south_layers.Count; index++)
             if (_wall_south_layers[index] != null)
                 _wall_south_layers[index].ZIndex =
-                    TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE + WALL_SOUTH_LAYER_Z_OFFSET;
+                    TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT) * LAYER_Z_STRIDE + WALL_SOUTH_LAYER_Z_OFFSET;
         for (int index = 0; index < _overlay_layers.Count; index++)
             if (_overlay_layers[index] != null)
                 _overlay_layers[index].ZIndex =
-                    TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE + OVERLAY_LAYER_Z_OFFSET;
+                    TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT) * LAYER_Z_STRIDE + OVERLAY_LAYER_Z_OFFSET;
         for (int index = 0; index < _marker_layers.Count; index++)
             if (_marker_layers[index] != null)
                 _marker_layers[index].ZIndex =
-                    TOP_LAYER_Z_BASE + index * LAYER_Z_STRIDE + MARKER_LAYER_Z_OFFSET;
+                    TOP_LAYER_Z_BASE + (index + MIN_RENDER_HEIGHT) * LAYER_Z_STRIDE + MARKER_LAYER_Z_OFFSET;
         if (_prop_layer != null)
             _prop_layer.ZIndex = PROP_LAYER_Z;
         if (_unit_layer != null)
@@ -1454,12 +1418,12 @@ public sealed class BattleBoardController : IDisposable
     )
     {
         Node propInstance = EngineAssetAccess
-            .ResolveBorrowed<PackedScene>(BattleBoardPropScenePath)
+            .ResolveCodeAssetBorrowed<PackedScene>(BattleBoardPropScenePath)
             .Instantiate();
         BattleBoardProp propNode = propInstance as BattleBoardProp;
         if (propNode == null)
             return null;
-        int heightValue = Mathf.Clamp(cell_state.Height, 0, MAX_HEIGHT_LAYERS - 1);
+        int heightValue = Mathf.Clamp(cell_state.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
         Vector2 anchor = _get_cell_anchor_position(cell_state.Coord, heightValue);
         int renderDepth = _get_cell_render_depth(cell_state.Coord, heightValue);
         propNode.Name = $"{prop_id}_{cell_state.Coord.X}_{cell_state.Coord.Y}_{stack_index}";
@@ -1521,7 +1485,7 @@ public sealed class BattleBoardController : IDisposable
             return Vector2.Zero;
         Vector2 anchor = _get_cell_plane_position(coord);
         anchor.Y -=
-            (float)Mathf.Clamp(height_value, 0, MAX_HEIGHT_LAYERS - 1) * _get_visual_height_step();
+            (float)Mathf.Clamp(height_value, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT) * _get_visual_height_step();
         return anchor;
     }
 
@@ -1534,16 +1498,19 @@ public sealed class BattleBoardController : IDisposable
     // 排前后(逐格 planeY 一旦写进 ZIndex 会压过 y_sort,反而让单位恒压地形)。
     private int _get_cell_render_depth(Vector2I coord, int height_value)
     {
-        int clampedHeight = Mathf.Clamp(height_value, 0, MAX_HEIGHT_LAYERS - 1);
+        int clampedHeight = Mathf.Clamp(height_value, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
         return clampedHeight * LAYER_Z_STRIDE + DYNAMIC_LAYER_Z_OFFSET;
     }
 
-    private int _get_cell_height_index(Vector2I coord)
+    private static int _height_to_layer_index(int height) =>
+        Mathf.Clamp(height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT) - MIN_RENDER_HEIGHT;
+
+    private int _get_cell_height(Vector2I coord)
     {
         if (_snapshot == null)
             return 0;
         BattleBoardCellSnapshot cell = _snapshot.GetCell(coord);
-        return cell == null ? 0 : Mathf.Clamp(cell.Height, 0, MAX_HEIGHT_LAYERS - 1);
+        return cell == null ? 0 : Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
     }
 
     private void _ensure_tileset(StringName profile_id)
@@ -1600,7 +1567,9 @@ public sealed class BattleBoardController : IDisposable
             var textures = new List<Texture2D>();
             foreach (string fileName in sourceSpec.Files)
             {
-                Texture2D texture = _load_texture_from_png($"{tileDir}/{fileName}");
+                Texture2D texture = _load_code_owned_texture_from_png(
+                    $"{tileDir}/{fileName}"
+                );
                 if (texture == null)
                 {
                     GameLog.Error($"BattleBoardController 缺少地形贴图：{tileDir}/{fileName}.", "ui.battle.missing_tile_texture", "ui");
@@ -1651,7 +1620,8 @@ public sealed class BattleBoardController : IDisposable
 
     private int _add_atlas_source(
         Texture2D texture,
-        BattleBoardTileSourceSpec source_spec
+        BattleBoardTileSourceSpec source_spec,
+        StringName sourceKey
     )
     {
         var source = OwnRenderResource(
@@ -1666,8 +1636,13 @@ public sealed class BattleBoardController : IDisposable
         source.CreateTile(Vector2I.Zero, Vector2I.One);
         TileData tileData = source.GetTileData(Vector2I.Zero, 0);
         if (tileData != null)
+        {
             tileData.TextureOrigin = source_spec?.VisualOrigin ?? source_spec?.TextureOrigin
                 ?? Vector2I.Zero;
+            if (source_spec?.LayerRole == BattleBoardRenderProfile.LAYER_ROLE_MARKER())
+                tileData.Material = EngineAssetAccess.ResolveCodeAssetBorrowed<ShaderMaterial>(
+                    _render_profile.GetMarkerMaterialPath(sourceKey));
+        }
         return _tile_set.AddSource(source);
     }
 
@@ -1681,7 +1656,7 @@ public sealed class BattleBoardController : IDisposable
         foreach (Texture2D texture in textures)
         {
             if (texture != null)
-                sourceIds.Add(_add_atlas_source(texture, source_spec));
+                sourceIds.Add(_add_atlas_source(texture, source_spec, source_key));
         }
         _source_ids[source_key] = sourceIds;
     }
@@ -1693,8 +1668,12 @@ public sealed class BattleBoardController : IDisposable
         if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
             return cachedTexture;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
+            _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetPrimaryLandFile()}"
+            )
+            ?? _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetSelectedMarkerFile()}"
+            );
         if (baseTexture == null)
             return _build_diamond_texture(
                 ACTIVE_SELECTED_MARKER_COLOR,
@@ -1739,8 +1718,12 @@ public sealed class BattleBoardController : IDisposable
         if (_texture_cache.TryGetValue(cacheKey, out Texture2D cachedTexture))
             return cachedTexture;
         Texture2D baseTexture =
-            _load_texture_from_png($"{tileDir}/{render_profile.GetPrimaryLandFile()}")
-            ?? _load_texture_from_png($"{tileDir}/{render_profile.GetSelectedMarkerFile()}");
+            _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetPrimaryLandFile()}"
+            )
+            ?? _load_code_owned_texture_from_png(
+                $"{tileDir}/{render_profile.GetSelectedMarkerFile()}"
+            );
         if (baseTexture == null)
             return _build_diamond_texture(
                 MOVE_REACHABLE_MARKER_COLOR_LIGHT,
@@ -1777,7 +1760,16 @@ public sealed class BattleBoardController : IDisposable
         return generatedTexture;
     }
 
-    internal Texture2D _load_texture_from_png(string path)
+    internal Texture2D _load_code_owned_texture_from_png(string codeOwnedPath) =>
+        _load_texture_from_png(
+            codeOwnedPath,
+            EngineAssetAccess.ResolveCodeAssetBorrowed<Texture2D>
+        );
+
+    private Texture2D _load_texture_from_png(
+        string path,
+        Func<string, Texture2D> resolvePathBackedTexture
+    )
     {
         if (string.IsNullOrEmpty(path))
             return null;
@@ -1785,7 +1777,7 @@ public sealed class BattleBoardController : IDisposable
             return cachedTexture;
         Texture2D texture = null;
         if (ResourceLoader.Exists(path, "Texture2D"))
-            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(path);
+            texture = resolvePathBackedTexture(path);
         if (texture == null && FileAccess.FileExists(path))
         {
             var image = OwnRenderResource(new Image(), $"image_loader:{path}");
@@ -2035,7 +2027,7 @@ public sealed class BattleBoardController : IDisposable
         }
         StringName terrainName = cell.BaseTerrain;
         if (terrainName == TERRAIN_FOREST)
-            return _get_source_id(SOURCE_FOREST_TREE, coord);
+            return -1; // Painted oak nodes share the authoritative forest cells.
         if (terrainName == TERRAIN_SPIKE)
             return _get_source_id(SOURCE_RUBBLE, coord);
         return -1;
@@ -2102,7 +2094,7 @@ public sealed class BattleBoardController : IDisposable
         if (unit_state == null)
             return new Color(0.78f, 0.8f, 0.84f, 0.94f);
         if (unit_state.FactionId.ToString() == "player")
-            return new Color(0.96f, 0.86f, 0.38f, 0.96f);
+            return new Color(0.40f, 0.72f, 0.86f, 1.0f);
         if (unit_state.FactionId.ToString() == "hostile")
             return new Color(0.9f, 0.32f, 0.22f, 0.96f);
         return new Color(0.7f, 0.74f, 0.78f, 0.92f);

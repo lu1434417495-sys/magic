@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_airborne_pull",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_airborne_pull_profile",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_airborne_pull_profile",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "min_skill_level": 1,
+            "payload": {},
+            "forced_move_mode": "airborne_pull"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {}
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire",
+            "trigger_event": "forced_move_applied"
+          }
+        ],
+        "casting_time_tu": 5,
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "single_coord",
+        "random_chain_attack_count": 1,
+        "passive_effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "airborne_pull"
+          }
+        ],
+        "cast_variants": [
+          {
+            "variant_id": "pull_variant",
+            "effect_defs": [
+              {
+                "effect_type": "forced_move",
+                "payload": {},
+                "forced_move_mode": "airborne_pull"
+              }
+            ]
+          }
+        ]
+      },
+      "icon_id": "diagnostic_airborne_pull_profile",
+      "mastery_curve": [
+        10
+      ],
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true
+      }
+    }
+  ]
+}

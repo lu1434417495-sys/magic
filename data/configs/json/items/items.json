@@ -1,0 +1,6806 @@
+{
+  "schema": 1,
+  "domain": "items",
+  "family": "all_items",
+  "templates": {},
+  "entries": [
+    {
+      "item_id": "acc_phoenix_rebirth_badge",
+      "display_name": "凤凰重生徽章",
+      "description": "一枚由凤凰金与火焰石铸造的徽章，徽章上刻着一只展翅的凤凰——凤凰重生的标志。\n\nconstitution save\u002B1。佩戴者及半径2格内所有存活友方受到fire伤害时减半（火焰庇护，多个徽章不叠加）。每日一次可消耗2 AP释放「凤凰祝福」——使自身及半径2格内所有存活友方获得120 TU凤凰祝福：HP降至0时自动恢复1D10 HP（每名受益者每场战斗一次），且攻击主直接段附加1D6 fire。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 9000,
+      "buy_price": 9000,
+      "sell_price": 4500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "badge",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.badge.constitution_save",
+        "equipment.phoenix_rebirth.badge.fire_shelter"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "badge"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_phoenix_rebirth_cloak",
+      "display_name": "凤凰重生烈焰披风",
+      "description": "一件由凤凰羽毛与火焰丝编织而成的披风，封印在丝线中的真实火焰会在穿戴者受伤时燃得更旺。\n\n受到fire伤害时减半，constitution save\u002B2。每场战斗一次：第一次因外部非自身、非装备能力生成的正原始伤害从高于50%生命降至不高于50%时，凤凰怒火对穿戴者半径1格内所有敌人造成2D6 fire，无豁免；范围内没有敌人也会消耗本场次数。普通致死伤害另有25%概率恢复1D12 HP，正式尝试即消耗其每场战斗一次的次数；致死拦截恢复后若完成跨50%阈值，同样可触发凤凰怒火。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 12000,
+      "buy_price": 12000,
+      "sell_price": 6000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "cloak",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.cloak.fire_resistance",
+        "equipment.phoenix_rebirth.cloak.constitution_save",
+        "equipment.phoenix_rebirth.cloak.fatal_ember"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "cloak"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_phoenix_rebirth_necklace",
+      "display_name": "凤凰重生涅槃之心项链",
+      "description": "一条由凤凰心金与火焰水晶编织而成的项链，吊坠是一颗涅槃之心。\n\n每日一次可消耗1 AP释放「涅槃之火」：自身或1格内一个存活友方恢复3D8 HP，并移除至多一个当前状态系统认定为可驱散的有害魔法；不可驱散状态不受影响。当前状态系统尚未独立区分disease、curse与legendary，因此不额外伪造该筛选。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 10000,
+      "buy_price": 10000,
+      "sell_price": 5000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "necklace",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.necklace.nirvana_fire"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "necklace"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_phoenix_rebirth_ring_1",
+      "display_name": "凤凰重生重生之戒",
+      "description": "一枚由涅槃石与凤凰金铸造的戒指，戒指表面刻有微型凤凰图案。\n\n生命不高于50%时可使用“生命重燃”：消耗2 AP，恢复已损失生命的60%，每场战斗一次。该治疗不能复活，且会受到治疗削减效果影响。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 8000,
+      "buy_price": 8000,
+      "sell_price": 4000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "ring_1",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.rebirth_ring.life_rekindle"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "ring_1"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "hp_max",
+          "mode": "flat",
+          "value": 10,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "acc_phoenix_rebirth_ring_1"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_phoenix_rebirth_ring_2",
+      "display_name": "凤凰重生灰烬之戒",
+      "description": "一枚由凤凰灰烬与火焰银铸造的戒指，戒指表面的灰烬会在佩戴者集中精神时重新燃烧。\n\n受到fire伤害时减半，constitution save\u002B1。每日一次可消耗1 AP释放「灰烬之火」：自身或1格内一个存活友方恢复2D10 HP，或对1格内一个敌人造成3D10 fire。治疗与攻击是同一技能入口的两个目标分支，共享同一个每日次数。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 8000,
+      "buy_price": 8000,
+      "sell_price": 4000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "ring_2",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.ash_ring.fire_resistance",
+        "equipment.phoenix_rebirth.ash_ring.constitution_save",
+        "equipment.phoenix_rebirth.ash_ring.fire"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "ring_2"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_phoenix_rebirth_trinket",
+      "display_name": "凤凰重生凤凰蛋",
+      "description": "一颗微型的凤凰蛋，蛋壳由纯粹火焰结晶而成，蛋壳内部有一团微弱的火光——这是凤凰的胚胎，正在沉睡。这颗蛋不会孵化——它永远处于「即将孵化」的状态。但当佩戴者需要时，可以借用蛋中的生命力，治愈伤口或强化攻击。\n\n这颗蛋是凤凰使者在「凤凰巢穴」中，从凤凰的巢里取出的。他说：\u0022这颗蛋包含了无限的可能性。它既是死亡，也是重生；既是终结，也是开始。\u0022\n\n蛋的效果是：仅在凤凰重生10件套完整激活时，每个世界月一次，致死伤害（包括「律令死亡」）会自动触发「凤凰涅槃」：恢复至 max HP 的 30%，获得 120 TU「火焰化身」——攻击附加 1D10 fire、免疫 fire——随后对半径 2 格内所有敌人造成 3D10 fire（凤凰爆发）。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 10000,
+      "buy_price": 10000,
+      "sell_price": 5000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "special_trinket",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.egg.nirvana"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "special_trinket"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "mp_max",
+          "mode": "flat",
+          "value": 15,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "acc_phoenix_rebirth_trinket"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_badge",
+      "display_name": "时间旅者徽章",
+      "description": "一枚由时间金与时空石铸造的徽章，徽章上刻着一个沙漏和一个箭头——时间旅者的标志。徽章背面刻着一行小字：「时间是环，旅行者即编织者。」这枚徽章是时间公会的信物，拥有它意味着你已被时间认可。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 9000,
+      "buy_price": 9000,
+      "sell_price": 4500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "badge",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "badge"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_cloak",
+      "display_name": "时间旅者时间披风",
+      "description": "一件由时间丝与时空布编织而成的披风，披风表面不断有微型时间流在流动和扭曲——不是装饰，而是真正的时间被封印在了丝线中。当穿戴者移动时，披风会自动调整时间的流速，使穿戴者的动作更加快速或缓慢。据说这件披风是时间旅者在穿越第一个时间线时，从时间边缘取下的碎片编织的。\n\n这件披风是时间旅者在「时间神殿」中，从自己的时间之力中取下的碎片编织的。他说：\u0022这件披风承载了我的时间之力。时间不是线性的——它是一个网，一个循环，一个可以被穿越的维度。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 12000,
+      "buy_price": 12000,
+      "sell_price": 6000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "cloak",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "cloak"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_necklace",
+      "display_name": "时间旅者时间之核项链",
+      "description": "一条由时间金与时空水晶编织而成的项链，吊坠是一颗时间之核——一颗由纯粹时间凝结的核心。核心内部不断有微型时间在流动和倒转，如同一个永恒的时间循环。据说这颗核心来自时间之神的心脏，他在创造时间时，将自己的一部分力量封印在了其中。\n\n这条项链是时间旅者在「时间之源」中，从时间之神的祭坛上取出的。他说：\u0022这颗核心承载了我的时间之力。它让我能够穿越时间，也让我能够理解时间的本质。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 10000,
+      "buy_price": 10000,
+      "sell_price": 5000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "necklace",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "necklace"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_ring_1",
+      "display_name": "时间旅者加速之戒",
+      "description": "一枚由加速石与时间金铸造的戒指，戒指表面刻有微型加速图案。当佩戴者集中精神时，戒指会释放出一股加速之力，使佩戴者的时间流速加快。在这种加速状态下，佩戴者可以在一瞬间完成多个动作。但加速是有代价的——每次使用，佩戴者会老化。\n\n这枚戒指是时间旅者在「加速深渊」中，从自己的加速之力中取下的碎片铸造的。他说：\u0022这枚戒指让我能够借用加速的力量。加速不是作弊——它只是利用了时间的缝隙。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 8000,
+      "buy_price": 8000,
+      "sell_price": 4000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "ring_1",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "ring_1"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "acc_time_traveler_ring_1"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_ring_2",
+      "display_name": "时间旅者减速之戒",
+      "description": "一枚由减速石与时间银铸造的戒指，戒指表面刻有微型减速图案。当佩戴者集中精神时，戒指会释放出一股减速之力，使目标的时间流速减慢。在这种减速状态下，目标的行动变得极其缓慢，仿佛被困在了琥珀中。据说这枚戒指来自时间旅者本人，他用这枚戒指让一支军队在时间中停滞了一千年。\n\n这枚戒指是时间旅者在「减速深渊」中，从自己的减速之力中取下的碎片铸造的。他说：\u0022这枚戒指让我能够借用减速的力量。减速不是惩罚——它是保护，是观察，是理解。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 8000,
+      "buy_price": 8000,
+      "sell_price": 4000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "ring_2",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "ring_2"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "acc_time_traveler_trinket",
+      "display_name": "时间旅者时间沙漏",
+      "description": "一个由时间之力凝结的微型沙漏，沙漏中的沙子不是普通的沙子——它们是时间的碎片。当佩戴者翻转沙漏时，可以短暂地操控时间：加速、减速、甚至倒流。但沙漏中的沙子是有限的——每次使用，沙子会减少。当沙子耗尽时，沙漏会停止，时间也会停止。\n\n这个沙漏是时间旅者在「时间之源」中，从自己的时间之力中取下的核心制成的。他说：\u0022这个沙漏承载了我的时间之力。它让我能够操控时间，也让我能够理解时间的宝贵。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 10000,
+      "buy_price": 10000,
+      "sell_price": 5000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "accessory",
+        "special_trinket",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "special_trinket"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "mp_max",
+          "mode": "flat",
+          "value": 20,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "acc_time_traveler_trinket"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "antidote_herb",
+      "display_name": "解毒草",
+      "description": "经过晾晒处理的草药包，常被拿来应对沼地与毒物带来的突发状况。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 20,
+      "buy_price": 20,
+      "sell_price": 10,
+      "sellable": true,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "consumable",
+        "medical",
+        "antidote"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_phoenix_rebirth_body",
+      "display_name": "凤凰涅槃板甲",
+      "description": "一副由凤凰羽毛与余烬丝编织而成的辉煌板甲，板甲表面不断有微弱的火焰在流动。在战斗中，火焰会变得更加旺盛——燃烧得越猛烈，板甲的防御力越高。\n\n外部非自身、非装备能力生成的正 fire 原始伤害会使板甲获得1层燃烧并刷新至60 TU；最多3层，每层AC\u002B1。可消耗2 AP释放火盾，每个世界日一次、任意燃烧层数均可使用：清除全部燃烧并获得持续60 TU的凤凰火盾（AC\u002B3）；火盾期间每次成功近战命中后，攻击者受到2D6 fire，无豁免。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 37000,
+      "buy_price": 37000,
+      "sell_price": 18500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "body",
+        "cloth",
+        "heavy_armor",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.body.burning_plate"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "body"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 6,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_body"
+        },
+        {
+          "attribute_id": "hp_max",
+          "mode": "flat",
+          "value": 20,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_body"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 2
+    },
+    {
+      "item_id": "armor_phoenix_rebirth_feet",
+      "display_name": "凤凰涅槃胫甲",
+      "description": "一对由凤凰羽毛与余烬丝编织而成的辉煌胫甲，胫甲表面不断有火焰在流动。每一步踏下，火焰会在地面上留下短暂的燃烧足迹——不是弱点，是标记，也是陷阱。\n\n菲尼克斯在锻造这对胫甲时，将「火焰之步」能力封入了羽毛。他说：\u0022这对胫甲不只是鞋子，它们是\u0027火焰的道路\u0027——让我每一步都留下燃烧的痕迹。\u0022\n\n特殊效果：普通移动时，每个离开格留下持续60TU的火焰足迹，任何阵营单位进入时受到1D6 fire；每日一次可消耗2 AP发动「火焰冲锋」，沿正交直线冲锋至最多有效移动力容量的3倍距离，每个离开格改为留下持续60TU的火焰冲锋轨迹，任何阵营单位进入时受到2D6 fire。同次冲锋只生成2D6轨迹，不与普通1D6足迹重复计算。穿戴者只有在具备fire免疫时才不会被这些足迹伤害。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 17000,
+      "buy_price": 17000,
+      "sell_price": 8500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "feet",
+        "cloth",
+        "heavy_armor",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.feet.fire_step"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "feet"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_feet"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_phoenix_rebirth_hands",
+      "display_name": "凤凰涅槃护手",
+      "description": "一对由凤凰羽毛与余烬丝编织而成的辉煌护手，护手表面不断有火焰在跳跃。\n\n常驻攻击检定\u002B1。主手为空时可消耗1 AP进行「火焰打击」，在正式命中链造成1D8 physical_blunt \u002B 1D10 fire；critical时两段骰各追加一组。还可消耗1 AP触碰相邻的其他存活友方并恢复2D10 HP，每个世界日三次，不能选择自己或死者。",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 17000,
+      "buy_price": 17000,
+      "sell_price": 8500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "hands",
+        "cloth",
+        "heavy_armor",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.gauntlet.flames"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "hands"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_hands"
+        },
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_hands"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_phoenix_rebirth_head",
+      "display_name": "凤凰涅槃头冠",
+      "description": "一顶由凤凰羽毛与余烬丝编织而成的辉煌头冠，头冠上镶嵌着一颗「凤凰之心」——一颗能够储存火焰并在死亡时释放的魔法宝石。头冠佩戴时，周围的温度会略微升高，仿佛穿戴者体内有一团火在燃烧。\n\n菲尼克斯在编织这头冠时，从一只真正的凤凰身上取下了三根尾羽。他说：\u0022凤凰不是普通的鸟，它是\u0027永恒的火\u0027——它死了，但它总会回来。\u0022\n\n这头冠使穿戴者受到的 fire damage 减半。且可以在死亡时触发「涅槃」——HP 降至 0 时，有 25% 概率不死亡，而是恢复至 25% 最大 HP 并释放一次「火焰爆发」（半径 3 格，3D10 fire，每场战斗一次）。穿齐凤凰重生7件后，套装会把火焰防护提升为免疫。菲尼克斯说：\u0022死亡不是终点，它只是\u0027中场休息\u0027。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 22000,
+      "buy_price": 22000,
+      "sell_price": 11000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "head",
+        "cloth",
+        "heavy_armor",
+        "phoenix_rebirth_set",
+        "world_unique_equipment"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "equipment.phoenix_rebirth.head.fire_resistance",
+        "equipment.phoenix_rebirth.crown.nirvana"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "head"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_phoenix_rebirth_head"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 2
+    },
+    {
+      "item_id": "armor_time_traveler_body",
+      "display_name": "时间旅者长袍",
+      "description": "一件由时间结晶与轮回丝编织而成的奇异长袍，长袍表面不断有钟表指针在旋转。这件长袍没有固定的颜色——它会根据当前的时间变化：早晨是金色，中午是白色，傍晚是红色，夜晚是黑色。在特殊的时间点（午夜、正午、黎明、黄昏），长袍会发出微弱的光芒。\n\n克罗诺斯在编织这件长袍时，将所有的时间都编入了丝线。他说：\u0022这件长袍不只是衣服，它是\u0027时间的容器\u0027——让我穿着所有的时间。\u0022\n\n克罗诺斯说：\u0022时间不是只能用来预知，它也可以用来操控——加速盟友，减速敌人。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 45000,
+      "buy_price": 45000,
+      "sell_price": 22500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "body",
+        "cloth",
+        "light_armor",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "body"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_time_traveler_body"
+        },
+        {
+          "attribute_id": "dodge_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_time_traveler_body"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 6
+    },
+    {
+      "item_id": "armor_time_traveler_feet",
+      "display_name": "时间旅者便鞋",
+      "description": "一对由时间结晶与轮回丝编织而成的奇异便鞋，便鞋没有与地面接触——它们行走在时间的丝线上，而不是空间的地面上。行走时，便鞋会在时间中留下短暂的痕迹——不是弱点，是标记，也是通道。\n\n克罗诺斯在编织这对便鞋时，将自己的「时间之步」能力封入了轮回丝。他说：\u0022这对便鞋不只是鞋子，它们是\u0027时间的脚步\u0027——让我每一步都走在时间上。\u0022\n\n克罗诺斯说：\u0022时间旅者不需要路，他只需要时间——时间在哪里，他就走向哪里。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 20000,
+      "buy_price": 20000,
+      "sell_price": 10000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "feet",
+        "cloth",
+        "light_armor",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "feet"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_time_traveler_feet"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_time_traveler_hands",
+      "display_name": "时间旅者手套",
+      "description": "一对由时间结晶与轮回丝编织而成的奇异手套，手套表面不断有钟表指针在旋转。手套的指尖有「时间针」——可以编织和剪断时间的丝线。手套的掌心有「时间印」——可以改变一个物体的时间状态。\n\n克罗诺斯在编织这对手套时，将自己的「时间之手」能力封入了轮回丝。他说：\u0022这对手套不只是手套，它们是\u0027时间的织针\u0027——让我可以用手编织时间。\u0022\n\n克罗诺斯说：\u0022时间旅者的手不是只能编织，它也可以改变——改变时间的流速，改变物体的年龄。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 20000,
+      "buy_price": 20000,
+      "sell_price": 10000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "hands",
+        "cloth",
+        "light_armor",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "hands"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_time_traveler_hands"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "armor_time_traveler_head",
+      "display_name": "时间旅者头冠",
+      "description": "一顶由时间结晶与轮回丝编织而成的奇异头冠，头冠上镶嵌着一颗「时间之眼」——一颗能够看见所有时间点的魔法宝石。头冠的表面不断有钟表指针在旋转——不是装饰，是真正的时间，显示着过去、现在和未来的时间。\n\n克罗诺斯在编织这头冠时，将自己的「时间之眼」封入了宝石。他说：\u0022这头冠不只是头冠，它是\u0027时间的窗户\u0027——让我可以看见所有的时间。\u0022\n\n克罗诺斯说：\u0022时间不是秘密，它只是需要正确的眼睛来看——而时间旅者的眼睛看得最清楚。\u0022",
+      "icon_asset_id": "",
+      "is_stackable": false,
+      "base_price": 25000,
+      "buy_price": 25000,
+      "sell_price": 12500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "head",
+        "cloth",
+        "light_armor",
+        "time_traveler_set"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "head"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "armor_time_traveler_head"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 6
+    },
+    {
+      "item_id": "ash_longbow",
+      "display_name": "Ash Longbow",
+      "description": "A long two-handed bow for extended ranged pressure.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 260,
+      "buy_price": 260,
+      "sell_price": 130,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 4,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "ash_shortbow",
+      "display_name": "Ash Shortbow",
+      "description": "A short two-handed bow for mobile ranged attacks.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 160,
+      "buy_price": 160,
+      "sell_price": 80,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "shortbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_shortbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortbow",
+        "training_group": "simple",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 3,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "bandage_roll",
+      "display_name": "绷带卷",
+      "description": "预先卷好的止血绷带，适合在远行前批量备入共享仓库。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 18,
+      "buy_price": 18,
+      "sell_price": 9,
+      "sellable": true,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "consumable",
+        "medical",
+        "bandage"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "bandit_insignia",
+      "display_name": "匪徒纹章",
+      "description": "清剿悬赏后带回的身份凭证，用于据点任务缴纳和文本快照回归。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "quest_item",
+        "proof",
+        "insignia"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [
+        "proof",
+        "bounty"
+      ],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "beast_hide",
+      "display_name": "兽皮",
+      "description": "经过初步处理的兽皮，既能交给皮匠，也能作为轻甲与护具的基础材料。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 11,
+      "buy_price": 11,
+      "sell_price": 6,
+      "sellable": true,
+      "max_stack": 30,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "hide",
+        "leather"
+      ],
+      "crafting_groups": [
+        "hide",
+        "leatherworking",
+        "armor"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "black_crown_core",
+      "display_name": "黑冕之核",
+      "description": "唯有被厄命宣判终结的王冠级目标才会坠落的核心残片，保留着尚未散尽的黑冕回响。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 80,
+      "buy_price": 80,
+      "sell_price": 40,
+      "sellable": true,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "fate",
+        "boss"
+      ],
+      "crafting_groups": [
+        "fate",
+        "boss",
+        "relic"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "black_star_wedge",
+      "display_name": "黑星楔钉",
+      "description": "首击会硬撬开一部分 guard，但若这一下没能击倒对手，佩戴者会立刻暴露破绽。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "relic",
+        "low_luck_fixed_reward"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "badge"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "low_luck_black_star_wedge",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "black_star_wedge"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "blood_debt_shawl",
+      "display_name": "血债披肩",
+      "description": "濒危时会替佩戴者兜住一部分伤害；队友倒地则换来临时行动力，但后续恢复会变差。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "relic",
+        "low_luck_fixed_reward"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "cloak"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "low_luck_blood_debt_shawl",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "blood_debt_shawl"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "bronze_sword",
+      "display_name": "青铜短剑",
+      "description": "朴素但可靠的入门单手武器，装备后提升攻击检定加值。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 120,
+      "buy_price": 120,
+      "sell_price": 60,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "shortsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_shortsword"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "bronze_sword"
+        },
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "bronze_sword"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "calamity_shard",
+      "display_name": "灾厄碎片",
+      "description": "从战场余烬里析出的灾厄结晶，可作为后续命运工艺与黑冕素材的基础媒介。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 18,
+      "buy_price": 18,
+      "sell_price": 9,
+      "sellable": true,
+      "max_stack": 99,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "fate",
+        "misfortune"
+      ],
+      "crafting_groups": [
+        "fate",
+        "misfortune",
+        "relic"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "compact_hand_crossbow",
+      "display_name": "Compact Hand Crossbow",
+      "description": "A light one-handed martial ranged weapon.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 210,
+      "buy_price": 210,
+      "sell_price": 105,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "one_handed",
+        "hand_crossbow",
+        "crossbow",
+        "weapon_class_crossbow",
+        "weapon_type_hand_crossbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "hand_crossbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "crossbow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 2,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "curved_scimitar",
+      "display_name": "Curved Scimitar",
+      "description": "A light finesse blade for slashing attacks.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 200,
+      "buy_price": 200,
+      "sell_price": 100,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "scimitar",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_scimitar"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "scimitar",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "dead_road_lantern",
+      "display_name": "亡途灯笼",
+      "description": "会把隐藏陷阱、黑市和黑兆路径照出来，但也会让佩戴者更容易被黑兆盯上。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "relic",
+        "low_luck_fixed_reward"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "special_trinket"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "low_luck_dead_road_lantern",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "dead_road_lantern"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "dragon_scale",
+      "display_name": "红龙鳞",
+      "description": "从红龙躯体上剥下的赤红鳞片，坚逾精铁且蕴着余温，是铸造龙鳞甲械的核心材料。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 120,
+      "buy_price": 120,
+      "sell_price": 60,
+      "sellable": true,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "scale",
+        "dragon"
+      ],
+      "crafting_groups": [
+        "smithing",
+        "armor",
+        "weaponsmithing"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "duelist_rapier",
+      "display_name": "Duelist Rapier",
+      "description": "A finesse martial blade built for precise thrusts.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 230,
+      "buy_price": 230,
+      "sell_price": 115,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "rapier",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_rapier"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "rapier",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "farmer_sickle",
+      "display_name": "Farmer Sickle",
+      "description": "A light slashing weapon adapted from field work.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 70,
+      "buy_price": 70,
+      "sell_price": 35,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "sickle",
+        "weapon_class_sickle",
+        "weapon_type_sickle"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "sickle",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "sickle",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 4,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "forge_coal",
+      "display_name": "锻炉焦煤",
+      "description": "压制成块的焦煤燃料，常用于维持锻炉高温，也是基础锻造配方里的稳定耗材。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 7,
+      "buy_price": 7,
+      "sell_price": 4,
+      "sellable": true,
+      "max_stack": 40,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "fuel",
+        "coke"
+      ],
+      "crafting_groups": [
+        "fuel",
+        "smithing",
+        "metal"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "guard_trident",
+      "display_name": "Guard Trident",
+      "description": "A versatile martial spear weapon with throwable balance.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 235,
+      "buy_price": 235,
+      "sell_price": 118,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "trident",
+        "spear",
+        "weapon_class_spear",
+        "weapon_type_trident"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "trident",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "spear",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "hardwood_lumber",
+      "display_name": "硬木板",
+      "description": "切割平整的硬木板材，可用于盾架、器柄与据点内的基础木工制作。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 9,
+      "buy_price": 9,
+      "sell_price": 5,
+      "sellable": true,
+      "max_stack": 30,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "wood",
+        "timber"
+      ],
+      "crafting_groups": [
+        "wood",
+        "woodworking",
+        "weapon"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "healing_herb",
+      "display_name": "治疗草",
+      "description": "常见的止血与缓痛草药，适合在共享仓库中成批存放。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 12,
+      "buy_price": 12,
+      "sell_price": 6,
+      "sellable": true,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "hunting_javelin",
+      "display_name": "Hunting Javelin",
+      "description": "A simple piercing weapon balanced for throwing.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 90,
+      "buy_price": 90,
+      "sell_price": 45,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "javelin",
+        "spear",
+        "weapon_class_spear",
+        "weapon_type_javelin"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "javelin",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "spear",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_dagger",
+      "display_name": "Iron Dagger",
+      "description": "A compact finesse weapon that can be thrown.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 80,
+      "buy_price": 80,
+      "sell_price": 40,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "dagger",
+        "weapon_class_dagger",
+        "weapon_type_dagger"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "dagger",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "dagger",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 4,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_flail",
+      "display_name": "Iron Flail",
+      "description": "A martial one-handed bludgeoning weapon.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 210,
+      "buy_price": 210,
+      "sell_price": 105,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "flail",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_flail"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "flail",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": []
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_greatclub",
+      "display_name": "Iron Greatclub",
+      "description": "A two-handed bludgeoning weapon with simple reach.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 130,
+      "buy_price": 130,
+      "sell_price": 65,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greatclub",
+        "club",
+        "weapon_class_club",
+        "weapon_type_greatclub"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greatclub",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "club",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_greatsword",
+      "display_name": "铁制大剑",
+      "description": "双手持用的重型武器，同时占用主手与副手槽，攻击检定加值可观。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 240,
+      "buy_price": 240,
+      "sell_price": 120,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greatsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_greatsword"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "iron_greatsword"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greatsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_morningstar",
+      "display_name": "Iron Morningstar",
+      "description": "A martial one-handed piercing weapon.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 215,
+      "buy_price": 215,
+      "sell_price": 108,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "morningstar",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_morningstar"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "morningstar",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": []
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_ore",
+      "display_name": "铁矿石",
+      "description": "粗加工前的矿石原料，用于测试大批量堆叠。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 8,
+      "buy_price": 8,
+      "sell_price": 4,
+      "sellable": true,
+      "max_stack": 50,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "ore",
+        "metal"
+      ],
+      "crafting_groups": [
+        "ore",
+        "smithing",
+        "metal"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_scale_mail",
+      "display_name": "铁鳞甲",
+      "description": "覆盖躯干的标准中甲，牺牲少量灵活性换取更稳定的防护。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 180,
+      "buy_price": 180,
+      "sell_price": 90,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "body",
+        "metal",
+        "medium_armor",
+        "scale_mail"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "body"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 4,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "iron_scale_mail"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 3
+    },
+    {
+      "item_id": "iron_war_pick",
+      "display_name": "Iron War Pick",
+      "description": "A martial one-handed pick for piercing armor gaps.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 220,
+      "buy_price": 220,
+      "sell_price": 110,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "war_pick",
+        "pick",
+        "weapon_class_pick",
+        "weapon_type_war_pick"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "war_pick",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "pick",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": []
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "iron_warhammer",
+      "display_name": "Iron Warhammer",
+      "description": "A versatile martial hammer for blunt force.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 250,
+      "buy_price": 250,
+      "sell_price": 125,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "warhammer",
+        "hammer",
+        "weapon_class_hammer",
+        "weapon_type_warhammer"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "warhammer",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "hammer",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "leather_cap",
+      "display_name": "皮革护帽",
+      "description": "轻便皮帽内衬了软垫，能补足头部防护，也保留了轻甲应有的灵活。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 90,
+      "buy_price": 100,
+      "sell_price": 50,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "head",
+        "leather",
+        "light_armor"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "head"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "leather_cap"
+        },
+        {
+          "attribute_id": "dodge_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "leather_cap"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "leather_jerkin",
+      "display_name": "皮革短甲",
+      "description": "轻便皮甲，适合初期前排单位。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 95,
+      "buy_price": 95,
+      "sell_price": 48,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "armor",
+        "body",
+        "leather",
+        "light_armor"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "body"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "leather_jerkin"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "armor",
+      "weapon_profile": null,
+      "max_dex_bonus": 6
+    },
+    {
+      "item_id": "linen_cloth",
+      "display_name": "亚麻布",
+      "description": "纺织好的亚麻布匹，适合包扎、衬里与轻装防具的缝制工序。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 10,
+      "buy_price": 10,
+      "sell_price": 5,
+      "sellable": true,
+      "max_stack": 30,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "cloth",
+        "fiber"
+      ],
+      "crafting_groups": [
+        "cloth",
+        "tailoring",
+        "armor"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "militia_axe",
+      "display_name": "民兵手斧",
+      "description": "配发给前线民兵的单手战斧，挥砍沉稳，适合作为剑类之外的基础近战武器。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 135,
+      "buy_price": 145,
+      "sell_price": 70,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "handaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_handaxe"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "militia_axe"
+        },
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 0,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "militia_axe"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "handaxe",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "militia_light_crossbow",
+      "display_name": "Militia Light Crossbow",
+      "description": "A two-handed simple ranged weapon.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 180,
+      "buy_price": 180,
+      "sell_price": 90,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "light_crossbow",
+        "crossbow",
+        "weapon_class_crossbow",
+        "weapon_type_light_crossbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "light_crossbow",
+        "training_group": "simple",
+        "range_type": "ranged",
+        "family": "crossbow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 3,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "militia_spear",
+      "display_name": "Militia Spear",
+      "description": "A versatile piercing weapon with a throwable balance.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 110,
+      "buy_price": 110,
+      "sell_price": 55,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "spear",
+        "weapon_class_spear",
+        "weapon_type_spear"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "spear",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "spear",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "moonfern_sample",
+      "display_name": "月蕨样本",
+      "description": "供研究员验收的稀有植株样本，作为正式任务物品参与仓库与快照链路。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "quest_item",
+        "sample",
+        "botanical"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [
+        "sample",
+        "research"
+      ],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "oak_club",
+      "display_name": "Oak Club",
+      "description": "A simple light bludgeoning weapon.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 45,
+      "buy_price": 45,
+      "sell_price": 22,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "club",
+        "weapon_class_club",
+        "weapon_type_club"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "club",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "club",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 4,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "oak_quarterstaff",
+      "display_name": "Oak Quarterstaff",
+      "description": "A versatile staff with one-handed and two-handed grips.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 95,
+      "buy_price": 95,
+      "sell_price": 48,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "quarterstaff",
+        "staff",
+        "weapon_class_staff",
+        "weapon_type_quarterstaff"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "quarterstaff",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "staff",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "raider_greataxe",
+      "display_name": "Raider Greataxe",
+      "description": "A two-handed axe with a high single damage die.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 290,
+      "buy_price": 290,
+      "sell_price": 145,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "reverse_fate_amulet",
+      "display_name": "逆命护符",
+      "description": "每战第一次大失败会被改写成普通 miss，但随后两回合造成的伤害会明显下降。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "relic",
+        "low_luck_fixed_reward"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "necklace"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "low_luck_reverse_fate_amulet",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "reverse_fate_amulet"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "scout_charm",
+      "display_name": "斥候护符",
+      "description": "轻量饰品，可装备在任一饰品槽，提供闪避加值。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 150,
+      "buy_price": 150,
+      "sell_price": 75,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "necklace"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "dodge_bonus",
+          "mode": "flat",
+          "value": 2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "scout_charm"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "accessory",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "sealed_dispatch",
+      "display_name": "封缄急件",
+      "description": "交付给据点文书的加急文件，作为任务物品保留在共享仓库。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 20,
+      "item_category": "misc",
+      "tags": [
+        "quest_item",
+        "document",
+        "dispatch"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [
+        "document",
+        "delivery"
+      ],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "siege_heavy_crossbow",
+      "display_name": "Siege Heavy Crossbow",
+      "description": "A two-handed martial crossbow with heavy piercing damage.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 300,
+      "buy_price": 300,
+      "sell_price": 150,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "heavy_crossbow",
+        "crossbow",
+        "weapon_class_crossbow",
+        "weapon_type_heavy_crossbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "heavy_crossbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "crossbow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 4,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "smith_light_hammer",
+      "display_name": "Smith Light Hammer",
+      "description": "A light bludgeoning hammer that can be thrown.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 75,
+      "buy_price": 75,
+      "sell_price": 38,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "light_hammer",
+        "hammer",
+        "weapon_class_hammer",
+        "weapon_type_light_hammer"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "light_hammer",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "hammer",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 4,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "soldier_battleaxe",
+      "display_name": "Soldier Battleaxe",
+      "description": "A versatile martial axe for one-handed or two-handed use.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 240,
+      "buy_price": 240,
+      "sell_price": 120,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "soldier_glaive",
+      "display_name": "Soldier Glaive",
+      "description": "A two-handed reach polearm with slashing damage.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 270,
+      "buy_price": 270,
+      "sell_price": 135,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "glaive",
+        "polearm",
+        "weapon_class_polearm",
+        "weapon_type_glaive"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "glaive",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_slash",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "soldier_pike",
+      "display_name": "Soldier Pike",
+      "description": "A two-handed reach polearm for piercing attacks.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 265,
+      "buy_price": 265,
+      "sell_price": 132,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "pike",
+        "polearm",
+        "weapon_class_polearm",
+        "weapon_type_pike"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "pike",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_pierce",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "special_contingency_gem",
+      "display_name": "特殊应急宝石",
+      "description": "用于为连锁应急术矩阵充能的专用法术材料。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 0,
+      "buy_price": 0,
+      "sell_price": 0,
+      "sellable": false,
+      "max_stack": 99,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "contingency"
+      ],
+      "crafting_groups": [
+        "contingency"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "steel_halberd",
+      "display_name": "Steel Halberd",
+      "description": "A two-handed reach polearm with slashing damage.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 275,
+      "buy_price": 275,
+      "sell_price": 138,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "halberd",
+        "polearm",
+        "weapon_class_polearm",
+        "weapon_type_halberd"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "halberd",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_slash",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "steel_longsword",
+      "display_name": "钢制长剑",
+      "description": "攻守均衡的军用长剑，可单手或双手使用。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 245,
+      "buy_price": 245,
+      "sell_price": 122,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "stone_maul",
+      "display_name": "Stone Maul",
+      "description": "A two-handed hammer with stable blunt damage.",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 285,
+      "buy_price": 285,
+      "sell_price": 142,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "maul",
+        "hammer",
+        "weapon_class_hammer",
+        "weapon_type_maul"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "maul",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "hammer",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "torch_bundle",
+      "display_name": "火把束",
+      "description": "一束便于携带的应急火把，适合洞窟探索与夜行补给。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 16,
+      "buy_price": 16,
+      "sell_price": 8,
+      "sellable": true,
+      "max_stack": 10,
+      "item_category": "misc",
+      "tags": [
+        "consumable",
+        "utility",
+        "torch"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "travel_ration",
+      "display_name": "旅行口粮",
+      "description": "压缩过的干粮包，适合据点补给与野外远行的基础储备。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 14,
+      "buy_price": 14,
+      "sell_price": 7,
+      "sellable": true,
+      "max_stack": 30,
+      "item_category": "misc",
+      "tags": [
+        "consumable",
+        "ration",
+        "supply"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "watchman_mace",
+      "display_name": "卫兵钉锤",
+      "description": "城镇卫兵常备的单手钉锤，压制力强，是单手钝器系的基础型号。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 165,
+      "buy_price": 175,
+      "sell_price": 85,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_mace"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 0,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "watchman_mace"
+        },
+        {
+          "attribute_id": "attack_bonus",
+          "mode": "flat",
+          "value": 0,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "watchman_mace"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "mace",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 0
+        },
+        "two_handed_dice": null,
+        "properties": []
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_bonecrusher_088",
+      "display_name": "碎骨者",
+      "description": "一柄专为破甲碎骨而铸的沉重巨斧，斧刃厚重如锤，命中时会把护甲后的骨骼震裂。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 48000,
+      "buy_price": 48000,
+      "sell_price": 24000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "bonecrusher",
+        "heavy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.bonecrusher.armor_crushing_blow",
+        "weapon.axe.bonecrusher.bone_shatter",
+        "weapon.axe.bonecrusher.aftershock_fracture"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_butcher_094",
+      "display_name": "屠夫",
+      "description": "一柄为屠宰而生的沉重巨斧。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 30000,
+      "buy_price": 30000,
+      "sell_price": 15000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "heavy",
+        "butcher"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.butcher.slaughter_art",
+        "weapon.axe.butcher.cut_the_joint",
+        "weapon.axe.butcher.blood_discomfort"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_dragonbone_096",
+      "display_name": "龙骨斧",
+      "description": "以巨龙遗骨锻造的重型巨斧，刃口隐约泛着炽热纹路。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 85000,
+      "buy_price": 85000,
+      "sell_price": 42500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "heavy",
+        "dragonbone"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.dragonbone.dragon_flame",
+        "weapon.axe.dragonbone.dragon_hate"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_echo_095",
+      "display_name": "回音",
+      "description": "一柄刃脊会回荡低鸣的手斧。持有者可将其掷成直线回声，对路径上的敌人造成挥砍伤害；投掷击伤越多目标，下一次真实命中积蓄的余音就越强，并在命中后全部释放。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 36000,
+      "buy_price": 36000,
+      "sell_price": 18000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "handaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_handaxe",
+        "echo",
+        "light",
+        "thrown",
+        "thunder"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.echo.echo_throw",
+        "weapon.axe.echo.echo_cut"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "handaxe",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "light",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_frostbite_097",
+      "display_name": "霜咬",
+      "description": "一柄覆着苍白冰痕的战斧。命中时附加寒冷伤害，连续三次命中同一目标会削弱其移动力；持有者可将相邻 1 格水域冻结成冰层。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 40000,
+      "buy_price": 40000,
+      "sell_price": 20000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "frostbite",
+        "freeze",
+        "ice"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.frostbite.frost_touch",
+        "weapon.axe.frostbite.icebound_path",
+        "weapon.axe.frostbite.polar_adaptation"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 1
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_glutton_090",
+      "display_name": "贪食者",
+      "description": "一柄暗红齿刃巨斧，会在战斗中吞饮鲜血；未能收割时积蓄饥饿，击杀时将血食转为治疗。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 42000,
+      "buy_price": 42000,
+      "sell_price": 21000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "glutton",
+        "heavy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.glutton.sated",
+        "weapon.axe.glutton.unsatisfied",
+        "weapon.axe.glutton.devouring_chop"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_plague_tongue_099",
+      "display_name": "瘟疫之舌",
+      "description": "一柄病态黄绿色的战斧，斧刃仿佛在缓慢滋生瘟疫。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 48000,
+      "buy_price": 48000,
+      "sell_price": 24000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "plague_tongue",
+        "disease",
+        "poison"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.plague_tongue.poison_touch_damage",
+        "weapon.axe.plague_tongue.axe_fever",
+        "weapon.axe.plague_tongue.plague_spread",
+        "weapon.axe.plague_tongue.immune_carrier"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 0
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_shieldbreaker_098",
+      "display_name": "碎盾",
+      "description": "一柄为粉碎防御而生的巨斧。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 52000,
+      "buy_price": 52000,
+      "sell_price": 26000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "heavy",
+        "shieldbreaker"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.shieldbreaker.guard_breaker",
+        "weapon.axe.shieldbreaker.siege_axe",
+        "weapon.axe.shieldbreaker.defense_enemy"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": 1,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "weapon_unique_axe_shieldbreaker_098"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_starfragment_100",
+      "display_name": "星辰碎片",
+      "description": "一柄嵌有星辰碎片的重型巨斧，斧刃会在夜色中映出细碎星辉。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 75000,
+      "buy_price": 75000,
+      "sell_price": 37500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "heavy",
+        "starfragment",
+        "force",
+        "astral"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.starfragment.stardust_touch",
+        "weapon.axe.starfragment.starburst",
+        "weapon.axe.starfragment.cosmic_dread"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_storms_eye_091",
+      "display_name": "风暴之眼",
+      "description": "一柄仿佛由风暴云眼凝成的战斧。命中时引雷入刃，暴击时爆发雷鸣；装备者可施展裂云重劈，将敌人震退，推不动时追加雷鸣震击。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 50000,
+      "buy_price": 50000,
+      "sell_price": 25000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "storms_eye",
+        "thunder",
+        "lightning"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.storms_eye.lightning_edge",
+        "weapon.axe.storms_eye.thunder_rift",
+        "weapon.axe.storms_eye.cloudsplitter_heavy_chop"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 1
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_axe_thunderfang_086",
+      "display_name": "雷霆之牙",
+      "description": "一柄仿佛由雷霆锻造的沉重巨斧，斧刃裂纹在黑暗中泛着蓝光。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 58000,
+      "buy_price": 58000,
+      "sell_price": 29000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "thunderfang",
+        "heavy",
+        "thunder",
+        "lightning"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.thunderfang.thunder_slash",
+        "weapon.axe.thunderfang.thors_hammering",
+        "weapon.axe.thunderfang.storm_conductor"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_battleaxe_dragon_scale",
+      "display_name": "龙鳞之斧",
+      "description": "一柄覆有五色龙鳞、以龙牙磨刃的战斧。装备者获得火焰、闪电、毒素、酸液与寒冷伤害减半；命中时每回合一次追加斩击伤害，可在造成实际伤害后撕开目标鳞甲，并对 dragon 目标造成有限额外伤害。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 75000,
+      "buy_price": 75000,
+      "sell_price": 37500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "dragon_scale",
+        "dragon_tooth"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.battleaxe.dragon_scale.fivefold_scales",
+        "weapon.battleaxe.dragon_scale.dragon_tooth_edge",
+        "weapon.battleaxe.dragon_scale.scale_guard",
+        "weapon.battleaxe.dragon_scale.scale_rift",
+        "weapon.battleaxe.dragon_scale.dragon_balance"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_battleaxe_hunter_382",
+      "display_name": "猎人之斧",
+      "description": "一柄为狩猎而生的实用战斧。它对野兽更致命，并能让持有者以固定 3 级使用猎人标记。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 35000,
+      "buy_price": 35000,
+      "sell_price": 17500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "hunter_axe",
+        "hunter",
+        "beast_slayer"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.hunter.beast_slayer",
+        "weapon.axe.hunter.hunter_mark"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_battleaxe_lumberjack_383",
+      "display_name": "伐木工之斧",
+      "description": "一柄宽刃沉重的传奇战斧。命中存活目标后留下 60TU 劈痕，继续攻击自己的劈痕目标时获得 \u002B1 命中并追加 1D4 挥砍伤害；对植物额外造成 2D6 挥砍伤害，砍倒已有自身劈痕的目标时可封顶恢复 1 AP。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 38000,
+      "buy_price": 38000,
+      "sell_price": 19000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "lumberjack_axe",
+        "lumberjack",
+        "plant_slayer"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.lumberjack.chopping_rhythm",
+        "weapon.axe.lumberjack.plant_slayer",
+        "weapon.axe.lumberjack.felling_momentum"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_battleaxe_lunareclipse",
+      "display_name": "月蚀",
+      "description": "一柄银白斧刃上永远带着缺月阴影的战斧。真实武器伤害会积蓄月相，三层后爆发盈月裁断；装备者可施展月蚀影步，在未穿重甲时闪现并短暂提升闪避。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 56000,
+      "buy_price": 56000,
+      "sell_price": 28000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "battleaxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_battleaxe",
+        "lunareclipse",
+        "moon",
+        "radiant"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.battleaxe.lunareclipse.moon_phase_cycle",
+        "weapon.battleaxe.lunareclipse.full_moon_judgment",
+        "weapon.battleaxe.lunareclipse.eclipse_shadowstep"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "battleaxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_phoenix_330",
+      "display_name": "凤凰之弓",
+      "description": "一柄仿佛由凤凰羽毛与灰烬锻造的长弓，射出的箭矢会拖出金红色火光。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 75000,
+      "buy_price": 75000,
+      "sell_price": 37500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow",
+        "heavy",
+        "phoenix_bow",
+        "fire"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.phoenix.fire_arrow"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 10,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_scorpion_339",
+      "display_name": "蝎子之弓",
+      "description": "一柄由蝎尾与甲壳锻造的短弓，弓弦能让箭矢携带麻痹毒素。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 38000,
+      "buy_price": 38000,
+      "sell_price": 19000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "shortbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_shortbow",
+        "scorpion_bow",
+        "poison"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.scorpion.scorpion_arrow",
+        "weapon.bow.scorpion.poison_immunity",
+        "weapon.bow.scorpion.poison_blood"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 6,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_thunderbow_156",
+      "display_name": "雷鸣弓",
+      "description": "弓弦振动时有低沉雷声。命中会迸发雷鸣，也能将积蓄的雷能压入一次沉重射击。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 58000,
+      "buy_price": 58000,
+      "sell_price": 29000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow",
+        "heavy",
+        "thunderbow",
+        "thunder",
+        "lightning"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.thunderbow.thunder_arrow",
+        "weapon.bow.thunderbow.stored_thunder_shot",
+        "weapon.bow.thunderbow.deafened_resonance"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 4,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_titanbow_173",
+      "display_name": "泰坦之弓",
+      "description": "一柄为猎杀巨兽而制的沉重大弓，弓臂像山脊般厚重。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 95000,
+      "buy_price": 95000,
+      "sell_price": 47500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow",
+        "heavy",
+        "titanbow"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.titanbow.behemoth_slayer",
+        "weapon.bow.titanbow.scale_piercer",
+        "weapon.bow.titanbow.strength_requirement"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 15,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 4
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_windbow_151",
+      "display_name": "风之弓",
+      "description": "一柄由流动气流托住弓臂的传奇长弓。箭矢离弦时会被细风牵引，既稳又轻。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 52000,
+      "buy_price": 52000,
+      "sell_price": 26000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow",
+        "heavy",
+        "windbow",
+        "wind"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.windbow.wind_arrow_range",
+        "weapon.bow.windbow.wind_whisper",
+        "weapon.bow.windbow.wind_guided_shot",
+        "weapon.bow.windbow.gale_push"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 6,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_bow_wolf_325",
+      "display_name": "狼牙之弓",
+      "description": "由狼牙与骨片强化的长弓。它回应群体狩猎的节奏，也能短暂唤出守护箭手的幽灵狼。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 42000,
+      "buy_price": 42000,
+      "sell_price": 21000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "longbow",
+        "bow",
+        "weapon_class_bow",
+        "weapon_type_longbow",
+        "wolf_bow",
+        "wolf",
+        "summon"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.bow.wolf.pack_tactics",
+        "weapon.bow.wolf.spirit_summon"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "bow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 10,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_crossbow_gorgon_329",
+      "display_name": "蛇发女妖之弩",
+      "description": "一柄镶嵌蛇发女妖眼石的重弩，命中的敌人会逐步僵硬为石。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 58000,
+      "buy_price": 58000,
+      "sell_price": 29000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "ranged",
+        "two_handed",
+        "heavy_crossbow",
+        "crossbow",
+        "weapon_class_crossbow",
+        "weapon_type_heavy_crossbow",
+        "gorgon_crossbow",
+        "petrification",
+        "heavy",
+        "loading"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.crossbow.gorgon.petrifying_gaze",
+        "weapon.crossbow.gorgon.complete_petrification",
+        "weapon.crossbow.gorgon.statue_shatter"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "heavy_crossbow",
+        "training_group": "martial",
+        "range_type": "ranged",
+        "family": "crossbow",
+        "damage_tag": "physical_pierce",
+        "attack_range": 10,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy",
+          "loading"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_exotic_umbrella_232",
+      "display_name": "伞剑",
+      "description": "长柄雨伞中藏着细剑，钢制伞骨与防水防火伞面能在雨幕中遮挡箭矢与烈焰。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 35000,
+      "buy_price": 35000,
+      "sell_price": 17500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "rapier",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_rapier",
+        "umbrella_sword",
+        "exotic",
+        "rain"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.exotic.umbrella.rain_screen",
+        "weapon.exotic.umbrella.guard",
+        "weapon.exotic.umbrella.rain_advantage"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "rapier",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "exotic",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_greataxe_executioner_384",
+      "display_name": "处刑者之斧",
+      "description": "一柄仿佛由死亡本身锻造的沉重巨斧。它能向近身敌人宣告死刑，但每一次未能完成的判决都会反噬持有者。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 55000,
+      "buy_price": 55000,
+      "sell_price": 27500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "executioner_axe",
+        "executioner",
+        "heavy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.executioner.execution",
+        "weapon.axe.executioner.death_sentence",
+        "weapon.axe.executioner.self_execution"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_greataxe_mountainbreaker",
+      "display_name": "裂山者",
+      "description": "一柄需要泰坦之握才能稳定挥动的巨斧。它先把敌人压入地面，再把地脉本身撕成难以通行的断层。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 65000,
+      "buy_price": 65000,
+      "sell_price": 32500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "mountainbreaker",
+        "heavy",
+        "reach"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.mountainbreaker.mountain_splitting_blade",
+        "weapon.axe.mountainbreaker.titan_grip",
+        "weapon.axe.mountainbreaker.faultline_followup",
+        "weapon.axe.mountainbreaker.mountain_collapse",
+        "weapon.axe.mountainbreaker.leyline_anchor"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": {
+        "required_profession_ids": [],
+        "min_body_size": 0,
+        "max_body_size": 0,
+        "attribute_requirements": [
+          {
+            "attribute_id": "strength",
+            "min_value": 20
+          }
+        ]
+      },
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "two_handed",
+          "heavy",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_greataxe_rustanchor",
+      "display_name": "锈锚",
+      "description": "一柄沉重得像旧锚的巨斧。它让持有者扎根防守，也用锈链拖慢受创敌人，再斩向已经失去退路的目标。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 38000,
+      "buy_price": 38000,
+      "sell_price": 19000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "rustanchor",
+        "heavy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.rustanchor.sunk_anchor_stance",
+        "weapon.axe.rustanchor.rust_chain_bite",
+        "weapon.axe.rustanchor.no_return_chop"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 1
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_greataxe_void",
+      "display_name": "虚空之斧",
+      "description": "一柄把近身命中刻成空间断痕的巨斧。它不靠远距压制，而是在相邻格之间留下短暂裂隙，迫使战场路线重新改写。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 85000,
+      "buy_price": 85000,
+      "sell_price": 42500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greataxe",
+        "axe",
+        "weapon_class_axe",
+        "weapon_type_greataxe",
+        "void_axe",
+        "heavy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.axe.void.boundary_cut",
+        "weapon.axe.void.rift_seal",
+        "weapon.axe.void.old_wound",
+        "weapon.axe.void.threefold_limit",
+        "weapon.axe.void.dissipation"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greataxe",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "axe",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 12,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_greatsword_giants_heel_024",
+      "display_name": "巨人之踵",
+      "description": "仿佛从上古巨人脚跟剥落的巨剑，沉重到只有庞然之躯才能真正抬起。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 55000,
+      "buy_price": 55000,
+      "sell_price": 27500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greatsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_greatsword",
+        "heavy",
+        "giants_heel"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.greatsword.giants_heel.giant_slayer",
+        "weapon.greatsword.giants_heel.ankle_chop",
+        "weapon.greatsword.giants_heel.primordial_weight"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": {
+        "required_profession_ids": [],
+        "min_body_size": 3,
+        "max_body_size": 0,
+        "attribute_requirements": []
+      },
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greatsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 6,
+          "flat_bonus": 4
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_hammer_tremor_102",
+      "display_name": "地动",
+      "description": "一柄仿佛由地震本身锻造的巨锤，锤头的裂纹中持续渗出细微尘埃。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 52000,
+      "buy_price": 52000,
+      "sell_price": 26000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "maul",
+        "hammer",
+        "weapon_class_hammer",
+        "weapon_type_maul",
+        "tremor",
+        "heavy",
+        "thunder"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.hammer.tremor.shockwave",
+        "weapon.hammer.tremor.geologic_resonance",
+        "weapon.hammer.tremor.stone_oath"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "maul",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "hammer",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 6,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_longsword_courage",
+      "display_name": "勇气之刃",
+      "description": "一柄以古战场旗钉与银钢重铸的长剑。剑脊刻有誓言纹路，靠近并肩作战者时会发出温暖的鸣响。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 72000,
+      "buy_price": 72000,
+      "sell_price": 36000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "courage"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.courage.fearless",
+        "weapon.sword.courage.inspire",
+        "weapon.sword.courage.courage_charge",
+        "weapon.sword.courage.lonely_cowardice"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_longsword_eternity_edge",
+      "display_name": "永恒之刃",
+      "description": "一柄由凝固时间碎片锻成的长剑。它留下无法被常规治疗抚平的伤口，窃取生命以积累时间债，并在老化抵达临界时闭合时间循环。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 115000,
+      "buy_price": 115000,
+      "sell_price": 57500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "eternity_edge",
+        "time"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.eternity_edge.eternal_wound",
+        "weapon.sword.eternity_edge.time_theft",
+        "weapon.sword.eternity_edge.aging",
+        "weapon.sword.eternity_edge.eternal_cost",
+        "weapon.sword.eternity_edge.time_loop"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_longsword_smiths_regret",
+      "display_name": "铁匠的悔恨",
+      "description": "一柄被大师亲手留下裂纹的长剑。每一道不完美都像锻炉余烬，偶尔在命中时暴露出寒冷、火焰、麻痹或毒性的悔恨。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 52000,
+      "buy_price": 52000,
+      "sell_price": 26000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "smiths_regret",
+        "flawed_forging"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.smiths_regret.flawed_beauty",
+        "weapon.sword.smiths_regret.imperfect_resonance",
+        "weapon.sword.smiths_regret.elemental_overload",
+        "weapon.sword.smiths_regret.moradin_forgiveness"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_mace_frost_207",
+      "display_name": "冰霜锤",
+      "description": "由永不融化的冰晶锻造的独特钉头锤，命中时释放刺骨寒意。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 42000,
+      "buy_price": 42000,
+      "sell_price": 21000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_mace",
+        "frost_mace",
+        "cold"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.mace.frost.frozen_strike",
+        "weapon.mace.frost.seal_power"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "mace",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_morningstar_flame_208",
+      "display_name": "火焰晨星",
+      "description": "一柄仿佛由永恒之火锻造的晨星，命中时会溅射出炽热火星。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 48000,
+      "buy_price": 48000,
+      "sell_price": 24000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "morningstar",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_morningstar",
+        "versatile",
+        "flame_morningstar",
+        "fire"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.morningstar.flame.flame_strike",
+        "weapon.morningstar.flame.fire_immunity"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "morningstar",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_morningstar_viper_206",
+      "display_name": "毒蛇晨星",
+      "description": "带有毒囊机关的独特晨星，击中时注入麻痹毒素。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 92000,
+      "buy_price": 92000,
+      "sell_price": 46000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "morningstar",
+        "mace",
+        "weapon_class_mace",
+        "weapon_type_morningstar",
+        "viper_morningstar",
+        "poison"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.morningstar.viper.venom_strike",
+        "weapon.morningstar.viper.venom_injection",
+        "weapon.morningstar.viper.poison_immunity"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "morningstar",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "mace",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": null,
+        "properties": []
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_polearm_rock_halberd_148",
+      "display_name": "岩石之戟",
+      "description": "一柄仿佛由活化石锻造而成的长戟，命中时将石化能量传递给目标。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 45000,
+      "buy_price": 45000,
+      "sell_price": 22500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "halberd",
+        "polearm",
+        "weapon_class_polearm",
+        "weapon_type_halberd",
+        "rock_halberd",
+        "petrification",
+        "heavy",
+        "reach"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.polearm.rock_halberd.stone_touch",
+        "weapon.polearm.rock_halberd.complete_petrification",
+        "weapon.polearm.rock_halberd.stone_tears"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "halberd",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_slash",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "two_handed",
+          "heavy",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_polearm_spider_spear_136",
+      "display_name": "蛛矛",
+      "description": "由蛛骨与丝腺材料锻成的独特长矛，可射出蛛丝束缚远处目标。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 35000,
+      "buy_price": 35000,
+      "sell_price": 17500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "spear",
+        "weapon_class_spear",
+        "weapon_type_spear",
+        "spider_spear",
+        "polearm",
+        "web",
+        "thrown"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.polearm.spider_spear.web_binding"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "spear",
+        "training_group": "simple",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_pierce",
+        "attack_range": 2,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 1
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 1
+        },
+        "properties": [
+          "versatile",
+          "thrown"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_polearm_thunder_halberd_137",
+      "display_name": "雷霆之戟",
+      "description": "由雷声与雷击木锻成的独特长戟，真实命中时迸发雷鸣。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 52000,
+      "buy_price": 52000,
+      "sell_price": 26000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "halberd",
+        "polearm",
+        "weapon_class_polearm",
+        "weapon_type_halberd",
+        "thunder_halberd",
+        "thunder",
+        "heavy",
+        "reach"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.polearm.thunder_halberd.thunder_slash"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "halberd",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "polearm",
+        "damage_tag": "physical_slash",
+        "attack_range": 2,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "two_handed",
+          "heavy",
+          "reach"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_rapier_memoryeater_vine",
+      "display_name": "噬忆血蔓",
+      "description": "埃拉西亚王庭哀悼藤醒来前的刺剑。它只吞食非构装、非亡灵敌人的生命故事，并把生命簿与血阶一同刻进装备实例，逐步让持有者与剑脊中的新生人格缠在一起。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 75000,
+      "buy_price": 75000,
+      "sell_price": 37500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "rapier",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_rapier",
+        "memoryeater_vine"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.rapier.memoryeater_vine.lifeblood_ledger",
+        "weapon.rapier.memoryeater_vine.symbiotic_siphon",
+        "weapon.rapier.memoryeater_vine.memory_thorn_edge",
+        "weapon.rapier.memoryeater_vine.story_root_snare",
+        "weapon.rapier.memoryeater_vine.mourning_vine_lunge",
+        "weapon.rapier.memoryeater_vine.black_bloom_awakening"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "rapier",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sands_time_480",
+      "display_name": "时间之沙",
+      "description": "一柄金色沙漏形匕首，刃内流动的细沙会扰乱持有者与敌人的时间节律。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 85000,
+      "buy_price": 85000,
+      "sell_price": 42500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "dagger",
+        "weapon_class_dagger",
+        "weapon_type_dagger",
+        "sands_time",
+        "time",
+        "exotic"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.exotic.sands_time.time_acceleration",
+        "weapon.exotic.sands_time.time_deceleration",
+        "weapon.exotic.sands_time.time_dislocation"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "dagger",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "exotic",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 4,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_shortsword_cowardice",
+      "display_name": "懦弱之刃",
+      "description": "这柄短剑薄如阴影，护手处嵌着一枚总是避开视线的冷铁眼。它不会奖赏勇敢，只会替最会逃的人记住下一次刺入缝隙的机会。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 48000,
+      "buy_price": 48000,
+      "sell_price": 24000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "shortsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_shortsword",
+        "cowardice",
+        "finesse",
+        "light"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.cowardice.gap_backstab",
+        "weapon.sword.cowardice.frontal_fragility",
+        "weapon.sword.cowardice.fleeing_instinct",
+        "weapon.sword.cowardice.cowardly_counter"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_double_edged_263",
+      "display_name": "双面刃",
+      "description": "一柄两侧都开刃的长剑，剑脊像被撕开的镜面；越是追求双重斩击，越难留下防守余地。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 65000,
+      "buy_price": 65000,
+      "sell_price": 32500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "double_edged"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.double_edged.twin_attack",
+        "weapon.sword.double_edged.no_guard",
+        "weapon.sword.double_edged.paradox_dance",
+        "weapon.sword.double_edged.single_edge"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [
+        {
+          "attribute_id": "armor_ac_bonus",
+          "mode": "flat",
+          "value": -2,
+          "value_per_rank": 0,
+          "source_type": "equipment",
+          "source_id": "weapon_unique_sword_double_edged_263"
+        }
+      ],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_glory_261",
+      "display_name": "荣耀之刃",
+      "description": "一柄镜面般银白的华丽长剑，金色剑格镶嵌红蓝宝石；人群越喧嚣，剑身越亮。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 78000,
+      "buy_price": 78000,
+      "sell_price": 39000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "glory",
+        "radiant",
+        "performance"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.glory.crowd_gaze",
+        "weapon.sword.glory.spotlight",
+        "weapon.sword.glory.curtain_call",
+        "weapon.sword.glory.lonely_dark"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 3
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_heartbane_004",
+      "display_name": "噬心者",
+      "description": "一柄会撕开心绪的细剑。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 80000,
+      "buy_price": 80000,
+      "sell_price": 40000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "rapier",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_rapier",
+        "heartbane"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.heartbane.heartbreak_sting",
+        "weapon.sword.heartbane.emotional_rend",
+        "weapon.sword.heartbane.heart_craving",
+        "weapon.sword.heartbane.heartbreak_burst"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "rapier",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_last_lesson_020",
+      "display_name": "最后一课",
+      "description": "一柄沉静得像课堂铃声后的长剑。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 55000,
+      "buy_price": 55000,
+      "sell_price": 27500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "last_lesson"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.last_lesson.old_chen_legacy",
+        "weapon.sword.last_lesson.last_lesson",
+        "weapon.sword.last_lesson.inheritance_seal",
+        "weapon.sword.last_lesson.classroom_aura"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_oathscar_003",
+      "display_name": "誓约之痕",
+      "description": "一柄剑身中央裂着金色细痕的长剑。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 65000,
+      "buy_price": 65000,
+      "sell_price": 32500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "oathscar",
+        "oath",
+        "radiant"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.oathscar.oath_bind",
+        "weapon.sword.oathscar.oath_mark",
+        "weapon.sword.oathscar.oath_judgment",
+        "weapon.sword.oathscar.oath_backlash"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 4
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 4
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_ravenplume_017",
+      "display_name": "鸦羽",
+      "description": "一柄漆黑轻短剑，锋刃边缘像乌鸦羽片般分裂出细密暗芒。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 62000,
+      "buy_price": 62000,
+      "sell_price": 31000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "shortsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_shortsword",
+        "ravenplume",
+        "raven",
+        "necrotic",
+        "familiar"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.ravenplume.crow_summon",
+        "weapon.sword.ravenplume.raven_cover",
+        "weapon.sword.ravenplume.crow_feast",
+        "weapon.sword.ravenplume.crow_clamor"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_rustoath_006",
+      "display_name": "锈蚀之誓",
+      "description": "一把覆满铁锈却仍旧锋利的短剑。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 40000,
+      "buy_price": 40000,
+      "sell_price": 20000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "shortsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_shortsword",
+        "rustoath",
+        "rust",
+        "acid"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.rustoath.rust_corrosion",
+        "weapon.sword.rustoath.armor_corrosion",
+        "weapon.sword.rustoath.rotten_blade",
+        "weapon.sword.rustoath.rust_powder_storm"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "shortsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_starfell_016",
+      "display_name": "群星之末",
+      "description": "一柄由陨铁与恒星余烬锻成的巨剑，剑脊像夜空一样吞吐星火。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 160000,
+      "buy_price": 160000,
+      "sell_price": 80000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "two_handed",
+        "greatsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_greatsword",
+        "heavy",
+        "starfell",
+        "force",
+        "fire",
+        "astral"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.starfell.meteor_force",
+        "weapon.sword.starfell.star_map_guidance",
+        "weapon.sword.starfell.starfall",
+        "weapon.sword.starfell.cosmic_dread"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [
+        "main_hand",
+        "off_hand"
+      ],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "greatsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": null,
+        "two_handed_dice": {
+          "dice_count": 2,
+          "dice_sides": 6,
+          "flat_bonus": 4
+        },
+        "properties": [
+          "two_handed",
+          "heavy"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_threadweaver_019",
+      "display_name": "织命",
+      "description": "一柄由银色细丝与柔亮铭文缠成的刺剑，剑锋划过时像在空气中缝合命运。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 120000,
+      "buy_price": 120000,
+      "sell_price": 60000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "rapier",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_rapier",
+        "threadweaver",
+        "fate",
+        "psychic"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.threadweaver.fate_thread",
+        "weapon.sword.threadweaver.fate_weaving",
+        "weapon.sword.threadweaver.cut_fate_thread",
+        "weapon.sword.threadweaver.thread_mending"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "rapier",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_pierce",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_twilight_edge_005",
+      "display_name": "暮光之刃",
+      "description": "一柄在昼夜边界变换锋芒的弯刀。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 72000,
+      "buy_price": 72000,
+      "sell_price": 36000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "one_handed",
+        "scimitar",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_scimitar",
+        "twilight_edge"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.twilight_edge.twilight_step",
+        "weapon.sword.twilight_edge.day_night_balance",
+        "weapon.sword.twilight_edge.twilight_cut",
+        "weapon.sword.twilight_edge.twilight_guard"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "scimitar",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 6,
+          "flat_bonus": 3
+        },
+        "two_handed_dice": null,
+        "properties": [
+          "finesse",
+          "light"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_sword_wyrmbreak_007",
+      "display_name": "龙骨断剑",
+      "description": "以龙骨与焦黑钢脊重铸的长剑，锋缘残留炽热龙息。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 140000,
+      "buy_price": 140000,
+      "sell_price": 70000,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "longsword",
+        "sword",
+        "weapon_class_sword",
+        "weapon_type_longsword",
+        "wyrmbreak",
+        "dragonbone",
+        "dragon_slayer",
+        "fire"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.sword.wyrmbreak.dragon_slayer",
+        "weapon.sword.wyrmbreak.bone_stealing_fury",
+        "weapon.sword.wyrmbreak.dragon_soul_extension",
+        "weapon.sword.wyrmbreak.dragon_soul_burst"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "longsword",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "sword",
+        "damage_tag": "physical_slash",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 5
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 5
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "weapon_unique_warhammer_sacred_408",
+      "display_name": "神圣之锤",
+      "description": "铭刻祈祷文的独特战锤，命中时迸发圣光，并可触碰盟友恢复伤势。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": false,
+      "base_price": 65000,
+      "buy_price": 65000,
+      "sell_price": 32500,
+      "sellable": true,
+      "max_stack": 1,
+      "item_category": "equipment",
+      "tags": [
+        "weapon",
+        "melee",
+        "versatile",
+        "warhammer",
+        "hammer",
+        "weapon_class_hammer",
+        "weapon_type_warhammer",
+        "sacred_hammer",
+        "radiant",
+        "holy"
+      ],
+      "crafting_groups": [],
+      "quest_groups": [],
+      "trait_ids": [
+        "weapon.warhammer.sacred.radiant_strike",
+        "weapon.warhammer.sacred.undead_judgment",
+        "weapon.warhammer.sacred.heal"
+      ],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [
+        "main_hand"
+      ],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "weapon",
+      "weapon_profile": {
+        "weapon_type_id": "warhammer",
+        "training_group": "martial",
+        "range_type": "melee",
+        "family": "hammer",
+        "damage_tag": "physical_blunt",
+        "attack_range": 1,
+        "one_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 8,
+          "flat_bonus": 2
+        },
+        "two_handed_dice": {
+          "dice_count": 1,
+          "dice_sides": 10,
+          "flat_bonus": 2
+        },
+        "properties": [
+          "versatile"
+        ]
+      },
+      "max_dex_bonus": -1
+    },
+    {
+      "item_id": "whetstone",
+      "display_name": "磨刃石",
+      "description": "细颗粒打磨石，可用于粗修刃口与金属部件，是工坊整备常见的小型耗材。",
+      "icon_asset_id": "ui.item.icon.default",
+      "is_stackable": true,
+      "base_price": 12,
+      "buy_price": 12,
+      "sell_price": 6,
+      "sellable": true,
+      "max_stack": 25,
+      "item_category": "misc",
+      "tags": [
+        "material",
+        "abrasive",
+        "stone"
+      ],
+      "crafting_groups": [
+        "abrasive",
+        "tooling",
+        "weapon"
+      ],
+      "quest_groups": [],
+      "trait_ids": [],
+      "trait_roll_groups": [],
+      "equipment_slot_ids": [],
+      "attribute_modifiers": [],
+      "granted_skill_id": "",
+      "occupied_slot_ids": [],
+      "equip_requirement": null,
+      "equipment_type_id": "",
+      "weapon_profile": null,
+      "max_dex_bonus": -1
+    }
+  ]
+}

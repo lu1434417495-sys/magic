@@ -30,7 +30,7 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
                 new() { slot_id = "off_hand", weight = 20 },
             };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
+        CombatEffectDefinition definition = CombatEffectDefinition.FromDiagnosticFixture(
             resource,
             "test.combat_effect_durability.typed_slot_weights"
         );
@@ -70,24 +70,27 @@ public partial class run_combat_effect_equipment_durability_schema_regression : 
             [new StringName("main_hand")] = 99,
         };
 
-        CombatEffectDefinition definition = CombatEffectDefinition.FromResource(
-            resource,
-            "test.combat_effect_durability.legacy_param"
-        );
-
-        _test.Eq(
-            definition.EquipmentDurabilitySlotWeights.Count,
-            0,
-            "legacy params.slot_weight_map should not project into typed durability slot weights."
+        bool rejected = false;
+        try
+        {
+            CombatEffectDefinition.FromDiagnosticFixture(
+                resource,
+                "test.combat_effect_durability.legacy_param"
+            );
+        }
+        catch (System.IO.InvalidDataException exception)
+        {
+            rejected = exception.Message.Contains("slot_weight_map");
+        }
+        _test.True(
+            rejected,
+            "strict Resource import should reject legacy params.slot_weight_map before projection."
         );
     }
 
     private void TestSkillContentValidationUsesTypedSlotWeights()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef valid = BuildDurabilityEffectResource();
         valid.equipment_durability_slot_weights =
             new Godot.Collections.Array<CombatEffectSlotWeightDef>

@@ -493,8 +493,17 @@ public sealed class PartyWarehouseService : IDisposable
         var itemDef = GetItemDef(itemId);
         bool itemFound = itemDef != null;
         bool isEquipment = itemDef != null && itemDef.IsEquipment();
+        bool requiresExistingWorldUniqueInstance =
+            WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDef)
+            && (forceNewInstanceId || instance?.instance_id == "");
 
-        if (instance == null || itemId == "" || itemDef == null || !itemDef.IsEquipment())
+        if (
+            instance == null
+            || itemId == ""
+            || itemDef == null
+            || !itemDef.IsEquipment()
+            || requiresExistingWorldUniqueInstance
+        )
             return new WarehouseAddItemResult
             {
                 ItemId = itemId,
@@ -575,6 +584,15 @@ public sealed class PartyWarehouseService : IDisposable
     {
         if (instance == null)
             return false;
+
+        ItemDefinition itemDefinition = GetItemDef(instance.item_id);
+        if (
+            instance.instance_id == ""
+            && WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDefinition)
+        )
+        {
+            return false;
+        }
 
         var warehouseState = _ensure_warehouse_state();
         bool allocatedNewStableId = false;
@@ -935,6 +953,28 @@ public sealed class PartyWarehouseService : IDisposable
                 IsEquipment = isEquipment,
             };
 
+        if (
+            consumeAllocator
+            && WorldUniqueEquipmentContentRules.IsWorldUniqueEquipment(itemDef)
+        )
+        {
+            return new WarehouseAddItemResult
+            {
+                ItemId = normalizedItemId,
+                RequestedQuantity = requestedQuantity,
+                AddedQuantity = 0,
+                RemainingQuantity = requestedQuantity,
+                UsedSlotsBefore = usedSlotsBefore,
+                UsedSlotsAfter = currentUsed,
+                FreeSlotsAfter = Mathf.Max(GetTotalCapacity() - currentUsed, 0),
+                CreatedStackCount = 0,
+                FilledExistingQuantity = 0,
+                IsOverCapacity = currentUsed > GetTotalCapacity(),
+                ItemFound = true,
+                IsEquipment = true,
+            };
+        }
+
         int remainingQuantity = requestedQuantity;
         int createdStackCount = 0;
         int filledExistingQuantity = 0;
@@ -1176,7 +1216,7 @@ public sealed class PartyWarehouseService : IDisposable
                 ? itemDef.DisplayName
                 : normalizedItemId.ToString(),
             itemDef?.Description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。",
-            itemDef?.Icon ?? "",
+            itemDef?.IconAssetId ?? "",
             resolvedQuantity,
             CountItem(normalizedItemId),
             itemDef?.IsStackable ?? resolvedQuantity > 1,
@@ -1279,14 +1319,13 @@ public sealed class PartyWarehouseService : IDisposable
             return true;
         }
 
-        try
+        // ReadValue() only ever yields boxed Variants out of a Godot dictionary.
+        // 类型不符时 Variant 转换给的是空字典而不是异常，原先的 catch 既不会触发，
+        // 又会让"不是字典"变成一次成功的空字典读取。
+        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Dictionary)
         {
-            dynamic dynamicValue = rawValue;
-            value = dynamicValue.AsGodotDictionary();
+            value = variantValue.AsGodotDictionary();
             return value != null;
-        }
-        catch
-        {
         }
 
         value = null;

@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_save_transaction_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -110,8 +110,10 @@ public partial class run_world_map_save_transaction_regression : LifecycleTestSc
                 "资源采集回滚测试前置：session world 应与 active world 一致。"
             );
 
-            context.Facade._pending_harvest_coord = coord;
-            context.Facade._active_modal_kind = RuntimeModalKind.ResourceHarvestConfirm;
+            context.Facade.SetupForTestFixture(
+                activeModalKind: RuntimeModalKind.ResourceHarvestConfirm,
+                pendingHarvestCoord: coord
+            );
             context.GameSession.fail_payload_write = true;
 
             RuntimeCommandResult result =

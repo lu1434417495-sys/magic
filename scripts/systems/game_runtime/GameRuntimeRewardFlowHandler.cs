@@ -8,6 +8,7 @@ public sealed class GameRuntimeRewardFlowHandler
         "晋升提交无效，当前选择仍需确认。";
 
     private WeakReference<IGameRuntimeRewardFlowPort> _portRef;
+    private Error _lastPromotionPersistError = Error.Ok;
 
     private IGameRuntimeRewardFlowPort _port
     {
@@ -40,7 +41,7 @@ public sealed class GameRuntimeRewardFlowHandler
     }
 
     internal RuntimeCommandResult CommandChoosePromotionTyped(
-        StringName professionId
+        StringName professionId, StringName triggerSkillId = default
     )
     {
         if (!HasRuntime())
@@ -51,7 +52,8 @@ public sealed class GameRuntimeRewardFlowHandler
         if (
             prompt.TryGetChoice(
                 professionId,
-                out GameRuntimePromotionChoiceContext promotionChoice
+                out GameRuntimePromotionChoiceContext promotionChoice,
+                triggerSkillId
             )
             && OnPromotionChoiceSubmitted(
                 prompt.MemberId,
@@ -59,23 +61,23 @@ public sealed class GameRuntimeRewardFlowHandler
                 promotionChoice.Selection
             )
         )
-            return CommandOkTyped();
+            return PromotionCommandResult();
         if (promotionChoice != null)
             return CommandErrorTyped(InvalidPromotionChoiceMessage);
-        return CommandErrorTyped(string.Format("当前晋升列表中不存在职业 {0}。", professionId));
+        return CommandErrorTyped($"职业 {professionId} 没有唯一匹配方案，请同时指定成长技能。");
     }
 
     internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         if (!HasRuntime())
             return RuntimeUnavailableTypedResult();
         if (!OnPromotionChoiceSubmitted(memberId, professionId, selection))
             return CommandErrorTyped(InvalidPromotionChoiceMessage);
-        return CommandOkTyped();
+        return PromotionCommandResult();
     }
 
     internal RuntimeCommandResult CommandCancelPromotionChoiceTyped()
@@ -136,7 +138,8 @@ public sealed class GameRuntimeRewardFlowHandler
             case RuntimeModalKind.BattleStartConfirm:
                 return CommandErrorTyped("当前战斗开始确认必须点击\"开始战斗\"。");
             case RuntimeModalKind.Promotion:
-                return CommandErrorTyped("当前晋升选择必须确认后才能继续。");
+                OnPromotionChoiceCancelled();
+                return CommandOkTyped();
             case RuntimeModalKind.Reward:
                 return CommandErrorTyped("当前角色奖励必须确认后才能继续。");
             default:
@@ -157,9 +160,10 @@ public sealed class GameRuntimeRewardFlowHandler
     public bool OnPromotionChoiceSubmitted(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
+        _lastPromotionPersistError = Error.Ok;
         if (!HasRuntime())
             return false;
         if (IsBattleActive())
@@ -212,6 +216,7 @@ public sealed class GameRuntimeRewardFlowHandler
         SetActiveModalKind(RuntimeModalKind.None);
         SyncPartyStateFromCharacterManagement();
         var persistError = PersistPartyState();
+        _lastPromotionPersistError = persistError;
         if (delta.needs_promotion_modal)
         {
             SetPendingWorldPromotionPrompt(
@@ -252,25 +257,13 @@ public sealed class GameRuntimeRewardFlowHandler
     {
         if (!HasRuntime())
             return;
-        if (IsBattleActive())
-        {
-            if (_port.GetPendingBattlePromotionPrompt().IsEmpty)
-            {
-                UpdateStatus("当前晋升选择无法取消。");
-                return;
-            }
-            SetActiveModalKind(RuntimeModalKind.Promotion);
-            UpdateStatus("当前晋升选择必须确认后才能继续战斗。");
-            return;
-        }
-
-        if (_port.GetPendingWorldPromotionPrompt().IsEmpty)
-        {
-            UpdateStatus("当前晋升选择无法取消。");
-            return;
-        }
-        SetActiveModalKind(RuntimeModalKind.Promotion);
-        UpdateStatus("当前晋升选择必须确认后才能继续结算奖励。");
+        if (_port.GetCurrentPromotionPrompt().IsEmpty) return;
+        if (IsBattleActive()) _port.DeferBattlePromotionChoice();
+        ClearPendingPromotionPrompt();
+        ClearPendingWorldPromotionPrompt();
+        SetActiveModalKind(RuntimeModalKind.None);
+        UpdateStatus("已暂缓晋升，可从人物管理或按 G 重新打开。");
+        PresentPendingRewardIfReady();
     }
 
     public void OnCharacterRewardConfirmed()
@@ -410,6 +403,10 @@ public sealed class GameRuntimeRewardFlowHandler
         return RuntimeCommandResult.Success(message ?? "");
     }
 
+    private RuntimeCommandResult PromotionCommandResult() => _lastPromotionPersistError == Error.Ok
+        ? CommandOkTyped()
+        : RuntimeCommandResult.Failure("晋升已在内存中生效，但尚未保存；再次确认不会重复成长。", RuntimeCommandCode.PersistenceFailure);
+
     private RuntimeCommandResult CommandErrorTyped(string message)
     {
         return RuntimeCommandResult.Failure(
@@ -420,7 +417,8 @@ public sealed class GameRuntimeRewardFlowHandler
 
     private void RejectInvalidPromotionChoice()
     {
-        SetActiveModalKind(RuntimeModalKind.Promotion);
+        if (!_port.GetCurrentPromotionPrompt().IsEmpty)
+            SetActiveModalKind(RuntimeModalKind.Promotion);
         UpdateStatus(InvalidPromotionChoiceMessage);
     }
 
@@ -428,7 +426,7 @@ public sealed class GameRuntimeRewardFlowHandler
         GameRuntimePromotionPromptContext prompt,
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         return prompt != null && prompt.ContainsChoice(memberId, professionId, selection);
@@ -535,7 +533,7 @@ public sealed class GameRuntimeRewardFlowHandler
     private BattleEventBatch SubmitBattlePromotionChoice(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         if (!HasRuntime())
@@ -552,7 +550,7 @@ public sealed class GameRuntimeRewardFlowHandler
     private CharacterProgressionDelta PromoteProfession(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         if (!HasRuntime())

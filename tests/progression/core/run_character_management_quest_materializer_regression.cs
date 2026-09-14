@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -21,74 +21,48 @@ public partial class run_character_management_quest_materializer_regression : Li
         TestPendingCharacterRewardRejectsInvalidAttributeTarget();
         TestPendingCharacterRewardBoundaryAcceptsTypedRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
-        TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
-        TestActiveLevelTriggerSetAndClearUseTypedResult();
+        TestPromotionOffersUseExactSkillDefKeys();
+        TestPromotionPublishesOnlyCompleteRequests();
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
         TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries();
         TestSkillMasteryRewardAggregatesTypedEntries();
-        TestStringKeyOnlyQuestRewardDefIsRejected();
 
         RequestTestExit(_test.Finish("Character management quest materializer regression"));
     }
 
-    private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()
+    private void TestPromotionOffersUseExactSkillDefKeys()
     {
         PartyState party = BuildPartyWithMember("hero", 1);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDefinition triggerSkill = BuildLevelTriggerSkillDefinition(
-            "test_level_trigger_catalog_boundary",
-            1
-        );
-        member.progression.SetSkillProgress(
-            new UnitSkillProgress
-            {
-                skill_id = triggerSkill.SkillId,
-                is_learned = true,
-                is_core = true,
-                skill_level = 1,
-            }
-        );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
-
-        LevelGrowthEvaluationService service = new();
-        service.Setup(
-            new Dictionary<StringName, SkillDefinition>
-            {
-                [new StringName("wrong_level_trigger_key")] = triggerSkill,
-            }
-        );
-        _test.True(
-            !service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should not recover a skill def from value.skill_id when the dictionary key is wrong."
-        );
-
-        service.Setup(
-            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill }
-        );
-        _test.True(
-            service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should accept a typed skill definition map keyed by skill id."
-        );
+        SkillDefinition trigger = BuildLevelTriggerSkillDefinition("test_catalog_boundary", 1);
+        member.progression.SetSkillProgress(new UnitSkillProgress { skill_id = trigger.SkillId, is_learned = true, skill_level = 1 });
+        var profession = BuildTestProfession("test_profession");
+        var professions = new Dictionary<StringName, ProfessionDefinition> { [profession.ProfessionId] = profession };
+        ProgressionService service = new();
+        service.SetupDefinitions(member.progression, new Dictionary<StringName, SkillDefinition> { ["wrong_key"] = trigger }, professions);
+        _test.Eq(service.GetProfessionUpgradeCandidates().Count, 0, "Catalog keys are authoritative; value.skill_id cannot recover a wrong key.");
+        service.SetupDefinitions(member.progression, new Dictionary<StringName, SkillDefinition> { [trigger.SkillId] = trigger }, professions);
+        _test.Eq(service.GetProfessionUpgradeCandidates().Count, 1, "A correctly keyed milestone skill creates an offer.");
     }
 
     private void TestSubmitItemObjectiveTracksProgressAndFailures()
     {
         PartyState party = BuildPartyWithMember("hero", 4);
-        GDictionary itemDefs = BuildItemDefs();
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
 
-        QuestDef submitQuest = BuildSubmitItemQuest(
+        QuestTestDefinitionBuilder submitQuest = BuildSubmitItemQuest(
             "contract_supply_delivery",
             "deliver_ore",
             "iron_ore",
             2
         );
-        QuestDef shortageQuest = BuildSubmitItemQuest(
+        QuestTestDefinitionBuilder shortageQuest = BuildSubmitItemQuest(
             "contract_supply_delivery_shortage",
             "deliver_ore",
             "iron_ore",
             2
         );
-        QuestDef wrongItemQuest = BuildSubmitItemQuest(
+        QuestTestDefinitionBuilder wrongItemQuest = BuildSubmitItemQuest(
             "contract_supply_delivery_wrong_item",
             "deliver_ore",
             "iron_ore",
@@ -105,7 +79,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             {
                 new QuestObjectiveDefinition(
                     "deliver_ore",
-                    QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
+                    QuestContentKinds.ToStringName(QuestObjectiveKind.SubmitItem),
                     "iron_ore",
                     0
                 ),
@@ -120,13 +94,10 @@ public partial class run_character_management_quest_materializer_regression : Li
             ""
         );
 
-        Dictionary<StringName, QuestDefinition> questDefinitions = BuildQuestDefIndex(
-            new GDictionary
-            {
-                [submitQuest.quest_id] = submitQuest,
-                [shortageQuest.quest_id] = shortageQuest,
-                [wrongItemQuest.quest_id] = wrongItemQuest,
-            }
+        Dictionary<StringName, QuestDefinition> questDefinitions = BuildQuestDefinitionIndex(
+            submitQuest,
+            shortageQuest,
+            wrongItemQuest
         );
         questDefinitions[missingTargetQuest.QuestId] = missingTargetQuest;
         CharacterManagementModule manager = BuildManager(
@@ -135,7 +106,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             questDefinitions
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
 
         QuestState partialQuest = new() { quest_id = submitQuest.quest_id };
         partialQuest.MarkAccepted(3);
@@ -268,31 +239,31 @@ public partial class run_character_management_quest_materializer_regression : Li
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }
 
     private void TestQuestRewardMaterializesGoldItemsAndOverflow()
     {
-        GDictionary itemDefs = BuildItemDefs();
-        QuestDef rewardQuest = BuildRewardQuest(
+        Dictionary<StringName, ItemDefinition> itemDefs = BuildItemDefs();
+        QuestTestDefinitionBuilder rewardQuest = BuildRewardQuest(
             "contract_supply_receipt",
             "Supply receipt",
-            new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 12 },
+            new GDictionary { ["reward_type"] = QuestContentKinds.ToStringName(QuestRewardKind.Gold), ["amount"] = 12 },
             new GDictionary
             {
-                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Item),
+                ["reward_type"] = QuestContentKinds.ToStringName(QuestRewardKind.Item),
                 ["item_id"] = "iron_ore",
                 ["quantity"] = 2,
             }
         );
-        QuestDef overflowQuest = BuildRewardQuest(
+        QuestTestDefinitionBuilder overflowQuest = BuildRewardQuest(
             "contract_reward_overflow",
             "Overflow",
             new GDictionary
             {
-                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Item),
+                ["reward_type"] = QuestContentKinds.ToStringName(QuestRewardKind.Item),
                 ["item_id"] = "iron_ore",
                 ["quantity"] = 1,
             }
@@ -302,14 +273,10 @@ public partial class run_character_management_quest_materializer_regression : Li
         CharacterManagementModule manager = BuildManager(
             party,
             itemDefs,
-            new GDictionary
-            {
-                [rewardQuest.quest_id] = rewardQuest,
-                [overflowQuest.quest_id] = overflowQuest,
-            }
+            new[] { rewardQuest, overflowQuest }
         );
         PartyWarehouseService warehouse = new();
-        warehouse.Setup(party, BuildItemDefIndex(itemDefs));
+        warehouse.Setup(party, itemDefs);
         party.SetClaimableQuestState(BuildClaimableQuest("contract_supply_receipt", 4, 6));
 
         using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
@@ -330,12 +297,12 @@ public partial class run_character_management_quest_materializer_regression : Li
 
         PartyState overflowParty = BuildPartyWithMember("porter", 1);
         PartyWarehouseService overflowWarehouse = new();
-        overflowWarehouse.Setup(overflowParty, BuildItemDefIndex(itemDefs));
+        overflowWarehouse.Setup(overflowParty, itemDefs);
         overflowWarehouse.AddItemTyped("bronze_sword", 1);
         CharacterManagementModule overflowManager = BuildManager(
             overflowParty,
             itemDefs,
-            new GDictionary { [overflowQuest.quest_id] = overflowQuest }
+            new[] { overflowQuest }
         );
         overflowParty.SetClaimableQuestState(BuildClaimableQuest("contract_reward_overflow", 5, 7));
 
@@ -367,12 +334,12 @@ public partial class run_character_management_quest_materializer_regression : Li
     private void TestQuestRewardQueuesPendingCharacterReward()
     {
         PartyState party = BuildPartyWithMember("hero", 4);
-        QuestDef quest = BuildRewardQuest(
+        QuestTestDefinitionBuilder quest = BuildRewardQuest(
             "contract_growth_drill",
             "Growth drill",
             new GDictionary
             {
-                ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.PendingCharacterReward),
+                ["reward_type"] = QuestContentKinds.ToStringName(QuestRewardKind.PendingCharacterReward),
                 ["member_id"] = "hero",
                 ["summary_text"] = "Growth reward.",
                 ["entries"] = new GArray
@@ -397,7 +364,7 @@ public partial class run_character_management_quest_materializer_regression : Li
         CharacterManagementModule manager = BuildManager(
             party,
             BuildItemDefs(),
-            new GDictionary { [quest.quest_id] = quest }
+            new[] { quest }
         );
         party.SetClaimableQuestState(BuildClaimableQuest("contract_growth_drill", 6, 9));
 
@@ -427,40 +394,13 @@ public partial class run_character_management_quest_materializer_regression : Li
         }
     }
 
-    private void TestStringKeyOnlyQuestRewardDefIsRejected()
-    {
-        QuestDef quest = BuildRewardQuest(
-            "contract_string_key_reward",
-            "String key reward",
-            new GDictionary { ["reward_type"] = QuestDef.ToStringName(QuestRewardKind.Gold), ["amount"] = 1 }
-        );
-        PartyState party = BuildPartyWithMember("hero", 2);
-        CharacterManagementModule manager = BuildManager(
-            party,
-            BuildItemDefs(),
-            new GDictionary { [quest.quest_id.ToString()] = quest }
-        );
-        party.SetClaimableQuestState(BuildClaimableQuest("contract_string_key_reward", 1, 2));
-
-        using GodotProjectionLease<GDictionary> claimResultLease = QuestCommandResultProjection.ProjectLease(
-            manager.ClaimQuestRewardTyped("contract_string_key_reward", 3)
-        );
-        GDictionary claimResult = claimResultLease.Value;
-        _test.True(!ReadBool(claimResult, "ok"), "String-key-only quest def should be rejected.");
-        _test.Eq(
-            ReadString(claimResult, "error_code"),
-            "quest_def_missing",
-            "String-key-only quest def should not be accepted as formal quest data."
-        );
-    }
-
     private void TestPendingCharacterRewardRejectsInvalidAttributeTarget()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
         CharacterManagementModule manager = BuildManager(
             party,
             BuildItemDefs(),
-            new GDictionary()
+            System.Array.Empty<QuestTestDefinitionBuilder>()
         );
 
         PendingCharacterReward reward = manager.BuildPendingCharacterReward(
@@ -493,7 +433,7 @@ public partial class run_character_management_quest_materializer_regression : Li
         CharacterManagementModule manager = BuildManager(
             party,
             BuildItemDefs(),
-            new GDictionary()
+            System.Array.Empty<QuestTestDefinitionBuilder>()
         );
 
         PendingCharacterReward typedReward = manager.BuildPendingCharacterReward(
@@ -569,7 +509,7 @@ public partial class run_character_management_quest_materializer_regression : Li
         CharacterManagementModule manager = BuildManager(
             party,
             BuildItemDefs(),
-            new GDictionary()
+            System.Array.Empty<QuestTestDefinitionBuilder>()
         );
         PartyMemberState member = party.GetMemberState("hero");
         UnitBaseAttributes attributes = member.progression.unit_base_attributes;
@@ -629,82 +569,28 @@ public partial class run_character_management_quest_materializer_regression : Li
         _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
     }
 
-    private void TestActiveLevelTriggerSetAndClearUseTypedResult()
+    private void TestPromotionPublishesOnlyCompleteRequests()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        PartyMemberState member = party.GetMemberState("hero");
-        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
-            "test_set_clear_trigger",
-            displayName: "Test set clear trigger",
-            maxLevel: 1
-        );
-        member.progression.SetSkillProgress(
-            new UnitSkillProgress
-            {
-                skill_id = triggerSkill.SkillId,
-                is_learned = true,
-                is_core = true,
-                skill_level = 1,
-            }
-        );
-
+        var member = party.GetMemberState("hero");
+        var trigger = TestSkillDefinitionProjection.BuildSkill("test_offer", maxLevel: 1);
+        var profession = BuildTestProfession("test_profession");
+        member.progression.SetSkillProgress(new UnitSkillProgress { skill_id = trigger.SkillId, is_learned = true, skill_level = 1 });
         CharacterManagementModule manager = new();
-        manager.setup(
-            party,
-            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
-            new Dictionary<StringName, ProfessionDefinition>(),
-            new Dictionary<StringName, AchievementDefinition>()
-        );
-
-        LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
-            "hero",
-            triggerSkill.SkillId
-        );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
-        _test.True(setResult.Ok, "set active trigger should succeed.");
-        _test.Eq(
-            setResult.SkillId,
-            triggerSkill.SkillId,
-            "set active trigger should preserve skill id in boundary result."
-        );
-        _test.Eq(
-            setResult.PreviousActive,
-            new StringName(""),
-            "set active trigger should expose the previous active skill id."
-        );
-        _test.Eq(
-            member.progression.active_level_trigger_core_skill_id,
-            triggerSkill.SkillId,
-            "set active trigger should update progression state."
-        );
-        _test.True(
-            triggerProgress != null && triggerProgress.is_level_trigger_active,
-            "set active trigger should mark the skill active."
-        );
-
-        LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
-        triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
-        _test.True(clearResult.Ok, "clear active trigger should succeed.");
-        _test.Eq(
-            member.progression.active_level_trigger_core_skill_id,
-            new StringName(""),
-            "clear active trigger should remove active skill id."
-        );
-        _test.True(
-            triggerProgress != null && !triggerProgress.is_level_trigger_active,
-            "clear active trigger should clear the skill active flag."
-        );
-
-        LevelGrowthTriggerResult missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
-            "hero",
-            "missing_skill"
-        );
-        _test.True(!missingResult.Ok, "set active trigger should fail for missing skills.");
-        _test.Eq(
-            missingResult.Error,
-            "skill_not_learned",
-            "missing trigger failure should preserve boundary error code."
-        );
+        manager.setup(party, new Dictionary<StringName, SkillDefinition> { [trigger.SkillId] = trigger },
+            new Dictionary<StringName, ProfessionDefinition> { [profession.ProfessionId] = profession }, new Dictionary<StringName, AchievementDefinition>());
+        var before = member.progression;
+        _test.Eq(manager.GetPromotionOffers("hero").Count, 1, "Non-core skills can create promotion offers.");
+        _test.True(ReferenceEquals(before, member.progression) && !before.GetSkillProgress(trigger.SkillId).is_core, "Query leaves progression and core assignment untouched.");
+        var invalid = manager.PromoteProfession("hero", profession.ProfessionId, null);
+        _test.Eq(invalid.PromotionFailure, PromotionFailureKind.InvalidRequest, "Missing request returns an explicit failure.");
+        _test.True(ReferenceEquals(before, member.progression), "Failure must not publish another progression.");
+        var offer = manager.GetPromotionOffers("hero")[0];
+        var result = manager.PromoteProfession("hero", profession.ProfessionId, offer.DefaultSelection);
+        _test.Eq(result.ChangedProfessionIdsTyped.Count, 1, "Complete offer is applied.");
+        _test.False(ReferenceEquals(before, member.progression), "Successful commit publishes a new progression exactly once.");
+        _test.False(before.HasUsedGrowthTrigger(trigger.SkillId), "The previously published state remains untouched.");
+        _test.Eq(manager.GetPromotionOffers("hero").Count, 0, "Consumed skills no longer offer growth.");
     }
 
     private void TestActiveLevelTriggerAttributeGrowthUsesTypedEntries()
@@ -728,34 +614,24 @@ public partial class run_character_management_quest_materializer_regression : Li
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
-        ProfessionDef profession = new()
-        {
-            profession_id = "test_growth_profession",
-            display_name = "Test growth profession",
-            is_initial_profession = true,
-            max_rank = 1,
-            hit_die_sides = 1,
-        };
+        ProfessionDefinition profession = BuildTestProfession("test_growth_profession");
 
         CharacterManagementModule manager = new();
         manager.setup(
             party,
             new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
-            TestProgressionDefinitionProjection.Professions(
-                new Dictionary<StringName, ProfessionDef>
-                {
-                    [profession.profession_id] = profession,
-                }
-            ),
+            new Dictionary<StringName, ProfessionDefinition>
+            {
+                [profession.ProfessionId] = profession,
+            },
             new Dictionary<StringName, AchievementDefinition>()
         );
 
         CharacterProgressionDelta delta = manager.PromoteProfession(
             "hero",
-            profession.profession_id,
-            PromotionSelectionData.Empty
+            profession.ProfessionId,
+            new PromotionCommitRequest(triggerSkill.SkillId, 1, new[] { triggerSkill.SkillId }, System.Array.Empty<StringName>())
         );
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
 
@@ -772,7 +648,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             "active trigger should write attribute growth progress."
         );
         _test.True(
-            triggerProgress != null && triggerProgress.core_max_growth_claimed,
+            triggerProgress != null && member.progression.HasUsedGrowthTrigger(triggerSkill.SkillId),
             "active trigger should mark growth claimed after applying progress."
         );
         _test.Eq(
@@ -800,6 +676,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                     new GDictionary { [new StringName("agility")] = 60 },
                     "character_management_quest_materializer.invalid_growth.string_name_key"
                 ),
+                ExpectImportRejection = true,
             },
             new
             {
@@ -808,6 +685,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                     new GDictionary { ["unknown_attribute"] = 60 },
                     "character_management_quest_materializer.invalid_growth.unknown_attribute"
                 ),
+                ExpectImportRejection = false,
             },
             new
             {
@@ -816,6 +694,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                     new GDictionary { ["agility"] = "60" },
                     "character_management_quest_materializer.invalid_growth.non_int_amount"
                 ),
+                ExpectImportRejection = true,
             },
             new
             {
@@ -824,6 +703,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                     new GDictionary { ["agility"] = 0 },
                     "character_management_quest_materializer.invalid_growth.non_positive_amount"
                 ),
+                ExpectImportRejection = false,
             },
         };
 
@@ -837,7 +717,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                 new SkillDef
                 {
                     skill_id = new StringName(
-                        $"test_invalid_growth_{testCase.Label.Replace(" ", "_")}"
+                        $"test_invalid_growth_{testCase.Label.Replace(" ", "_").Replace("-", "_")}"
                     ),
                     display_name = testCase.Label,
                     max_level = 1,
@@ -858,51 +738,67 @@ public partial class run_character_management_quest_materializer_regression : Li
                     skill_level = 1,
                 }
             );
-            member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
 
-            ProfessionDef profession = TestResourceOwnership.Own(
-                new ProfessionDef
-                {
-                    profession_id = new StringName(
-                        $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_")}"
-                    ),
-                    display_name = "Invalid growth profession",
-                    is_initial_profession = true,
-                    max_rank = 1,
-                    hit_die_sides = 1,
-                },
-                $"character_management_quest_materializer.invalid_growth.profession.{testCase.Label}"
+            ProfessionDefinition profession = BuildTestProfession(
+                new StringName(
+                    $"test_invalid_growth_profession_{testCase.Label.Replace(" ", "_").Replace("-", "_")}"
+                )
             );
 
-            CharacterManagementModule manager = new();
-            manager.setup(
-                party,
-                SkillDefinition.ProjectIndex(
+            IReadOnlyDictionary<StringName, SkillDefinition> projectedSkills = null;
+            string importRejection = "";
+            try
+            {
+                projectedSkills = SkillDefinition.ProjectIndex(
                     new Dictionary<StringName, SkillDef>
                     {
                         [triggerSkill.skill_id] = triggerSkill,
                     }
-                ),
-                TestProgressionDefinitionProjection.Professions(
-                    new Dictionary<StringName, ProfessionDef>
-                    {
-                        [profession.profession_id] = profession,
-                    }
-                ),
+                );
+            }
+            catch (System.IO.InvalidDataException exception)
+            {
+                importRejection = exception.Message;
+            }
+            if (testCase.ExpectImportRejection)
+            {
+                _test.True(
+                    importRejection.Contains("skill.fixture.invalid_input")
+                        && importRejection.Contains("/entries/0/attribute_growth_progress/"),
+                    $"{testCase.Label} should fail at the canonical Resource import boundary. error={importRejection}"
+                );
+                continue;
+            }
+            _test.Eq(
+                importRejection,
+                "",
+                $"{testCase.Label} should remain representable for downstream semantic rejection."
+            );
+            if (projectedSkills == null)
+                continue;
+
+            CharacterManagementModule manager = new();
+            manager.setup(
+                party,
+                projectedSkills,
+                new Dictionary<StringName, ProfessionDefinition>
+                {
+                    [profession.ProfessionId] = profession,
+                },
                 new Dictionary<StringName, AchievementDefinition>()
             );
 
             CharacterProgressionDelta delta = manager.PromoteProfession(
                 "hero",
-                profession.profession_id,
-                PromotionSelectionData.Empty
+                profession.ProfessionId,
+                new PromotionCommitRequest(triggerSkill.skill_id, 1, new[] { triggerSkill.skill_id }, System.Array.Empty<StringName>())
             );
             UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
             _test.Eq(
                 delta.changed_profession_ids.Count,
-                1,
-                $"{testCase.Label} should not block active trigger promotion itself."
+                0,
+                $"{testCase.Label} must reject the complete transaction before consuming growth."
             );
             _test.Eq(
                 delta.AttributeChangesTyped.Count,
@@ -915,7 +811,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                 $"{testCase.Label} should not write agility growth progress."
             );
             _test.True(
-                triggerProgress != null && !triggerProgress.core_max_growth_claimed,
+                triggerProgress != null && !member.progression.HasUsedGrowthTrigger(triggerSkill.skill_id),
                 $"{testCase.Label} should not mark growth claimed."
             );
         }
@@ -945,7 +841,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition> { [charge.SkillId] = charge },
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(BuildItemDefs()),
+            BuildItemDefs(),
             new Dictionary<StringName, QuestDefinition>()
         );
 
@@ -996,13 +892,13 @@ public partial class run_character_management_quest_materializer_regression : Li
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
-        GDictionary questDefs
-    ) => BuildManager(party, itemDefs, BuildQuestDefIndex(questDefs));
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
+        IReadOnlyList<QuestTestDefinitionBuilder> questDefs
+    ) => BuildManager(party, itemDefs, BuildQuestDefinitionIndex(questDefs));
 
     private static CharacterManagementModule BuildManager(
         PartyState party,
-        GDictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefs,
         IReadOnlyDictionary<StringName, QuestDefinition> questDefs
     )
     {
@@ -1012,11 +908,30 @@ public partial class run_character_management_quest_materializer_regression : Li
             new Dictionary<StringName, SkillDefinition>(),
             new Dictionary<StringName, ProfessionDefinition>(),
             new Dictionary<StringName, AchievementDefinition>(),
-            BuildItemDefIndex(itemDefs),
+            itemDefs,
             questDefs
         );
         return manager;
     }
+
+    private static ProfessionDefinition BuildTestProfession(StringName professionId) =>
+        new(
+            professionId,
+            "Test growth profession",
+            "Test-only profession for level-growth coverage.",
+            1,
+            1,
+            "full",
+            true,
+            "",
+            null,
+            System.Array.Empty<ProfessionRankRequirementDefinition>(),
+            System.Array.Empty<ProfessionGrantedSkillDefinition>(),
+            System.Array.Empty<AttributeModifierDefinition>(),
+            System.Array.Empty<ProfessionActiveConditionDefinition>(),
+            "auto",
+            "count_when_hidden"
+        );
 
     private static PartyState BuildPartyWithMember(string memberId, int storageSpace)
     {
@@ -1035,88 +950,70 @@ public partial class run_character_management_quest_materializer_regression : Li
         return party;
     }
 
-    private static GDictionary BuildItemDefs()
+    private static Dictionary<StringName, ItemDefinition> BuildItemDefs()
     {
-        ItemDef ironOre = new()
+        TestItemDefinitionBuilder ironOre = new()
         {
             item_id = "iron_ore",
             display_name = "Iron Ore",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        ItemDef bronzeSword = new()
+        TestItemDefinitionBuilder bronzeSword = new()
         {
             item_id = "bronze_sword",
             display_name = "Bronze Sword",
             CategoryKind = ItemCategoryKind.Misc,
             is_stackable = true,
         };
-        return new GDictionary
+        return new Dictionary<StringName, ItemDefinition>
         {
-            [ironOre.item_id] = ironOre,
-            [bronzeSword.item_id] = bronzeSword,
+            [ironOre.item_id] = ironOre.ToDefinition(),
+            [bronzeSword.item_id] = bronzeSword.ToDefinition(),
         };
     }
 
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefIndex(GDictionary itemDefs)
-    {
-        Dictionary<StringName, ItemDefinition> result = new();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            StringName itemId = rawKey.AsStringName();
-            if (itemId == "")
-                continue;
-            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
-                result[itemId] = itemDef.ToDefinition();
-        }
-        return result;
-    }
+    private static Dictionary<StringName, QuestDefinition> BuildQuestDefinitionIndex(
+        params QuestTestDefinitionBuilder[] questDefs
+    ) => BuildQuestDefinitionIndex((IReadOnlyList<QuestTestDefinitionBuilder>)questDefs);
 
-    private static Dictionary<StringName, QuestDefinition> BuildQuestDefIndex(
-        GDictionary questDefs
+    private static Dictionary<StringName, QuestDefinition> BuildQuestDefinitionIndex(
+        IReadOnlyList<QuestTestDefinitionBuilder> questDefs
     )
     {
         Dictionary<StringName, QuestDefinition> result = new();
         if (questDefs == null)
             return result;
-        foreach (Variant rawKey in questDefs.Keys)
+        foreach (QuestTestDefinitionBuilder questDef in questDefs)
         {
-            if (rawKey.VariantType != Variant.Type.StringName)
+            if (questDef == null || questDef.quest_id == "")
                 continue;
-            StringName questId = rawKey.AsStringName();
-            if (questId == "")
-                continue;
-            if (questDefs[rawKey].AsGodotObject() is QuestDef questDef)
-                result[questId] = TestProgressionDefinitionProjection.Quest(questDef);
+            result[questDef.quest_id] = TestProgressionDefinitionProjection.Quest(questDef);
         }
         return result;
     }
 
-    private static QuestDef BuildSubmitItemQuest(
+    private static QuestTestDefinitionBuilder BuildSubmitItemQuest(
         string questId,
         string objectiveId,
         string itemId,
         int targetValue
     )
     {
-        QuestDef quest = new()
+        QuestTestDefinitionBuilder quest = new()
         {
             quest_id = questId,
             display_name = questId,
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            listing_channels = new GArray { "contract_board" },
             failure_policy = "terminal",
         };
         quest.objective_defs.Add(
             new GDictionary
             {
                 ["objective_id"] = objectiveId,
-                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SubmitItem),
+                ["objective_type"] = QuestContentKinds.ToStringName(QuestObjectiveKind.SubmitItem),
                 ["target_id"] = itemId,
                 ["target_value"] = targetValue,
             }
@@ -1124,26 +1021,26 @@ public partial class run_character_management_quest_materializer_regression : Li
         return quest;
     }
 
-    private static QuestDef BuildRewardQuest(
+    private static QuestTestDefinitionBuilder BuildRewardQuest(
         string questId,
         string displayName,
         params GDictionary[] rewards
     )
     {
-        QuestDef quest = new()
+        QuestTestDefinitionBuilder quest = new()
         {
             quest_id = questId,
             display_name = displayName,
             provider_kind = "service_contract_board",
             provider_interaction_id = "service_contract_board",
-            listing_channels = new Godot.Collections.Array<StringName> { "contract_board" },
+            listing_channels = new GArray { "contract_board" },
             failure_policy = "terminal",
         };
         quest.objective_defs.Add(
             new GDictionary
             {
                 ["objective_id"] = "done",
-                ["objective_type"] = QuestDef.ToStringName(QuestObjectiveKind.SettlementAction),
+                ["objective_type"] = QuestContentKinds.ToStringName(QuestObjectiveKind.SettlementAction),
                 ["target_id"] = "service:contract",
                 ["target_value"] = 1,
             }

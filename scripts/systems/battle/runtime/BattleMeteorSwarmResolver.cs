@@ -530,7 +530,15 @@ internal sealed class BattleMeteorSwarmResolver
                         false,
                         skillId: plan.skill_id,
                         dispatchEvents: false
-                    ).WithBattleState(State())
+                    )
+                        .WithBattleState(State())
+                        .WithDamageOriginKind(
+                            BattleDamageOriginContentRules.ResolveProducerOrigin(
+                                BattleDamageOriginKind.MainDirectEffect,
+                                plan.source_unit,
+                                target_unit
+                            )
+                        )
                 );
             outcome.AddComponent(component);
             outcome.total_damage += damageResolution.Damage;
@@ -676,11 +684,6 @@ internal sealed class BattleMeteorSwarmResolver
             durationTu: terrain_profile?.duration_tu ?? 0,
             tickIntervalTu: terrain_profile?.tick_interval_tu ?? 0,
             stackBehavior: "refresh",
-            parameters: new Dictionary<string, object>(StringComparer.Ordinal)
-            {
-                ["move_cost_stack_key"] = terrain_profile?.move_cost_stack_key ?? "",
-                ["move_cost_stack_mode"] = terrain_profile?.move_cost_stack_mode ?? "",
-            },
             accuracyModifierSpec: BuildAccuracyModifierSpec(terrain_profile)
         );
     }
@@ -702,7 +705,16 @@ internal sealed class BattleMeteorSwarmResolver
                 plan.source_unit,
                 target_unit,
                 new[] { effectDefinition },
-                DamageResolutionContext.ForSkill(plan.skill_id).WithBattleState(State())
+                DamageResolutionContext
+                    .ForSkill(plan.skill_id)
+                    .WithBattleState(State())
+                    .WithDamageOriginKind(
+                        BattleDamageOriginContentRules.ResolveProducerOrigin(
+                            BattleDamageOriginKind.MainDirectEffect,
+                            plan.source_unit,
+                            target_unit
+                        )
+                    )
             );
     }
 
@@ -730,13 +742,14 @@ internal sealed class BattleMeteorSwarmResolver
         int durationTu = 0,
         int tickIntervalTu = 0,
         StringName stackBehavior = default,
-        IReadOnlyDictionary<string, object> parameters = null,
         BattleAttackRollModifierSpec accuracyModifierSpec = null,
         int attackRollPenalty = -1
     )
     {
+        StringName normalizedEffectType = NormalizeStringName(effectType);
+        BattleEffectKind effectKind = BattleTypedNames.ToEffectKind(normalizedEffectType);
         return new CombatEffectDefinition(
-            effectType: NormalizeStringName(effectType),
+            effectType: normalizedEffectType,
             effectTargetTeamFilter: NormalizeStringName(effectTargetTeamFilter),
             statusId: NormalizeStringName(statusId),
             saveFailureStatusId: default,
@@ -782,7 +795,6 @@ internal sealed class BattleMeteorSwarmResolver
             effectTags: Array.Empty<StringName>(),
             triggerCondition: new StringName(""),
             power: power,
-            parameters: parameters ?? new Dictionary<string, object>(StringComparer.Ordinal),
             tickEffectType: NormalizeStringName(tickEffectType),
             lifetimePolicy: NormalizeStringName(lifetimePolicy),
             moveCostDelta: moveCostDelta,
@@ -792,7 +804,10 @@ internal sealed class BattleMeteorSwarmResolver
             accuracyModifierSpec: accuracyModifierSpec,
             stackBehavior: NormalizeStringName(stackBehavior),
             triggerEvent: new StringName(""),
-            attackRollPenalty: attackRollPenalty
+            attackRollPenalty: attackRollPenalty,
+            payload: effectKind is BattleEffectKind.Status or BattleEffectKind.ApplyStatus
+                ? new StatusEffectPayloadDefinition()
+                : EmptyCombatEffectPayloadDefinition.Instance
         );
     }
 
@@ -1670,7 +1685,15 @@ internal sealed class BattleMeteorSwarmResolver
         return damageResolver.PreviewDamageEffectOnWorkingSetTyped(
             working_set,
             effectDefinition,
-            DamageResolutionContext.ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID),
+            DamageResolutionContext
+                .ForSkill(plan != null ? plan.skill_id : DEFAULT_SKILL_ID)
+                .WithDamageOriginKind(
+                    BattleDamageOriginContentRules.ResolveProducerOrigin(
+                        BattleDamageOriginKind.MainDirectEffect,
+                        plan?.source_unit,
+                        working_set?.TargetPreview
+                    )
+                ),
             roll_mode,
             save_mode
         );

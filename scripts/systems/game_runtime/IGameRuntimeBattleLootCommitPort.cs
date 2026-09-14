@@ -24,6 +24,10 @@ internal interface IGameRuntimeBattleLootCommitPort
         out IReadOnlyList<EquipmentInstanceState> rolledInstances
     );
 
+    bool TryReturnUniqueWorldEquipmentLoot(EquipmentInstanceState equipmentInstance);
+
+    bool IsUniqueWorldEquipmentItem(StringName itemId);
+
     bool GetBattleLootFateRunFlag(StringName flagId);
 
     void SetBattleLootFateRunFlag(StringName flagId);
@@ -42,6 +46,13 @@ internal enum BattleLootItemDefinitionKind
     Missing = 0,
     NonEquipment = 1,
     Equipment = 2,
+}
+
+internal enum WorldUniqueEquipmentDropTakeKind
+{
+    NotSelected = 0,
+    Taken = 1,
+    UniqueUnavailable = 2,
 }
 
 internal sealed class BattleLootWarehouseAddResult

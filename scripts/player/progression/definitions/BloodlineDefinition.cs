@@ -54,33 +54,4 @@ public sealed class BloodlineDefinition
     public IReadOnlyList<AttributeModifierDefinition> AttributeModifiers { get; }
     public IReadOnlyList<string> TraitSummary { get; }
 
-    internal static BloodlineDefinition FromResource(BloodlineDef source, string path)
-    {
-        IdentityDefinitionProjection.RequireResource(source, path, nameof(BloodlineDef));
-        return new BloodlineDefinition(
-            source.bloodline_id,
-            IdentityDefinitionProjection.CopyString(source.display_name, $"{path}.display_name"),
-            IdentityDefinitionProjection.CopyString(source.description, $"{path}.description"),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.StageIdsBorrowed,
-                $"{path}.stage_ids"
-            ),
-            IdentityDefinitionProjection.CopyStringNames(
-                source.TraitIdsBorrowed,
-                $"{path}.trait_ids"
-            ),
-            IdentityDefinitionProjection.CopyRacialGrantedSkills(
-                source.RacialGrantedSkillsBorrowed,
-                $"{path}.racial_granted_skills"
-            ),
-            IdentityDefinitionProjection.CopyAttributeModifiers(
-                source.AttributeModifiersBorrowed,
-                $"{path}.attribute_modifiers"
-            ),
-            IdentityDefinitionProjection.CopyStrings(
-                source.TraitSummaryBorrowed,
-                $"{path}.trait_summary"
-            )
-        );
-    }
 }

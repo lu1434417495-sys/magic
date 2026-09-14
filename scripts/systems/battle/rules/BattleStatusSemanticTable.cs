@@ -5,6 +5,12 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
 
+public enum BattleStatusStackingScope
+{
+    Aggregate = 0,
+    SourceDefinition,
+}
+
 public readonly record struct BattleStatusSemantic(
     bool Defined,
     StringName StackMode,
@@ -17,7 +23,8 @@ public readonly record struct BattleStatusSemantic(
     bool SetApToZeroAtTurnStart,
     string DisplayLabel,
     string TurnStartLogReasonId,
-    BattleCognitionKind CognitionCeiling
+    BattleCognitionKind CognitionCeiling,
+    BattleStatusStackingScope StackingScope = BattleStatusStackingScope.Aggregate
 );
 
 public static class BattleStatusSemanticTable
@@ -29,6 +36,7 @@ public static class BattleStatusSemanticTable
         "paralyzed",
         "frozen",
         "petrified",
+        "sleeping",
     };
 
     internal static readonly StringName STACK_REFRESH = "refresh",
@@ -37,16 +45,17 @@ public static class BattleStatusSemanticTable
         TICK_TURN_START_AP_PENALTY = "turn_start_ap_penalty",
         TICK_TURN_START_DAMAGE = "turn_start_damage",
         TICK_TIMELINE_DAMAGE = "timeline_damage";
-    internal const int TU_GRANULARITY = 5,
-        DEFAULT_BLIND_ATTACK_ROLL_PENALTY = 4;
+    internal const int DEFAULT_BLIND_ATTACK_ROLL_PENALTY = 4;
     internal static readonly StringName STATUS_ARMOR_BREAK = "armor_break",
         STATUS_ARCHER_PRE_AIM = "archer_pre_aim",
         STATUS_ARCHER_RANGE_UP = "archer_range_up",
         STATUS_ARCHER_SHOOTING_SPECIALIZATION = "archer_shooting_specialization",
         STATUS_ATTACK_UP = "attack_up",
         STATUS_ATTACK_ROLL_BONUS_UP = "attack_roll_bonus_up",
+        STATUS_BONE_CHILL = "bone_chill",
         STATUS_BURNING = "burning",
         STATUS_BLIND = "blind",
+        STATUS_FLASH_WHISTLE_DAZZLED = "flash_whistle_dazzled",
         STATUS_DEATH_WARD = "death_ward",
         STATUS_DAMAGE_REDUCTION_UP = "damage_reduction_up",
         STATUS_DODGE_BONUS_UP = "dodge_bonus_up",
@@ -66,6 +75,8 @@ public static class BattleStatusSemanticTable
         STATUS_POISONED = "poisoned",
         STATUS_SHOCKED = "shocked",
         STATUS_SLOW = "slow",
+        STATUS_SLEEPING = "sleeping",
+        STATUS_WAKEFUL = "wakeful",
         STATUS_SPELLWARD = "spellward",
         STATUS_SOUL_FRACTURE = "soul_fracture",
         STATUS_STAGGERED = "staggered",
@@ -131,6 +142,7 @@ public static class BattleStatusSemanticTable
         },
         [STATUS_LAST_STAND_ACTIVE] = new() { Semantic = RefreshSemantic() },
         [STATUS_TIME_REVERBERATION] = new() { Semantic = RefreshSemantic() },
+        [STATUS_WAKEFUL] = new() { Semantic = RefreshSemantic(displayLabel: "清醒") },
 
         // —— 减益 ——
         [STATUS_ARMOR_BREAK] = new() { Semantic = RefreshSemantic(), Harmful = true },
@@ -139,6 +151,15 @@ public static class BattleStatusSemanticTable
         [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
+        [STATUS_BONE_CHILL] = new() { Semantic = RefreshSemantic(displayLabel: "寒蚀"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_FLASH_WHISTLE_DAZZLED] = new()
+        {
+            Semantic = RefreshSemantic(
+                attackRollPenalty: 2,
+                displayLabel: "炫目"
+            ),
+            Harmful = true,
+        },
         [STATUS_FROZEN] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_MARKED] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
         [STATUS_PARALYZED] = new() { Semantic = RefreshSemantic(displayLabel: "麻痹"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
@@ -150,13 +171,25 @@ public static class BattleStatusSemanticTable
         [STATUS_HEX_OF_FRAILTY] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_NIGHT_PRESSURE] = new() { Semantic = RefreshSemantic(displayLabel: "夜幕压迫"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_DOOM_SENTENCE_VERDICT] = new() { Semantic = RefreshSemantic(), Harmful = true, DispellableHarmful = true },
-        [STATUS_BURNING] = new() { Semantic = BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_BURNING] = new()
+        {
+            Semantic = BuildSemantic(
+                STACK_ADD,
+                3,
+                TICK_TIMELINE_DAMAGE,
+                stackingScope: BattleStatusStackingScope.SourceDefinition
+            ),
+            Harmful = true,
+            DispellableHarmful = true,
+            DispelPriority = 70,
+        },
         [STATUS_SLOW] = new() { Semantic = RefreshSemantic(moveCostDelta: 1), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_SOUL_FRACTURE] = new() { Semantic = RefreshSemantic(displayLabel: "灵魂裂解"), Harmful = true, DispellableHarmful = true },
         [STATUS_AFTERSHOCK] = new() { Semantic = RefreshSemantic(displayLabel: "余悸"), Harmful = true, DispellableHarmful = true },
         [STATUS_REACTION_LOCK] = new() { Semantic = RefreshSemantic(displayLabel: "反应封锁"), Harmful = true, DispellableHarmful = true },
         [STATUS_FRIGHTENED] = new() { Semantic = RefreshSemantic(displayLabel: "恐惧"), Harmful = true, DispellableHarmful = true },
         [STATUS_STUNNED] = new() { Semantic = RefreshSemantic(displayLabel: "震慑"), Harmful = true, DispellableHarmful = true },
+        [STATUS_SLEEPING] = new() { Semantic = RefreshSemantic(displayLabel: "睡眠"), Harmful = true, DispellableHarmful = true, BlocksPendingCast = true, DispelPriority = 90 },
         [STATUS_MADNESS] = new()
         {
             Semantic = RefreshSemantic(
@@ -347,11 +380,16 @@ public static class BattleStatusSemanticTable
     ) =>
         GetSemantic(statusId).CognitionCeiling;
 
+    internal static bool UsesSourceDefinitionStacking(StringName statusId) =>
+        GetSemantic(statusId).StackingScope
+        == BattleStatusStackingScope.SourceDefinition;
+
     public static BattleStatusEffectState MergeStatus(
         CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
         BattleStatusEffectState existingEntry = null,
-        StringName statusIdOverride = default
+        StringName statusIdOverride = default,
+        BattleStatusSourceIdentity sourceIdentity = default
     )
     {
         if (effectDefinition == null)
@@ -370,6 +408,15 @@ public static class BattleStatusSemanticTable
             existingEntry,
             resolvedStatusId
         );
+        if (semantic.StackingScope == BattleStatusStackingScope.SourceDefinition)
+        {
+            return MergeSourceScopedStatus(
+                statusEntry,
+                effectDefinition,
+                semantic,
+                ResolveSourceIdentity(sourceIdentity, sourceUnitId, resolvedStatusId)
+            );
+        }
         int incomingPower = Mathf.Max(effectDefinition.Power, 1);
         int previousPower = Mathf.Max(statusEntry.power, 0);
         int previousStacks = Mathf.Max(statusEntry.stacks, 0);
@@ -432,6 +479,93 @@ public static class BattleStatusSemanticTable
         return statusEntry;
     }
 
+    private static BattleStatusEffectState MergeSourceScopedStatus(
+        BattleStatusEffectState statusEntry,
+        CombatEffectDefinition effectDefinition,
+        BattleStatusSemantic semantic,
+        BattleStatusSourceIdentity sourceIdentity
+    )
+    {
+        if (statusEntry == null || effectDefinition == null || !sourceIdentity.IsValid)
+            return null;
+        BattleStatusSourceContributionState existing =
+            statusEntry.GetSourceContributionTyped(sourceIdentity);
+        int previousPower = Math.Max(existing?.Power ?? 0, 0);
+        int previousStacks = Math.Max(existing?.Stacks ?? 0, 0);
+        int incomingPower = Math.Max(effectDefinition.Power, 1);
+        int maxStacks = Math.Max(semantic.MaxStacks, 0);
+        int incomingDurationTu = ResolveDurationTu(effectDefinition);
+        int incomingTickIntervalTu = ResolveTickIntervalTu(effectDefinition);
+        var contribution = existing?.Duplicate() ?? new BattleStatusSourceContributionState
+        {
+            Identity = sourceIdentity,
+            DurationTu = -1,
+        };
+        contribution.Power = Math.Max(previousPower, incomingPower);
+        contribution.Stacks = maxStacks > 0
+            ? Math.Min(Math.Max(previousStacks + 1, 1), maxStacks)
+            : Math.Max(previousStacks + 1, 1);
+        if (incomingDurationTu >= 0)
+            contribution.DurationTu = Math.Max(incomingDurationTu, contribution.DurationTu);
+        if (incomingTickIntervalTu > 0)
+        {
+            contribution.TickIntervalTu = incomingTickIntervalTu;
+            if (contribution.NextTickAtTu <= 0)
+                contribution.NextTickAtTu = incomingTickIntervalTu;
+        }
+        StringName incomingDamageTag = ProgressionDataUtils.to_string_name(
+            effectDefinition.DamageTag
+        );
+        if (incomingDamageTag != "")
+            contribution.DamageTag = incomingDamageTag;
+        statusEntry.stack_behavior =
+            ProgressionDataUtils.to_string_name(semantic.StackMode) == ""
+                ? STACK_REFRESH
+                : semantic.StackMode;
+        statusEntry.stack_limit = maxStacks;
+        statusEntry.SetSourceContributionTyped(contribution);
+        statusEntry.RebuildSourceContributionAggregateTyped();
+        return statusEntry;
+    }
+
+    internal static void SynchronizeSourceContributionTimelinePayload(
+        BattleStatusEffectState statusEntry,
+        BattleStatusSourceIdentity sourceIdentity
+    )
+    {
+        if (statusEntry?.HasSourceContributionsTyped() != true || !sourceIdentity.IsValid)
+            return;
+        BattleStatusSourceContributionState contribution =
+            statusEntry.GetSourceContributionTyped(sourceIdentity);
+        if (contribution == null)
+            return;
+        if (statusEntry.tick_interval_tu > 0)
+        {
+            contribution.TickIntervalTu = statusEntry.tick_interval_tu;
+            if (contribution.NextTickAtTu <= 0)
+                contribution.NextTickAtTu = statusEntry.tick_interval_tu;
+        }
+        contribution.TimelineDamageDiceCount =
+            Math.Max(statusEntry.timeline_damage_dice_count, 0);
+        contribution.TimelineDamageDiceSides =
+            Math.Max(statusEntry.timeline_damage_dice_sides, 0);
+        contribution.TimelineDamageFlatBonus =
+            Math.Max(statusEntry.timeline_damage_flat_bonus, 0);
+        if (statusEntry.damage_tag != "")
+            contribution.DamageTag = statusEntry.damage_tag;
+        statusEntry.SetSourceContributionTyped(contribution);
+        statusEntry.RebuildSourceContributionAggregateTyped();
+    }
+
+    private static BattleStatusSourceIdentity ResolveSourceIdentity(
+        BattleStatusSourceIdentity sourceIdentity,
+        StringName sourceUnitId,
+        StringName statusId
+    ) =>
+        sourceIdentity.IsValid
+            ? sourceIdentity
+            : BattleStatusSourceIdentity.RuntimeEffect(sourceUnitId, statusId);
+
     private static BattleStatusEffectState BuildMergedStatusEffectState(
         CombatEffectDefinition effectDefinition,
         StringName sourceUnitId,
@@ -442,7 +576,7 @@ public static class BattleStatusSemanticTable
         var statusEntry = BattleStatusEffectState.CreateOrDuplicate(existingEntry);
         statusEntry.status_id = resolvedStatusId;
         statusEntry.source_unit_id = sourceUnitId;
-        AssignResidualParams(statusEntry, effectDefinition.Parameters);
+        BattleStatusPayloadProjector.Apply(statusEntry, effectDefinition.Payload);
         statusEntry.display_label = effectDefinition.DisplayName ?? "";
         statusEntry.counts_as_debuff_override = effectDefinition.CountsAsDebuffOverride;
         statusEntry.counts_as_debuff = effectDefinition.CountsAsDebuff;
@@ -450,6 +584,16 @@ public static class BattleStatusSemanticTable
         statusEntry.lock_guard = effectDefinition.LockGuard;
         statusEntry.lock_dodge_bonus = effectDefinition.LockDodgeBonus;
         statusEntry.lock_crit = effectDefinition.LockCrit;
+        statusEntry.skip_turn = effectDefinition.SkipTurn;
+        statusEntry.break_on_positive_damage = effectDefinition.BreakOnPositiveDamage;
+        statusEntry.on_removed_status_id = effectDefinition.OnRemovedStatusId;
+        statusEntry.on_removed_status_save_immunity_tags = BuildStringNameList(
+            effectDefinition.OnRemovedStatusSaveImmunityTags
+        );
+        statusEntry.on_removed_status_undispellable =
+            effectDefinition.OnRemovedStatusUndispellable;
+        statusEntry.on_removed_status_consume_after_normal_turn =
+            effectDefinition.OnRemovedStatusConsumeAfterNormalTurn;
         statusEntry.save_bonus = effectDefinition.SaveBonus;
         statusEntry.control_save_bonus = effectDefinition.ControlSaveBonus;
         statusEntry.heal_multiplier_percent = effectDefinition.HealMultiplierPercent;
@@ -468,9 +612,6 @@ public static class BattleStatusSemanticTable
         );
         statusEntry.save_immunity_tags = BuildStringNameList(effectDefinition.SaveImmunityTags);
         statusEntry.status_tags = BuildStringNameList(effectDefinition.EffectTags);
-        statusEntry.save_bonus_by_tag = BuildStringNameIntMap(
-            effectDefinition.GetStringNameIntMapParamTyped("save_bonus_by_tag")
-        );
         statusEntry.attack_roll_penalty = Math.Max(
             statusEntry.attack_roll_penalty,
             effectDefinition.AttackRollPenalty
@@ -503,24 +644,6 @@ public static class BattleStatusSemanticTable
         statusEntry.attack_roll_advantage = effectDefinition.AttackRollAdvantage;
         statusEntry.consume_on_next_attack_check = effectDefinition.ConsumeOnNextAttackCheck;
         statusEntry.consume_on_next_save = effectDefinition.ConsumeOnNextSave;
-        statusEntry.source_bound_attack_roll_penalty =
-            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty", 0);
-        statusEntry.source_bound_attack_roll_penalty_min_stacks = Math.Max(
-            effectDefinition.GetIntParamTyped("source_bound_attack_roll_penalty_min_stacks", 1),
-            1
-        );
-        statusEntry.source_bound_incoming_attack_roll_bonus_per_stack =
-            effectDefinition.GetIntParamTyped(
-                "source_bound_incoming_attack_roll_bonus_per_stack",
-                0
-            );
-        statusEntry.source_bound_incoming_attack_roll_bonus_min_stacks = Math.Max(
-            effectDefinition.GetIntParamTyped(
-                "source_bound_incoming_attack_roll_bonus_min_stacks",
-                1
-            ),
-            1
-        );
         statusEntry.source_bound_weapon_bonus_damage_dice_count = Math.Max(
             effectDefinition.SourceBoundWeaponBonusDamageDiceCount,
             0
@@ -610,7 +733,24 @@ public static class BattleStatusSemanticTable
 
     public static int GetTimelineTickDamage(BattleStatusEffectState statusEntry)
     {
-        if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+        if (statusEntry == null)
+            return 0;
+        if (statusEntry.HasSourceContributionsTyped())
+        {
+            int contributionTotal = 0;
+            foreach (
+                BattleStatusSourceContributionState contribution
+                in statusEntry.GetSourceContributionsTyped()
+            )
+            {
+                int contributionDamage = GetSourceContributionTimelineTickDamage(contribution);
+                contributionTotal = contributionTotal > int.MaxValue - contributionDamage
+                    ? int.MaxValue
+                    : contributionTotal + contributionDamage;
+            }
+            return contributionTotal;
+        }
+        if (statusEntry.tick_interval_tu <= 0)
             return 0;
         BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
         return semantic.TickMode == TICK_TIMELINE_DAMAGE || HasTimelineDamagePayload(statusEntry)
@@ -623,7 +763,27 @@ public static class BattleStatusSemanticTable
         Func<int, int> rollDamageDie = null
     )
     {
-        if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
+        if (statusEntry == null)
+            return 0;
+        if (statusEntry.HasSourceContributionsTyped())
+        {
+            int contributionTotal = 0;
+            foreach (
+                BattleStatusSourceContributionState contribution
+                in statusEntry.GetSourceContributionsTyped()
+            )
+            {
+                int contributionDamage = RollSourceContributionTimelineTickDamage(
+                    contribution,
+                    rollDamageDie
+                );
+                contributionTotal = contributionTotal > int.MaxValue - contributionDamage
+                    ? int.MaxValue
+                    : contributionTotal + contributionDamage;
+            }
+            return contributionTotal;
+        }
+        if (statusEntry.tick_interval_tu <= 0)
             return 0;
         BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
         if (semantic.TickMode != TICK_TIMELINE_DAMAGE && !HasTimelineDamagePayload(statusEntry))
@@ -637,6 +797,55 @@ public static class BattleStatusSemanticTable
         Func<int, int> roller = rollDamageDie ?? DefaultRollDamageDie;
         for (int index = 0; index < diceCount; index++)
             total += Math.Clamp(roller(diceSides), 1, diceSides);
+        return Math.Max(total, 0);
+    }
+
+    internal static int GetSourceContributionTimelineTickDamage(
+        BattleStatusSourceContributionState contribution
+    )
+    {
+        if (contribution?.IsValid != true || contribution.TickIntervalTu <= 0)
+            return 0;
+        if (
+            contribution.TimelineDamageDiceCount > 0
+            && contribution.TimelineDamageDiceSides > 0
+        )
+        {
+            return Math.Max(
+                contribution.TimelineDamageDiceCount
+                    * (contribution.TimelineDamageDiceSides + 1)
+                    / 2
+                    + contribution.TimelineDamageFlatBonus,
+                0
+            );
+        }
+        return Math.Max(Math.Max(contribution.Power, contribution.Stacks), 1);
+    }
+
+    internal static int RollSourceContributionTimelineTickDamage(
+        BattleStatusSourceContributionState contribution,
+        Func<int, int> rollDamageDie = null
+    )
+    {
+        if (contribution?.IsValid != true || contribution.TickIntervalTu <= 0)
+            return 0;
+        if (
+            contribution.TimelineDamageDiceCount <= 0
+            || contribution.TimelineDamageDiceSides <= 0
+        )
+        {
+            return Math.Max(Math.Max(contribution.Power, contribution.Stacks), 1);
+        }
+        int total = Math.Max(contribution.TimelineDamageFlatBonus, 0);
+        Func<int, int> roller = rollDamageDie ?? DefaultRollDamageDie;
+        for (int index = 0; index < contribution.TimelineDamageDiceCount; index++)
+        {
+            total += Math.Clamp(
+                roller(contribution.TimelineDamageDiceSides),
+                1,
+                contribution.TimelineDamageDiceSides
+            );
+        }
         return Math.Max(total, 0);
     }
 
@@ -681,7 +890,42 @@ public static class BattleStatusSemanticTable
         int elapsedTu
     )
     {
-        if (statusEntry == null || elapsedTu <= 0 || statusEntry.duration < 0)
+        if (statusEntry == null || elapsedTu <= 0)
+            return new BattleStatusDurationAdvanceResult(false, false);
+        if (statusEntry.HasSourceContributionsTyped())
+        {
+            bool changed = false;
+            var expiredIdentities = new List<BattleStatusSourceIdentity>();
+            foreach (
+                BattleStatusSourceContributionState contribution
+                in statusEntry.GetSourceContributionsTyped()
+            )
+            {
+                if (contribution.DurationTu < 0)
+                    continue;
+                int nextDuration = Math.Max(contribution.DurationTu - elapsedTu, 0);
+                if (nextDuration <= 0)
+                {
+                    expiredIdentities.Add(contribution.Identity);
+                    changed = true;
+                    continue;
+                }
+                if (nextDuration != contribution.DurationTu)
+                {
+                    contribution.DurationTu = nextDuration;
+                    changed = true;
+                }
+            }
+            foreach (BattleStatusSourceIdentity identity in expiredIdentities)
+                statusEntry.RemoveSourceContributionTyped(identity);
+            if (changed)
+                statusEntry.RebuildSourceContributionAggregateTyped();
+            return new BattleStatusDurationAdvanceResult(
+                statusEntry.GetSourceContributionsTyped().Count == 0,
+                changed
+            );
+        }
+        if (statusEntry.duration < 0)
             return new BattleStatusDurationAdvanceResult(false, false);
         int previousDuration = statusEntry.duration;
         int remainingDuration = Mathf.Max(previousDuration - elapsedTu, 0);
@@ -701,7 +945,8 @@ public static class BattleStatusSemanticTable
         string displayLabel = "",
         string turnStartLogReasonId = "",
         BattleCognitionKind cognitionCeiling =
-            BattleCognitionKind.Unknown
+            BattleCognitionKind.Unknown,
+        BattleStatusStackingScope stackingScope = BattleStatusStackingScope.Aggregate
     ) =>
         BuildSemantic(
             STACK_REFRESH,
@@ -714,7 +959,8 @@ public static class BattleStatusSemanticTable
             setApToZeroAtTurnStart,
             displayLabel,
             turnStartLogReasonId,
-            cognitionCeiling
+            cognitionCeiling,
+            stackingScope
         );
 
     private static BattleStatusSemantic BuildSemantic(
@@ -729,7 +975,8 @@ public static class BattleStatusSemanticTable
         string displayLabel = "",
         string turnStartLogReasonId = "",
         BattleCognitionKind cognitionCeiling =
-            BattleCognitionKind.Unknown
+            BattleCognitionKind.Unknown,
+        BattleStatusStackingScope stackingScope = BattleStatusStackingScope.Aggregate
     ) =>
         new(
             true,
@@ -743,7 +990,8 @@ public static class BattleStatusSemanticTable
             setApToZeroAtTurnStart,
             displayLabel ?? "",
             turnStartLogReasonId ?? "",
-            cognitionCeiling
+            cognitionCeiling,
+            stackingScope
         );
 
     private static int ResolveDurationTu(CombatEffectDefinition effectDefinition)
@@ -790,46 +1038,24 @@ public static class BattleStatusSemanticTable
         return result;
     }
 
-    private static Dictionary<StringName, int> BuildStringNameIntMap(
-        IReadOnlyDictionary<StringName, int> values
-    )
-    {
-        var result = new Dictionary<StringName, int>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (KeyValuePair<StringName, int> entry in values)
-        {
-            if (entry.Key != "")
-            {
-                result[entry.Key] = entry.Value;
-            }
-        }
-        return result;
-    }
-
-    private static void AssignResidualParams(
-        BattleStatusEffectState statusEntry,
-        IReadOnlyDictionary<string, object> parameters
-    )
-    {
-        if (statusEntry == null)
-            return;
-        statusEntry.SetParamsTyped(
-            BattleStatusEffectState.CopyResidualParamsPlain(parameters)
-        );
-    }
-
     private static int NormalizePositiveTu(int value, string fieldLabel)
     {
         if (value <= 0)
             return -1;
-        if (value % TU_GRANULARITY != 0)
+        if (value % BattleTimeRules.TuGranularity != 0)
         {
-            int clampedValue = ((value + TU_GRANULARITY - 1) / TU_GRANULARITY) * TU_GRANULARITY;
+            int clampedValue =
+                (
+                    (
+                        value
+                        + BattleTimeRules.TuGranularity
+                        - 1
+                    )
+                    / BattleTimeRules.TuGranularity
+                )
+                * BattleTimeRules.TuGranularity;
             GameLog.Error(
-                $"{fieldLabel} must use {TU_GRANULARITY} TU steps, got {value}; clamping up to {clampedValue}.",
+                $"{fieldLabel} must use {BattleTimeRules.TuGranularity} TU steps, got {value}; clamping up to {clampedValue}.",
                 "battle.status.invalid_tu",
                 "battle"
             );

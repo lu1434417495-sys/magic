@@ -125,6 +125,9 @@ public class BattleHitResolver : IDisposable
         );
         var stageChecks = new List<AttackCheckInput>();
         var stages = new List<AttackPreviewStage>();
+        int stageReachProbabilityBasisPoints = 10000;
+        int expectedDamageBasisPoints = 0;
+        int potentialDamageBasisPoints = 0;
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
             AttackCheckInput attackCheck = BuildFateAwareRepeatAttackStageHitCheck(
@@ -136,6 +139,14 @@ public class BattleHitResolver : IDisposable
                 stageIndex
             );
             int stageSuccessRate = attackCheck.SuccessRatePercent;
+            BattleRepeatAttackStageSpec stageSpec =
+                BattleRepeatAttackStageSpec.FromRepeatAttackEffect(
+                    repeat_attack_effect,
+                    stageIndex,
+                    normalizedStageCount,
+                    active_unit.GetKnownSkillLevelTyped(skill_definition.SkillId),
+                    true
+                );
             stageChecks.Add(attackCheck);
             stages.Add(
                 new AttackPreviewStage(
@@ -144,9 +155,38 @@ public class BattleHitResolver : IDisposable
                     baseHitRatePercent: attackCheck.BaseHitRatePercent,
                     requiredRoll: attackCheck.RequiredRoll,
                     displayRequiredRoll: attackCheck.DisplayRequiredRoll,
-                    previewText: attackCheck.PreviewText
+                    previewText: attackCheck.PreviewText,
+                    reachProbabilityBasisPoints: stageReachProbabilityBasisPoints,
+                    damageMultiplierPercent: stageSpec.stage_damage_multiplier_percent
                 )
             );
+            expectedDamageBasisPoints = (int)Math.Clamp(
+                (long)expectedDamageBasisPoints
+                    + (long)stageReachProbabilityBasisPoints
+                        * Mathf.Clamp(stageSuccessRate, 0, 100)
+                        * stageSpec.stage_damage_multiplier_percent
+                        / 10000L,
+                0L,
+                int.MaxValue
+            );
+            potentialDamageBasisPoints = (int)Math.Clamp(
+                (long)potentialDamageBasisPoints
+                    + (long)stageSpec.stage_damage_multiplier_percent * 100L,
+                0L,
+                int.MaxValue
+            );
+            if (stageSpec.stop_on_miss)
+            {
+                stageReachProbabilityBasisPoints = Mathf.Clamp(
+                    (int)Math.Round(
+                        (double)stageReachProbabilityBasisPoints
+                            * stageSuccessRate
+                            / 100.0
+                    ),
+                    0,
+                    10000
+                );
+            }
         }
         int avgSuccessRate = 0;
         int avgBaseHitRate = 0;
@@ -162,6 +202,8 @@ public class BattleHitResolver : IDisposable
             avgSuccessRate = Mathf.RoundToInt((float)_average_ints(successRates));
             avgBaseHitRate = Mathf.RoundToInt((float)_average_ints(baseHitRates));
         }
+        RepeatAttackUntilFailEffectPayloadDefinition repeatPayload =
+            repeat_attack_effect?.Payload as RepeatAttackUntilFailEffectPayloadDefinition;
         return new AttackPreviewData
         {
             SummaryText = FormatRepeatAttackPreviewSummary(stageChecks),
@@ -169,9 +211,10 @@ public class BattleHitResolver : IDisposable
             HitRatePercent = avgSuccessRate,
             SuccessRatePercent = avgSuccessRate,
             BaseHitRatePercent = avgBaseHitRate,
-            BaseAttackBonus = repeat_attack_effect?.GetIntParamTyped("base_attack_bonus", 0) ?? 0,
-            FollowUpAttackPenalty =
-                repeat_attack_effect?.GetIntParamTyped("follow_up_attack_penalty", 0) ?? 0,
+            BaseAttackBonus = repeatPayload?.BaseAttackBonus ?? 0,
+            FollowUpAttackPenalty = repeatPayload?.FollowUpAttackPenalty ?? 0,
+            RepeatAttackExpectedDamageBasisPoints = expectedDamageBasisPoints,
+            RepeatAttackPotentialDamageBasisPoints = potentialDamageBasisPoints,
             FatePreview = stageChecks.Count > 0
                 ? BattleFatePreviewData.FromAttackCheck(stageChecks[0])
                 : null,
@@ -340,7 +383,6 @@ public class BattleHitResolver : IDisposable
                 errorMessage
             );
         }
-        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillLevel = 0;
         StringName skillId = skill_definition?.SkillId ?? new StringName("");
         if (active_unit.IsValid && !IsEmpty(skillId))
@@ -354,6 +396,12 @@ public class BattleHitResolver : IDisposable
                 skillLevel = 1;
             }
         }
+        defense_adjustment = _apply_skill_attack_defense_mode(
+            defense_adjustment,
+            skill_definition,
+            skillLevel
+        );
+        int targetArmorClass = _get_target_armor_class(target_unit, defense_adjustment);
         int skillAttackBonus =
             SkillEffectiveCombatDefinition.BuildUncached(skill_definition, skillLevel).AttackRollBonus;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(active_unit, skillId);
@@ -426,6 +474,14 @@ public class BattleHitResolver : IDisposable
             target_unit,
             defense_adjustment
         );
+        targetArmorClass = (int)Math.Min(
+            (long)targetArmorClass + _get_target_status_armor_class_bonus(target_unit),
+            int.MaxValue
+        );
+        if (defense_adjustment?.LockAgilityBonus == true)
+        {
+            targetArmorClass -= _get_target_positive_agility_ac_bonus(target_unit);
+        }
         if (
             _is_target_dodge_bonus_locked(target_unit)
             || defense_adjustment?.LockDodgeBonus == true
@@ -442,6 +498,87 @@ public class BattleHitResolver : IDisposable
             targetArmorClass += _get_target_status_dodge_bonus(target_unit);
         }
         return Math.Max(targetArmorClass, 1);
+    }
+
+    private static int _get_target_status_armor_class_bonus(
+        BattleUnitReadView targetUnit
+    )
+    {
+        long total = 0;
+        foreach (BattleStatusReadView status in targetUnit.StatusEffects())
+        {
+            if (
+                !status.IsValid
+                || status.Stacks <= 0
+                || status.ArmorClassBonusPerStack <= 0
+            )
+            {
+                continue;
+            }
+            total += (long)status.ArmorClassBonusPerStack * status.Stacks;
+            if (total >= int.MaxValue)
+                return int.MaxValue;
+        }
+        return (int)total;
+    }
+
+    private static EquipmentAttackDefenseAdjustment _apply_skill_attack_defense_mode(
+        EquipmentAttackDefenseAdjustment defenseAdjustment,
+        SkillDefinition skillDefinition,
+        int skillLevel
+    )
+    {
+        CombatSkillAttackDefenseMode mode =
+            skillDefinition?.CombatProfile?.GetEffectiveAttackDefenseMode(skillLevel)
+            ?? CombatSkillAttackDefenseMode.Normal;
+        if (mode == CombatSkillAttackDefenseMode.Normal)
+            return defenseAdjustment;
+        defenseAdjustment ??= new EquipmentAttackDefenseAdjustment();
+        switch (mode)
+        {
+            case CombatSkillAttackDefenseMode.Touch:
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.ArmorAcBonus
+                );
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.ShieldAcBonus
+                );
+                defenseAdjustment.AddIgnoredAcComponent(
+                    AttributeContentRules.NaturalArmorAcBonus
+                );
+                break;
+            case CombatSkillAttackDefenseMode.FlatFooted:
+                defenseAdjustment.AddLockAgilityBonus();
+                defenseAdjustment.AddLockDodgeBonus();
+                break;
+        }
+        return defenseAdjustment;
+    }
+
+    private int _get_target_positive_agility_ac_bonus(BattleUnitReadView targetUnit)
+    {
+        int agilityModifier = _get_unit_attribute_value(
+            targetUnit,
+            AttributeSnapshot.ToStringName(AttributeSnapshotIdKind.AgilityModifier),
+            AttributeSnapshot.CalculateScoreModifier(
+                _get_unit_attribute_value(
+                    targetUnit,
+                    UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                    10
+                )
+            )
+        );
+        StringName armorMaxDexBonusId =
+            AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus);
+        if (targetUnit.HasAttributeValue(armorMaxDexBonusId))
+        {
+            int armorMaxDexBonus = targetUnit.GetAttributeValue(armorMaxDexBonusId);
+            if (armorMaxDexBonus >= 0)
+            {
+                agilityModifier = Math.Min(agilityModifier, armorMaxDexBonus);
+            }
+        }
+        return Math.Max(agilityModifier, 0);
     }
 
     private int _apply_attack_defense_adjustment(
@@ -715,7 +852,10 @@ public class BattleHitResolver : IDisposable
         int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         bool forceHitNoCrit = attack_check.ForceHitNoCrit || attack_context.ForceHitNoCrit;
         bool forceHitAllowCrit = attack_context.ForceHitAllowCrit;
-        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit) || forceHitNoCrit;
+        bool critLocked =
+            attack_check.CritLocked
+            || BattleFateAttackRules.IsAttackCritLocked(source_unit)
+            || forceHitNoCrit;
         int requiredRoll = attack_check.RequiredRoll;
         var metadata = new AttackResolutionMetadata
         {

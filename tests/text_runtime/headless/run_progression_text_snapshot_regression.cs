@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -59,8 +59,7 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                                     "aura",
                                 },
                                 ["active_core_skill_ids"] = new GArray { "warrior_heavy_strike" },
-                                ["active_level_trigger_core_skill_id"] = "warrior_heavy_strike",
-                                ["locked_level_trigger_skill_ids"] = new GArray { "mage_blink" },
+                                ["used_growth_trigger_skill_ids"] = new GArray { "mage_blink" },
                                 ["blocked_relearn_skill_ids"] = new GArray { "old_focus" },
                                 ["skill_entries"] = new GArray
                                 {
@@ -70,9 +69,7 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                                         ["level"] = 3,
                                         ["is_core"] = true,
                                         ["assigned_profession_id"] = "warrior",
-                                        ["is_level_trigger_active"] = true,
-                                        ["is_level_trigger_locked"] = false,
-                                        ["core_max_growth_claimed"] = false,
+                                        ["growth_completed"] = false,
                                     },
                                     new GDictionary
                                     {
@@ -80,9 +77,7 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
                                         ["level"] = 1,
                                         ["is_core"] = false,
                                         ["assigned_profession_id"] = "",
-                                        ["is_level_trigger_active"] = false,
-                                        ["is_level_trigger_locked"] = true,
-                                        ["core_max_growth_claimed"] = true,
+                                        ["growth_completed"] = true,
                                     },
                                 },
                                 ["profession_entries"] = new GArray
@@ -129,17 +124,17 @@ public partial class run_progression_text_snapshot_regression : LifecycleTestSce
 
         AssertLine(
             lines,
-            "member_progression=player_sword_01 | resources=hp stamina mp aura | aura=2 | active_core=warrior_heavy_strike | active_trigger=warrior_heavy_strike | locked_trigger=mage_blink | blocked_relearn=old_focus",
+            "member_progression=player_sword_01 | resources=hp stamina mp aura | aura=2 | active_core=warrior_heavy_strike | growth_completed=mage_blink | blocked_relearn=old_focus",
             "文本快照应渲染成员 progression 资源、核心和触发状态。"
         );
         AssertLine(
             lines,
-            "member_skill=player_sword_01 | warrior_heavy_strike | lv=3 | core=true | trigger_active=true | trigger_locked=false | growth_claimed=false | profession=warrior",
+            "member_skill=player_sword_01 | warrior_heavy_strike | lv=3 | core=true | growth_completed=false | profession=warrior",
             "文本快照应渲染核心技能等级和 active trigger 状态。"
         );
         AssertLine(
             lines,
-            "member_skill=player_sword_01 | mage_blink | lv=1 | core=false | trigger_active=false | trigger_locked=true | growth_claimed=true | profession=",
+            "member_skill=player_sword_01 | mage_blink | lv=1 | core=false | growth_completed=true | profession=",
             "文本快照应渲染 locked trigger 技能状态。"
         );
         AssertLine(

@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_save_serializer_quest_round_trip_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -78,8 +78,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
-            18,
-            "Current strict world schema should use top-level save version 18."
+            21,
+            "Current strict save schema should use top-level save version 21."
         );
         Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,
@@ -87,7 +87,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         );
         bool decoded = serializer.TryDecodePayload(
             payloadPlain,
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             out SaveDecodeResult decodeResult
         );
@@ -189,7 +189,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
         bool decoded = serializer.TryDecodePayload(
             payload,
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             out SaveDecodeResult decodeResult
         );
@@ -224,7 +224,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             );
             bool decoded = serializer.TryDecodePayload(
                 payload,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -262,7 +262,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
             bool decoded = serializer.TryDecodePayload(
                 payload,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -319,7 +319,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             partyPayload["failed_quests"] = new List<object>();
             bool decoded = serializer.TryDecodePayload(
                 payload,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -365,7 +365,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
 
             bool decoded = serializer.TryDecodePayload(
                 payload,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -437,7 +437,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             {
                 decoded = serializer.TryDecodePayload(
                     payload,
-                    gameSession.GetGenerationConfigPath(),
+                    gameSession.GetWorldGenerationId(),
                     gameSession.CaptureActiveSaveMetaPlain(),
                     out decodeResult
                 );
@@ -499,7 +499,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
             partyPayload.Remove(fieldName);
             bool decoded = serializer.TryDecodePayload(
                 payload,
-                gameSession.GetGenerationConfigPath(),
+                gameSession.GetWorldGenerationId(),
                 gameSession.CaptureActiveSaveMetaPlain(),
                 out SaveDecodeResult decodeResult
             );
@@ -532,7 +532,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         payload["save_slot_meta"] = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["save_id"] = gameSession.GetActiveSaveId(),
-            ["generation_config_path"] = gameSession.GetGenerationConfigPath(),
+            ["world_generation_id"] = gameSession.GetWorldGenerationId().ToString(),
             ["world_preset_id"] = PlainString(activeSaveMeta, "world_preset_id"),
         };
         _test.True(
@@ -541,7 +541,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         );
         bool decoded = serializer.TryDecodePayload(
             payload,
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             activeSaveMeta,
             out SaveDecodeResult decodeResult
         );
@@ -558,7 +558,7 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
     {
         return gameSession._save_serializer.BuildSavePayloadLease(
             gameSession.GetActiveSaveId(),
-            gameSession.GetGenerationConfigPath(),
+            gameSession.GetWorldGenerationId(),
             gameSession.CaptureActiveSaveMetaPlain(),
             gameSession.CaptureWorldDataPlain(),
             gameSession.GetPlayerCoord(),

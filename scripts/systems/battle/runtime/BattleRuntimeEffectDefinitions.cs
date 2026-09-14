@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 internal static class BattleRuntimeEffectDefinitions
 {
@@ -14,7 +13,6 @@ internal static class BattleRuntimeEffectDefinitions
         StringName statusId,
         int power,
         int durationTu,
-        IReadOnlyDictionary<string, object> parameters = null,
         StringName stackBehavior = default,
         int stackLimit = 0,
         int attackRollPenalty = -1,
@@ -35,40 +33,20 @@ internal static class BattleRuntimeEffectDefinitions
         bool attackRollAdvantage = false
     )
     {
-        IReadOnlyDictionary<string, object> mergedParameters = parameters;
-        if (
-            sourceBoundAttackRollPenalty > 0
-            || sourceBoundIncomingAttackRollBonusPerStack > 0
-        )
-        {
-            var nextParameters = new Dictionary<string, object>(StringComparer.Ordinal);
-            if (parameters != null)
-            {
-                foreach (KeyValuePair<string, object> entry in parameters)
-                    nextParameters[entry.Key] = entry.Value;
-            }
-            if (sourceBoundAttackRollPenalty > 0)
-            {
-                nextParameters["source_bound_attack_roll_penalty"] =
-                    sourceBoundAttackRollPenalty;
-                nextParameters["source_bound_attack_roll_penalty_min_stacks"] =
-                    Math.Max(sourceBoundAttackRollPenaltyMinStacks, 1);
-            }
-            if (sourceBoundIncomingAttackRollBonusPerStack > 0)
-            {
-                nextParameters["source_bound_incoming_attack_roll_bonus_per_stack"] =
-                    sourceBoundIncomingAttackRollBonusPerStack;
-                nextParameters["source_bound_incoming_attack_roll_bonus_min_stacks"] =
-                    Math.Max(sourceBoundIncomingAttackRollBonusMinStacks, 1);
-            }
-            mergedParameters = nextParameters;
-        }
         return Create(
             effectType: StatusEffectType,
             statusId: Normalize(statusId),
             power: Math.Max(power, 0),
             durationTu: Math.Max(durationTu, 0),
-            parameters: mergedParameters,
+            payload: new StatusEffectPayloadDefinition(
+                sourceBoundAttackRollPenalty: sourceBoundAttackRollPenalty,
+                sourceBoundAttackRollPenaltyMinStacks:
+                    sourceBoundAttackRollPenaltyMinStacks,
+                sourceBoundIncomingAttackRollBonusPerStack:
+                    sourceBoundIncomingAttackRollBonusPerStack,
+                sourceBoundIncomingAttackRollBonusMinStacks:
+                    sourceBoundIncomingAttackRollBonusMinStacks
+            ),
             stackBehavior: Normalize(stackBehavior),
             stackLimit: Math.Max(stackLimit, 0),
             displayName: displayName ?? "",
@@ -93,12 +71,19 @@ internal static class BattleRuntimeEffectDefinitions
         StringName effectType = default
     )
     {
+        StringName resolvedEffectType = Normalize(effectType) == Empty
+            ? StatusEffectType
+            : Normalize(effectType);
+        BattleEffectKind resolvedKind = BattleTypedNames.ToEffectKind(resolvedEffectType);
         return Create(
-            effectType: Normalize(effectType) == Empty ? StatusEffectType : Normalize(effectType),
+            effectType: resolvedEffectType,
             saveDc: Math.Max(saveDc, 0),
             saveDcMode: StaticSaveDcMode,
             saveAbility: Normalize(saveAbility),
-            saveTag: Normalize(saveTag)
+            saveTag: Normalize(saveTag),
+            payload: resolvedKind is BattleEffectKind.Status or BattleEffectKind.ApplyStatus
+                ? new StatusEffectPayloadDefinition()
+                : EmptyCombatEffectPayloadDefinition.Instance
         );
     }
 
@@ -126,6 +111,36 @@ internal static class BattleRuntimeEffectDefinitions
         );
     }
 
+    internal static CombatEffectDefinition TimedTerrainContactDamage(
+        StringName terrainEffectId,
+        int durationTu,
+        StringName targetTeamFilter,
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        StringName damageTag,
+        string displayName
+    )
+    {
+        return Create(
+            effectType: "terrain_effect",
+            effectTargetTeamFilter: Normalize(targetTeamFilter),
+            terrainEffectId: Normalize(terrainEffectId),
+            durationTu: Math.Max(durationTu, 0),
+            tickIntervalTu: 5,
+            damageTag: Normalize(damageTag),
+            diceCount: Math.Max(diceCount, 0),
+            diceSides: Math.Max(diceSides, 0),
+            diceBonus: Math.Max(diceBonus, 0),
+            tickEffectType: "none",
+            lifetimePolicy: "timed",
+            renderOverlayId: Normalize(terrainEffectId),
+            overlayPriority: 100,
+            displayName: displayName ?? "",
+            stackBehavior: "refresh"
+        );
+    }
+
     internal static CombatEffectDefinition Heal(
         int diceCount,
         int diceSides,
@@ -138,15 +153,8 @@ internal static class BattleRuntimeEffectDefinitions
             diceCount: Math.Max(diceCount, 0),
             diceSides: Math.Max(diceSides, 0),
             diceBonus: Math.Max(diceBonus, 0),
-            power: Math.Max(power, 0)
-        );
-    }
-
-    internal static IReadOnlyDictionary<string, object> CopyVariantDictionary(GDictionary source)
-    {
-        return ContentValueNormalizer.NormalizeDictionary(
-            source,
-            "BattleRuntimeEffectDefinitions.parameters"
+            power: Math.Max(power, 0),
+            payload: new HealEffectPayloadDefinition()
         );
     }
 
@@ -207,7 +215,7 @@ internal static class BattleRuntimeEffectDefinitions
         int diceSidesBase = 0,
         int diceSidesPerConstitutionMod = 0,
         int diceSidesPerWillpowerMod = 0,
-        IReadOnlyDictionary<string, object> parameters = null,
+        ICombatEffectPayloadDefinition payload = null,
         IReadOnlyList<StringName> effectCategories = null,
         bool allowRepeatHitsAcrossSteps = false,
         StringName tickEffectType = default,
@@ -333,7 +341,7 @@ internal static class BattleRuntimeEffectDefinitions
             diceSidesBase,
             diceSidesPerConstitutionMod,
             diceSidesPerWillpowerMod,
-            parameters,
+            payload,
             effectCategories ?? EmptyStringNames,
             allowRepeatHitsAcrossSteps,
             Normalize(tickEffectType),

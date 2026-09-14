@@ -5,9 +5,10 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class BattleUnitFactory
 {
-    private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";
     private BattleRuntimeModule _runtime;
+
+    private StringName BasicAttackSkillId => _runtime?.GetBasicAttackSkillId() ?? "";
 
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
@@ -393,8 +394,10 @@ internal sealed class BattleUnitFactory
 
     internal IReadOnlyList<StringName> RefreshEquipmentProjection(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtime == null)
+        if (us == null || _runtime == null)
             return Array.Empty<StringName>();
+        if ((string)us.source_member_id == "")
+            return RefreshEnemyEquipmentProjection(us);
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
             return Array.Empty<StringName>();
@@ -430,6 +433,20 @@ internal sealed class BattleUnitFactory
             .GetEquipmentAbilityRuntimeService()
             ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), us)
             ?? Array.Empty<StringName>();
+        IReadOnlyList<StringName> statusChangedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearSourceBoundStatusesForRemovedEquipmentSources(_runtime.GetState(), us)
+            ?? Array.Empty<StringName>();
+        if (statusChangedUnitIds.Count > 0)
+        {
+            var merged = new List<StringName>(changedUnitIds);
+            foreach (StringName statusChangedUnitId in statusChangedUnitIds)
+            {
+                if (!merged.Contains(statusChangedUnitId))
+                    merged.Add(statusChangedUnitId);
+            }
+            changedUnitIds = merged;
+        }
         TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(
             us,
             previousEffectiveTraits.Instances
@@ -455,6 +472,91 @@ internal sealed class BattleUnitFactory
         _ensure_basic_attack_skill(us);
         _sync_passive_battle_statuses(us, prog, ms);
         _sync_trait_passive_projection(us);
+        return changedUnitIds;
+    }
+
+    private IReadOnlyList<StringName> RefreshEnemyEquipmentProjection(BattleUnitState unit)
+    {
+        EnemyTemplateDefinition template = _runtime.GetEnemyTemplateTyped(
+            unit?.enemy_template_id ?? ""
+        );
+        if (unit == null || template == null)
+            return Array.Empty<StringName>();
+        AttributeSnapshot previousSnapshot = _snap(unit);
+        int previousHpMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.HP_MAX) ?? 1,
+            1
+        );
+        int previousMpMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.MP_MAX) ?? 0,
+            0
+        );
+        int previousStaminaMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.STAMINA_MAX) ?? 0,
+            0
+        );
+        int previousAuraMax = Mathf.Max(
+            previousSnapshot?.GetValue(AttributeService.AURA_MAX) ?? 0,
+            0
+        );
+        AttributeSnapshot snapshot = EnemyBattleEquipmentProjectionService.BuildAttributeSnapshot(
+            template,
+            unit.GetEquipmentView(),
+            _runtime.GetItemDefIndexTyped()
+        );
+        unit.attribute_snapshot = snapshot;
+        BattleEquipmentAbilityProjectionResult equipmentAbilityProjection =
+            BattleEquipmentAbilityProjectionService.ProjectEnemyBattleOnly(
+                unit,
+                template,
+                GetEquipmentAbilityBindingIndex(),
+                _runtime.GetTraitDefIndexTyped(),
+                _runtime.GetItemDefIndexTyped()
+            );
+        unit.ReplaceEquipmentAbilityProjectionTyped(
+            equipmentAbilityProjection.Sources,
+            equipmentAbilityProjection.TemporalProgressModifiers,
+            equipmentAbilityProjection.CognitionCeilingModifiers
+        );
+        IReadOnlyList<StringName> changedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearTargetMarksForRemovedEquipmentSources(_runtime.GetState(), unit)
+            ?? Array.Empty<StringName>();
+        IReadOnlyList<StringName> statusChangedUnitIds = _runtime
+            .GetEquipmentAbilityRuntimeService()
+            ?.ClearSourceBoundStatusesForRemovedEquipmentSources(_runtime.GetState(), unit)
+            ?? Array.Empty<StringName>();
+        if (statusChangedUnitIds.Count > 0)
+        {
+            var merged = new List<StringName>(changedUnitIds);
+            foreach (StringName statusChangedUnitId in statusChangedUnitIds)
+            {
+                if (!merged.Contains(statusChangedUnitId))
+                    merged.Add(statusChangedUnitId);
+            }
+            changedUnitIds = merged;
+        }
+        int hpMax = Mathf.Max(snapshot.GetValue(AttributeService.HP_MAX), 1);
+        int mpMax = Mathf.Max(snapshot.GetValue(AttributeService.MP_MAX), 0);
+        int staminaMax = Mathf.Max(snapshot.GetValue(AttributeService.STAMINA_MAX), 0);
+        int auraMax = Mathf.Max(snapshot.GetValue(AttributeService.AURA_MAX), 0);
+        unit.SetCurrentHp(
+            hpMax < previousHpMax ? Mathf.Clamp(unit.GetCurrentHp(), 0, hpMax) : unit.GetCurrentHp()
+        );
+        unit.SetCurrentMp(
+            mpMax < previousMpMax ? Mathf.Clamp(unit.GetCurrentMp(), 0, mpMax) : unit.GetCurrentMp()
+        );
+        unit.SetCurrentStamina(
+            staminaMax < previousStaminaMax
+                ? Mathf.Clamp(unit.GetCurrentStamina(), 0, staminaMax)
+                : unit.GetCurrentStamina()
+        );
+        unit.SetCurrentAura(
+            auraMax < previousAuraMax
+                ? Mathf.Clamp(unit.GetCurrentAura(), 0, auraMax)
+                : unit.GetCurrentAura()
+        );
+        unit.SetActionThresholdTyped(_resolve_action_threshold_from_snapshot(snapshot));
         return changedUnitIds;
     }
 
@@ -639,9 +741,9 @@ internal sealed class BattleUnitFactory
         us.SetEquipmentView(_get_member_equipment_state(ms));
         var snap = _build_member_attribute_snapshot(ms, ctx, us.GetEquipmentView());
         us.attribute_snapshot = snap;
-        _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
         _apply_member_effective_trait_projection(us, mid, us.GetEquipmentView());
         _apply_player_equipment_ability_projection(us);
+        _apply_member_weapon_projection(us, mid, us.GetEquipmentView());
         int hpMax = Mathf.Max(snap.GetValue(AttributeService.HP_MAX), 1),
             mpMax = Mathf.Max(snap.GetValue(AttributeService.MP_MAX), 0);
         int stamMax = Mathf.Max(snap.GetValue(AttributeService.STAMINA_MAX), 0),
@@ -774,11 +876,12 @@ internal sealed class BattleUnitFactory
     {
         var pre = new StringNameList
         {
-            BASIC_ATTACK_SKILL_ID,
             "warrior_heavy_strike",
             "warrior_combo_strike",
             "warrior_guard_break",
         };
+        if (BasicAttackSkillId != "")
+            pre.Insert(0, BasicAttackSkillId);
         foreach (var p in pre)
             if (_is_valid_enemy_skill(_skill_definition_from_runtime(p)))
                 return new StringNameList { p };
@@ -1052,6 +1155,12 @@ internal sealed class BattleUnitFactory
             us.ClearWeaponProjection();
             return;
         }
+        projection = EquipmentWeaponProfileOverlayService.ApplyOverlays(
+            us,
+            projection,
+            GetEquipmentAbilityBindingIndex(),
+            BuildItemDefIndexSnapshotWithEquipmentView(ev ?? us.GetEquipmentView())
+        );
         us.ApplyWeaponProjectionTyped(projection);
     }
 
@@ -1158,22 +1267,24 @@ internal sealed class BattleUnitFactory
 
     private void _ensure_basic_attack_skill(BattleUnitState us)
     {
-        if (us == null || !_runtime_has_skill(BASIC_ATTACK_SKILL_ID))
+        StringName basicAttackSkillId = BasicAttackSkillId;
+        if (us == null || basicAttackSkillId == "" || !_runtime_has_skill(basicAttackSkillId))
             return;
-        us.AddKnownActiveSkill(BASIC_ATTACK_SKILL_ID);
-        us.SetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID, 0, preserveZero: true);
+        us.AddKnownActiveSkill(basicAttackSkillId);
+        us.SetKnownSkillLevelTyped(basicAttackSkillId, 0, preserveZero: true);
     }
 
     private void _ensure_enemy_basic_attack_affordability(BattleUnitState us)
     {
-        if (us == null || !us.KnowsActiveSkill(BASIC_ATTACK_SKILL_ID))
+        StringName basicAttackSkillId = BasicAttackSkillId;
+        if (us == null || basicAttackSkillId == "" || !us.KnowsActiveSkill(basicAttackSkillId))
             return;
-        SkillDefinition basicAttack = _skill_definition_from_runtime(BASIC_ATTACK_SKILL_ID);
+        SkillDefinition basicAttack = _skill_definition_from_runtime(basicAttackSkillId);
         CombatSkillDefinition combatProfile = basicAttack?.CombatProfile;
         if (combatProfile == null)
             return;
-        int sl = us.HasKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID)
-            ? Mathf.Max(us.GetKnownSkillLevelTyped(BASIC_ATTACK_SKILL_ID), 0)
+        int sl = us.HasKnownSkillLevelTyped(basicAttackSkillId)
+            ? Mathf.Max(us.GetKnownSkillLevelTyped(basicAttackSkillId), 0)
             : 0;
         CombatSkillResourceCosts costs = combatProfile.GetEffectiveResourceCostValues(sl);
         int sc = Mathf.Max(costs.StaminaCost, 0);
@@ -1307,10 +1418,10 @@ internal sealed class BattleUnitFactory
                 sp == null
                 || skillDefinition == null
                 || !sp.is_learned
-                || !sp.is_level_trigger_locked
+                || !prog.HasUsedGrowthTrigger(sid)
             )
                 continue;
-            int b = sp.bonus_to_hit_from_lock;
+            int b = PromotionEligibilityRules.CompletedSkillCheckBonus;
             if (b <= 0)
                 continue;
             r[sid] = b;

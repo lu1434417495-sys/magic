@@ -47,7 +47,10 @@ public partial class BattleUnitState
     };
 
     internal const int DefaultMovePointsPerTurn = 2;
-    internal const int DefaultActionThreshold = 120;
+    // 与 AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD 同尺度。
+    // 早期这里是 120、角色侧是 30，两套尺度并存；行动节奏敏捷派生提案统一到 40。
+    internal const int DefaultActionThreshold =
+        AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD;
     internal const int BodySizeTiny = 1;
     internal const int BodySizeSmall = 1;
     internal const int BodySizeMedium = 2;
@@ -63,7 +66,7 @@ public partial class BattleUnitState
         "enemy_template_id",
         "encounter_actor_id",
         "display_name",
-        "battle_sprite_texture_path",
+        "battle_sprite_asset_id",
         "faction_id",
         "control_mode",
         "ai_brain_id",
@@ -108,6 +111,7 @@ public partial class BattleUnitState
         "save_immunity_tags",
         "damage_resistances",
         "save_bonus_by_ability",
+        "save_bonus_by_tag",
         "effective_trait_instances",
         "effective_trait_ids",
         "equipment_ability_sources",
@@ -128,6 +132,8 @@ public partial class BattleUnitState
         "cooldowns",
         "last_turn_tu",
         "status_effects",
+        "reaction_state",
+        "counterattack_capability_state",
     };
 
     internal static IReadOnlyList<StringName> DefaultUnlockedCombatResourceIdsTyped =>
@@ -191,7 +197,7 @@ public partial class BattleUnitState
     public StringName enemy_template_id = "";
     public StringName encounter_actor_id = "";
     public string display_name = "";
-    public string battle_sprite_texture_path = "";
+    public StringName battle_sprite_asset_id = "";
     public StringName faction_id = "";
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
@@ -714,13 +720,15 @@ public partial class BattleUnitState
         IEnumerable<StringName> advantageTags,
         IEnumerable<StringName> disadvantageTags,
         IEnumerable<StringName> immunityTags,
-        IReadOnlyDictionary<StringName, int> bonusByAbility
+        IReadOnlyDictionary<StringName, int> bonusByAbility,
+        IReadOnlyDictionary<StringName, int> bonusByTag
     ) =>
         SaveModifierState.ReplaceNormalized(
             advantageTags,
             disadvantageTags,
             immunityTags,
-            bonusByAbility
+            bonusByAbility,
+            bonusByTag
         );
 
     internal void ReplaceSaveTagsTyped(
@@ -738,6 +746,11 @@ public partial class BattleUnitState
         IReadOnlyDictionary<StringName, int> bonusByAbility
     ) =>
         SaveModifierState.ReplaceBonusesNormalized(bonusByAbility);
+
+    internal void ReplaceSaveTagBonusesTyped(
+        IReadOnlyDictionary<StringName, int> bonusByTag
+    ) =>
+        SaveModifierState.ReplaceTagBonusesNormalized(bonusByTag);
 
     internal void AppendSaveTagsTyped(
         IEnumerable<StringName> advantageTags,
@@ -891,6 +904,13 @@ public partial class BattleUnitState
         int fallback = 0
     ) =>
         _saveModifierState?.GetAbilityBonus(ability, fallback)
+        ?? fallback;
+
+    public int GetSaveBonusByTagTyped(
+        StringName tag,
+        int fallback = 0
+    ) =>
+        _saveModifierState?.GetTagBonus(tag, fallback)
         ?? fallback;
 
     internal bool AddSaveBonusByAbilityTyped(
@@ -1710,10 +1730,81 @@ public partial class BattleUnitState
     public void EraseStatusEffect(StringName status_id)
     {
         StringName normalized = ToStringName(status_id);
-        if (!IsEmpty(normalized))
+        if (IsEmpty(normalized))
         {
-            _statusEffects.Remove(normalized);
+            return;
         }
+        BattleStatusEffectState removed = _statusEffects.Get(normalized);
+        if (removed == null || !_statusEffects.Remove(normalized))
+            return;
+        ApplyOnRemovedStatusTransitionTyped(removed);
+    }
+
+    internal IReadOnlyList<StringName> BreakStatusEffectsOnPositiveDamageTyped()
+    {
+        var removedStatusIds = new List<StringName>();
+        foreach (StringName statusId in GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = GetStatusEffect(statusId);
+            if (status?.break_on_positive_damage != true)
+                continue;
+            EraseStatusEffect(statusId);
+            removedStatusIds.Add(statusId);
+        }
+        return removedStatusIds;
+    }
+
+    internal IReadOnlyList<StringName> ConsumeStatusEffectsAfterNormalTurnTyped()
+    {
+        var removedStatusIds = new List<StringName>();
+        foreach (StringName statusId in GetSortedStatusEffectIdsTyped())
+        {
+            BattleStatusEffectState status = GetStatusEffect(statusId);
+            if (status?.consume_after_normal_turn != true)
+                continue;
+            EraseStatusEffect(statusId);
+            removedStatusIds.Add(statusId);
+        }
+        return removedStatusIds;
+    }
+
+    private void ApplyOnRemovedStatusTransitionTyped(BattleStatusEffectState removed)
+    {
+        StringName successorId = ToStringName(removed?.on_removed_status_id ?? "");
+        if (IsEmpty(successorId) || successorId == removed.status_id)
+            return;
+
+        BattleStatusEffectState successor =
+            GetStatusEffect(successorId)?.DuplicateState()
+            ?? new BattleStatusEffectState
+            {
+                status_id = successorId,
+                source_unit_id = removed.source_unit_id,
+                source_profile_id = removed.source_profile_id,
+                source_layer_id = removed.source_layer_id,
+                source_skill_id = removed.source_skill_id,
+                stack_behavior = BattleStatusSemanticTable.STACK_REFRESH,
+                stack_limit = 1,
+                power = 1,
+                stacks = 1,
+                duration = -1,
+            };
+        successor.undispellable =
+            successor.undispellable || removed.on_removed_status_undispellable;
+        successor.consume_after_normal_turn =
+            successor.consume_after_normal_turn
+            || removed.on_removed_status_consume_after_normal_turn;
+        successor.save_immunity_tags ??= new List<StringName>();
+        foreach (
+            StringName tag in removed.on_removed_status_save_immunity_tags
+                ?? new List<StringName>()
+        )
+        {
+            StringName normalizedTag = ToStringName(tag);
+            if (!IsEmpty(normalizedTag) && !successor.save_immunity_tags.Contains(normalizedTag))
+                successor.save_immunity_tags.Add(normalizedTag);
+        }
+        SetStatusEffect(successor);
     }
 
     public void ClearStatusEffects()
@@ -1813,7 +1904,7 @@ public partial class BattleUnitState
             enemy_template_id = enemy_template_id,
             encounter_actor_id = encounter_actor_id,
             display_name = display_name,
-            battle_sprite_texture_path = battle_sprite_texture_path,
+            battle_sprite_asset_id = battle_sprite_asset_id,
             faction_id = faction_id,
             control_mode = control_mode,
             ai_brain_id = ai_brain_id,
@@ -1894,6 +1985,10 @@ public partial class BattleUnitState
             ConsumedContingencySetups =
                 _consumedContingencySetups?.DuplicateState()
                 ?? new BattleConsumedContingencySetupCollection(),
+            _reactionState =
+                _reactionState?.DuplicateState(),
+            _counterattackCapabilityState =
+                _counterattackCapabilityState?.DuplicateState(),
         };
     }
 
@@ -1941,7 +2036,7 @@ public partial class BattleUnitState
             ["enemy_template_id"] = enemy_template_id.ToString(),
             ["encounter_actor_id"] = encounter_actor_id.ToString(),
             ["display_name"] = display_name,
-            ["battle_sprite_texture_path"] = battle_sprite_texture_path,
+            ["battle_sprite_asset_id"] = battle_sprite_asset_id.ToString(),
             ["faction_id"] = faction_id.ToString(),
             ["control_mode"] = control_mode.ToString(),
             ["ai_brain_id"] = ai_brain_id.ToString(),
@@ -2018,6 +2113,10 @@ public partial class BattleUnitState
                 SaveAbilityBonusViewToPlain(
                     saveModifiers.BonusByAbility
                 ),
+            ["save_bonus_by_tag"] =
+                SaveAbilityBonusViewToPlain(
+                    saveModifiers.BonusByTag
+                ),
             ["effective_trait_instances"] = EffectiveTraitInstancesToPlain(
                 effectiveTraits.Instances
             ),
@@ -2053,6 +2152,9 @@ public partial class BattleUnitState
             ),
             ["last_turn_tu"] = cooldownState.LastTurnTu,
             ["status_effects"] = _statusEffects.BuildSnapshotPlain(),
+            ["reaction_state"] = BuildReactionStatePlain(),
+            ["counterattack_capability_state"] =
+                BuildCounterattackCapabilityStatePlain(),
         };
     }
 
@@ -2097,6 +2199,18 @@ public partial class BattleUnitState
             return null;
         }
         if (!HasExactFields(payload, ToDictFields))
+        {
+            return null;
+        }
+        if (
+            !TryReadCounterattackComponentSnapshots(
+                payload,
+                out BattleUnitReactionSnapshot
+                    parsedReactionSnapshot,
+                out BattleUnitCounterattackCapabilitySnapshot
+                    parsedCapabilitySnapshot
+            )
+        )
         {
             return null;
         }
@@ -2427,6 +2541,14 @@ public partial class BattleUnitState
                     true
                 ) ?? new BattleStringNameIntMap()
                 : new BattleStringNameIntMap();
+        BattleStringNameIntMap parsedSaveBonusByTag =
+            payload.ContainsKey("save_bonus_by_tag")
+            && payload["save_bonus_by_tag"].VariantType.ToString() == "Dictionary"
+                ? BattleStringNameIntMap.FromPayloadOrNull(
+                    payload["save_bonus_by_tag"].AsGodotDictionary(),
+                    true
+                ) ?? new BattleStringNameIntMap()
+                : new BattleStringNameIntMap();
 
         StringName parsedWeaponProfileKind = ToStringName(payload["weapon_profile_kind"]);
         if (!IsValidWeaponProfileKind(parsedWeaponProfileKind))
@@ -2479,7 +2601,7 @@ public partial class BattleUnitState
             enemy_template_id = ToStringName(payload["enemy_template_id"]),
             encounter_actor_id = ToStringName(payload["encounter_actor_id"]),
             display_name = payload["display_name"].AsString(),
-            battle_sprite_texture_path = payload["battle_sprite_texture_path"].AsString(),
+            battle_sprite_asset_id = ToStringName(payload["battle_sprite_asset_id"]),
             faction_id = ToStringName(payload["faction_id"]),
             control_mode = ToStringName(payload["control_mode"]),
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
@@ -2576,7 +2698,8 @@ public partial class BattleUnitState
                         parsedSaveAdvantageTags,
                         parsedSaveDisadvantageTags,
                         parsedSaveImmunityTags,
-                        parsedSaveBonusByAbility
+                        parsedSaveBonusByAbility,
+                        parsedSaveBonusByTag
                     )
                 ),
             DamageResistanceState =
@@ -2639,6 +2762,12 @@ public partial class BattleUnitState
             ),
             StatusEffectCollection = parsedStatusEffects,
         };
+        unitState.RestoreReactionRawTyped(
+            parsedReactionSnapshot
+        );
+        unitState.RestoreCounterattackCapabilitiesRawTyped(
+            parsedCapabilitySnapshot
+        );
         unitState.attribute_snapshot.SetValue("aura_max", payload["aura_max"].AsInt32());
         unitState.NormalizeShieldState();
         unitState.EnsureBodySizeProjectionInvariant();

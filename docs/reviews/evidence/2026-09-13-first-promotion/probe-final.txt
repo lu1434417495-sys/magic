@@ -1,0 +1,33 @@
+
+[1/1] [RUN] tests/progression/core/run_first_promotion_audit_probe.cs
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+AUDIT natural_after_900 character=0 skillA=3 core=False active= locked=False claimed=False pending=0 modal=None prompt_fields=0 hp=6
+AUDIT growth natural_after_900
+AUDIT natural_set_trigger ok=False error=skill_not_core
+AUDIT natural_choose ok=False code=InvalidState message=当前没有待确认的职业晋升选择。
+AUDIT after_diagnostic_selection character=0 skillA=3 core=True active=warrior_heavy_strike locked=False claimed=False pending=1 modal=None prompt_fields=0 hp=6
+AUDIT growth after_diagnostic_selection
+AUDIT selection_alone_presented=False prompt_fields=0
+AUDIT after_extra_reward character=0 skillA=3 core=True active=warrior_heavy_strike locked=False claimed=False pending=1 modal=Promotion prompt_fields=3 hp=6
+AUDIT growth after_extra_reward
+AUDIT prompt={"member_id":"player_sword_01","member_name":"\u5251\u58EB","choices":[{"profession_id":"warrior","display_name":"\u6218\u58EB","summary":"Rank 1","description":"\u95E8\u69DB\u4E0D\u9AD8\u7684\u901A\u7528\u8FD1\u6218\u804C\u4E1A\u3002\u6218\u58EB\u7B49\u7EA7\u53EA\u63D0\u4F9B\u57FA\u7840\u4F53\u80FD\u4E0E\u6218\u6597\u7D20\u517B\uFF0C\u5177\u4F53\u98CE\u683C\u7531\u73A9\u5BB6\u540E\u7EED\u5B66\u4E60\u548C\u878D\u5408\u51FA\u7684\u6280\u80FD\u4F53\u7CFB\u51B3\u5B9A\u3002","granted_skill_ids":["warrior_toughness"],"selection_hint":"\u786E\u8BA4\u540E\u5C06\u5728\u4E16\u754C\u5730\u56FE\u7ACB\u5373\u751F\u6548\u3002","selection":{"selected_assigned_core_skill_ids":[],"selected_qualifier_skill_ids":[],"trigger_skill_ids":[]}}]}
+AUDIT before_commit_can_promote=True
+AUDIT first_commit ok=False code=InvalidState message=晋升提交无效，当前选择仍需确认。
+AUDIT intervention replaced empty prompt selection with explicit legal skill selection
+AUDIT promoted character=1 skillA=3 core=True active= locked=True claimed=True pending=0 modal=Reward prompt_fields=0 hp=7
+AUDIT growth promoted constitution:20,strength:40
+AUDIT reloaded_promoted character=1 skillA=3 core=True active= locked=True claimed=True pending=0 modal=Reward prompt_fields=0 hp=7
+AUDIT growth reloaded_promoted constitution:20,strength:40
+AUDIT rank2_before_old_skill_refill can_promote=False A_level=3 A_max=5
+AUDIT rank2_pending_before_reload character=1 skillA=5 core=True active=warrior_guard locked=True claimed=True pending=1 modal=Promotion prompt_fields=3 hp=12
+AUDIT growth rank2_pending_before_reload constitution:20,strength:40
+AUDIT rank2_pending_after_reload character=1 skillA=5 core=True active=warrior_guard locked=True claimed=True pending=1 modal=None prompt_fields=0 hp=12
+AUDIT growth rank2_pending_after_reload constitution:20,strength:40
+AUDIT pending_reload presented=False command_ok=False message=当前没有待确认的职业晋升选择。
+First promotion audit probe: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+[1/1] [DONE] tests/progression/core/run_first_promotion_audit_probe.cs - 成功 (3.98s)
+
+Passed: 1
+Failed: 0

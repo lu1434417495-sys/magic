@@ -181,10 +181,23 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         fixture.RebindState();
         int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
+        AutoCastRequest request =
+            BuildAutoCastRequest(
+                fixture.Source,
+                repeatSkill.SkillId,
+                target
+            );
 
-        bool executed = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
-            BuildAutoCastRequest(fixture.Source, repeatSkill.SkillId, target),
-            batch
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            BattleEffectOrigin.AutoCast(request),
+            () =>
+                executed = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
+                    request,
+                    batch
+                )
         );
 
         _test.True(executed, "自动重复攻击被屏障拦截仍应算作一次有效屏障交互。");
@@ -219,10 +232,17 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         int hpBefore = target.GetCurrentHp();
         using var batch = new BattleEventBatch();
 
-        bool resolved = fixture.Runtime._skill_orchestrator.ResolvePendingCast(
-            fixture.Source,
-            pendingCast,
-            batch
+        bool resolved = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime,
+            batch,
+            BattleEffectOrigin.Timeline("ready_unit_activation"),
+            () =>
+                resolved = fixture.Runtime._skill_orchestrator.ResolvePendingCast(
+                    fixture.Source,
+                    pendingCast,
+                    batch
+                )
         );
 
         _test.True(resolved, "读条重复攻击被屏障拦截仍应完成屏障交互。");
@@ -338,12 +358,12 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             saveDcMode: "static",
             saveAbility: "willpower",
             saveTag: "magic",
-            parameters: new Dictionary<string, object>
-            {
-                ["area_pattern"] = "diamond",
-                ["profile_id"] = "prismatic_sphere",
-                ["radius_cells"] = 2,
-            }
+            payload: new LayeredBarrierEffectPayloadDefinition(
+                areaPattern: "diamond",
+                profileId: "prismatic_sphere",
+                radiusCells: 2,
+                saveDc: 0
+            )
         );
         using var batch = new BattleEventBatch();
         runtime._layered_barrier_service.ApplyLayeredBarrierEffectResult(
@@ -412,10 +432,7 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
         CombatEffectDefinition repeat = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
             effectTargetTeamFilter: "enemy",
-            parameters: new Dictionary<string, object>
-            {
-                ["follow_up_damage_multiplier_percent"] = 100,
-            }
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition()
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,
@@ -449,10 +466,11 @@ public partial class run_prismatic_sphere_special_entry_regression : LifecycleTe
             "chain_damage",
             effectTargetTeamFilter: "enemy",
             preventRepeatTarget: true,
-            parameters: new Dictionary<string, object>
-            {
-                ["base_chain_radius"] = 1,
-            }
+            chainDamage: new CombatChainDamageDefinition(
+                baseHopRange: 1,
+                conductiveHopRange: 1,
+                maxTotalTargets: 3
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

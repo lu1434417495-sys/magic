@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 public partial class run_battle_balance_simulation : LifecycleTestSceneTree
@@ -11,8 +12,20 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
 
     private void RunDeferred()
     {
-        int exitCode = Run();
-        RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
+        int exitCode = 1;
+        try
+        {
+            exitCode = Run();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"Unexpected battle balance simulation exception: {exception}");
+            exitCode = 1;
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle balance simulation", exitCode));
+        }
     }
 
     private int Run()
@@ -21,31 +34,30 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
         if (args.Length == 0)
         {
             ConsoleProcessOutput.WriteFailure(
-                "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario.tres> [profile.tres ...]"
+                "Usage: godot --headless --script tests/battle_runtime/simulation/run_battle_balance_simulation.cs -- <scenario_id> [profile_id ...]"
             );
             return 1;
         }
 
-        BattleSimScenarioDef scenarioResource =
-            ResourceLoader.Load<BattleSimScenarioDef>(args[0]);
-        if (scenarioResource == null)
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        if (!scenarioCatalog.TryGetScenario(args[0], out BattleSimScenarioDefinition scenario))
         {
-            ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimScenarioDef from {args[0]}.");
+            ConsoleProcessOutput.WriteFailure($"Failed to load BattleSim scenario id {args[0]}.");
             return 1;
         }
-        BattleSimScenarioDefinition scenario = scenarioResource.ToDefinition();
-        scenarioResource = null;
 
+        var profileRegistry = new BattleSimProfileContentRegistry();
+        if (OS.HasEnvironment("BATTLE_SIM_PROFILE_DIRECTORY"))
+            profileRegistry.LoadFromDirectory(OS.GetEnvironment("BATTLE_SIM_PROFILE_DIRECTORY").StripEdges());
+        else
+            profileRegistry.Rebuild();
         var profiles = new List<BattleSimProfileDefinition>();
         for (int index = 1; index < args.Length; index++)
         {
-            BattleSimProfileDef authoredProfile = ResourceLoader.Load<BattleSimProfileDef>(
-                args[index]
-            );
-            BattleSimProfileDefinition profile = authoredProfile?.ToDefinition();
-            if (profile == null)
+            if (!profileRegistry.TryGetDefinition(args[index], out BattleSimProfileDefinition profile))
             {
-                ConsoleProcessOutput.WriteFailure($"Failed to load BattleSimProfileDef from {args[index]}.");
+                ConsoleProcessOutput.WriteFailure($"Failed to load BattleSim profile id {args[index]}.");
                 return 1;
             }
             profiles.Add(profile);
@@ -55,7 +67,8 @@ public partial class run_battle_balance_simulation : LifecycleTestSceneTree
             new BattleSimContentProvider(GameSessionTestFactory.GetProcessSnapshot())
         );
         runner.SetProgressLoggingEnabled(true);
-        runner.SetProgressLogPath("res://battle_sim_progress.log");
+        // user:// keeps the run out of the work tree; the resolved absolute path is printed below.
+        runner.SetProgressLogPath("user://simulation_reports/battle_sim_progress.log");
         BattleSimScenarioReport report = runner.RunScenario(scenario, profiles);
 
         ConsoleProcessOutput.WriteStandard(

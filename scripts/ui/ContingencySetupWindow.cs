@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 [GlobalClass]
@@ -15,45 +18,8 @@ public partial class ContingencySetupWindow : ModalWindowShell
     [Signal]
     public delegate void closedEventHandler();
 
-    private sealed class TemplateOption
-    {
-        public StringName PayloadName { get; init; }
-        public StringName SetupId { get; init; }
-        public string DisplayName { get; init; } = "";
-        public string TriggerType { get; init; } = "";
-        public string ReleaseMode { get; init; } = "";
-        public string SpellSummary { get; init; } = "";
-        public string TargetResolver { get; init; } = "";
-        public int MatrixLoad { get; init; }
-    }
-
-    private static readonly TemplateOption[] V1Templates =
-    {
-        new()
-        {
-            PayloadName = "hp_mirror_self",
-            SetupId = "hp_mirror_self",
-            DisplayName = "濒死镜影",
-            TriggerType = "hp_below_percent",
-            ReleaseMode = "burst_release",
-            SpellSummary = "mage_mirror_image@2:self",
-            TargetResolver = "self",
-            MatrixLoad = 3,
-        },
-        new()
-        {
-            PayloadName = "owner_turn_mirror_self",
-            SetupId = "owner_turn_mirror_self",
-            DisplayName = "起手镜影",
-            TriggerType = "owner_turn_started",
-            ReleaseMode = "burst_release",
-            SpellSummary = "mage_mirror_image@2:self",
-            TargetResolver = "self",
-            MatrixLoad = 3,
-        },
-    };
-
-    private static TemplateOption DefaultTemplate => V1Templates[0];
+    private IReadOnlyList<ContingencySetupTemplateDefinition> _templates =
+        Array.Empty<ContingencySetupTemplateDefinition>();
 
     public Label member_status_label;
     public Label setup_status_label;
@@ -70,10 +36,20 @@ public partial class ContingencySetupWindow : ModalWindowShell
     public Button close_button;
 
     private StringName _member_id = "";
-    private StringName _setup_id = DefaultTemplate.SetupId;
-    private StringName _selected_payload_name = DefaultTemplate.PayloadName;
+    private StringName _setup_id = "";
+    private StringName _selected_payload_name = "";
     private bool _charged;
     private bool _selected_template_saved;
+    private IReadOnlyDictionary<StringName, SkillDefinition> _skillDefinitions = new Dictionary<StringName, SkillDefinition>();
+    private IReadOnlyDictionary<StringName, ItemDefinition> _itemDefinitions = new Dictionary<StringName, ItemDefinition>();
+
+    public void SetDisplayDefinitions(
+        IReadOnlyDictionary<StringName, SkillDefinition> skills,
+        IReadOnlyDictionary<StringName, ItemDefinition> items)
+    {
+        _skillDefinitions = skills ?? new Dictionary<StringName, SkillDefinition>();
+        _itemDefinitions = items ?? new Dictionary<StringName, ItemDefinition>();
+    }
 
     public override void _Ready()
     {
@@ -103,54 +79,74 @@ public partial class ContingencySetupWindow : ModalWindowShell
 
     protected override void _on_modal_close_requested() => CloseWindow();
 
-    public void ShowForMember(PartyMemberState member, CharacterManagementModule characterManagement)
+    public void ShowForMember(
+        PartyMemberState member,
+        CharacterManagementModule characterManagement,
+        IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> templateDefinitions
+    )
     {
+        SetTemplateDefinitions(templateDefinitions);
+        // 静默 HideWindow 会让玩家点开应变设置时"什么都没发生"，既无日志也无提示。
+        // 模板为空只可能是内容或装配缺陷，必须报出来。
+        ContingencySetupTemplateDefinition defaultTemplate =
+            DefaultTemplate
+            ?? throw new InvalidOperationException(
+                "ContingencySetupWindow was opened without any contingency setup template "
+                    + "definitions."
+            );
         Visible = true;
         _member_id = member?.member_id ?? new StringName("");
         ContingencyMatrixSetupState setup = ResolveSetup(member);
-        TemplateOption template = ResolveTemplate(setup) ?? DefaultTemplate;
-        _setup_id = setup?.SetupId ?? template.SetupId;
-        _selected_payload_name = template.PayloadName;
+        // 成员没存过设置时落到默认模板是正常的；但存过、模板却查不到，说明存档与内容
+        // 已经漂移。此时套默认模板会渲染出跟 _setup_id 不是一回事的数据，玩家看不出来。
+        ContingencySetupTemplateDefinition template =
+            setup == null
+                ? defaultTemplate
+                : ResolveTemplate(setup)
+                    ?? throw new InvalidOperationException(
+                        $"Stored contingency setup '{setup.SetupId}' has no matching template "
+                            + "definition."
+                    );
+        _setup_id = setup?.SetupId ?? template.TemplateId;
+        _selected_payload_name = template.TemplateId;
         _charged = setup?.Charged ?? false;
         _selected_template_saved = setup != null;
 
-        member_status_label.Text =
-            member != null
-                ? $"{member.display_name} | member_id={member.member_id}"
-                : "member_id=";
+        member_status_label.Text = member?.display_name ?? "未选择成员";
         PopulateTriggerOptions(template);
         RenderTemplateState(template, setup, characterManagement, member);
     }
 
     private void RenderTemplateState(
-        TemplateOption template,
+        ContingencySetupTemplateDefinition template,
         ContingencyMatrixSetupState setup,
         CharacterManagementModule characterManagement,
         PartyMemberState member
     )
     {
         setup_status_label.Text =
-            setup != null && setup.SetupId == template.SetupId
-                ? $"{setup.SetupId} | {setup.DisplayName} | charged={(_charged ? "yes" : "no")}"
-                : $"{template.SetupId} | {template.DisplayName} | 未保存";
+            setup != null && setup.SetupId == template.TemplateId
+                ? $"{setup.DisplayName} · {(_charged ? "已充能" : "待充能")}"
+                : $"{template.DisplayName} · 未保存";
 
         UiOptionButtonUtils.SetSingle(
             release_mode_selector,
-            setup?.ReleaseMode.ToString() ?? template.ReleaseMode
+            UiDisplayLabels.ContingencyRelease(setup?.ReleaseMode.ToString() ?? template.ReleaseMode.ToString())
         );
         UiOptionButtonUtils.SetSingle(
             target_resolver_selector,
-            ResolveTargetResolver(setup) ?? template.TargetResolver
+            UiDisplayLabels.ContingencyTarget(ContingencyContractRules.ToTargetResolverKind(ResolveTargetResolver(setup) ?? ResolveTargetResolver(template)))
         );
         stored_spell_list.Clear();
-        if (setup != null && setup.SetupId == template.SetupId)
+        if (setup != null && setup.SetupId == template.TemplateId)
             foreach (ContingencyStoredSpellEntryState spell in setup.StoredSpells)
-                stored_spell_list.AddItem($"{spell.StoredSkillId}@{spell.CastLevel}:{spell.TargetResolver?.Type}");
+                AddStoredSpell(spell.StoredSkillId, spell.CastLevel, spell.TargetResolver?.ResolverKind ?? ContingencyTargetResolverKind.Unknown);
         else
-            stored_spell_list.AddItem(template.SpellSummary);
+            foreach (ContingencyStoredSpellTemplateDefinition spell in template.StoredSpells)
+                AddStoredSpell(spell.StoredSkillId, spell.MaxCastLevel, spell.TargetResolver?.ResolverKind ?? ContingencyTargetResolverKind.Unknown);
 
-        int matrixLoad = setup?.SetupId == template.SetupId ? setup.MatrixLoad : template.MatrixLoad;
-        int reservedMpMax = setup?.SetupId == template.SetupId ? setup.ReservedMpMax : 0;
+        int matrixLoad = setup?.SetupId == template.TemplateId ? setup.MatrixLoad : template.MatrixLoad;
+        int reservedMpMax = setup?.SetupId == template.TemplateId ? setup.ReservedMpMax : 0;
         int effectiveMpMax = Mathf.Max(
             characterManagement?.GetMemberAttributeSnapshot(_member_id)?.GetValue(AttributeService.MP_MAX)
                 ?? member?.current_mp
@@ -158,9 +154,11 @@ public partial class ContingencySetupWindow : ModalWindowShell
             0
         );
         matrix_preview_label.Text =
-            $"matrix_load={matrixLoad} | reserved_mp_max={reservedMpMax} | effective_mp_max={effectiveMpMax}";
-        material_preview_label.Text =
-            $"special_contingency_gem:{(setup?.SetupId == template.SetupId ? GetMaterialQuantity(setup) : 0)}";
+            $"矩阵负载 {matrixLoad}  ·  预留魔力 {reservedMpMax}  ·  可用魔力上限 {effectiveMpMax}";
+        material_preview_label.Text = BuildMaterialPreview(
+            template,
+            setup?.SetupId == template.TemplateId && setup.Charged
+        );
         save_button.Disabled = _member_id == "" || _charged;
         charge_button.Disabled = _member_id == "" || _charged || !_selected_template_saved;
         clear_charge_button.Disabled = _member_id == "" || !_charged;
@@ -173,8 +171,8 @@ public partial class ContingencySetupWindow : ModalWindowShell
     {
         Visible = false;
         _member_id = "";
-        _setup_id = DefaultTemplate.SetupId;
-        _selected_payload_name = DefaultTemplate.PayloadName;
+        _setup_id = "";
+        _selected_payload_name = "";
         _charged = false;
         _selected_template_saved = false;
         if (clear_charge_confirmation_label != null)
@@ -204,46 +202,69 @@ public partial class ContingencySetupWindow : ModalWindowShell
         return setup.StoredSpells[0].TargetResolver?.Type.ToString() ?? "self";
     }
 
-    private static TemplateOption ResolveTemplate(ContingencyMatrixSetupState setup)
+    private ContingencySetupTemplateDefinition ResolveTemplate(ContingencyMatrixSetupState setup)
     {
         if (setup == null)
             return null;
-        foreach (TemplateOption option in V1Templates)
-            if (option.SetupId == setup.SetupId)
-                return option;
+        foreach (ContingencySetupTemplateDefinition definition in _templates)
+            if (definition.TemplateId == setup.SetupId)
+                return definition;
         return null;
     }
 
-    private static TemplateOption ResolveTemplateByPayload(StringName payloadName)
+    private ContingencySetupTemplateDefinition ResolveTemplateByPayload(StringName payloadName)
     {
-        foreach (TemplateOption option in V1Templates)
-            if (option.PayloadName == payloadName)
-                return option;
-        return DefaultTemplate;
+        foreach (ContingencySetupTemplateDefinition definition in _templates)
+            if (definition.TemplateId == payloadName)
+                return definition;
+        // 退回 DefaultTemplate 会让"点了 A 选中 B"变成无声行为。
+        throw new InvalidOperationException(
+            $"Contingency trigger option '{payloadName}' does not match any loaded template."
+        );
     }
 
-    private void PopulateTriggerOptions(TemplateOption selected)
+    private void PopulateTriggerOptions(ContingencySetupTemplateDefinition selected)
     {
         trigger_selector.Clear();
         int selectedIndex = 0;
-        for (int index = 0; index < V1Templates.Length; index++)
+        for (int index = 0; index < _templates.Count; index++)
         {
-            TemplateOption option = V1Templates[index];
-            trigger_selector.AddItem(option.TriggerType);
-            trigger_selector.SetItemMetadata(index, option.PayloadName.ToString());
-            if (option.PayloadName == selected.PayloadName)
+            ContingencySetupTemplateDefinition definition = _templates[index];
+            trigger_selector.AddItem(UiDisplayLabels.ContingencyTrigger(definition.Trigger));
+            trigger_selector.SetItemMetadata(index, definition.TemplateId.ToString());
+            if (definition.TemplateId == selected.TemplateId)
                 selectedIndex = index;
         }
         trigger_selector.Selected = selectedIndex;
     }
 
-    private static int GetMaterialQuantity(ContingencyMatrixSetupState setup)
+    private static string ResolveTargetResolver(ContingencySetupTemplateDefinition template)
     {
-        int total = 0;
-        foreach (ContingencyMaterialCostState cost in setup?.MaterialCosts ?? System.Array.Empty<ContingencyMaterialCostState>())
-            if (cost != null && cost.ItemId == "special_contingency_gem")
-                total += cost.Quantity;
-        return total;
+        return template?.StoredSpells.Count > 0
+            ? template.StoredSpells[0].TargetResolver?.Type.ToString() ?? ""
+            : "";
+    }
+
+    private void AddStoredSpell(StringName skillId, int level, ContingencyTargetResolverKind target)
+    {
+        string name = _skillDefinitions.TryGetValue(skillId, out var definition) ? definition.DisplayName : skillId.ToString();
+        int index = stored_spell_list.AddItem($"{name}  ·  等级 {level}  ·  {UiDisplayLabels.ContingencyTarget(target)}");
+        stored_spell_list.SetItemMetadata(index, skillId.ToString());
+    }
+
+    private string BuildMaterialPreview(
+        ContingencySetupTemplateDefinition template,
+        bool charged
+    )
+    {
+        if (template?.ChargeMaterialCosts == null || template.ChargeMaterialCosts.Count == 0)
+            return "";
+        return string.Join(
+            "\n",
+            template.ChargeMaterialCosts.Select(cost =>
+                $"充能材料：{(_itemDefinitions.TryGetValue(cost.ItemId, out var item) ? item.DisplayName : cost.ItemId.ToString())} × {cost.Quantity}  ·  已投入 {(charged ? cost.Quantity : 0)}"
+            )
+        );
     }
 
     private void OnSavePressed()
@@ -279,16 +300,40 @@ public partial class ContingencySetupWindow : ModalWindowShell
     {
         if (itemIndex < 0 || itemIndex >= trigger_selector.ItemCount)
             return;
+        // PopulateTriggerOptions 只写字符串 metadata；出现别的类型说明选项不是它填的。
         Variant metadata = trigger_selector.GetItemMetadata((int)itemIndex);
-        StringName payloadName =
-            metadata.VariantType == Variant.Type.String || metadata.VariantType == Variant.Type.StringName
-                ? new StringName(metadata.AsString())
-                : DefaultTemplate.PayloadName;
-        TemplateOption template = ResolveTemplateByPayload(payloadName);
-        _selected_payload_name = template.PayloadName;
-        _setup_id = template.SetupId;
+        if (
+            metadata.VariantType != Variant.Type.String
+            && metadata.VariantType != Variant.Type.StringName
+        )
+        {
+            throw new InvalidOperationException(
+                $"Contingency trigger option {itemIndex} carries {metadata.VariantType} metadata "
+                    + "instead of a template id."
+            );
+        }
+        ContingencySetupTemplateDefinition template = ResolveTemplateByPayload(
+            new StringName(metadata.AsString())
+        );
+        _selected_payload_name = template.TemplateId;
+        _setup_id = template.TemplateId;
         _charged = false;
         _selected_template_saved = false;
         RenderTemplateState(template, null, null, null);
+    }
+
+    private ContingencySetupTemplateDefinition DefaultTemplate =>
+        _templates.Count > 0 ? _templates[0] : null;
+
+    private void SetTemplateDefinitions(
+        IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> definitions
+    )
+    {
+        _templates = definitions == null
+            ? Array.Empty<ContingencySetupTemplateDefinition>()
+            : definitions.Values
+                .Where(definition => definition != null)
+                .OrderBy(definition => definition.TemplateId.ToString(), StringComparer.Ordinal)
+                .ToArray();
     }
 }

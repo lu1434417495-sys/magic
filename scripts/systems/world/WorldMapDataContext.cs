@@ -1159,7 +1159,7 @@ public sealed class WorldMapMountedSubmapData
     {
         "submap_id",
         "display_name",
-        "generation_config_path",
+        "world_generation_id",
         "return_hint_text",
         "is_generated",
         "player_coord",
@@ -1168,13 +1168,13 @@ public sealed class WorldMapMountedSubmapData
     internal static readonly string[] SaveStringFields =
     {
         "display_name",
-        "generation_config_path",
+        "world_generation_id",
         "return_hint_text",
     };
 
     public readonly bool Exists;
     public readonly string DisplayName;
-    public readonly string GenerationConfigPath;
+    public readonly StringName WorldGenerationId;
     public readonly string ReturnHintText;
     public readonly bool IsGenerated;
     public readonly Vector2I PlayerCoord;
@@ -1183,7 +1183,7 @@ public sealed class WorldMapMountedSubmapData
     private WorldMapMountedSubmapData(
         bool exists,
         string displayName,
-        string generationConfigPath,
+        StringName worldGenerationId,
         string returnHintText,
         bool isGenerated,
         Vector2I playerCoord,
@@ -1192,7 +1192,7 @@ public sealed class WorldMapMountedSubmapData
     {
         Exists = exists;
         DisplayName = displayName ?? "";
-        GenerationConfigPath = generationConfigPath ?? "";
+        WorldGenerationId = worldGenerationId;
         ReturnHintText = returnHintText ?? "";
         IsGenerated = isGenerated;
         PlayerCoord = playerCoord;
@@ -1231,7 +1231,7 @@ public sealed class WorldMapMountedSubmapData
         return new WorldMapMountedSubmapData(
             true,
             ReadString(data, "display_name"),
-            ReadString(data, "generation_config_path"),
+            new StringName(ReadString(data, "world_generation_id")),
             ReadString(data, "return_hint_text"),
             ReadBool(data, "is_generated"),
             ReadVector2I(data, "player_coord", UnsetPlayerCoord),

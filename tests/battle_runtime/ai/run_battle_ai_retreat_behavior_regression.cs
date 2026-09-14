@@ -20,6 +20,7 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
         try
         {
             TestFormalTypedRetreatUsesMostUnsafeDynamicThreat();
+            TestRetreatReachesMultiStepDestination();
         }
         catch (Exception exception)
         {
@@ -78,16 +79,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
             StateId,
             ActionId
         );
-        _test.True(
-            entry?.Action is RetreatActionDefinition,
-            "正式 mage retreat action 应从 process snapshot/runtime plan 暴露 typed RetreatActionDefinition。"
-        );
-        _test.False(
-            entry?.Action != null
-                && typeof(Resource).IsAssignableFrom(entry.Action.GetType()),
-            "retreat runtime entry 不应保留 authored Resource fallback。"
-        );
-
         int initialRangedDistance = scope.Runtime._grid_service.GetDistanceBetweenUnits(
             actor,
             rangedThreat
@@ -128,8 +119,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
                 decision?.action_trace_id != new StringName(""),
                 "retreat decision 应关联 plain action trace。"
             );
-            AssertPlainDecisionBoundary(decision);
-
             AiActionTrace trace = FindTrace(context, ActionId);
             _test.True(trace != null && trace.CandidateCount > 0, "retreat trace 应记录正式候选。" );
             _test.Eq(
@@ -145,6 +134,81 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
             _test.True(
                 before.MatchesCurrentState(context),
                 $"retreat evaluator 不应改写 battle state：{string.Join(" | ", before.CompareCurrentState(context))}"
+            );
+        }
+        finally
+        {
+            decision?.ClearOwnedRuntimeReferences();
+        }
+    }
+
+    private void TestRetreatReachesMultiStepDestination()
+    {
+        using RuntimeScope scope = RuntimeScope.Create(
+            "battle_ai_retreat_multi_step_regression",
+            new Vector2I(10, 7)
+        );
+        BattleUnitState actor = BuildUnit(
+            "retreat_actor",
+            "撤退法师",
+            "hostile",
+            new Vector2I(2, 3),
+            controlMode: "ai",
+            brainId: BrainId,
+            stateId: StateId
+        );
+        // Threat range 3 puts the safe distance at 4. From (2,3) that is two steps away, so a
+        // single-step evaluator can only ever land inside the threat band.
+        actor.SetCurrentMovePoints(3);
+        BattleUnitState rangedThreat = BuildUnit(
+            "ranged_unsafe_threat",
+            "远程高危威胁",
+            "player",
+            new Vector2I(0, 3),
+            controlMode: "manual",
+            brainId: "",
+            stateId: ""
+        );
+        AddBasicAttack(rangedThreat, attackRange: 3);
+
+        scope.AddUnit(actor, isEnemy: true);
+        scope.AddUnit(rangedThreat, isEnemy: false);
+        scope.ActivateState();
+
+        BattleAiContext context = scope.BuildAiContext(actor, traceEnabled: true);
+        BattleAiRuntimeActionEntry entry = FindFormalActionEntry(
+            scope,
+            context,
+            StateId,
+            ActionId
+        );
+        Vector2I origin = actor.GetAnchorCoord();
+        int initialDistance = scope.Runtime._grid_service.GetDistanceBetweenUnits(
+            actor,
+            rangedThreat
+        );
+        BattleAiDecision decision = null;
+        try
+        {
+            decision = EvaluateThroughDecisionEngine(context, entry);
+
+            _test.True(decision?.command?.IsMove() == true, "多步 retreat 应产出 plain move command。");
+            _test.Eq(
+                decision?.score_input?.desired_min_distance ?? -1,
+                4,
+                "threat range 3 + margin 1 应把 safe distance 解析为 4。"
+            );
+            Vector2I destination = decision?.command?.target_coord ?? origin;
+            int stepDistance = scope.Runtime._grid_service.GetDistance(origin, destination);
+            _test.True(
+                stepDistance > 1,
+                $"retreat 应使用整回合可达区，而不是只看相邻四格：destination={destination} 距起点 {stepDistance} 格。"
+            );
+            // From distance 2, one step can only ever reach 3 — still inside the threat band.
+            _test.True(
+                (decision?.score_input?.distance_to_primary_coord ?? -1) >= 4,
+                $"retreat 应真正撤出威胁带（起始距离 {initialDistance}，safe distance 4），"
+                    + $"实际 {decision?.score_input?.distance_to_primary_coord ?? -1}。"
             );
         }
         finally
@@ -204,19 +268,6 @@ public partial class run_battle_ai_retreat_behavior_regression : LifecycleTestSc
         {
             context.PopActionMetadata();
         }
-    }
-
-    private void AssertPlainDecisionBoundary(BattleAiDecision decision)
-    {
-        _test.False(
-            decision != null && typeof(GodotObject).IsAssignableFrom(decision.GetType()),
-            "retreat decision 应是 plain CLR value。"
-        );
-        _test.False(
-            decision?.command != null
-                && typeof(GodotObject).IsAssignableFrom(decision.command.GetType()),
-            "retreat command 应是 plain CLR value。"
-        );
     }
 
     private static AiActionTrace FindTrace(BattleAiContext context, string actionId)

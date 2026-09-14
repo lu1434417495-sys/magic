@@ -151,8 +151,8 @@ def tune(
 def _demo():
     from .search_space import MAGE_SPACE
 
-    train = [Scenario("res://data/configs/battle_sim/scenarios/tuning_mage_kite.tres", "hostile")]
-    val = [Scenario("res://data/configs/battle_sim/scenarios/tuning_mage_kite_val.tres", "hostile")]
+    train = [Scenario("tuning_mage_kite", "hostile")]
+    val = [Scenario("tuning_mage_kite_val", "hostile")]
 
     def report(gen, genome, score):
         shown = ", ".join(f"{s.name}={s.clamp(genome[s.name])}" for s in MAGE_SPACE)

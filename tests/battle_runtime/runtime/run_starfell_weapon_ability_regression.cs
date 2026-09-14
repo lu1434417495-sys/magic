@@ -102,17 +102,10 @@ public partial class run_starfell_weapon_ability_regression : LifecycleTestScene
         if (!fixture.ItemDefs.ContainsKey(StarfellItemId))
             return;
 
-        ItemDef rawStarfell = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greatsword_starfell.tres"
-        );
+        ItemDefinition rawStarfell = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_starfell_016");
         _test.True(rawStarfell != null, "群星之末原始资源应能加载。");
         if (rawStarfell != null)
         {
-            _test.Eq(
-                rawStarfell.base_item_id,
-                new StringName("weapon_type_greatsword_base"),
-                "群星之末原始资源应继承 greatsword 模板。"
-            );
         }
 
         BattleUnitState equipped = fixture.BuildStarfellUnit("projection");

@@ -5,7 +5,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_submap_regression : LifecycleTestSceneTree
 {
-    private const string AshenWorldConfig = "res://data/configs/world_map/ashen_intersection_world_map_config.tres";
+    private const string AshenWorldConfig = "ashen_intersection";
 
     private readonly TestHarness _test = new();
     private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
@@ -652,7 +652,7 @@ public partial class run_world_submap_regression : LifecycleTestSceneTree
         {
             ["submap_id"] = "ashen_ashlands",
             ["display_name"] = "灰烬地图",
-            ["generation_config_path"] = AshenWorldConfig,
+            ["world_generation_id"] = AshenWorldConfig,
             ["return_hint_text"] = "点击任意地点返回原位置。",
             ["is_generated"] = isGenerated,
             ["player_coord"] = new Vector2I(-1, -1),

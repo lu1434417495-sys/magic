@@ -1,10 +1,16 @@
 using System.Collections.Generic;
 using Godot;
 
-public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
+public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource, IBattleHudContext
 {
     public PartyState PartyState { get; set; }
     public RuntimeModalKind ActiveModalKind { get; set; } = RuntimeModalKind.None;
+    public IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions { get; set; }
+    public IReadOnlyDictionary<StringName, GearSetDefinition> GearSetDefinitions { get; set; }
+    public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; set; }
+    public IReadOnlyDictionary<StringName, TraitDefinition> TraitDefinitions { get; set; }
+    public IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions { get; set; }
+    public int WorldStep { get; set; }
     public Dictionary<string, object> ContractBoardWindowData { get; set; } = new();
     public Dictionary<string, object> NpcQuestOfferWindowData { get; set; } = new();
     public Dictionary<string, object> ForgeWindowData { get; set; } = new();
@@ -52,7 +58,7 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public bool IsSubmapActive() => false;
 
-    public int GetWorldStep() => 0;
+    public int GetWorldStep() => WorldStep;
 
     public Vector2I GetPlayerCoord() => Vector2I.Zero;
 
@@ -83,6 +89,67 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
     public IReadOnlyList<IReadOnlyDictionary<string, object>> GetMemberEquippedEntriesSnapshotPlain(
         StringName member_id
     ) => System.Array.Empty<IReadOnlyDictionary<string, object>>();
+
+    public GearSetEvaluationSnapshot GetMemberGearSetEvaluationTyped(StringName member_id)
+    {
+        EquipmentState equipment = PartyState?.GetMemberState(member_id)?.equipment_state;
+        return GearSetEvaluationService.Evaluate(equipment, ItemDefinitions, GearSetDefinitions);
+    }
+
+    public IReadOnlyList<GearSetGrantedActionSummary> GetMemberGearSetGrantedActionSummariesTyped(
+        StringName member_id
+    )
+    {
+        EquipmentState equipment = PartyState?.GetMemberState(member_id)?.equipment_state;
+        if (equipment == null)
+            return System.Array.Empty<GearSetGrantedActionSummary>();
+        return GearSetGrantedActionProjection.Build(
+            GetMemberGearSetEvaluationTyped(member_id),
+            equipment,
+            EquipmentAbilityBindings,
+            TraitDefinitions,
+            ItemDefinitions,
+            SkillDefinitions,
+            WorldStep
+        );
+    }
+
+    public int GetBattleWorldStep() => WorldStep;
+
+    public BattlePreview PreviewBattleCommand(BattleCommand command) => null;
+
+    public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings() =>
+        EquipmentAbilityBindings;
+
+    public IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefinitions() =>
+        ItemDefinitions;
+
+    public IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitions() =>
+        SkillDefinitions;
+
+    public ISkillCatalog GetSkillCatalog() => null;
+
+    public PartyMemberState GetPartyMemberState(StringName memberId) =>
+        PartyState?.GetMemberState(memberId);
+
+    public AttributeSnapshot GetMemberAttributeSnapshotForEquipmentView(
+        StringName memberId,
+        EquipmentState equipmentView
+    ) => null;
+
+    public string GetBattleSkillCastBlockMessage(BattleUnitState activeUnit, StringName skillId) => "";
+
+    public GearSetEvaluationSnapshot EvaluateUnitGearSets(BattleUnitState unit) =>
+        unit == null
+            ? GearSetEvaluationSnapshot.Empty
+            : GearSetEvaluationService.Evaluate(
+                unit.GetEquipmentView(),
+                ItemDefinitions,
+                GearSetDefinitions
+            );
+
+    public IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefinitions() =>
+        TraitDefinitions;
 
     public string GetMemberDisplayName(StringName member_id)
     {

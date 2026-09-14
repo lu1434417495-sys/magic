@@ -5,6 +5,10 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class BattleAiUnitSkillCandidateEvaluator
 {
+    private readonly record struct UnitSkillSpatialOption(
+        Vector2I SourceRetreatDirection,
+        Vector2I ForcedMoveDestinationCoord
+    );
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName TargetModeUnit = "unit";
     private static readonly Vector2I InvalidCoord = new(-1, -1);
@@ -91,10 +95,11 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 continue;
             }
 
+            bool hasPositionSwap = HasPositionSwapEffect(skillDefinition.CombatProfile);
             List<BattleUnitState> targets = _helper.SortTargetUnits(
                 context,
                 skillDefinition.CombatProfile.TargetTeamFilter,
-                action.TargetSelector
+                hasPositionSwap ? new StringName("") : action.TargetSelector
             );
             if (targets.Count == 0)
             {
@@ -127,15 +132,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                         : 1;
                     for (int windupOption = 0; windupOption < windupTierCount; windupOption++)
                     {
-                        IReadOnlyList<Vector2I> sourceRetreatDirections =
-                            BuildSourceRetreatDirectionOptions(
+                        IReadOnlyList<UnitSkillSpatialOption> spatialOptions =
+                            BuildSpatialOptions(
                                 skillDefinition,
                                 castVariant,
                                 skillEntry.SkillLevel,
+                                context,
                                 actor,
                                 target
                             );
-                        foreach (Vector2I sourceRetreatDirection in sourceRetreatDirections)
+                        foreach (UnitSkillSpatialOption spatialOption in spatialOptions)
                         {
                             TraceCountIncrement(actionTrace, "evaluation_count", 1);
                             BattleCommand command = _helper.BuildUnitSkillCommand(
@@ -144,15 +150,23 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                                 target,
                                 optionId
                             );
-                            command.source_retreat_direction = sourceRetreatDirection;
+                            command.source_retreat_direction =
+                                spatialOption.SourceRetreatDirection;
+                            command.forced_move_destination_coord =
+                                spatialOption.ForcedMoveDestinationCoord;
                             if (skillDefinition.CombatProfile.Windup != null)
                                 command.windup_tier = windupOption + 1;
                             string candidateLabel = skillDefinition.CombatProfile.Windup != null
                                 ? $"{optionLabel}（{command.windup_tier} 挡）"
                                 : optionLabel;
-                            if (sourceRetreatDirection != Vector2I.Zero)
+                            if (spatialOption.SourceRetreatDirection != Vector2I.Zero)
                                 candidateLabel =
-                                    $"{candidateLabel}（后撤{FormatDirection(sourceRetreatDirection)}）";
+                                    $"{candidateLabel}（后撤{FormatDirection(spatialOption.SourceRetreatDirection)}）";
+                            if (spatialOption.ForcedMoveDestinationCoord != InvalidCoord)
+                            {
+                                candidateLabel =
+                                    $"{candidateLabel}（牵引至{FormatCoord(spatialOption.ForcedMoveDestinationCoord)}）";
+                            }
                             BattlePreview fastPreview = BuildFastUnitSkillPreview(
                                 context,
                                 skillDefinition,
@@ -163,7 +177,8 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                             BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
                                 context,
                                 command,
-                                fastPreview
+                                fastPreview,
+                                skillEntry
                             );
                             if (preview == null || !preview.allowed)
                             {
@@ -246,14 +261,47 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                                 : null;
                             if (candidateExtra != null && windupQuote != null)
                                 candidateExtra["windup_tier"] = command.windup_tier;
-                            if (candidateExtra != null && sourceRetreatDirection != Vector2I.Zero)
+                            if (
+                                candidateExtra != null
+                                && spatialOption.SourceRetreatDirection != Vector2I.Zero
+                            )
                             {
                                 candidateExtra["source_retreat_direction"] =
-                                    sourceRetreatDirection;
+                                    spatialOption.SourceRetreatDirection;
                                 candidateExtra["source_retreat_final_coord"] =
                                     preview.resolved_anchor_coord;
                                 candidateExtra["source_retreat_path_length"] =
                                     preview.SourceRetreatPathTyped.Count;
+                            }
+                            if (
+                                candidateExtra != null
+                                && spatialOption.ForcedMoveDestinationCoord != InvalidCoord
+                            )
+                            {
+                                candidateExtra["forced_move_destination_coord"] =
+                                    spatialOption.ForcedMoveDestinationCoord;
+                                candidateExtra["forced_move_distance"] =
+                                    preview.ForcedMovePreviewTyped?.Distance ?? 0;
+                                candidateExtra["forced_move_engagement_delta"] =
+                                    scoreInput.forced_move_engagement_delta;
+                                candidateExtra["forced_move_landing_terrain_effect_delta"] =
+                                    scoreInput.forced_move_landing_terrain_effect_delta;
+                                candidateExtra["forced_move_height_delta"] =
+                                    scoreInput.forced_move_height_delta;
+                                candidateExtra["forced_move_caster_exposure_penalty"] =
+                                    scoreInput.forced_move_caster_exposure_penalty;
+                                candidateExtra["forced_move_position_score"] =
+                                    scoreInput.forced_move_position_score;
+                            }
+                            if (
+                                candidateExtra != null
+                                && preview.SourceAdvancePathTyped.Count > 0
+                            )
+                            {
+                                candidateExtra["source_advance_final_coord"] =
+                                    preview.resolved_anchor_coord;
+                                candidateExtra["source_advance_path_length"] =
+                                    preview.SourceAdvancePathTyped.Count;
                             }
 
                             if (scoreInput == null)
@@ -277,6 +325,14 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                             if (scoreInput.effective_target_count < action.MinimumEffectiveTargetCount)
                             {
                                 TraceAddBlockReason(actionTrace, "minimum_effective_target_count");
+                                continue;
+                            }
+                            if (
+                                preview.PositionSwapPreviewTyped != null
+                                && scoreInput.position_swap_utility_score <= 0
+                            )
+                            {
+                                TraceAddBlockReason(actionTrace, "non_positive_position_swap_utility");
                                 continue;
                             }
                             if (!PassesFriendlyFireLimits(action, scoreInput))
@@ -314,10 +370,28 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
         return resolvedDecision;
     }
 
-    private IReadOnlyList<Vector2I> BuildSourceRetreatDirectionOptions(
+    private static bool HasPositionSwapEffect(CombatSkillDefinition combatProfile)
+    {
+        if (combatProfile == null)
+            return false;
+        if (BattlePositionSwapRules.FindEffect(combatProfile.EffectDefinitions) != null)
+            return true;
+        foreach (CombatCastVariantDefinition castVariant in combatProfile.CastVariants)
+        {
+            if (
+                castVariant != null
+                && BattlePositionSwapRules.FindEffect(castVariant.EffectDefinitions) != null
+            )
+                return true;
+        }
+        return false;
+    }
+
+    private IReadOnlyList<UnitSkillSpatialOption> BuildSpatialOptions(
         SkillDefinition skillDefinition,
         CombatCastVariantDefinition castVariant,
         int skillLevel,
+        BattleAiContext context,
         BattleUnitState actor,
         BattleUnitState target
     )
@@ -328,27 +402,61 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 castVariant,
                 skillLevel
             );
+        var sourceRetreatDirections = new List<Vector2I>();
         if (!BattleSourceRetreatRules.HasEffect(effectDefinitions))
-            return new[] { Vector2I.Zero };
-        if (actor == null || target == null)
-            return Array.Empty<Vector2I>();
-
-        var result = new List<Vector2I>();
-        foreach (Vector2I direction in BattleSourceRetreatRules.CardinalDirections)
         {
-            if (
-                BattleSourceRetreatRules.IncreasesDistanceFromTarget(
-                    actor.GetAnchorCoord(),
-                    target.GetAnchorCoord(),
-                    direction
-                )
-            )
+            sourceRetreatDirections.Add(Vector2I.Zero);
+        }
+        else if (actor != null && target != null)
+        {
+            foreach (Vector2I direction in BattleSourceRetreatRules.CardinalDirections)
             {
-                result.Add(direction);
+                if (
+                    BattleSourceRetreatRules.IncreasesDistanceFromTarget(
+                        actor.GetAnchorCoord(),
+                        target.GetAnchorCoord(),
+                        direction
+                    )
+                )
+                {
+                    sourceRetreatDirections.Add(direction);
+                }
             }
+        }
+
+        var forcedMoveDestinations = new List<Vector2I>();
+        CombatEffectDefinition airbornePullEffect = BattleAirbornePullRules.FindEffect(
+            effectDefinitions
+        );
+        if (airbornePullEffect == null)
+        {
+            forcedMoveDestinations.Add(InvalidCoord);
+        }
+        else
+        {
+            forcedMoveDestinations.AddRange(
+                BattleAirbornePullRules.CollectLegalDestinations(
+                    context?.state,
+                    context?.grid_service,
+                    null,
+                    actor,
+                    target,
+                    airbornePullEffect
+                )
+            );
+        }
+
+        var result = new List<UnitSkillSpatialOption>();
+        foreach (Vector2I direction in sourceRetreatDirections)
+        {
+            foreach (Vector2I destination in forcedMoveDestinations)
+                result.Add(new UnitSkillSpatialOption(direction, destination));
         }
         return result;
     }
+
+    private static string FormatCoord(Vector2I coord) =>
+        $"({coord.X},{coord.Y})";
 
     private static string FormatDirection(Vector2I direction)
     {

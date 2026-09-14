@@ -47,6 +47,7 @@ public class CharacterProgressionDelta
     }
 
     public bool needs_promotion_modal { get; set; }
+    public PromotionFailureKind PromotionFailure { get; set; }
 
     public GStringNameArray unlocked_achievement_ids
     {
@@ -182,6 +183,7 @@ public class CharacterProgressionDelta
             character_level_before = character_level_before,
             character_level_after = character_level_after,
             needs_promotion_modal = needs_promotion_modal,
+            PromotionFailure = PromotionFailure,
         };
         copy.SetLeveledSkillIds(_leveledSkillIds);
         copy.SetGrantedSkillIds(_grantedSkillIds);

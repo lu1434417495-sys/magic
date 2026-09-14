@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/archer_backstep_shot.tres";
+        "archer_backstep_shot";
     private static readonly StringName SkillId = "archer_backstep_shot";
     private readonly TestHarness _test = new();
 
@@ -438,14 +438,14 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using (BattleTestFixture fixture = CreateFixture(skill, wallCaster, wallTarget))
         {
             ConfigureHit(fixture);
-            fixture.Runtime
-                .GetGridService()
-                .SetEdgeFeature(
-                    fixture.State,
-                    wallCaster.GetAnchorCoord() + Vector2I.Left,
-                    Vector2I.Right,
-                    BattleEdgeFeatureState.MakeWall()
-                );
+            _test.True(
+                fixture.State.PutTemporaryEdgeFeature(
+                    BuildTemporaryWall(wallCaster.GetAnchorCoord() + Vector2I.Left, Vector2I.Right),
+                    refreshExisting: false,
+                    maxActiveEdges: 0
+                ),
+                "测试前提：临时墙体应可写入。"
+            );
             BattleCommand command = BuildCommand(wallCaster, wallTarget, Vector2I.Left);
             BattlePreview preview = fixture.Runtime.PreviewCommand(command);
             _test.True(preview?.allowed == true, "第一步遇墙时不能取消攻击。");
@@ -578,11 +578,16 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
                 preview != null && !preview.allowed,
                 $"{statusId} 应在预览阶段拒绝整个技能。"
             );
-            _test.True(
-                LogsContain(preview?.LogLinesTyped, "限制移动")
-                    || statusId == BattleStatusSemanticTable.STATUS_PETRIFIED
-                    || statusId == BattleStatusSemanticTable.STATUS_PARALYZED,
-                $"{statusId} 的拒绝原因应保持正式状态门禁语义。logs={string.Join(" | ", preview?.LogLinesTyped ?? Array.Empty<string>())}"
+            BattleSkillCastBlockReasonKind expectedReason =
+                statusId == BattleStatusSemanticTable.STATUS_PETRIFIED
+                    ? BattleSkillCastBlockReasonKind.Petrified
+                    : statusId == BattleStatusSemanticTable.STATUS_PARALYZED
+                        ? BattleSkillCastBlockReasonKind.Paralyzed
+                        : BattleSkillCastBlockReasonKind.MovementRestricted;
+            _test.Eq(
+                fixture.Runtime.GetSkillCastBlockReason(caster, skill),
+                expectedReason,
+                $"{statusId} 应报告精确的 typed 拒绝原因，而不是只要任意拒绝日志就通过。"
             );
             BattleEventBatch batch = fixture.Runtime.IssueCommand(command);
             _test.Eq(caster.GetCurrentAp(), 2, $"{statusId} 拒绝不得消耗AP。");
@@ -825,6 +830,23 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
             SkillPath,
             "archer_backstep_shot_regression"
         );
+
+    private static BattleTemporaryEdgeFeatureState BuildTemporaryWall(
+        Vector2I originCoord,
+        Vector2I direction
+    )
+    {
+        return new BattleTemporaryEdgeFeatureState
+        {
+            OriginCoord = originCoord,
+            Direction = direction,
+            BindingId = "backstep_shot_test_wall",
+            ActionId = "backstep_shot_test_wall",
+            CreatedAtTu = 0,
+            ExpiresAtTu = 100,
+            Feature = BattleEdgeFeatureState.MakeWall(),
+        };
+    }
 
     private static BattleTestFixture CreateFixture(
         SkillDefinition skill,

@@ -14,6 +14,7 @@ internal sealed class WorldRuntimeData
         new(System.StringComparer.Ordinal);
     private readonly List<WorldMapNpcData> _worldNpcs = new();
     private readonly Dictionary<string, object> _fogStates = new(System.StringComparer.Ordinal);
+    private WorldUniqueEquipmentPoolState _uniqueEquipmentPool;
 
     public long MapSeed { get; private set; } = 1;
     public int WorldStep { get; private set; }
@@ -27,12 +28,14 @@ internal sealed class WorldRuntimeData
     public bool HasPlayerStartSettlementName { get; private set; }
     public bool HasFogStates { get; private set; }
     public bool HasWorldNpcs { get; private set; }
+    public bool HasUniqueEquipmentPool => _uniqueEquipmentPool != null;
 
     public IReadOnlyList<WorldMapSettlementRecordData> Settlements => _settlements;
     public IReadOnlyList<EncounterAnchorData> EncounterAnchors => _encounterAnchors;
     public IReadOnlyList<WorldMapResourceNodeData> ResourceNodes => _resourceNodes;
     public IReadOnlyList<WorldMapEventData> WorldEvents => _worldEvents;
     public IReadOnlyList<WorldMapNpcData> WorldNpcs => _worldNpcs;
+    internal WorldUniqueEquipmentPoolState UniqueEquipmentPool => _uniqueEquipmentPool;
 
     private WorldRuntimeData() { }
 
@@ -78,14 +81,27 @@ internal sealed class WorldRuntimeData
         {
             copy._fogStates[entry.Key] = entry.Value;
         }
+        copy._uniqueEquipmentPool = _uniqueEquipmentPool?.DuplicateState();
         return copy;
     }
 
-    internal static WorldRuntimeData FromDictionary(GDictionary data)
+    internal static WorldRuntimeData FromDictionary(GDictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪一段 world 数据让解码失败（成功时为空）。
+    internal static WorldRuntimeData FromDictionary(GDictionary data, out string failureReason)
     {
+        failureReason = DecodeInto(data, out WorldRuntimeData decoded);
+        return decoded;
+    }
+
+    /// 返回空字符串表示解码成功；否则返回失败字段的说明。
+    private static string DecodeInto(GDictionary data, out WorldRuntimeData decoded)
+    {
+        decoded = null;
         if (data == null)
         {
-            return null;
+            return "world_data: payload is null";
         }
         WorldRuntimeData result = new();
         result.MapSeed = ReadLong(data, WorldRuntimeSaveSchema.MapSeed, 1L);
@@ -128,42 +144,60 @@ internal sealed class WorldRuntimeData
                     "WorldRuntimeData.fog_states"
                 );
             }
-            catch (System.InvalidOperationException)
+            catch (System.InvalidOperationException exception)
             {
-                return null;
+                return $"{WorldRuntimeSaveSchema.FogStates}: {exception.Message}";
             }
             foreach (KeyValuePair<string, object> entry in fogStates)
             {
                 result._fogStates[entry.Key] = entry.Value;
             }
         }
+        if (data.ContainsKey(WorldRuntimeSaveSchema.UniqueEquipmentPool))
+        {
+            if (
+                data[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType
+                != Variant.Type.Dictionary
+            )
+            {
+                return $"{WorldRuntimeSaveSchema.UniqueEquipmentPool}: expected Dictionary, got "
+                    + data[WorldRuntimeSaveSchema.UniqueEquipmentPool].VariantType;
+            }
+            using GDictionary uniqueEquipmentPoolPayload =
+                data[WorldRuntimeSaveSchema.UniqueEquipmentPool].AsGodotDictionary();
+            result._uniqueEquipmentPool =
+                WorldUniqueEquipmentPoolState.FromDictionary(uniqueEquipmentPoolPayload);
+            if (result._uniqueEquipmentPool == null)
+                return $"{WorldRuntimeSaveSchema.UniqueEquipmentPool}: decode failed";
+        }
 
         using GArray returnStackValues =
             ReadArray(data, WorldRuntimeSaveSchema.SubmapReturnStack);
         if (!ReadReturnStack(result._submapReturnStack, returnStackValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.SubmapReturnStack}: decode failed";
         using GArray settlementValues = ReadArray(data, WorldRuntimeSaveSchema.Settlements);
         if (!ReadSettlements(result._settlements, settlementValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.Settlements}: decode failed";
         using GArray eventValues = ReadArray(data, WorldRuntimeSaveSchema.WorldEvents);
         if (!ReadWorldEvents(result._worldEvents, eventValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.WorldEvents}: decode failed";
         using GArray encounterAnchorValues =
             ReadArray(data, WorldRuntimeSaveSchema.EncounterAnchors);
         if (!ReadEncounterAnchors(result._encounterAnchors, encounterAnchorValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.EncounterAnchors}: decode failed";
         using GArray resourceNodeValues =
             ReadArray(data, WorldRuntimeSaveSchema.ResourceNodes);
         if (!ReadResourceNodes(result._resourceNodes, resourceNodeValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.ResourceNodes}: decode failed";
         using GDictionary mountedSubmapValues =
             ReadDictionary(data, WorldRuntimeSaveSchema.MountedSubmaps);
         if (!ReadMountedSubmaps(result._mountedSubmaps, mountedSubmapValues))
-            return null;
+            return $"{WorldRuntimeSaveSchema.MountedSubmaps}: decode failed";
         using GArray worldNpcValues = ReadArray(data, WorldRuntimeSaveSchema.WorldNpcs);
         if (!ReadWorldNpcs(result._worldNpcs, worldNpcValues))
-            return null;
-        return result;
+            return $"{WorldRuntimeSaveSchema.WorldNpcs}: decode failed";
+        decoded = result;
+        return "";
     }
 
     internal Dictionary<string, object> BuildSaveSnapshotPlain()
@@ -236,7 +270,7 @@ internal sealed class WorldRuntimeData
             {
                 ["submap_id"] = entry.Key,
                 ["display_name"] = submap.DisplayName,
-                ["generation_config_path"] = submap.GenerationConfigPath,
+                ["world_generation_id"] = submap.WorldGenerationId.ToString(),
                 ["return_hint_text"] = submap.ReturnHintText,
                 ["is_generated"] = submap.IsGenerated,
                 ["player_coord"] = submap.PlayerCoord,
@@ -279,8 +313,21 @@ internal sealed class WorldRuntimeData
         if (HasFogStates)
             result[WorldRuntimeSaveSchema.FogStates] =
                 RuntimePlainPayload.CloneDictionary(_fogStates);
+        if (_uniqueEquipmentPool != null)
+        {
+            result[WorldRuntimeSaveSchema.UniqueEquipmentPool] =
+                _uniqueEquipmentPool.BuildSaveSnapshotPlain();
+        }
         return result;
     }
+
+    internal void SetUniqueEquipmentPool(WorldUniqueEquipmentPoolState pool) =>
+        _uniqueEquipmentPool = pool;
+
+    internal void RestoreUniqueEquipmentPool(
+        bool hadPool,
+        WorldUniqueEquipmentPoolState snapshot
+    ) => _uniqueEquipmentPool = hadPool ? snapshot?.DuplicateState() : null;
 
     // Write fog states straight into the typed payload, so saving fog after a move
     // doesn't have to ToDictionary/FromDictionary the whole world.

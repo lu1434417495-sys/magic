@@ -670,7 +670,6 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
     {
         return new ItemDefinition(
             itemId,
-            "",
             "Catalog Regression Probe",
             "",
             "",
@@ -728,7 +727,7 @@ public partial class run_game_root_content_catalog_regression : LifecycleTestSce
             "",
             Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
     }

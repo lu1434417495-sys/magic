@@ -110,7 +110,7 @@ public static class SkillPassiveResolver
             return Mathf.Clamp(rawLevel, 0, effectiveMax);
         }
 
-        var fallbackMax = skillProgress.is_level_trigger_locked ? 10 : VajraBodyNonCoreMaxLevel;
+        var fallbackMax = progressionState?.HasUsedGrowthTrigger(skillProgress.skill_id) == true ? 10 : VajraBodyNonCoreMaxLevel;
 
         return Mathf.Clamp(rawLevel, 0, fallbackMax);
     }
@@ -140,7 +140,7 @@ public static class SkillPassiveResolver
 
         var statusPower = 1;
         var statusRangeBonus = 1;
-        IReadOnlyDictionary<string, object> statusParams = null;
+        StatusEffectPayloadDefinition statusPayload = null;
 
         var skillDefinition = GetSkillDefinition(skillDefinitions, ShootingSpecializationSkillId);
 
@@ -173,7 +173,7 @@ public static class SkillPassiveResolver
 
                     statusPower = effectDef.Power;
                     statusRangeBonus = effectDef.RangeBonus > 0 ? effectDef.RangeBonus : 1;
-                    statusParams = effectDef.Parameters;
+                    statusPayload = effectDef.Payload as StatusEffectPayloadDefinition;
 
                     break;
                 }
@@ -187,7 +187,7 @@ public static class SkillPassiveResolver
             -1,
             ShootingSpecializationSkillId,
             skillLevel,
-            statusParams
+            statusPayload
         );
         statusEntry.range_bonus = statusRangeBonus;
 
@@ -289,7 +289,7 @@ public static class SkillPassiveResolver
                             -1,
                             LastStandSkillId,
                             skillLevel,
-                            effectDef.Parameters
+                            effectDef.Payload as StatusEffectPayloadDefinition
                         );
 
                         unitState.SetStatusEffect(configuredStatus);
@@ -319,18 +319,9 @@ public static class SkillPassiveResolver
         int durationTu,
         StringName sourceSkillId,
         int sourceSkillLevel,
-        IReadOnlyDictionary<string, object> statusParams = null
+        StatusEffectPayloadDefinition statusPayload = null
     )
     {
-        using GodotProjectionLease<GDictionary> parametersProjection =
-            RuntimePlainPayload.ProjectDictionaryLease(
-                statusParams,
-                "skill-passive-status-parameters",
-                LifetimeDomain.Battle,
-                "SkillPassiveResolver.status_parameters"
-            );
-        BattleStatusEffectParams typedStatusParams =
-            BattleStatusEffectParams.FromDictionary(parametersProjection.Value);
         var statusEntry = new BattleStatusEffectState
         {
             status_id = statusId,
@@ -341,8 +332,7 @@ public static class SkillPassiveResolver
             source_skill_id = sourceSkillId,
             source_skill_level = sourceSkillLevel,
         };
-        statusEntry.SetParamsTyped(typedStatusParams.ResidualSavePayload);
-        typedStatusParams.ApplyTo(statusEntry);
+        BattleStatusPayloadProjector.Apply(statusEntry, statusPayload);
         return statusEntry;
     }
 

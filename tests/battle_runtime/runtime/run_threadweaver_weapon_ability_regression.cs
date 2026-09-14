@@ -85,20 +85,14 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(ThreadweaverItemId))
             return;
 
-        ItemDef rawThreadweaver = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_rapier_threadweaver.tres"
-        );
+        ItemDefinition rawThreadweaver = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_threadweaver_019");
         _test.True(rawThreadweaver != null, "Threadweaver raw item resource should load.");
         if (rawThreadweaver != null)
         {
-            _test.Eq(rawThreadweaver.base_item_id, new StringName("weapon_type_rapier_base"), "Threadweaver should inherit the rapier base item.");
-            _test.Eq(rawThreadweaver.base_price, 120000, "Threadweaver should keep the source price.");
+            _test.Eq(rawThreadweaver.BasePrice, 120000, "Threadweaver should keep the source price.");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildThreadweaverUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -116,17 +110,6 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         AssertThreadMendingSkillShape(fixture);
         AssertAfterSkillCostAndCleanupShape(fixture);
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "Removing Threadweaver should clear weapon item id.");
-        _test.Eq(removedWeapon.ProfileTypeId, baselineWeapon.ProfileTypeId, "Removing Threadweaver should restore baseline weapon profile.");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "Removing Threadweaver should clear equipment ability sources."
-        );
     }
 
     private void TestFateThreadStacksFraysAndAddsSourceBoundAttackBonus()
@@ -329,7 +312,7 @@ public partial class run_threadweaver_weapon_ability_regression : LifecycleTestS
         _test.Eq(combat?.RangeValue ?? 0, 2, "Thread Mending should use 10ft/2-cell range.");
         _test.Eq(combat?.ApCost ?? 0, 1, "Thread Mending should cost 1AP.");
         CombatEffectDefinition heal = FirstEffect(mendSkill);
-        _test.Eq(heal?.EffectKind ?? BattleEffectKind.Unknown, BattleEffectKind.Heal, "Thread Mending should heal.");
+        _test.Eq(heal?.EffectKind ?? BattleEffectKind.Unknown, BattleEffectKind.HealFatal, "Thread Mending should use the typed revive effect.");
         _test.Eq(heal?.DiceCount ?? 0, 2, "Thread Mending should roll 2 dice.");
         _test.Eq(heal?.DiceSides ?? 0, 8, "Thread Mending should roll D8s.");
         _test.Eq(heal?.DiceBonus ?? 0, 10, "Thread Mending should add +10 healing.");

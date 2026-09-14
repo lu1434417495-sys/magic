@@ -25,6 +25,7 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     private int _mainThreadId;
     private bool _acceptingRegistrations;
     private bool _quitIssued;
+    private bool _shutdownFailureReported;
 
     public override void _Ready()
     {
@@ -189,6 +190,9 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
             _completion = completionSource.Task;
         }
         _ = CompleteShutdownAndQuitAsync(report, completionSource);
+        // CompleteShutdownAndQuitAsync 自己不抛，故障挂在 completionSource 上；
+        // 启动失败路径没有任何调用者会 await 它。
+        ObserveShutdown(new ValueTask<ShutdownReport>(completionSource.Task));
     }
 
     internal async ValueTask CloseSessionAsync(GameSession session)
@@ -256,10 +260,65 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
     {
         if (what == NotificationWMCloseRequest)
         {
-            _ = RequestShutdownAsync(
-                new ShutdownRequest(0, ShutdownReason.WindowClose)
+            ObserveShutdown(
+                RequestShutdownAsync(new ShutdownRequest(0, ShutdownReason.WindowClose))
             );
         }
+    }
+
+    /// 关窗与启动失败这两条路径没有调用者会 await 关闭流程。丢弃返回值会让管线自身
+    /// 抛出的异常落在无人观察的 Task 上——.NET 默认不会因此终止进程，表现为窗口关不掉、
+    /// 既不退出也不报错。这里必须把异常接出来、记进报告并强制退出。
+    private void ObserveShutdown(ValueTask<ShutdownReport> completion)
+    {
+        if (completion.IsCompletedSuccessfully)
+            return;
+        _ = ObserveShutdownAsync(completion);
+    }
+
+    private async Task ObserveShutdownAsync(ValueTask<ShutdownReport> completion)
+    {
+        try
+        {
+            await completion;
+        }
+        catch (Exception exception)
+        {
+            QuitAfterUnobservedShutdownFailure(exception);
+        }
+    }
+
+    private void QuitAfterUnobservedShutdownFailure(Exception exception)
+    {
+        ShutdownReport report;
+        lock (_shutdownSync)
+        {
+            // 启动失败与关窗可以观察同一个 completion；报告只记一次。
+            if (_shutdownFailureReported)
+                return;
+            _shutdownFailureReported = true;
+            report = _report;
+        }
+
+        if (report == null)
+        {
+            ConsoleProcessOutput.WriteFailure(
+                "[lifecycle] shutdown-pipeline-failed without a report "
+                    + $"type={exception.GetType().FullName} message={exception.Message}"
+            );
+            lock (_shutdownSync)
+            {
+                if (_quitIssued)
+                    return;
+                _quitIssued = true;
+            }
+            GetTree().Quit(1);
+            return;
+        }
+
+        report.RecordFailure("shutdown-pipeline", exception);
+        PrintPreQuitReport(report);
+        RequestSceneTreeQuit(report);
     }
 
     internal ValueTask<ShutdownReport> RequestShutdownAsync(ShutdownRequest request)
@@ -489,10 +548,10 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
                 $"{audit.NonTerminalCount} non-terminal lifecycle objects remain active"
             );
         }
-        if (audit.ProcessContentRootCount != 0)
+        if (audit.EngineAssetRootCount != 0)
         {
             failures.Add(
-                $"{audit.ProcessContentRootCount} canonical process content roots remain active"
+                $"{audit.EngineAssetRootCount} engine asset roots remain active"
             );
         }
 

@@ -27,9 +27,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     private bool _disposed;
     private readonly EquipmentAbilityBindingValidator _bindingValidator;
 
-    internal EquipmentAbilityContentRegistry(IContentResourceLoader resourceLoader)
+    internal EquipmentAbilityContentRegistry()
     {
-        ArgumentNullException.ThrowIfNull(resourceLoader);
         _bindingValidator = new EquipmentAbilityBindingValidator(
             _conditionSpecs,
             _actionSpecs,
@@ -69,14 +68,51 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     public IReadOnlyDictionary<EquipmentAbilityTriggerKind, EquipmentAbilityTriggerTimingSpec> GetTriggerTimingSpecsTyped() =>
         _triggerTimingSpecs;
 
+    public EquipmentAbilityRegistryBuildResult RebuildFromJson(
+        string sourceDirectory,
+        IContentJsonSourceReader sourceReader,
+        EquipmentAbilityContentValidationContext validationContext
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceDirectory);
+        ArgumentNullException.ThrowIfNull(sourceReader);
+        ContentImportBatch<EquipmentAbilityContentPackImportModel> batch =
+            EquipmentAbilityContentJsonAuthoringDomain
+                .CreateImportDescriptor(sourceDirectory, sourceReader)
+                .Import();
+        if (batch.HasErrors)
+        {
+            _revision++;
+            var errors = new List<string>(batch.Diagnostics.Count);
+            foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            {
+                errors.Add(
+                    $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+                );
+            }
+            _lastBuildResult = new EquipmentAbilityRegistryBuildResult
+            {
+                Success = false,
+                Revision = _revision,
+                Errors = new ReadOnlyCollection<string>(errors),
+            };
+            return _lastBuildResult;
+        }
+
+        var imports = new List<EquipmentAbilityContentPackImportModel>(batch.Entries.Count);
+        foreach (ContentImportEntry<EquipmentAbilityContentPackImportModel> entry in batch.Entries)
+            imports.Add(entry.Import);
+        return Rebuild(imports, validationContext);
+    }
+
     public EquipmentAbilityRegistryBuildResult Rebuild(
-        IReadOnlyList<EquipmentAbilityContentPackDef> packs,
+        IReadOnlyList<EquipmentAbilityContentPackImportModel> packs,
         EquipmentAbilityContentValidationContext validationContext
     )
     {
         _revision++;
         var errors = new List<string>();
-        List<EquipmentAbilityContentPackDef> sortedPacks = SortPacks(packs, errors);
+        List<EquipmentAbilityContentPackImportModel> sortedPacks = SortPacks(packs, errors);
         var nextPacks = new Dictionary<StringName, EquipmentAbilityContentPackDefinition>();
         var nextBindings = new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
         var nextByTrait = new Dictionary<StringName, List<EquipmentAbilityBindingDefinition>>();
@@ -87,7 +123,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 errors,
                 "EQA_VALIDATION_CONTEXT_INCOMPLETE",
                 "equipment_ability.validation_context",
-                "KnownTraitIds, KnownSkillIds, and KnownStatusIds must all be supplied; non-null empty sets are authoritative"
+                "KnownTraitIds, KnownSkillDefinitions, and KnownStatusIds must all be supplied; non-null empty catalogs are authoritative"
             );
         }
         else
@@ -101,11 +137,11 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
 
         if (errors.Count == 0)
         {
-            foreach (EquipmentAbilityContentPackDef pack in sortedPacks)
+            foreach (EquipmentAbilityContentPackImportModel pack in sortedPacks)
             {
                 string packPath = PackPath(pack);
                 var projectedBindings = new List<EquipmentAbilityBindingDefinition>();
-                foreach (EquipmentAbilityBindingDef binding in pack.bindings)
+                foreach (EquipmentAbilityBindingImportModel binding in pack.bindings)
                 {
                     if (binding == null)
                     {
@@ -206,17 +242,17 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         };
     }
 
-    private static List<EquipmentAbilityContentPackDef> SortPacks(
-        IReadOnlyList<EquipmentAbilityContentPackDef> packs,
+    private static List<EquipmentAbilityContentPackImportModel> SortPacks(
+        IReadOnlyList<EquipmentAbilityContentPackImportModel> packs,
         List<string> errors
     )
     {
-        var input = new List<EquipmentAbilityContentPackDef>();
+        var input = new List<EquipmentAbilityContentPackImportModel>();
         if (packs == null || packs.Count == 0)
             return input;
 
-        var byId = new Dictionary<StringName, EquipmentAbilityContentPackDef>();
-        foreach (EquipmentAbilityContentPackDef pack in packs)
+        var byId = new Dictionary<StringName, EquipmentAbilityContentPackImportModel>();
+        foreach (EquipmentAbilityContentPackImportModel pack in packs)
         {
             if (pack == null)
             {
@@ -256,7 +292,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
             input.Add(pack);
         }
 
-        foreach (EquipmentAbilityContentPackDef pack in input)
+        foreach (EquipmentAbilityContentPackImportModel pack in input)
         {
             foreach (StringName dependency in pack.dependencies)
             {
@@ -274,12 +310,12 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         if (errors.Count > 0)
             return input;
 
-        var result = new List<EquipmentAbilityContentPackDef>();
+        var result = new List<EquipmentAbilityContentPackImportModel>();
         var emitted = new HashSet<StringName>();
         while (result.Count < input.Count)
         {
-            var candidates = new List<EquipmentAbilityContentPackDef>();
-            foreach (EquipmentAbilityContentPackDef pack in input)
+            var candidates = new List<EquipmentAbilityContentPackImportModel>();
+            foreach (EquipmentAbilityContentPackImportModel pack in input)
             {
                 if (emitted.Contains(pack.pack_id))
                     continue;
@@ -306,7 +342,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
                 return input;
             }
             candidates.Sort(ComparePackOrder);
-            EquipmentAbilityContentPackDef next = candidates[0];
+            EquipmentAbilityContentPackImportModel next = candidates[0];
             emitted.Add(next.pack_id);
             result.Add(next);
         }
@@ -314,8 +350,8 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
     }
 
     private static int ComparePackOrder(
-        EquipmentAbilityContentPackDef left,
-        EquipmentAbilityContentPackDef right
+        EquipmentAbilityContentPackImportModel left,
+        EquipmentAbilityContentPackImportModel right
     )
     {
         int loadOrderCompare = left.load_order.CompareTo(right.load_order);
@@ -331,7 +367,7 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         EquipmentAbilityContentValidationContext context
     ) =>
         context?.KnownTraitIds != null
-        && context.KnownSkillIds != null
+        && context.KnownSkillDefinitions != null
         && context.KnownStatusIds != null;
 
     private static bool IsAllowed(StringName value, params string[] allowed)
@@ -374,13 +410,13 @@ internal sealed class EquipmentAbilityContentRegistry : IDisposable
         return new ReadOnlyDictionary<StringName, T>(new Dictionary<StringName, T>(source));
     }
 
-    private static string PackPath(EquipmentAbilityContentPackDef pack) =>
+    private static string PackPath(EquipmentAbilityContentPackImportModel pack) =>
         $"equipment_ability.packs[{(pack?.pack_id == "" ? "<missing>" : pack?.pack_id.ToString() ?? "<null>")}]";
 
-    internal static string BindingPath(EquipmentAbilityBindingDef binding) =>
+    internal static string BindingPath(EquipmentAbilityBindingImportModel binding) =>
         $"equipment_ability.bindings[{(binding?.binding_id == "" ? "<missing>" : binding?.binding_id.ToString() ?? "<null>")}]";
 
-    internal static string ReactionLabel(EquipmentAbilityReactionDef reaction) =>
+    internal static string ReactionLabel(EquipmentAbilityReactionImportModel reaction) =>
         reaction?.reaction_id == "" ? "<missing>" : reaction?.reaction_id.ToString() ?? "<null>";
 
     internal static void AddError(List<string> errors, string code, string path, string message)

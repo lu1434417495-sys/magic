@@ -19,6 +19,13 @@ internal interface IBattleHudContext
         EquipmentState equipmentView
     );
     string GetBattleSkillCastBlockMessage(BattleUnitState activeUnit, StringName skillId);
+
+    // Gear-set summary projection over the unit's battle-local equipment view. Default
+    // implementations keep pre-battle/session contexts empty.
+    GearSetEvaluationSnapshot EvaluateUnitGearSets(BattleUnitState unit) =>
+        GearSetEvaluationSnapshot.Empty;
+
+    IReadOnlyDictionary<StringName, TraitDefinition> GetTraitDefinitions() => null;
 }
 
 internal sealed class BattleHudSessionContext : IBattleHudContext

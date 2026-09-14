@@ -22,10 +22,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     private void TestAttributeGrowthSchemaValidation()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
 
         SkillDef validSkill = BuildGrowthSchemaSkill(
             "valid_growth_schema_skill",
@@ -48,6 +45,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             invalidTotalSkill,
+            "Skill invalid_total_growth_schema_skill attribute_growth_progress total must equal 180 for growth_tier advanced.",
             "advanced 技能属性进度总和必须等于 180。"
         );
 
@@ -59,6 +57,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             invalidAttributeSkill,
+            "Skill invalid_attribute_growth_schema_skill attribute_growth_progress references invalid attribute hp_max.",
             "属性进度配置只能引用六项基础属性。"
         );
 
@@ -74,6 +73,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             stringNameKeySkill,
+            "Skill string_name_key_growth_schema_skill attribute_growth_progress key agility must be a non-empty String.",
             "attribute_growth_progress 旧 StringName key 应被 SkillContentRegistry 静态拒绝。"
         );
 
@@ -85,6 +85,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             nonStringKeySkill,
+            "Skill non_string_key_growth_schema_skill attribute_growth_progress key 123 must be a non-empty String.",
             "attribute_growth_progress 非 String key 应被 SkillContentRegistry 静态拒绝。"
         );
 
@@ -96,6 +97,7 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             emptyStringKeySkill,
+            "Skill empty_string_key_growth_schema_skill attribute_growth_progress key  must be a non-empty String.",
             "attribute_growth_progress 空字符串 key 应被 SkillContentRegistry 静态拒绝。"
         );
 
@@ -107,13 +109,14 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         AssertHasValidationError(
             registry,
             nonIntAmountSkill,
+            "Skill non_int_growth_schema_skill attribute_growth_progress for agility must be a positive int.",
             "attribute_growth_progress value 应拒绝字符串数字。"
         );
     }
 
     private void TestOfficialSkillResourcesExposeTypedAttributeGrowth()
     {
-        ProgressionContentRegistry registry = new(new TestContentResourceLoader());
+        using var registry = new ProgressionContentRegistry();
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
             registry.GetSkillDefinitionsTyped();
 
@@ -185,11 +188,17 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
     private void AssertHasValidationError(
         SkillContentRegistry registry,
         SkillDef skill,
+        string expectedFragment,
         string message
     )
     {
         GStringArray errors = new();
         registry.AppendAttributeGrowthValidationErrors(errors, skill.skill_id, skill);
-        _test.True(errors.Count > 0, message);
+        foreach (string error in errors)
+        {
+            if ((error ?? "").Contains(expectedFragment))
+                return;
+        }
+        _test.Fail($"{message} expected={expectedFragment} errors={string.Join(" | ", errors)}");
     }
 }

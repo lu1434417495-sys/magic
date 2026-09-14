@@ -5,6 +5,7 @@ public enum GameRuntimeBattleSelectionStage
 {
     Target = 0,
     SourceRetreatDirection,
+    ForcedMoveDestination,
 }
 
 public sealed class GameRuntimeBattleSelectionState

@@ -9,7 +9,7 @@ internal sealed record LifecycleSoakCounterVector(
     string NativeScopesByDomain,
     string ProjectionLeasesByDomain,
     long SnapshotEpoch,
-    string ProcessContentRootFingerprint,
+    int PublishedEngineAssetCount,
     int UnknownOwnershipViolations,
     int OwnerConflictViolations,
     int EscapedLeaseViolations,

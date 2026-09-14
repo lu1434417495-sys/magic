@@ -20,7 +20,10 @@ public partial class run_battle_barrier_store_typed_regression : LifecycleTestSc
         _test.Eq(state.LayeredBarrierFieldCount, 1, "typed barrier store 应记录一个屏障。");
 
         var malformedPayload = new GDictionary { ["barrier_a"] = "not_a_barrier_dictionary" };
-        state.ReplaceLayeredBarrierFieldsPayload(malformedPayload);
+        _test.False(
+            state.ReplaceLayeredBarrierFieldsPayload(malformedPayload),
+            "非法 payload 应向调用方报告写入被拒，而不是静默无操作。"
+        );
 
         _test.True(
             state.LayeredBarrierStore.TryGet("barrier_a", out BattleBarrierInstanceState stored),

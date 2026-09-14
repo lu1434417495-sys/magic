@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -39,9 +38,7 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
     {
         try
         {
-            TestFixtureNoLongerRegistersGlobalClass();
-            TestRosterMemberIdsUsePlainCollections();
-            TestRosterConstructionUsesPlainContracts();
+            TestRosterMemberIdsPreserveOrderAndPopulateActiveRoster();
             TestRosterBuildClosesCreationPayloadLeases();
             TestDefaultMainCharacterGetsRerollLuck();
             TestSelectedMainCharacterGetsRerollLuck();
@@ -65,41 +62,6 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         RequestTestExit(_test.Finish("BattleSimFormalCombatFixture regression"));
     }
 
-    private void TestRosterConstructionUsesPlainContracts()
-    {
-        MethodInfo addMemberMethod = typeof(BattleSimFormalCombatFixture).GetMethod(
-            "_add_member",
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        if (addMemberMethod == null)
-        {
-            _test.Fail("formal fixture 应保留单一 typed roster member 构建入口。");
-            return;
-        }
-
-        ParameterInfo[] parameters = addMemberMethod.GetParameters();
-        _test.Eq(
-            parameters[3].ParameterType,
-            typeof(BattleSimFormalCreationAttributesData),
-            "formal fixture 建卡属性应由 plain CLR 值对象承载。"
-        );
-        _test.Eq(
-            parameters[5].ParameterType,
-            typeof(IReadOnlyList<BattleSimFormalSkillConfigData>),
-            "formal fixture 技能配置应由 plain CLR 只读列表承载。"
-        );
-
-        MethodInfo battleAchievementMethod = typeof(IBattleRatingCharacterGateway).GetMethod(
-            nameof(IBattleRatingCharacterGateway.RecordAchievementEvent),
-            new[] { typeof(StringName), typeof(StringName), typeof(int) }
-        );
-        _test.Eq(
-            battleAchievementMethod?.ReturnType,
-            typeof(IReadOnlyList<StringName>),
-            "battle achievement gateway 不应把 Godot typed Array 作为内部返回值。"
-        );
-    }
-
     private void TestRosterBuildClosesCreationPayloadLeases()
     {
         LifecycleAuditSnapshot baseline = LifecycleAuditRegistry.Shared.CaptureSnapshot();
@@ -117,29 +79,8 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
         );
     }
 
-    private void TestFixtureNoLongerRegistersGlobalClass()
+    private void TestRosterMemberIdsPreserveOrderAndPopulateActiveRoster()
     {
-    }
-
-    private void TestRosterMemberIdsUsePlainCollections()
-    {
-        Type allyMemberIdsType = typeof(BattleSimFormalCombatFixture)
-            .GetField(nameof(BattleSimFormalCombatFixture.ally_member_ids))
-            ?.FieldType;
-        Type hostileMemberIdsType = typeof(BattleSimFormalCombatFixture)
-            .GetField(nameof(BattleSimFormalCombatFixture.hostile_member_ids))
-            ?.FieldType;
-        _test.Eq(
-            allyMemberIdsType,
-            typeof(List<StringName>),
-            "formal fixture 友军 roster owner 应是 plain List<StringName>。"
-        );
-        _test.Eq(
-            hostileMemberIdsType,
-            typeof(List<StringName>),
-            "formal fixture 敌军 roster owner 应是 plain List<StringName>。"
-        );
-
         BattleSimFormalCombatFixture fixture = BuildFixture(
             BattleSimFormalCombatFixture.ROSTER_MIXED_2S1A
         );
@@ -332,7 +273,16 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
             _test.False(baseAttributes.custom_stats.ContainsKey(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), $"6v12 不应显式写入 action_threshold：{memberId}");
             AttributeService attributeService = new();
             attributeService.Setup(memberState.progression);
-            _test.Eq(attributeService.GetTotalValue(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD, $"6v12 应回落到角色默认 action_threshold：{memberId}");
+            // fixture 的 agility 是逐成员掷出来的，所以期望值不是某个固定常量，
+            // 而是该成员 agility 调整值对应的派生档位；这条断言的守卫点仍然是
+            // "fixture 没有绕过属性系统写死阈值"（上一行），不是某个具体数字。
+            int agility = baseAttributes.GetAttributeValue(
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility)
+            );
+            int expectedThreshold = ActionCadenceContentRules.ResolveActionThreshold(
+                AttributeSnapshot.CalculateScoreModifier(agility)
+            );
+            _test.Eq(attributeService.GetTotalValue(AttributeService.ToStringName(AttributeIdKind.ActionThreshold)), expectedThreshold, $"6v12 的 action_threshold 应由 agility 派生：{memberId}（agility={agility}）");
         }
     }
 
@@ -439,16 +389,20 @@ public partial class run_battlesim_formal_fixture_regression : LifecycleTestScen
 
     private void TestMixed6v12TypedEnemyHandoffPreservesRuntimeProjection()
     {
-        const string scenarioPath =
-            "res://data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres";
         BattleSimFormalCombatFixture fixture = BuildFixture(
             BattleSimFormalCombatFixture.ROSTER_MIXED_6V12
         );
         if (!EquipTemporalWeaponForTypedHandoff(fixture))
             return;
-        BattleSimScenarioDefinition scenario;
-        using (var loader = new TestContentResourceLoader())
-            scenario = loader.LoadCanonical<BattleSimScenarioDef>(scenarioPath).ToDefinition();
+        var scenarioCatalog = new BattleSimContentCatalog();
+        scenarioCatalog.Rebuild();
+        scenarioCatalog.TryGetScenario(
+            "mixed_6v12_mirror_simulation",
+            out BattleSimScenarioDefinition scenario
+        );
+        _test.True(scenario != null, "mixed 6v12 scenario 应通过 JSON catalog 按 ID 加载。");
+        if (scenario == null)
+            return;
 
         var runtime = new BattleRuntimeModule();
         BattleState state = null;

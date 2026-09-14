@@ -5,8 +5,6 @@ using Godot;
 
 public partial class BattleMapPanel
 {
-    private const string SKILL_ICON_DIR = "res://assets/main/battle/skills/";
-    private const string SKILL_ICON_FALLBACK_KEY = "warrior_whirlwind_slash";
     private const string SKILL_ICON_GRAYSCALE_SHADER =
         "res://assets/shaders/skill_icon_grayscale.gdshader";
     private static readonly Color SKILL_ICON_DISABLED_MODULATE = new(0.62f, 0.62f, 0.62f, 0.85f);
@@ -27,17 +25,11 @@ public partial class BattleMapPanel
 
         ClearSkillIconPresentationBindings();
         _clear_container(skill_grid);
-        if (slots.Count == 0)
-        {
-            for (int index = 0; index < 20; index++)
-                skill_grid.AddChild(
-                    _create_skill_slot(new BattleHudSkillSlotSnapshot(index, true))
-                );
-            return;
-        }
         foreach (BattleHudSkillSlotSnapshot slot in slots)
         {
-            skill_grid.AddChild(_create_skill_slot(slot));
+            // Keep command indices stable without presenting unused placeholders.
+            if (!slot.IsEmpty)
+                skill_grid.AddChild(_create_skill_slot(slot));
         }
         _update_skill_grid_columns();
     }
@@ -56,6 +48,15 @@ public partial class BattleMapPanel
                 continue;
             }
             builder
+                .Append(slot.SkillEntryId).Append('|')
+                .Append(slot.DisplayName).Append('|')
+                .Append(slot.Description).Append('|')
+                .Append(slot.DisabledReason).Append('|')
+                .Append(slot.SkillLevel).Append('|')
+                .Append(slot.Hotkey).Append('|')
+                .Append(slot.IsBattleOnly).Append('|')
+                .Append(slot.Tooltip).Append('|')
+                .Append(slot.AccentColor).Append('|')
                 .Append(slot.ShortName).Append('|')
                 .Append(slot.FooterText).Append('|')
                 .Append(slot.IconKey).Append('|')
@@ -74,7 +75,7 @@ public partial class BattleMapPanel
         int slotCount = skill_grid.GetChildCount();
         if (slotCount == 0)
             return;
-        float available = skill_grid.Size.X;
+        float available = (skill_grid.GetParent() as Control)?.Size.X ?? skill_grid.Size.X;
         if (available <= 0.0f)
             return;
         int hSeparation = skill_grid.GetThemeConstant("h_separation");
@@ -98,48 +99,40 @@ public partial class BattleMapPanel
             ),
             SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
-            TooltipText = _build_skill_slot_tooltip(slot),
         };
         panel.AddThemeStyleboxOverride("panel", _build_skill_slot_style(slot));
 
-        var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_left", 6);
-        margin.AddThemeConstantOverride("margin_top", 4);
-        margin.AddThemeConstantOverride("margin_right", 6);
-        margin.AddThemeConstantOverride("margin_bottom", 6);
-        panel.AddChild(margin);
-
-        var layout = new VBoxContainer();
-        layout.AddThemeConstantOverride("separation", 0);
-        margin.AddChild(layout);
-
-        var hotkeyRow = new HBoxContainer();
-        layout.AddChild(hotkeyRow);
-
-        var hotkeyLabel = new Label
-        {
-            Text = slot?.Hotkey ?? "",
-            SizeFlagsHorizontal = SizeFlags.ExpandFill,
-        };
-        hotkeyLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
-        hotkeyLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_MUTED());
-        hotkeyRow.AddChild(hotkeyLabel);
-
-        int cdValue = slot?.Cooldown ?? 0;
-        var cdLabel = new Label
-        {
-            Text = cdValue > 0 ? $"CD {cdValue}" : "",
-            HorizontalAlignment = HorizontalAlignment.Right,
-        };
-        cdLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
-        cdLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
-        hotkeyRow.AddChild(cdLabel);
-
+        // The artwork fills the slot inside its border. Hotkeys remain in the
+        // tooltip; status indicators overlay the image instead of shrinking it.
         Control glyphNode = _create_skill_glyph_node(slot, isEmpty, isDisabled);
-        layout.AddChild(glyphNode);
+        panel.AddChild(glyphNode);
 
         if (!isEmpty)
         {
+            // A PanelContainer stretches direct children; anchor the band inside
+            // a plain Control so it cannot cover the glyph.
+            var overlay = new Control { MouseFilter = MouseFilterEnum.Ignore };
+            panel.AddChild(overlay);
+            int cdValue = slot.Cooldown;
+            if (cdValue > 0)
+            {
+                var cdLabel = new Label
+                {
+                    Name = "CooldownLabel",
+                    Text = $"CD {cdValue}",
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    MouseFilter = MouseFilterEnum.Ignore,
+                };
+                overlay.AddChild(cdLabel);
+                cdLabel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+                cdLabel.OffsetLeft = 3;
+                cdLabel.OffsetTop = 2;
+                cdLabel.OffsetRight = -3;
+                cdLabel.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_CAPTION());
+                cdLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_ACCENT());
+                cdLabel.AddThemeColorOverride("font_outline_color", new Color(0.02f, 0.025f, 0.04f, 0.95f));
+                cdLabel.AddThemeConstantOverride("outline_size", 5);
+            }
             var glowBand = new ColorRect
             {
                 Name = "FateGlow",
@@ -158,7 +151,7 @@ public partial class BattleMapPanel
             if (isDisabled)
                 accentColor = new Color(accentColor.R, accentColor.G, accentColor.B, 0.32f);
             glowBand.Color = accentColor;
-            panel.AddChild(glowBand);
+            overlay.AddChild(glowBand);
         }
 
         var clickTarget = new BattleSkillSlotButton
@@ -176,14 +169,13 @@ public partial class BattleMapPanel
         };
         if (!isEmpty)
         {
-            clickTarget.TooltipText = slot.DisplayName;
-            clickTarget.skill_display_name = slot.DisplayName;
-            clickTarget.skill_description = slot.Description;
-            clickTarget.skill_footer_text = slot.FooterText;
-            clickTarget.skill_disabled_reason = slot.DisabledReason;
-            clickTarget.skill_cooldown = slot.Cooldown;
-            clickTarget.skill_accent_color = slot.AccentColor;
+            clickTarget.SetSnapshot(slot);
         }
+        // Keep the artwork visible under the button's hover and press feedback.
+        clickTarget.AddThemeStyleboxOverride("hover", _build_panel_style(
+            new Color(1, 1, 1, 0.12f), Colors.Transparent, 0, 0));
+        clickTarget.AddThemeStyleboxOverride("pressed", _build_panel_style(
+            new Color(0, 0, 0, 0.22f), Colors.Transparent, 0, 0));
         int slotIndex = slot?.Index ?? -1;
         clickTarget.Pressed += () => _on_skill_slot_pressed(slotIndex);
         panel.AddChild(clickTarget);
@@ -195,25 +187,6 @@ public partial class BattleMapPanel
         if (index < 0)
             return;
         EmitSignal(SignalName.battle_skill_slot_selected, index);
-    }
-
-    private string _build_skill_slot_tooltip(BattleHudSkillSlotSnapshot slot)
-    {
-        if (slot == null || slot.IsEmpty)
-            return "";
-        var lines = new List<string> { slot.DisplayName };
-        string disabledReason = slot.DisabledReason;
-        if (!string.IsNullOrEmpty(disabledReason))
-        {
-            lines.Add($"不可用：{disabledReason}");
-        }
-        else
-        {
-            string footerText = slot.FooterText;
-            if (!string.IsNullOrEmpty(footerText) && footerText != "READY")
-                lines.Add($"信息：{footerText}");
-        }
-        return string.Join("\n", lines);
     }
 
     private Control _create_skill_glyph_node(
@@ -232,15 +205,14 @@ public partial class BattleMapPanel
         }
 
         string iconKey = slot?.IconKey ?? "";
-        Texture2D texture = _resolve_skill_icon(iconKey)
-            ?? _resolve_skill_icon(SKILL_ICON_FALLBACK_KEY);
+        Texture2D texture = _resolve_skill_icon(iconKey);
         if (texture != null)
         {
             var icon = new TextureRect
             {
                 Texture = texture,
                 ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
                 SizeFlagsVertical = SizeFlags.ExpandFill,
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
                 MouseFilter = MouseFilterEnum.Ignore,
@@ -287,10 +259,10 @@ public partial class BattleMapPanel
             return null;
         if (_skill_icon_cache.TryGetValue(icon_key, out Texture2D cachedTexture))
             return cachedTexture;
-        string path = $"{SKILL_ICON_DIR}{icon_key}.png";
-        Texture2D texture = null;
-        if (ResourceLoader.Exists(path, "Texture2D"))
-            texture = EngineAssetAccess.ResolveBorrowed<Texture2D>(this, path);
+        Texture2D texture = EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
+            this,
+            icon_key
+        );
         _skill_icon_cache[icon_key] = texture;
         return texture;
     }
@@ -300,7 +272,7 @@ public partial class BattleMapPanel
         if (_skill_icon_grayscale_material?.Shader != null)
             return _skill_icon_grayscale_material;
         if (ResourceLoader.Exists(SKILL_ICON_GRAYSCALE_SHADER, "Shader")
-            && EngineAssetAccess.ResolveBorrowed<Shader>(
+            && EngineAssetAccess.ResolveCodeAssetBorrowed<Shader>(
                 this,
                 SKILL_ICON_GRAYSCALE_SHADER
             ) is Shader shader)

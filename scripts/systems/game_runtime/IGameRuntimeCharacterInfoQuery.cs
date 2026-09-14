@@ -16,5 +16,23 @@ internal interface IGameRuntimeCharacterInfoQuery
 
     bool TryGetTraitDefinition(StringName traitId, out TraitDefinition traitDefinition);
 
+    bool TryGetSkillDefinition(StringName skillId, out SkillDefinition skillDefinition);
+
+    ProgressionIdentityCatalogData GetIdentityCatalog();
+
+    GearSetEvaluationSnapshot EvaluateGearSets(
+        StringName memberId,
+        EquipmentState equipmentStateOverride
+    ) => GearSetEvaluationSnapshot.Empty;
+
+    // Granted-action visibility for the gear-set summary (remaining uses and disabled
+    // reason). When an override view is given it must be the same view the evaluation
+    // ran on, e.g. the battle-local unit equipment view during battle.
+    System.Collections.Generic.IReadOnlyList<GearSetGrantedActionSummary> BuildGearSetGrantedActionSummaries(
+        StringName memberId,
+        EquipmentState equipmentStateOverride,
+        GearSetEvaluationSnapshot evaluation
+    ) => System.Array.Empty<GearSetGrantedActionSummary>();
+
     GDictionary GetIdentitySummary(StringName memberId);
 }

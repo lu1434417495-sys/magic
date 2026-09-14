@@ -132,11 +132,4 @@ public partial class run_battle_ai_failure_policy_regression : LifecycleTestScen
         _test.Eq(BattleAiFailurePolicy.Mode, BattleAiFailurePolicy.ModeRuntimeFault, "未知 mode 应规整为 runtime_fault。");
     }
 
-    private static bool IsGodotDynamicBoundaryType(Type type) =>
-        type == typeof(Godot.Collections.Dictionary)
-        || type == typeof(Godot.Collections.Array)
-        || type == typeof(Variant)
-        || type.FullName == "Godot.Collections.Dictionary"
-        || type.FullName == "Godot.Collections.Array";
-
 }

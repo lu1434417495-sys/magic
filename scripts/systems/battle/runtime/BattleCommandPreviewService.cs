@@ -1,32 +1,41 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.ExceptionServices;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GBattleUnitArray = System.Collections.Generic.List<BattleUnitState>;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
+internal sealed class BattleCommandPreviewService
 {
+    private WeakReference<IBattleCommandPreviewRuntimePort> _runtimeRef;
+
+    private IBattleCommandPreviewRuntimePort Runtime =>
+        _runtimeRef != null && _runtimeRef.TryGetTarget(out IBattleCommandPreviewRuntimePort port)
+            ? port
+            : null;
+
+    internal void Setup(IBattleCommandPreviewRuntimePort runtime)
+    {
+        _runtimeRef =
+            runtime != null ? new WeakReference<IBattleCommandPreviewRuntimePort>(runtime) : null;
+    }
+
+    internal void DisposeRuntime()
+    {
+        _runtimeRef = null;
+    }
 
     public BattlePreview PreviewCommand(BattleCommand command)
     {
-        _runtime._ensure_sidecars_ready();
+        Runtime.EnsureSidecarsReady();
         var preview = new BattlePreview();
         if (!CanPreviewCommand(command))
             return preview;
-        if (_runtime._state.ModalStateKind != BattleModalStateKind.None)
+        if (Runtime.GetBattleState().ModalStateKind != BattleModalStateKind.None)
         {
             preview.AddLogLine(_get_battle_interaction_block_message());
             return preview;
         }
         if (command.IsCancelCast())
         {
-            _runtime._casting_time_service.PreviewCancelCast(command, preview);
+            Runtime.PreviewCancelCast(command, preview);
             return preview;
         }
 
@@ -41,7 +50,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         else if (command.IsWait())
             PreviewWaitCommand(activeUnit, preview);
         else if (command.IsInteract())
-            _runtime.PreviewObjectiveInteraction(activeUnit, command, preview);
+            Runtime.PreviewObjectiveInteraction(activeUnit, command, preview);
         else if (command.IsChangeEquipment())
             PreviewChangeEquipmentCommand(activeUnit, command, preview);
         else
@@ -51,12 +60,15 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
 
     private bool CanPreviewCommand(BattleCommand command)
     {
-        return _runtime._state != null && command != null && _runtime._state.PhaseKind != BattlePhaseKind.BattleEnded;
+        BattleState state = Runtime?.GetBattleState();
+        return state != null && command != null && state.PhaseKind != BattlePhaseKind.BattleEnded;
     }
 
     private BattleUnitReadView ResolvePreviewActiveUnit(BattleCommand command)
     {
-        return command != null ? _runtime._state.AsReadView().GetUnit(command.unit_id) : default;
+        return command != null
+            ? Runtime.GetBattleState().AsReadView().GetUnit(command.unit_id)
+            : default;
     }
 
     private void PreviewMoveCommand(
@@ -66,7 +78,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
     )
     {
         using BattleAiTraceSpan trace = new("preview:move");
-        if (_runtime._movement_service.IsMovementBlocked(activeUnit))
+        if (Runtime.IsMovementBlocked(activeUnit))
         {
             preview.AddLogLine($"{activeUnit.DisplayName} 当前被限制移动。");
             return;
@@ -75,10 +87,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         BattleMovePathResult moveResult;
         using (new BattleAiTraceSpan("preview:move.resolve_path_result"))
         {
-            moveResult = _runtime._movement_service.ResolveMovePathResultTyped(
-                activeUnit,
-                command.target_coord
-            );
+            moveResult = Runtime.ResolveMovePathResult(activeUnit, command.target_coord);
         }
 
         using (new BattleAiTraceSpan("preview:move.build_preview"))
@@ -117,7 +126,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         Vector2I anchorCoord
     )
     {
-        foreach (Vector2I targetCoord in _runtime._grid_service.GetUnitTargetCoords(activeUnit, anchorCoord))
+        foreach (Vector2I targetCoord in Runtime.GetUnitFootprintCoords(activeUnit, anchorCoord))
             preview.AddTargetCoord(targetCoord);
     }
 
@@ -142,7 +151,90 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
             preview.AddLogLine(accessResult.Message);
             return;
         }
-        _runtime._preview_skill_command(activeUnit, command, preview);
+        Runtime.PreviewSkillCommand(activeUnit, command, preview);
+        if (preview.allowed)
+            ProjectEquipmentGrantedSkillReaction(command, accessResult.Entry, preview);
+    }
+
+    private void ProjectEquipmentGrantedSkillReaction(
+        BattleCommand command,
+        BattleAvailableSkillEntry entry,
+        BattlePreview preview
+    )
+    {
+        BattleState state = Runtime?.GetBattleState();
+        if (
+            command == null
+            || entry?.EntryRef == null
+            || entry.EquipmentBindingId == ""
+            || entry.EquipmentGrantedActionId == ""
+            || state == null
+        )
+        {
+            return;
+        }
+        if (
+            !state.TryGetUnitTyped(command.unit_id, out BattleUnitState canonicalSource)
+            || canonicalSource == null
+        )
+        {
+            return;
+        }
+
+        BattleDetachedPreviewState detached =
+            BattleDetachedPreviewState.Create(state, canonicalSource);
+        BattleUnitState sourcePreview = detached.GetUnit(canonicalSource.unit_id);
+        BattleUnitState targetPreview = ResolvePreviewPrimaryTarget(
+            detached.State,
+            command
+        );
+        if (sourcePreview == null)
+            return;
+
+        var actions = new List<BattleEquipmentAbilityActionPreviewResult>();
+        bool triggered = Runtime.ResolveEquipmentGrantedSkillUsed(
+            new BattleEquipmentAbilityGrantedSkillUsedContext
+            {
+                SourceUnit = sourcePreview,
+                TargetUnit = targetPreview,
+                BattleState = detached.State,
+                Batch = null,
+                BindingId = entry.EquipmentBindingId,
+                GrantedActionId = entry.EquipmentGrantedActionId,
+                SkillId = entry.EntryRef.SkillId,
+                SkillEntryId = entry.EntryRef.SkillEntryId,
+                SkillOutcome = BattleEquipmentSkillUseOutcome.Empty,
+                IsPreview = true,
+                PreviewActionSink = actions.Add,
+            }
+        );
+        preview.SetEquipmentAbilityPreview(
+            new BattleEquipmentAbilityCommandPreviewResult
+            {
+                Triggered = triggered,
+                SourceUnitId = sourcePreview.unit_id,
+                SourceUnitAfter = sourcePreview,
+                Actions = actions.AsReadOnly(),
+            }
+        );
+    }
+
+    private static BattleUnitState ResolvePreviewPrimaryTarget(
+        BattleState state,
+        BattleCommand command
+    )
+    {
+        if (state == null || command == null)
+            return null;
+        StringName targetUnitId = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (targetUnitId != "" && state.TryGetUnitTyped(targetUnitId, out BattleUnitState target))
+            return target;
+        foreach (StringName candidateId in command.TargetUnitIdsTyped ?? Array.Empty<StringName>())
+        {
+            if (state.TryGetUnitTyped(candidateId, out target))
+                return target;
+        }
+        return null;
     }
 
     private BattleSkillAccessResult ValidateSkillCommandEntryAccess(
@@ -150,18 +242,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         BattleSkillAvailabilityConsumer consumer
     )
     {
-        BattleSkillAvailabilityService service = new(
-            _runtime._skillCatalog,
-            _runtime._skillDefinitionIndex,
-            _runtime._equipmentAbilityBindingIndex,
-            _runtime._itemDefIndex
-        );
-        return service.ValidateSkillCommandEntryAccess(
-            _runtime._state,
-            command,
-            consumer,
-            _runtime.GetBattleWorldStep()
-        );
+        return Runtime.ValidateSkillCommandEntryAccess(command, consumer);
     }
 
     private static void PreviewWaitCommand(BattleUnitReadView activeUnit, BattlePreview preview)
@@ -193,9 +274,10 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
 
     internal string _get_battle_interaction_block_message()
     {
-        if (_runtime._state == null)
+        BattleState state = Runtime?.GetBattleState();
+        if (state == null)
             return "当前无法操作。";
-        return _runtime._state.ModalStateKind switch
+        return state.ModalStateKind switch
         {
             BattleModalStateKind.StartConfirm => "战斗尚未开始，确认后才能操作。",
             BattleModalStateKind.PromotionChoice => "当前处于晋升选择中，无法操作。",
@@ -224,7 +306,7 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         }
         finally
         {
-            BattleRuntimeModule.DisposeBattlePreview(preview);
+            preview?.ReleaseHitPreview();
         }
     }
 
@@ -232,5 +314,5 @@ internal sealed class BattleCommandPreviewService : BattleRuntimeModuleBorrower
         BattleUnitReadView active_unit,
         BattleCommand command,
         BattlePreview preview
-    ) => _runtime._change_equipment_resolver.PreviewCommand(active_unit, command, preview);
+    ) => Runtime.PreviewChangeEquipmentCommand(active_unit, command, preview);
 }

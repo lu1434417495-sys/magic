@@ -127,8 +127,6 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
                 decision?.action_trace_id != new StringName(""),
                 "survival decision 应关联 plain action trace。"
             );
-            AssertPlainDecisionBoundary(decision);
-
             AiActionTrace trace = FindTrace(context, ActionId);
             _test.True(
                 trace != null && trace.CandidateCount > 0,
@@ -298,11 +296,6 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
             new StringName("survival"),
             "formal advantage entry 应保持 survival positioning mode。"
         );
-        _test.False(
-            entry?.Action != null
-                && typeof(Resource).IsAssignableFrom(entry.Action.GetType()),
-            "advantage runtime entry 不应保留 authored Resource fallback。"
-        );
     }
 
     private BattleAiRuntimeActionEntry FindFormalActionEntry(
@@ -359,24 +352,6 @@ public partial class run_battle_ai_advantage_behavior_regression : LifecycleTest
         {
             context.PopActionMetadata();
         }
-    }
-
-    private void AssertPlainDecisionBoundary(BattleAiDecision decision)
-    {
-        _test.False(
-            decision != null && typeof(GodotObject).IsAssignableFrom(decision.GetType()),
-            "advantage decision 应是 plain CLR value。"
-        );
-        _test.False(
-            decision?.command != null
-                && typeof(GodotObject).IsAssignableFrom(decision.command.GetType()),
-            "advantage command 应是 plain CLR value。"
-        );
-        _test.False(
-            decision?.score_input != null
-                && typeof(GodotObject).IsAssignableFrom(decision.score_input.GetType()),
-            "advantage score input 应是 plain CLR value。"
-        );
     }
 
     private static AiActionTrace FindTrace(BattleAiContext context, string actionId)

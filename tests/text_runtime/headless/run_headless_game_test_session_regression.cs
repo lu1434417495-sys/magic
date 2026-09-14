@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -18,14 +17,23 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
 
     private async void RunAsync()
     {
-        await TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession();
-        await TestDisposeClearsBattleSaveLockOnSharedGameSession();
-        await TestOwnedGameSessionDisposeRemovesLogSink();
-        await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
-        TestSyntheticEnemyDefinitionsUseTypedKeys();
-        await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
-
-        RequestTestExit(_test.Finish("Headless game test session regression"));
+        try
+        {
+            await TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession();
+            await TestDisposeClearsBattleSaveLockOnSharedGameSession();
+            await TestOwnedGameSessionDisposeRemovesLogSink();
+            await TestBuildSnapshotDoesNotRebuildMissingSaveIndex();
+            TestSyntheticEnemyDefinitionsUseTypedKeys();
+            await TestFacadeBattleSetupUsesSyntheticEnemyDefinitions();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Headless game test session regression"));
+        }
     }
 
     private async Task TestCoordinatorlessHostUsesExplicitNoncanonicalOwnedGameSession()
@@ -308,8 +316,7 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         );
 
         HeadlessGameTestSession session = new();
-        SetPrivateField(session, "_gameSession", ownedGameSession);
-        SetPrivateField(session, "_ownsGameSession", true);
+        session.BindOwnedGameSessionForTests(ownedGameSession);
 
         try
         {
@@ -405,53 +412,32 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
     {
         StringName templateId = "headless_synthetic_enemy_template";
         StringName rosterId = "headless_synthetic_enemy_roster";
-        EnemyTemplateDef template = TestResourceOwnership.Own(
-            new EnemyTemplateDef
-            {
-                template_id = templateId,
-                display_name = "Synthetic Enemy",
-                brain_id = "melee_aggressor",
-                cognition_kind = "sapient",
-            },
-            "headless.synthetic_legacy.template"
-        );
-        WildEncounterRosterDef roster = TestResourceOwnership.Own(
-            new WildEncounterRosterDef
-            {
-                profile_id = rosterId,
-                display_name = "Synthetic Roster",
-                initial_stage = 0,
-                growth_step_interval = 1,
-                stages = new Godot.Collections.Array<WildEncounterRosterStageDef>
-                {
-                    new WildEncounterRosterStageDef
-                    {
-                        stage = 0,
-                        unit_entries = new Godot.Collections.Array<WildEncounterRosterUnitEntryDef>
-                        {
-                            new WildEncounterRosterUnitEntryDef
-                            {
-                                template_id = templateId,
-                                count = 1,
-                            },
-                        },
-                    },
-                },
-            },
-            "headless.synthetic_legacy.roster"
-        );
         ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
-        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
-            processSnapshot.Items
+        EnemyTemplateDefinition templateDefinition = new TestEnemyTemplateDefinitionBuilder
+        {
+            TemplateId = templateId,
+            DisplayName = "Synthetic Enemy",
+            BrainId = "melee_aggressor",
+            CognitionKind = "sapient",
+        }.Build(processSnapshot.Items);
+        WildEncounterRosterDefinition rosterDefinition = TestEnemyDefinitionFactory.Roster(
+            rosterId,
+            new[]
+            {
+                TestEnemyDefinitionFactory.RosterStage(
+                    0,
+                    TestEnemyDefinitionFactory.RosterUnit(templateId)
+                ),
+            },
+            displayName: "Synthetic Roster",
+            initialStage: 0,
+            growthStepInterval: 1
         );
-        WildEncounterRosterDefinition rosterDefinition = roster.ToDefinition();
         using GameSession session = GameSessionTestFactory.CreateSyntheticFromProcessSnapshot(
             seed =>
             {
                 seed.Quests = new Dictionary<StringName, QuestDefinition>();
-                seed.WorldGenerations = new Dictionary<string, WorldGenerationDefinition>(
-                    StringComparer.Ordinal
-                );
+                seed.WorldGenerations = new Dictionary<StringName, WorldGenerationDefinition>();
                 seed.EnemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
                     seed.EnemyTemplates
                 )
@@ -482,29 +468,20 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
     {
         StringName templateId = "synthetic_facade_template";
         StringName brainId = "synthetic_facade_brain";
-        EnemyAiBrainDef brain = TestResourceOwnership.Own(new EnemyAiBrainDef
-        {
-            brain_id = brainId,
-            default_state_id = "engage",
-            states = new Godot.Collections.Array<EnemyAiStateDef>
-            {
-                new EnemyAiStateDef { state_id = "engage" }
-            },
-        }, "headless.synthetic_facade.brain");
-        EnemyTemplateDef template = TestResourceOwnership.Own(new EnemyTemplateDef
-        {
-            template_id = templateId,
-            display_name = "Synthetic Enemy",
-            brain_id = brainId,
-            cognition_kind = "sapient",
-            enemy_count = 1,
-        }, "headless.synthetic_facade.template");
-
         ContentSnapshot processSnapshot = GameSessionTestFactory.GetProcessSnapshot();
-        EnemyAiBrainDefinition brainDefinition = brain.ToDefinition();
-        EnemyTemplateDefinition templateDefinition = template.ToDefinition(
-            processSnapshot.Items
+        EnemyAiBrainDefinition brainDefinition = TestEnemyDefinitionFactory.Brain(
+            brainId,
+            "engage",
+            new[] { TestEnemyDefinitionFactory.State("engage") }
         );
+        EnemyTemplateDefinition templateDefinition = new TestEnemyTemplateDefinitionBuilder
+        {
+            TemplateId = templateId,
+            DisplayName = "Synthetic Enemy",
+            BrainId = brainId,
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+        }.Build(processSnapshot.Items);
 
         HeadlessGameTestSession session = new();
         GameSessionTestFactory.CreateSynthetic(
@@ -543,19 +520,19 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
                 return;
 
             _test.True(
-                runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey("wolf_pack"),
+                runtime.GetBattleRuntime().GetEnemyTemplateIndexTyped().ContainsKey("wolf_pack"),
                 "BattleRuntimeModule typed template index 应继续保留正式 template。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey("melee_aggressor"),
+                runtime.GetBattleRuntime().GetEnemyAiBrainIndexTyped().ContainsKey("melee_aggressor"),
                 "BattleRuntimeModule typed brain index 应继续保留正式 brain。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyTemplateIndexTyped().ContainsKey(templateId),
+                runtime.GetBattleRuntime().GetEnemyTemplateIndexTyped().ContainsKey(templateId),
                 "GameRuntimeFacade.setup 应消费 synthetic enemy template definition index。"
             );
             _test.True(
-                runtime._battle_runtime.GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
+                runtime.GetBattleRuntime().GetEnemyAiBrainIndexTyped().ContainsKey(brainId),
                 "GameRuntimeFacade.setup 应消费 synthetic enemy brain definition index。"
             );
         }
@@ -672,12 +649,4 @@ public partial class run_headless_game_test_session_regression : LifecycleTestSc
         return GameLog.SinkCount;
     }
 
-    private static void SetPrivateField<T>(T target, string fieldName, object value)
-    {
-        FieldInfo field = typeof(T).GetField(
-            fieldName,
-            BindingFlags.Instance | BindingFlags.NonPublic
-        );
-        field?.SetValue(target, value);
-    }
 }

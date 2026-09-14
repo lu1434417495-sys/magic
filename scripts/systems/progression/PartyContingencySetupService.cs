@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -74,7 +75,11 @@ public sealed class PartyContingencySetupService
     public ContingencySetupMutationResult ChargeSetup(StringName memberId, GDictionary inlinePayload) =>
         Fail("inline_setup_payload_not_allowed", Normalize(memberId));
 
-    public ContingencySetupMutationResult ChargeSetup(StringName memberId, StringName setupId)
+    public ContingencySetupMutationResult ChargeSetup(
+        StringName memberId,
+        StringName setupId,
+        ContingencySetupTemplateDefinition templateDefinition
+    )
     {
         StringName normalizedMemberId = Normalize(memberId);
         StringName normalizedSetupId = Normalize(setupId);
@@ -86,13 +91,18 @@ public sealed class PartyContingencySetupService
             return Fail("member_not_found", normalizedMemberId, normalizedSetupId);
         if (!member.TryGetContingencySetupTyped(normalizedSetupId, out ContingencyMatrixSetupState setup))
             return Fail("setup_not_found", normalizedMemberId, normalizedSetupId);
+        if (templateDefinition == null || templateDefinition.TemplateId != normalizedSetupId)
+            return Fail("setup_definition_not_found", normalizedMemberId, normalizedSetupId);
         if (setup.Charged)
             return Fail("setup_already_charged", normalizedMemberId, normalizedSetupId);
         if (member.GetChargedContingencySetupCount() > 0)
             return Fail("charged_setup_limit", normalizedMemberId, normalizedSetupId);
 
-        List<ContingencyMaterialCostState> costs = BuildChargeCosts();
-        int reservedMpMax = ContingencyContentRules.ResolveReservedMpMax(setup.MatrixLoad);
+        IReadOnlyList<ContingencyMaterialCostState> costs =
+            ContingencyContentRules.BuildChargeCosts(templateDefinition);
+        if (costs.Count == 0)
+            return Fail("invalid_setup_definition", normalizedMemberId, normalizedSetupId);
+        int reservedMpMax = ContingencyContentRules.ResolveReservedMpMax(templateDefinition);
         ContingencyMatrixSetupState chargedCandidate = BuildSetupVariant(
             setup,
             charged: true,
@@ -145,7 +155,12 @@ public sealed class PartyContingencySetupService
 
             _partyState.SetMemberState(candidateMember);
             int effectiveMpMax = ClampMemberMpToEffectiveMax(normalizedMemberId);
-            if (!PostChargeConditionsHold(normalizedMemberId, normalizedSetupId, effectiveMpMax))
+            if (!PostChargeConditionsHold(
+                normalizedMemberId,
+                normalizedSetupId,
+                effectiveMpMax,
+                templateDefinition
+            ))
                 return RollbackAndFail(
                     warehouseSnapshot,
                     memberSnapshot,
@@ -156,16 +171,22 @@ public sealed class PartyContingencySetupService
                 );
             return SuccessFromSetup(normalizedMemberId, chargedCandidate, effectiveMpMax);
         }
-        catch
+        catch (Exception exception)
         {
-            return RollbackAndFail(
-                warehouseSnapshot,
-                memberSnapshot,
-                currentMpSnapshot,
-                "charge_transaction_failed",
-                normalizedMemberId,
-                normalizedSetupId
+            // 回滚保证仓库/成员状态一致，但异常本身必须继续上抛：这里能抛的只有代码缺陷
+            // （空引用、契约违例），把它压成 charge_transaction_failed 会让 bug 伪装成
+            // 材料不足。合法的充能失败走上面的 RollbackAndFail 分支，不经过这里。
+            RollbackCharge(warehouseSnapshot, memberSnapshot, currentMpSnapshot);
+            GameLog.Error(
+                "Contingency charge transaction failed and was rolled back. "
+                    + $"member_id={normalizedMemberId}, setup_id={normalizedSetupId}, "
+                    + $"exception={exception.GetType().FullName}: {exception.Message}",
+                "progression.contingency.charge_transaction_failed",
+                "progression",
+                exception.ToString()
             );
+            ExceptionDispatchInfo.Capture(exception).Throw();
+            throw;
         }
     }
 
@@ -231,13 +252,22 @@ public sealed class PartyContingencySetupService
         StringName setupId
     )
     {
+        RollbackCharge(warehouseSnapshot, memberSnapshot, currentMpSnapshot);
+        return Fail(errorCode, memberId, setupId);
+    }
+
+    private void RollbackCharge(
+        WarehouseState warehouseSnapshot,
+        PartyMemberState memberSnapshot,
+        int currentMpSnapshot
+    )
+    {
         if (memberSnapshot != null)
         {
             memberSnapshot.SetCurrentMp(currentMpSnapshot);
             _partyState.SetMemberState(memberSnapshot);
         }
         _warehouseService?.RestoreWarehouseStateForTransaction(warehouseSnapshot);
-        return Fail(errorCode, memberId, setupId);
     }
 
     private int ClampMemberMpToEffectiveMax(StringName memberId)
@@ -261,7 +291,12 @@ public sealed class PartyContingencySetupService
         return Mathf.Max(snapshot?.GetValue(AttributeService.MP_MAX) ?? 0, 0);
     }
 
-    private bool PostChargeConditionsHold(StringName memberId, StringName setupId, int effectiveMpMax)
+    private bool PostChargeConditionsHold(
+        StringName memberId,
+        StringName setupId,
+        int effectiveMpMax,
+        ContingencySetupTemplateDefinition templateDefinition
+    )
     {
         PartyMemberState member = _partyState?.GetMemberState(memberId);
         if (
@@ -272,17 +307,33 @@ public sealed class PartyContingencySetupService
             || member.current_mp > effectiveMpMax
         )
             return false;
-        return HasExpectedChargeReceipt(setup);
+        return HasExpectedChargeReceipt(setup, templateDefinition);
     }
 
-    private static bool HasExpectedChargeReceipt(ContingencyMatrixSetupState setup)
+    private static bool HasExpectedChargeReceipt(
+        ContingencyMatrixSetupState setup,
+        ContingencySetupTemplateDefinition templateDefinition
+    )
     {
-        if (setup?.MaterialCosts == null || setup.MaterialCosts.Count != 1)
+        if (
+            setup?.MaterialCosts == null
+            || templateDefinition?.ChargeMaterialCosts == null
+            || setup.MaterialCosts.Count != templateDefinition.ChargeMaterialCosts.Count
+        )
             return false;
-        ContingencyMaterialCostState cost = setup.MaterialCosts[0];
-        return cost != null
-            && cost.ItemId == ContingencyContentRules.ChargeMaterialItemId
-            && cost.Quantity == ContingencyContentRules.ChargeMaterialQuantity;
+        for (int index = 0; index < setup.MaterialCosts.Count; index++)
+        {
+            ContingencyMaterialCostState cost = setup.MaterialCosts[index];
+            ContingencyMaterialCostDefinition expected =
+                templateDefinition.ChargeMaterialCosts[index];
+            if (
+                cost == null
+                || cost.ItemId != expected.ItemId
+                || cost.Quantity != expected.Quantity
+            )
+                return false;
+        }
+        return true;
     }
 
     private static PartyMemberState ReplaceSetup(
@@ -323,15 +374,6 @@ public sealed class PartyContingencySetupService
             materialCosts ?? Array.Empty<ContingencyMaterialCostState>()
         );
     }
-
-    private static List<ContingencyMaterialCostState> BuildChargeCosts() =>
-        new()
-        {
-            ContingencyMaterialCostState.Create(
-                ContingencyContentRules.ChargeMaterialItemId,
-                ContingencyContentRules.ChargeMaterialQuantity
-            ),
-        };
 
     private static List<WarehouseBatchQuantityEntry> BuildWarehouseCostEntries(
         IReadOnlyList<ContingencyMaterialCostState> costs

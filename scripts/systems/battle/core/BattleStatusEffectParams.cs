@@ -20,6 +20,7 @@ internal sealed class BattleStatusEffectParams
     public int? HealMultiplierPercent { get; private init; }
     public int? ShieldGainMultiplierPercent { get; private init; }
     public int AttackRollPenalty { get; private init; } = -1;
+    public int ArmorClassBonusPerStack { get; private init; }
     public int AttackRollBonus { get; private init; }
     public bool AttackRollAdvantage { get; private init; }
     public bool ConsumeOnNextAttackCheck { get; private init; }
@@ -70,6 +71,8 @@ internal sealed class BattleStatusEffectParams
                 "shield_gain_multiplier_percent"
             ),
             AttackRollPenalty = ReadOptionalIntParam(parameters, "attack_roll_penalty") ?? -1,
+            ArmorClassBonusPerStack =
+                ReadOptionalIntParam(parameters, "armor_class_bonus_per_stack") ?? 0,
             AttackRollBonus = ReadOptionalIntParam(parameters, "attack_roll_bonus") ?? 0,
             AttackRollAdvantage = ReadOptionalBoolParam(parameters, "attack_roll_advantage"),
             ConsumeOnNextAttackCheck = ReadOptionalBoolParam(
@@ -150,6 +153,13 @@ internal sealed class BattleStatusEffectParams
             status.shield_gain_multiplier_percent = ShieldGainMultiplierPercent;
         if ((overwriteExisting || status.attack_roll_penalty < 0) && AttackRollPenalty >= 0)
             status.attack_roll_penalty = AttackRollPenalty;
+        if (
+            (overwriteExisting || status.armor_class_bonus_per_stack == 0)
+            && ArmorClassBonusPerStack > 0
+        )
+        {
+            status.armor_class_bonus_per_stack = ArmorClassBonusPerStack;
+        }
         if ((overwriteExisting || status.attack_roll_bonus == 0) && AttackRollBonus != 0)
             status.attack_roll_bonus = AttackRollBonus;
         if (overwriteExisting || !status.attack_roll_advantage)

@@ -11,6 +11,10 @@ internal readonly struct BattleAiDecisionContextSetup
     internal readonly BattleAiRuntimeActionPlan ActionPlan;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        EquipmentAbilityBindings;
+    internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
+    internal readonly StringName BasicAttackSkillId;
     internal readonly bool TraceEnabled;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly Func<BattleUnitState, Vector2I, int> MoveCostCallback;
@@ -45,6 +49,9 @@ internal readonly struct BattleAiDecisionContextSetup
         BattleAiRuntimeActionPlan actionPlan,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName basicAttackSkillId,
         bool traceEnabled,
         ISkillCatalog skillCatalog,
         Func<BattleUnitState, Vector2I, int> moveCostCallback,
@@ -79,6 +86,9 @@ internal readonly struct BattleAiDecisionContextSetup
         ActionPlan = actionPlan;
         SkillDefinitions = skillDefinitions;
         BarrierProfileDefinitions = barrierProfileDefinitions;
+        EquipmentAbilityBindings = equipmentAbilityBindings;
+        ItemDefinitions = itemDefinitions;
+        BasicAttackSkillId = basicAttackSkillId;
         TraceEnabled = traceEnabled;
         SkillCatalog = skillCatalog;
         MoveCostCallback = moveCostCallback;
@@ -96,6 +106,10 @@ internal readonly struct BattleAiHelperBindingContext
     internal readonly BattleUnitState UnitState;
     internal readonly IReadOnlyDictionary<StringName, SkillDefinition> SkillDefinitions;
     internal readonly IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfileDefinitions;
+    internal readonly IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition>
+        EquipmentAbilityBindings;
+    internal readonly IReadOnlyDictionary<StringName, ItemDefinition> ItemDefinitions;
+    internal readonly StringName BasicAttackSkillId;
     internal readonly ISkillCatalog SkillCatalog;
     internal readonly BattleAiScoreService ScoreService;
     internal readonly Func<StringName, Vector2I, Vector2I, int> MoveQueryCostCallback;
@@ -141,6 +155,9 @@ internal readonly struct BattleAiHelperBindingContext
         BattleUnitState unitState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
         IReadOnlyDictionary<StringName, BarrierProfileDefinition> barrierProfileDefinitions,
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> equipmentAbilityBindings,
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions,
+        StringName basicAttackSkillId,
         ISkillCatalog skillCatalog,
         BattleAiScoreService scoreService,
         Func<StringName, Vector2I, Vector2I, int> moveQueryCostCallback,
@@ -186,6 +203,9 @@ internal readonly struct BattleAiHelperBindingContext
         UnitState = unitState;
         SkillDefinitions = skillDefinitions;
         BarrierProfileDefinitions = barrierProfileDefinitions;
+        EquipmentAbilityBindings = equipmentAbilityBindings;
+        ItemDefinitions = itemDefinitions;
+        BasicAttackSkillId = basicAttackSkillId;
         SkillCatalog = skillCatalog;
         ScoreService = scoreService;
         MoveQueryCostCallback = moveQueryCostCallback;
@@ -236,11 +256,11 @@ internal sealed class BattleRuntimeServices : IDisposable
 
     internal void EndBattle()
     {
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.EndBattle);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.EndBattle);
         _battleEpoch = long.MinValue;
-        Rethrow(firstFailure);
+        Rethrow(accumulatedFailure);
     }
 
     internal void SetupRuntimeSidecars(
@@ -249,7 +269,10 @@ internal sealed class BattleRuntimeServices : IDisposable
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        GroundEffects.Setup(runtime);
+        // 就地绑定 bridge（经 IsBoundTo 幂等）：本方法可能早于 _moduleBorrowers.Setup 跑到，
+        // 不保证的话地面效果服务族会拿到未绑定的端口而静默 no-op。
+        runtime._moduleBorrowers.GroundEffectBridge.Setup(runtime);
+        GroundEffects.Setup(runtime._moduleBorrowers.GroundEffectBridge);
         SpecialSkills.Setup(runtime);
         Movement.Setup(runtime);
         Contingencies.Setup(contingencyRuntimePort);
@@ -267,7 +290,10 @@ internal sealed class BattleRuntimeServices : IDisposable
             context.SkillDefinitions,
             context.TraceEnabled,
             context.SkillCatalog,
-            context.BarrierProfileDefinitions
+            context.BarrierProfileDefinitions,
+            context.EquipmentAbilityBindings,
+            context.ItemDefinitions,
+            context.BasicAttackSkillId
         );
         BindContextCallbacks(AiDecisionContext, context);
         return AiDecisionContext;
@@ -295,6 +321,7 @@ internal sealed class BattleRuntimeServices : IDisposable
             );
         }
 
+        aiContext.SetBasicAttackSkillId(context.BasicAttackSkillId);
         BindContextCallbacks(aiContext, context);
 
         using (new BattleAiTraceSpan("bind_ai_helpers:movement_query_setup"))
@@ -317,7 +344,10 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.SkillCatalog,
                 context.SkillDefinitions,
                 context.BarrierProfileDefinitions,
-                context.SkillCastBlockReasonCallback
+                context.SkillCastBlockReasonCallback,
+                context.EquipmentAbilityBindings,
+                context.ItemDefinitions,
+                context.BasicAttackSkillId
             );
         }
 
@@ -331,7 +361,9 @@ internal sealed class BattleRuntimeServices : IDisposable
                 context.QueryActionScoreInputCallback,
                 AiMovementQuery,
                 context.MovementBlockedCallback,
-                context.SkillCatalog
+                context.SkillCatalog,
+                context.EquipmentAbilityBindings,
+                context.ItemDefinitions
             );
         }
 
@@ -371,12 +403,12 @@ internal sealed class BattleRuntimeServices : IDisposable
         // Clear in reverse borrower order. Movement query topology/path caches are plain
         // battle-lifetime values; only its decision-scoped state/grid/callback bindings end here.
         _aiHelperBindingsActive = false;
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, AiDecisionContext.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiQuery.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiScoreContextAdapter.ClearRuntimeBindings);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.ClearRuntimeBindings);
-        Rethrow(firstFailure);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, AiDecisionContext.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiQuery.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiScoreContextAdapter.ClearRuntimeBindings);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.ClearRuntimeBindings);
+        Rethrow(accumulatedFailure);
     }
 
     public void Dispose()
@@ -387,17 +419,17 @@ internal sealed class BattleRuntimeServices : IDisposable
         }
         _disposed = true;
         _runtimeSidecarsBound = false;
-        Exception firstFailure = null;
-        RunTeardownStep(ref firstFailure, EndBattle);
-        RunTeardownStep(ref firstFailure, Contingencies.Dispose);
-        RunTeardownStep(ref firstFailure, GroundEffects.Dispose);
-        RunTeardownStep(ref firstFailure, SpecialSkills.Dispose);
-        RunTeardownStep(ref firstFailure, Movement.Dispose);
-        RunTeardownStep(ref firstFailure, AiMovementQuery.Dispose);
-        Rethrow(firstFailure);
+        Exception accumulatedFailure = null;
+        RunTeardownStep(ref accumulatedFailure, EndBattle);
+        RunTeardownStep(ref accumulatedFailure, Contingencies.Dispose);
+        RunTeardownStep(ref accumulatedFailure, GroundEffects.Dispose);
+        RunTeardownStep(ref accumulatedFailure, SpecialSkills.Dispose);
+        RunTeardownStep(ref accumulatedFailure, Movement.Dispose);
+        RunTeardownStep(ref accumulatedFailure, AiMovementQuery.Dispose);
+        Rethrow(accumulatedFailure);
     }
 
-    private static void RunTeardownStep(ref Exception firstFailure, Action action)
+    private static void RunTeardownStep(ref Exception accumulatedFailure, Action action)
     {
         try
         {
@@ -405,7 +437,7 @@ internal sealed class BattleRuntimeServices : IDisposable
         }
         catch (Exception exception)
         {
-            firstFailure ??= exception;
+            accumulatedFailure ??= exception;
         }
     }
 

@@ -8,7 +8,7 @@ internal enum AttributeModifierMode
 }
 
 [GlobalClass]
-public partial class AttributeModifier : Resource
+public partial class AttributeModifier : RefCounted
 {
     public static bool IsValidMode(StringName value)
     {
@@ -63,5 +63,5 @@ public partial class AttributeModifier : Resource
     }
 
     internal AttributeModifierDefinition ToDefinition() =>
-        AttributeModifierDefinition.FromResource(this);
+        AttributeModifierDefinition.FromDiagnosticFixture(this);
 }

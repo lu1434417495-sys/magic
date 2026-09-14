@@ -20,15 +20,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     private const string PERSIST_FAILURE_ROLLBACK_MESSAGE = "存档提交失败，操作已回滚。";
     internal static readonly StringName NPC_OFFER_LISTING_CHANNEL = "npc_offer";
 
-    internal static readonly HashSet<string> SHOP_INTERACTION_IDS = new()
-    {
-        "service_basic_supply",
-        "service_local_trade",
-        "service_city_market",
-        "service_military_supply",
-        "service_grand_auction",
-    };
-
     internal static readonly HashSet<string> STAGECOACH_INTERACTION_IDS = new()
     {
         "service_stagecoach",
@@ -103,14 +94,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal sealed class SettlementCommandRollbackSnapshot
     {
-        private readonly Dictionary<string, object> _activeShopContext =
-            new(StringComparer.Ordinal);
-        private readonly Dictionary<string, object> _activeContractBoardContext =
-            new(StringComparer.Ordinal);
-        private readonly Dictionary<string, object> _activeForgeContext =
-            new(StringComparer.Ordinal);
-        private readonly Dictionary<string, object> _activeStagecoachContext =
-            new(StringComparer.Ordinal);
+        // Window DTOs are immutable and replaced whole, so the snapshot can safely borrow
+        // the published references instead of deep-copying a property bag.
+        private readonly SettlementServiceWindowData _activeShopContext;
+        private readonly SettlementServiceWindowData _activeContractBoardContext;
+        private readonly SettlementServiceWindowData _activeForgeContext;
+        private readonly SettlementServiceWindowData _activeStagecoachContext;
         private NpcQuestOfferWindowData _activeNpcQuestOfferContext;
         private BountyBoardWindowData _activeBountyBoardContext;
         public RuntimeTransactionRollbackState RuntimeState { get; }
@@ -121,14 +110,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         public bool SettlementEntryActive { get; }
         public Vector2I SettlementEntrySourceCoord { get; }
         public Vector2I SettlementEntryTargetCoord { get; }
-        internal IReadOnlyDictionary<string, object> ActiveShopContextPlain =>
-            RuntimePlainPayload.CloneDictionary(_activeShopContext);
-        internal IReadOnlyDictionary<string, object> ActiveContractBoardContextPlain =>
-            RuntimePlainPayload.CloneDictionary(_activeContractBoardContext);
-        internal IReadOnlyDictionary<string, object> ActiveForgeContextPlain =>
-            RuntimePlainPayload.CloneDictionary(_activeForgeContext);
-        internal IReadOnlyDictionary<string, object> ActiveStagecoachContextPlain =>
-            RuntimePlainPayload.CloneDictionary(_activeStagecoachContext);
+        internal SettlementServiceWindowData ActiveShopContext => _activeShopContext;
+        internal SettlementServiceWindowData ActiveContractBoardContext =>
+            _activeContractBoardContext;
+        internal SettlementServiceWindowData ActiveForgeContext => _activeForgeContext;
+        internal SettlementServiceWindowData ActiveStagecoachContext =>
+            _activeStagecoachContext;
         internal NpcQuestOfferWindowData ActiveNpcQuestOfferContext => _activeNpcQuestOfferContext;
         internal BountyBoardWindowData ActiveBountyBoardContext => _activeBountyBoardContext;
 
@@ -141,10 +128,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             bool settlementEntryActive,
             Vector2I settlementEntrySourceCoord,
             Vector2I settlementEntryTargetCoord,
-            IReadOnlyDictionary<string, object> activeShopContext,
-            IReadOnlyDictionary<string, object> activeContractBoardContext,
-            IReadOnlyDictionary<string, object> activeForgeContext,
-            IReadOnlyDictionary<string, object> activeStagecoachContext,
+            SettlementServiceWindowData activeShopContext,
+            SettlementServiceWindowData activeContractBoardContext,
+            SettlementServiceWindowData activeForgeContext,
+            SettlementServiceWindowData activeStagecoachContext,
             NpcQuestOfferWindowData activeNpcQuestOfferContext,
             BountyBoardWindowData activeBountyBoardContext
         )
@@ -157,55 +144,34 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             SettlementEntryActive = settlementEntryActive;
             SettlementEntrySourceCoord = settlementEntrySourceCoord;
             SettlementEntryTargetCoord = settlementEntryTargetCoord;
-            ReplacePlainPayload(
-                _activeShopContext,
-                activeShopContext
-            );
-            ReplacePlainPayload(
-                _activeContractBoardContext,
-                activeContractBoardContext
-            );
-            ReplacePlainPayload(
-                _activeForgeContext,
-                activeForgeContext
-            );
-            ReplacePlainPayload(
-                _activeStagecoachContext,
-                activeStagecoachContext
-            );
+            _activeShopContext = activeShopContext ?? SettlementServiceWindowData.Empty;
+            _activeContractBoardContext =
+                activeContractBoardContext ?? SettlementServiceWindowData.Empty;
+            _activeForgeContext = activeForgeContext ?? SettlementServiceWindowData.Empty;
+            _activeStagecoachContext =
+                activeStagecoachContext ?? SettlementServiceWindowData.Empty;
             _activeNpcQuestOfferContext = activeNpcQuestOfferContext;
             _activeBountyBoardContext = activeBountyBoardContext;
         }
     }
 
-    private static void ReplacePlainPayload(
-        Dictionary<string, object> target,
-        GDictionary payload,
-        string ownerPath
-    )
-    {
-        target.Clear();
-        Dictionary<string, object> normalized =
-            RuntimePlainPayload.NormalizeDictionary(payload ?? new GDictionary(), ownerPath);
-        foreach (KeyValuePair<string, object> entry in normalized)
-        {
-            target[entry.Key] = entry.Value;
-        }
-    }
-
-    private static void ReplacePlainPayload(
-        Dictionary<string, object> target,
-        IReadOnlyDictionary<string, object> payload
-    )
-    {
-        target.Clear();
-        foreach (KeyValuePair<string, object> entry in RuntimePlainPayload.CloneDictionary(payload))
-            target[entry.Key] = entry.Value;
-    }
-
     internal void SetupRuntime(IGameRuntimeSettlementCommandPort runtimePort)
     {
+        ArgumentNullException.ThrowIfNull(runtimePort);
+        SetupRuntime(runtimePort, runtimePort.GetGameplayConfiguration());
+    }
+
+    internal void SetupRuntime(
+        IGameRuntimeSettlementCommandPort runtimePort,
+        GameplayConfigurationDefinition gameplayConfiguration
+    )
+    {
+        ArgumentNullException.ThrowIfNull(runtimePort);
+        ArgumentNullException.ThrowIfNull(gameplayConfiguration);
         Port = runtimePort;
+        _shop_service.SetDefinitions(
+            gameplayConfiguration.SettlementShopsByInteractionId
+        );
     }
 
     public void Dispose()
@@ -248,20 +214,21 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return ReadInt(settlement, "tier", 0);
     }
 
-    internal GodotProjectionLease<GDictionary> GetShopWindowDataLease() =>
-        ProjectWindowDataLease(GetShopWindowDataSnapshotPlain(), "shop");
+    internal SettlementServiceWindowData GetShopWindowDataTyped() =>
+        _serviceWindowHandler.GetShopWindowDataTyped();
 
-    internal GodotProjectionLease<GDictionary> GetContractBoardWindowDataLease() =>
-        ProjectWindowDataLease(GetContractBoardWindowDataSnapshotPlain(), "contract-board");
+    internal SettlementServiceWindowData GetContractBoardWindowDataTyped() =>
+        _contractBoardHandler.GetActiveContractBoardContextTyped();
 
-    internal GodotProjectionLease<GDictionary> GetForgeWindowDataLease() =>
-        ProjectWindowDataLease(GetForgeWindowDataSnapshotPlain(), "forge");
+    internal SettlementServiceWindowData GetForgeWindowDataTyped() =>
+        _serviceWindowHandler.GetForgeWindowDataTyped();
 
-    internal GodotProjectionLease<GDictionary> GetStagecoachWindowDataLease() =>
-        ProjectWindowDataLease(GetStagecoachWindowDataSnapshotPlain(), "stagecoach");
+    internal SettlementServiceWindowData GetStagecoachWindowDataTyped() =>
+        _serviceWindowHandler.GetStagecoachWindowDataTyped();
 
-    internal GDictionary GetSettlementWindowData(string settlement_id = "") =>
-        _windowDataBuilder.GetSettlementWindowData(settlement_id);
+    internal SettlementOverviewWindowData GetSettlementOverviewWindowData(
+        string settlement_id = ""
+    ) => _windowDataBuilder.BuildSettlementOverviewWindowData(settlement_id);
 
     internal IReadOnlyDictionary<string, object> GetSettlementHeadlessFactsPlain(
         string settlementId
@@ -308,20 +275,66 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         StringName instance_id = null
     ) => _serviceWindowHandler.CommandShopSellTyped(item_id, quantity, instance_id);
 
+    // Typed contract-board submission. The panel only names the quest; the provider entry,
+    // quest state and confirmation gate are re-resolved from the active modal context.
+    internal RuntimeCommandResult CommandExecuteContractBoardActionRuntimeTyped(
+        SettlementContractBoardActionRequest request
+    )
+    {
+        if (!_has_runtime())
+        {
+            return RuntimeCommandError("运行时尚未初始化。");
+        }
+        if (!request.IsValid)
+        {
+            return RuntimeCommandError("契约提交缺少据点、服务入口或任务 ID。");
+        }
+        var payload = new GDictionary
+        {
+            ["settlement_id"] = SettlementActionRequest.ToText(request.Action.SettlementId),
+            ["service_id"] = SettlementActionRequest.ToText(request.Action.ServiceId),
+            ["action_id"] = SettlementActionRequest.ToText(request.Action.ActionId),
+            ["quest_id"] = SettlementActionRequest.ToText(request.QuestId),
+            ["provider_interaction_id"] = GetActiveContractBoardContextTyped()
+                .InteractionScriptId.ToString(),
+            ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
+                SettlementSubmissionSource.ContractBoard
+            ),
+        };
+        if (!SettlementActionRequest.IsEmpty(request.Action.MemberId))
+        {
+            payload["member_id"] = SettlementActionRequest.ToText(request.Action.MemberId);
+        }
+        if (request.ConfirmAccept)
+        {
+            payload["confirm_accept"] = true;
+        }
+        return CommandExecuteSettlementActionRuntimeTyped(
+            SettlementActionRequest.ToText(request.Action.ActionId),
+            payload
+        );
+    }
+
+    internal RuntimeCommandResult CommandExecuteShopActionRuntimeTyped(
+        SettlementShopActionRequest request
+    )
+    {
+        if (!_has_runtime())
+        {
+            return RuntimeCommandError("运行时尚未初始化。");
+        }
+        if (!request.IsValid)
+        {
+            return RuntimeCommandError("商店提交缺少物品 ID 或数量。");
+        }
+        return request.ActionKind == SettlementShopActionKind.Sell
+            ? CommandShopSellTyped(request.ItemId, request.Quantity, request.InstanceId)
+            : CommandShopBuyTyped(request.ItemId, request.Quantity);
+    }
+
     internal RuntimeCommandResult CommandStagecoachTravelTyped(
         string settlement_id
     ) => _serviceWindowHandler.CommandStagecoachTravelTyped(settlement_id);
-
-    internal static GodotProjectionLease<GDictionary> ProjectWindowDataLease(
-        IReadOnlyDictionary<string, object> snapshot,
-        string windowId
-    ) =>
-        RuntimePlainPayload.ProjectDictionaryLease(
-            snapshot,
-            $"settlement-window-{windowId}",
-            LifetimeDomain.Request,
-            $"GameRuntimeSettlementCommandHandler.{windowId}"
-        );
 
     internal RuntimeCommandResult CommandExecuteSettlementActionRuntimeTyped(
         string action_id,
@@ -636,7 +649,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
                 $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
             );
         }
-        if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
+        if (_shop_service.HasShop(interactionScriptId))
         {
             return RuntimeCommandResultProjection.Project(
                 _serviceWindowHandler.OpenShopModalTyped(settlement_id, payload)
@@ -757,9 +770,9 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
 
     internal void OnForgeWindowClosed()
     {
-        using GodotProjectionLease<GDictionary> contextLease = GetActiveForgeContextLease();
-        GDictionary context = contextLease.Value;
-        string forgeLabel = _serviceWindowHandler._resolve_forge_service_label(context);
+        string forgeLabel = _serviceWindowHandler._resolve_forge_service_label(
+            GetActiveForgeContextTyped()
+        );
         ClearActiveForgeContext();
         SetActiveModalKind(RuntimeModalKind.Settlement);
         UpdateStatus($"已关闭{forgeLabel}，返回据点服务。");
@@ -910,14 +923,13 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的任务板。");
             }
-            using GodotProjectionLease<GDictionary> contractBoardContextLease =
-                GetActiveContractBoardContextLease();
-            GDictionary contractBoardContext = contractBoardContextLease.Value;
-            if (ReadString(contractBoardContext, "settlement_id").Trim() != settlement_id)
+            SettlementServiceWindowData contractBoardContext =
+                GetActiveContractBoardContextTyped();
+            if (contractBoardContext.SettlementId.ToString().Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前任务板与请求的据点不一致。");
             }
-            if (ReadString(contractBoardContext, "action_id").Trim() != action_id)
+            if (contractBoardContext.ActionId.ToString().Trim() != action_id)
             {
                 return SettlementActionValidationResult.Failure("当前任务板与请求的服务入口不一致。");
             }
@@ -946,14 +958,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             {
                 return SettlementActionValidationResult.Failure("当前没有打开对应的锻造界面。");
             }
-            using GodotProjectionLease<GDictionary> forgeContextLease =
-                GetActiveForgeContextLease();
-            GDictionary forgeContext = forgeContextLease.Value;
-            if (ReadString(forgeContext, "settlement_id").Trim() != settlement_id)
+            SettlementServiceWindowData forgeContext = GetActiveForgeContextTyped();
+            if (forgeContext.SettlementId.ToString().Trim() != settlement_id)
             {
                 return SettlementActionValidationResult.Failure("当前锻造界面与请求的据点不一致。");
             }
-            if (ReadString(forgeContext, "action_id").Trim() != action_id)
+            if (forgeContext.ActionId.ToString().Trim() != action_id)
             {
                 return SettlementActionValidationResult.Failure("当前锻造界面与请求的服务入口不一致。");
             }
@@ -1259,35 +1269,27 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
         if (Port != null)
         {
-            object lowLuckResultValue = Port.ResolveLowLuckSettlementEventRewards(
-                new GDictionary
-                {
-                    ["action_id"] = action_id,
-                    ["facility_id"] = ReadString(payload, "facility_id"),
-                    ["facility_name"] = facility_name,
-                    ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
-                    ["npc_name"] = npc_name,
-                    ["payload"] = payload,
-                    ["service_type"] = service_type,
-                }
+            LowLuckEventResult lowLuckResult = Port.ResolveLowLuckSettlementEventRewards(
+                new LowLuckSettlementActionInput(
+                    action_id,
+                    ReadString(payload, "interaction_script_id"),
+                    ReadString(payload, "facility_id"),
+                    facility_name,
+                    service_type
+                )
             );
-            if (TryAsDictionary(lowLuckResultValue, out GDictionary lowLuckResult))
+            if (lowLuckResult != null)
             {
-                GArray lowLuckRewards = ReadArray(lowLuckResult, "pending_character_rewards");
-                if (lowLuckRewards.Count != 0)
+                foreach (PendingCharacterReward lowLuckReward in lowLuckResult.PendingCharacterRewards)
                 {
-                    foreach (GDictionary rewardData in Dictionaries(lowLuckRewards))
+                    PendingCharacterReward normalizedRewardData = NormalizePendingCharacterReward(
+                        lowLuckReward,
+                        defaultSourceType,
+                        defaultSourceLabel
+                    );
+                    if (normalizedRewardData != null && !normalizedRewardData.IsEmpty())
                     {
-                        PendingCharacterReward normalizedRewardData = BuildPendingCharacterRewardTyped(
-                            rewardData,
-                            payload,
-                            defaultSourceType,
-                            defaultSourceLabel
-                        );
-                        if (normalizedRewardData != null && !normalizedRewardData.IsEmpty())
-                        {
-                            rewards.Add(normalizedRewardData);
-                        }
+                        rewards.Add(normalizedRewardData);
                     }
                 }
             }
@@ -1344,6 +1346,39 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ReadString(source_reward, "summary_text")
         );
         return reward;
+    }
+
+    // Low-luck rewards already arrive typed; they only need the same source
+    // type/label defaulting and party-state re-validation the payload path gets.
+    private PendingCharacterReward NormalizePendingCharacterReward(
+        PendingCharacterReward source_reward,
+        StringName default_source_type,
+        string default_source_label
+    )
+    {
+        if (source_reward == null || source_reward.IsEmpty() || Port == null)
+        {
+            return null;
+        }
+
+        StringName sourceType = source_reward.source_type != ""
+            ? source_reward.source_type
+            : default_source_type;
+        StringName sourceId = source_reward.source_id != ""
+            ? source_reward.source_id
+            : sourceType;
+        string sourceLabel = !string.IsNullOrEmpty(source_reward.source_label)
+            ? source_reward.source_label
+            : default_source_label;
+        return Port.BuildPendingCharacterReward(
+            source_reward.member_id,
+            source_reward.reward_id,
+            sourceType,
+            sourceId,
+            sourceLabel,
+            source_reward.entries,
+            source_reward.summary_text
+        );
     }
 
     private static List<PendingCharacterRewardEntry> BuildPendingCharacterRewardEntriesTyped(
@@ -1867,10 +1902,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             entrySnapshot.IsActive,
             entrySnapshot.SourceCoord,
             entrySnapshot.TargetCoord,
-            Port.GetActiveShopContextPlain(),
-            Port.GetActiveContractBoardContextPlain(),
-            Port.GetActiveForgeContextPlain(),
-            Port.GetActiveStagecoachContextPlain(),
+            Port.GetActiveShopContext(),
+            Port.GetActiveContractBoardContext(),
+            Port.GetActiveForgeContext(),
+            Port.GetActiveStagecoachContext(),
             GetActiveNpcQuestOfferContextTyped(),
             GetActiveBountyBoardContextTyped()
         );
@@ -1884,10 +1919,10 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         SetSelectedCoord(snapshot.SelectedCoord);
         SetActiveSettlementId(snapshot.ActiveSettlementId);
         SetSettlementFeedbackText(snapshot.SettlementFeedbackText);
-        Port.SetActiveShopContextPlain(snapshot.ActiveShopContextPlain);
-        Port.SetActiveContractBoardContextPlain(snapshot.ActiveContractBoardContextPlain);
-        Port.SetActiveForgeContextPlain(snapshot.ActiveForgeContextPlain);
-        Port.SetActiveStagecoachContextPlain(snapshot.ActiveStagecoachContextPlain);
+        Port.SetActiveShopContext(snapshot.ActiveShopContext);
+        Port.SetActiveContractBoardContext(snapshot.ActiveContractBoardContext);
+        Port.SetActiveForgeContext(snapshot.ActiveForgeContext);
+        Port.SetActiveStagecoachContext(snapshot.ActiveStagecoachContext);
         if (snapshot.ActiveNpcQuestOfferContext != null)
             SetActiveNpcQuestOfferContext(snapshot.ActiveNpcQuestOfferContext);
         if (snapshot.ActiveBountyBoardContext != null)
@@ -2173,6 +2208,12 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
     internal WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
         _has_runtime() ? Port.GetSettlementStateData(settlement_id) : null;
 
+    internal WorldUniqueEquipmentPoolState GetUniqueEquipmentPoolState() =>
+        _has_runtime() ? Port.GetUniqueEquipmentPoolState() : null;
+
+    internal bool IsUniqueWorldEquipmentItem(StringName itemId) =>
+        _has_runtime() && Port.IsUniqueWorldEquipmentItem(itemId);
+
     private static GodotProjectionLease<GDictionary> EmptyDictionaryLease(string reason) =>
         RuntimePlainPayload.ProjectDictionaryLease(
             new System.Collections.Generic.Dictionary<string, object>(StringComparer.Ordinal),
@@ -2279,17 +2320,17 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             ?? EmptyPlainDictionary();
     }
 
-    internal IReadOnlyDictionary<string, object> GetActiveShopContextPlain() =>
-        Port?.GetActiveShopContextPlain() ?? EmptyPlainDictionary();
+    internal SettlementServiceWindowData GetActiveShopContextTyped() =>
+        Port?.GetActiveShopContext() ?? SettlementServiceWindowData.Empty;
 
-    internal IReadOnlyDictionary<string, object> GetActiveContractBoardContextPlain() =>
-        Port?.GetActiveContractBoardContextPlain() ?? EmptyPlainDictionary();
+    internal SettlementServiceWindowData GetActiveContractBoardContextTyped() =>
+        Port?.GetActiveContractBoardContext() ?? SettlementServiceWindowData.Empty;
 
-    internal IReadOnlyDictionary<string, object> GetActiveForgeContextPlain() =>
-        Port?.GetActiveForgeContextPlain() ?? EmptyPlainDictionary();
+    internal SettlementServiceWindowData GetActiveForgeContextTyped() =>
+        Port?.GetActiveForgeContext() ?? SettlementServiceWindowData.Empty;
 
-    internal IReadOnlyDictionary<string, object> GetActiveStagecoachContextPlain() =>
-        Port?.GetActiveStagecoachContextPlain() ?? EmptyPlainDictionary();
+    internal SettlementServiceWindowData GetActiveStagecoachContextTyped() =>
+        Port?.GetActiveStagecoachContext() ?? SettlementServiceWindowData.Empty;
 
     internal void NotifyMisfortuneGuidanceOfForgeResult(
         StringName memberId,
@@ -2474,7 +2515,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         return _has_runtime() && Port.PresentPendingRewardIfReady();
     }
 
-    internal void SetActiveShopContext(GDictionary context)
+    internal void SetActiveShopContext(SettlementServiceWindowData context)
     {
         if (_has_runtime())
         {
@@ -2482,7 +2523,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
-    internal void SetActiveContractBoardContext(GDictionary context)
+    internal void SetActiveContractBoardContext(SettlementServiceWindowData context)
     {
         if (_has_runtime())
         {
@@ -2498,7 +2539,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
-    internal void SetActiveForgeContext(GDictionary context)
+    internal void SetActiveForgeContext(SettlementServiceWindowData context)
     {
         if (_has_runtime())
         {
@@ -2538,28 +2579,7 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
         }
     }
 
-    internal GodotProjectionLease<GDictionary> GetActiveShopContextLease()
-    {
-        return _has_runtime()
-            ? Port.GetActiveShopContextLease()
-            : EmptyContextLease("shop");
-    }
-
-    internal GodotProjectionLease<GDictionary> GetActiveContractBoardContextLease()
-    {
-        return _has_runtime()
-            ? Port.GetActiveContractBoardContextLease()
-            : EmptyContextLease("contract_board");
-    }
-
-    internal GodotProjectionLease<GDictionary> GetActiveForgeContextLease()
-    {
-        return _has_runtime()
-            ? Port.GetActiveForgeContextLease()
-            : EmptyContextLease("forge");
-    }
-
-    internal void SetActiveStagecoachContext(GDictionary context)
+    internal void SetActiveStagecoachContext(SettlementServiceWindowData context)
     {
         if (_has_runtime())
         {
@@ -2574,21 +2594,6 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             Port.ClearActiveStagecoachContext();
         }
     }
-
-    internal GodotProjectionLease<GDictionary> GetActiveStagecoachContextLease()
-    {
-        return _has_runtime()
-            ? Port.GetActiveStagecoachContextLease()
-            : EmptyContextLease("stagecoach");
-    }
-
-    private static GodotProjectionLease<GDictionary> EmptyContextLease(string label) =>
-        RuntimePlainPayload.ProjectDictionaryLease(
-            new Dictionary<string, object>(StringComparer.Ordinal),
-            $"GameRuntimeSettlementCommandHandler.{label}",
-            LifetimeDomain.Request,
-            $"GameRuntimeSettlementCommandHandler.{label}"
-        );
 
     internal static IEnumerable<GDictionary> Dictionaries(GArray values)
     {
@@ -2784,8 +2789,11 @@ public sealed class GameRuntimeSettlementCommandHandler : IDisposable
             value = (int)longValue;
             return true;
         }
-        if (rawValue is Variant variant && variant.TryAsInt(out value))
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
             return true;
+        }
         value = 0;
         return false;
     }

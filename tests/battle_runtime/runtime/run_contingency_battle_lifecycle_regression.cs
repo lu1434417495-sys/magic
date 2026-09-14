@@ -8,7 +8,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_contingency_battle_lifecycle_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -335,8 +335,8 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         try
         {
             FailingResourceCommitGateway gateway = new(() => fixture.Runtime.GetPartyState());
-            fixture.Runtime._battle_runtime.setup(character_gateway: gateway);
-            fixture.Runtime._battle_runtime.SetupStateForTests(fixture.Runtime.GetBattleState());
+            fixture.Runtime.GetBattleRuntime().setup(character_gateway: gateway);
+            fixture.Runtime.GetBattleRuntime().SetupStateForTests(fixture.Runtime.GetBattleState());
             DispatchHardshipLowLuckEvent(fixture.Runtime, fixture.ResolutionResult.battle_id);
             using GodotProjectionLease<GDictionary> sessionBeforeLease =
                 fixture.GameSession.CaptureRuntimeStateLease();
@@ -392,14 +392,14 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         );
         gameSession.SetBattleSaveLock(true);
 
-        GameRuntimeFacade runtime = new()
-        {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
-        };
+        GameRuntimeFacade runtime = new();
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         runtime._world_map_data_context.BindRootWorldData(worldData);
         runtime._world_map_data_context.SyncActiveWorldContext(
             gameSession.GetGenerationDefinition(),
@@ -424,7 +424,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             gameSession.GetItemDefsTyped(),
             gameSession.AllocateEquipmentInstanceId
         );
-        runtime._battle_runtime.setup(
+        runtime.GetBattleRuntime().setup(
             runtime._character_management,
             gameSession.GetSkillDefinitionsTyped(),
             gameSession.GetEnemyTemplateDefinitions(),
@@ -443,7 +443,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
             heroUnit.MarkContingencySetupConsumed(setupId);
         BattleState battleState = BuildBattleState(heroUnit);
         BattleObjectiveTestFactory.SetEliminationDecision(battleState, winnerFactionId);
-        runtime._battle_runtime.SetupStateForTests(battleState);
+        runtime.GetBattleRuntime().SetupStateForTests(battleState);
         runtime.SetRuntimeBattleState(battleState);
 
         BattleResolutionResult resolutionResult =
@@ -640,7 +640,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
 
     private static void DispatchHardshipLowLuckEvent(GameRuntimeFacade runtime, StringName battleId)
     {
-        runtime?._battle_runtime?.GetFateEventBus()?.Dispatch(
+        runtime?.GetBattleRuntime()?.GetFateEventBus()?.Dispatch(
             BattleFateEventPayload.Create(
                 "hardship_survival",
                 battleId,
@@ -820,7 +820,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult CommitBattleResources(

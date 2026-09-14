@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
+
+// Temporary diagnostic for the 2026-09-13 design audit. Removed after evidence capture.
+public partial class run_first_promotion_audit_probe : LifecycleTestSceneTree
+{
+    private readonly TestHarness _test = new();
+    private GameTextCommandRunner _runner;
+    private const string Hero = "player_sword_01";
+    private const string SkillA = "warrior_heavy_strike";
+    private const string SkillB = "warrior_guard";
+
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+
+    private void Run()
+    {
+        try
+        {
+            _runner = new GameTextCommandRunner();
+            _runner.initialize();
+            Session.SetRandomStartingSkillSelectorForTests(ids => ids.Contains(new StringName(SkillA))
+                ? new StringName(SkillA) : ids[0]);
+            Require(_runner.ExecuteLine("game new test").ok, "fresh game");
+            Require(Member.progression.character_level == 0, "new character level zero");
+            Require(Member.progression.active_level_trigger_core_skill_id == "", "new trigger empty");
+            Require(!Member.progression.GetSkillProgress(SkillA).is_core, "new core false");
+            Learn(SkillB);
+            foreach (var entry in Session.GetSkillDefinitionsTyped().OrderBy(x => x.Key.ToString()))
+            {
+                if (LearnedMeleeCount() >= 3) break;
+                if (entry.Value.LearnSourceKind != SkillLearnSourceKind.Book || !entry.Value.HasTag("melee")) continue;
+                Manager.LearnSkillTyped(Hero, entry.Key);
+            }
+            Require(LearnedMeleeCount() >= 3, "three learned melee qualifiers");
+            Reward(SkillA, 900);
+            Observe("natural_after_900");
+            Require(Member.progression.GetSkillProgress(SkillA).skill_level == 3, "mastery reaches authored cap");
+            Require(Member.progression.PendingProfessionChoicesTyped.Count == 0, "natural path has no candidates");
+            LevelGrowthTriggerResult denied = Manager.SetActiveLevelTriggerCoreSkillTyped(Hero, SkillA);
+            GD.Print($"AUDIT natural_set_trigger ok={denied.Ok} error={denied.Error}");
+            Require(!denied.Ok && denied.Error == "skill_not_core", "trigger rejects noncore skill");
+            var noPrompt = _runner.ExecuteLine("promotion choose warrior");
+            GD.Print($"AUDIT natural_choose ok={noPrompt.ok} code={noPrompt.code} message={noPrompt.message}");
+            Require(!noPrompt.ok, "formal command cannot create missing candidate");
+
+            // Explicit diagnostic intervention: invoke existing domain APIs absent from player commands.
+            Require(Service().SetSkillCore(SkillA, true), "diagnostic core selection");
+            Require(Manager.SetActiveLevelTriggerCoreSkillTyped(Hero, SkillA).Ok, "diagnostic trigger selection");
+            Observe("after_diagnostic_selection");
+            Require(Member.progression.PendingProfessionChoicesTyped.Count > 0, "domain candidates now exist");
+            bool presented = Runtime.PresentPendingRewardIfReady();
+            GD.Print($"AUDIT selection_alone_presented={presented} prompt_fields={Runtime.GetCurrentPromotionPromptSnapshotPlain().Count}");
+            Reward(SkillA, 1);
+            Observe("after_extra_reward");
+            int hpBefore = Member.progression.unit_base_attributes.GetAttributeValue("hp_max");
+            GD.Print($"AUDIT prompt={System.Text.Json.JsonSerializer.Serialize(Runtime.GetCurrentPromotionPromptSnapshotPlain())}");
+            GD.Print($"AUDIT before_commit_can_promote={Service().CanPromoteProfession("warrior")}");
+            var promotionResult = _runner.ExecuteLine("promotion choose warrior");
+            GD.Print($"AUDIT first_commit ok={promotionResult.ok} code={promotionResult.code} message={promotionResult.message}");
+            Require(!promotionResult.ok, "current generated prompt rejects the valid profession");
+            Require(Member.progression.character_level == 0, "rejected prompt leaves level unchanged");
+            var qualifiers = new List<StringName> { SkillA };
+            foreach (var id in Member.progression.GetSortedSkillIdsTyped())
+                if (id != SkillA && qualifiers.Count < 3 && Session.GetSkillDefinitionsTyped()[id].HasTag("melee"))
+                    qualifiers.Add(id);
+            var selection = new PromotionSelectionData(new[] { new StringName(SkillA) }, qualifiers, new[] { new StringName(SkillA) });
+            Runtime.SetPendingWorldPromotionPromptState(new GameRuntimePromotionPromptContext(Hero, "Audit hero",
+                new[] { new GameRuntimePromotionChoiceContext("warrior", "Warrior", "Rank 1", "", Array.Empty<StringName>(),
+                    "Diagnostic explicit selection to cross the broken prompt boundary.", selection) }));
+            GD.Print("AUDIT intervention replaced empty prompt selection with explicit legal skill selection");
+            Require(_runner.ExecuteLine("promotion choose warrior").ok, "explicit diagnostic selection completes through formal command");
+            Observe("promoted");
+            int hpAfter = Member.progression.unit_base_attributes.GetAttributeValue("hp_max");
+            Require(hpAfter > hpBefore, "promotion grants hp");
+            Require(Member.progression.character_level == 1, "promotion grants level");
+            Require(Member.progression.GetSkillProgress(SkillA).core_max_growth_claimed, "growth claimed once");
+            Require(Member.progression.GetSkillProgress(SkillA).is_level_trigger_locked, "trigger locked");
+            Require(!Manager.SetActiveLevelTriggerCoreSkillTyped(Hero, SkillA).Ok, "locked skill cannot trigger twice");
+
+            string saveId = Session.GetActiveSaveId();
+            Require(Session.FlushGameState() == (int)Error.Ok, "flush promoted state");
+            Require(_runner.GetSession().LoadGameTyped(saveId).Ok, "reload promoted save");
+            Observe("reloaded_promoted");
+            Require(Member.progression.character_level == 1, "level persisted");
+            Require(Member.progression.unit_base_attributes.GetAttributeValue("hp_max") == hpAfter, "hp persisted");
+            Require(Member.progression.GetSkillProgress(SkillA).core_max_growth_claimed, "growth flag persisted");
+            Require(Member.progression.GetSkillProgress(SkillA).is_level_trigger_locked, "lock persisted");
+            int masteryB = SumToCap(SkillB);
+            Reward(SkillB, masteryB);
+            Require(Service().SetSkillCore(SkillB, true), "second diagnostic core selection");
+            Require(Manager.SetActiveLevelTriggerCoreSkillTyped(Hero, SkillB).Ok, "second diagnostic trigger selection");
+            var beforeRefill = Service();
+            GD.Print($"AUDIT rank2_before_old_skill_refill can_promote={beforeRefill.CanPromoteProfession("warrior")} A_level={Member.progression.GetSkillProgress(SkillA).skill_level} A_max={SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(Session.GetSkillDefinitionsTyped()[SkillA], Member.progression.GetSkillProgress(SkillA), Member.progression)}");
+            Require(!beforeRefill.CanPromoteProfession("warrior"), "old cap increase blocks next rank");
+            Reward(SkillA, 2600);
+            Require(Service().CanPromoteProfession("warrior"), "refilling old skill restores next rank");
+            Observe("rank2_pending_before_reload");
+            Require(Session.FlushGameState() == (int)Error.Ok, "flush pending promotion");
+            Require(_runner.GetSession().LoadGameTyped(saveId).Ok, "reload pending promotion");
+            Observe("rank2_pending_after_reload");
+            bool recovered = Runtime.PresentPendingRewardIfReady();
+            var retry = _runner.ExecuteLine("promotion choose warrior");
+            GD.Print($"AUDIT pending_reload presented={recovered} command_ok={retry.ok} message={retry.message}");
+        }
+        catch (Exception ex)
+        {
+            _test.True(false, ex.ToString());
+        }
+        finally
+        {
+            _runner?.Dispose(true);
+            RequestTestExit(_test.Finish("First promotion audit probe"));
+        }
+    }
+
+    private GameSession Session => _runner.GetSession().GetGameSessionTyped();
+    private GameRuntimeFacade Runtime => _runner.GetSession().GetRuntimeFacadeTyped();
+    private CharacterManagementModule Manager => Runtime.GetCharacterManagement();
+    private PartyMemberState Member => Manager.GetMemberState(Hero);
+
+    private void Learn(string id)
+    {
+        if (Member.progression.GetSkillProgress(id)?.is_learned == true) return;
+        Require(Manager.LearnSkillTyped(Hero, id), $"learn {id}");
+    }
+
+    private int LearnedMeleeCount() => Member.progression.SkillsTyped.Values.Count(s =>
+        s.is_learned && Session.GetSkillDefinitionsTyped().TryGetValue(s.skill_id, out var d) && d.HasTag("melee"));
+
+    private ProgressionService Service()
+    {
+        var service = new ProgressionService();
+        service.SetupDefinitions(Member.progression, Session.GetSkillDefinitionsTyped(), Session.GetProfessionDefsTyped());
+        return service;
+    }
+
+    private int SumToCap(string skillId)
+    {
+        var definition = Session.GetSkillDefinitionsTyped()[skillId];
+        int cap = SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(definition, Member.progression.GetSkillProgress(skillId), Member.progression);
+        int amount = 0;
+        for (int i = 0; i < cap; i++) amount += definition.GetMasteryRequiredForLevel(i);
+        return amount;
+    }
+
+    private void Reward(string skillId, int amount)
+    {
+        for (int i = 0; i < 20 && Runtime.GetActiveModalKind() == RuntimeModalKind.Reward; i++)
+            Require(_runner.ExecuteLine("reward confirm").ok, "confirm prior achievement reward");
+        var reward = Manager.BuildPendingSkillMasteryReward(Hero, "battle_rating", "audit accelerated reward",
+            new[] { new PendingCharacterRewardEntry { EntryKind = PendingCharacterRewardEntryKind.SkillMastery, target_id = skillId, amount = amount } },
+            "Diagnostic reward; no production curve edits.");
+        Require(reward != null, "build real reward");
+        Session.GetPartyState().pending_character_rewards.Add(reward);
+        Require(Runtime.PresentPendingRewardIfReady(), "present real reward");
+        Require(_runner.ExecuteLine("reward confirm").ok, "confirm real reward");
+    }
+
+    private void Observe(string stage)
+    {
+        var p = Member.progression;
+        var a = p.GetSkillProgress(SkillA);
+        GD.Print($"AUDIT {stage} character={p.character_level} skillA={a.skill_level} core={a.is_core} active={p.active_level_trigger_core_skill_id} locked={a.is_level_trigger_locked} claimed={a.core_max_growth_claimed} pending={p.PendingProfessionChoicesTyped.Count} modal={Runtime.GetActiveModalKind()} prompt_fields={Runtime.GetCurrentPromotionPromptSnapshotPlain().Count} hp={p.unit_base_attributes.GetAttributeValue("hp_max")}");
+        GD.Print($"AUDIT growth {stage} {string.Join(",", p.AttributeGrowthProgressTyped.Select(x => $"{x.Key}:{x.Value}"))}");
+    }
+
+    private void Require(bool condition, string message)
+    {
+        _test.True(condition, message);
+        if (!condition) throw new InvalidOperationException(message);
+    }
+}

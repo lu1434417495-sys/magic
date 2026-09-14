@@ -6,22 +6,15 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_world_map_shared_content_injection_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
-    private const string SmallWorldConfig = "res://data/configs/world_map/small_world_map_config.tres";
-    private const string MediumWorldConfig = "res://data/configs/world_map/medium_world_map_config.tres";
-    private const string DemoWorldConfig = "res://data/configs/world_map/demo_world_map_config.tres";
-    private const string SharedSettlementBundlePath =
-        "res://data/configs/world_map/shared/main_world_default_settlement_bundle.tres";
-    private const string SharedSettlementNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
-    private const string SharedTownNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_town_name_pool.tres";
-    private const string SharedCityNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_city_name_pool.tres";
-    private const string SharedCapitalNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_capital_name_pool.tres";
-    private const string SharedMetropolisNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
+    private const string TestWorldConfig = "test";
+    private const string SmallWorldConfig = "small";
+    private const string MediumWorldConfig = "medium";
+    private const string DemoWorldConfig = "giant";
+    private const SettlementTierKind SharedSettlementNamePoolTier = SettlementTierKind.Village;
+    private const SettlementTierKind SharedTownNamePoolTier = SettlementTierKind.Town;
+    private const SettlementTierKind SharedCityNamePoolTier = SettlementTierKind.City;
+    private const SettlementTierKind SharedCapitalNamePoolTier = SettlementTierKind.Capital;
+    private const SettlementTierKind SharedMetropolisNamePoolTier = SettlementTierKind.Metropolis;
 
     private readonly TestHarness _test = new();
     private readonly List<GodotProjectionLease<GDictionary>> _worldDataLeases = new();
@@ -46,11 +39,27 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         TestWorldStrongholdInstancesKeepStrongholdSemantics();
         TestDemoWorldGenerationIncludesMetropolisInstances();
         TestProceduralWildSpawnDensityCanBeConfigured();
-        TestProceduralWildSpawnRegionTagsIgnoreRuleOrder();
+        TestProceduralWildSpawnVerticalBandsIgnoreRuleOrder();
+        TestStartingWildEncounterVerticalBandIgnoresRuleOrder();
+        TestWildRegionTagsRetainCanyonBattleTerrain();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
         DisposeWorldDataLeases();
         RequestTestExit(_test.Finish("World map shared content injection regression"));
+    }
+
+    private void TestWildRegionTagsRetainCanyonBattleTerrain()
+    {
+        using var battleSession = new BattleSessionFacade(new FixedBattleSeedSource(1));
+        foreach (string regionTag in new[] { "north_wilds", "south_wilds" })
+        {
+            var anchor = new EncounterAnchorData { region_tag = regionTag };
+            _test.Eq(
+                battleSession.ResolveBattleTerrainProfile(anchor),
+                new StringName("canyon"),
+                $"{regionTag} 回滚为原始展示/trace 标签后仍应保留既有 canyon 战场地形。"
+            );
+        }
     }
 
     private GDictionary ProjectWorldData(GameSession session)
@@ -281,7 +290,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         {
             int createError = gameSession.CreateNewSave(
                 TestWorldConfig,
-                "generation_rollback_original",
+                "test",
                 "生成定义回滚原世界"
             );
             _test.Eq(createError, (int)Error.Ok, "generation definition 回滚测试应先创建原世界。");
@@ -291,11 +300,11 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             WorldGenerationDefinition originalDefinition =
                 gameSession.GetGenerationDefinition();
             string originalSaveId = gameSession.GetActiveSaveId();
-            string originalPath = gameSession.GetGenerationConfigPath();
+            StringName originalGenerationId = gameSession.GetWorldGenerationId();
 
             int failedCreateError = gameSession.CreateNewSave(
                 SmallWorldConfig,
-                "generation_rollback_candidate",
+                "small",
                 "生成定义回滚候选世界",
                 new GDictionary { ["bloodline_id"] = "invalid_unpaired_bloodline" }
             );
@@ -306,8 +315,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 "非法的单边 bloodline payload 应让候选世界创建失败。"
             );
             _test.Eq(
-                gameSession.GetGenerationConfigPath(),
-                originalPath,
+                gameSession.GetWorldGenerationId(),
+                originalGenerationId,
                 "候选世界失败后应恢复原 active generation path。"
             );
             _test.True(
@@ -412,19 +421,21 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         }
     }
 
-    private void TestProceduralWildSpawnRegionTagsIgnoreRuleOrder()
+    private void TestProceduralWildSpawnVerticalBandsIgnoreRuleOrder()
     {
         WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
             "res://tests/world_map/runtime/wild_spawn_region_order.tres",
             new[]
             {
                 BuildWildSpawnRuleDefinition(
-                    "south_wilds",
+                    "canyon",
+                    WorldVerticalBandKind.South,
                     "南境雾兽",
                     "mist_hollow"
                 ),
                 BuildWildSpawnRuleDefinition(
-                    "north_wilds",
+                    "canyon",
+                    WorldVerticalBandKind.North,
                     "北境狼群",
                     "wolf_wilds"
                 ),
@@ -458,7 +469,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             }
 
             Vector2I chunkCoord = gridSystem.GetChunkCoord(encounterAnchor.world_coord);
-            if (encounterAnchor.region_tag.ToString() == "north_wilds")
+            if (encounterAnchor.encounter_profile_id.ToString() == "wolf_wilds")
             {
                 if (chunkCoord.Y < midpointChunkY)
                 {
@@ -469,7 +480,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                     misplacedNorth = true;
                 }
             }
-            else if (encounterAnchor.region_tag.ToString() == "south_wilds")
+            else if (encounterAnchor.encounter_profile_id.ToString() == "mist_hollow")
             {
                 if (chunkCoord.Y >= midpointChunkY)
                 {
@@ -482,10 +493,10 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             }
         }
 
-        _test.True(foundNorthInNorth, "north_wilds 应仍然出现在世界北半区。");
-        _test.True(foundSouthInSouth, "south_wilds 应仍然出现在世界南半区。");
-        _test.False(misplacedNorth, "north_wilds 不应因为数组顺序变化而跑到南半区。");
-        _test.False(misplacedSouth, "south_wilds 不应因为数组顺序变化而跑到北半区。");
+        _test.True(foundNorthInNorth, "North vertical_band 应出现在世界北半区。");
+        _test.True(foundSouthInSouth, "South vertical_band 应出现在世界南半区。");
+        _test.False(misplacedNorth, "North vertical_band 不应因为数组顺序变化而跑到南半区。");
+        _test.False(misplacedSouth, "South vertical_band 不应因为数组顺序变化而跑到北半区。");
     }
 
     private void TestProceduralWildSpawnDensityCanBeConfigured()
@@ -495,12 +506,14 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             new[]
             {
                 BuildWildSpawnRuleDefinition(
-                    "north_wilds",
+                    "canyon",
+                    WorldVerticalBandKind.North,
                     "北境狼群",
                     "wolf_wilds"
                 ),
                 BuildWildSpawnRuleDefinition(
-                    "south_wilds",
+                    "canyon",
+                    WorldVerticalBandKind.South,
                     "南境雾兽",
                     "mist_hollow"
                 ),
@@ -535,6 +548,70 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             singleEncounterCount >= expectedMinimum,
             "chunk 抽签分母为 1 时，每个 chunk 至少应生成一组单体野外遭遇。"
                 + $"actual={singleEncounterCount} expected_minimum={expectedMinimum}"
+        );
+    }
+
+    private void TestStartingWildEncounterVerticalBandIgnoresRuleOrder()
+    {
+        WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
+        _test.True(source != null, "起始遭遇回归需要 process snapshot 中的测试世界 definition。");
+        if (source == null)
+            return;
+        int playerChunkY = source.PlayerStartCoord.Y / source.ChunkSize.Y;
+        bool playerStartsInNorth = playerChunkY < source.WorldSizeInChunks.Y / 2;
+        WildSpawnRuleDefinition northRule = BuildWildSpawnRuleDefinition(
+            "canyon",
+            WorldVerticalBandKind.North,
+            "北境狼群",
+            "wolf_wilds"
+        );
+        WildSpawnRuleDefinition southRule = BuildWildSpawnRuleDefinition(
+            "canyon",
+            WorldVerticalBandKind.South,
+            "南境雾兽",
+            "mist_hollow"
+        );
+        WorldGenerationDefinition definition = BuildWildSpawnDensityDefinition(
+            "starting_wild_vertical_band",
+            playerStartsInNorth
+                ? new[] { southRule, northRule }
+                : new[] { northRule, southRule },
+            proceduralGenerationEnabled: false,
+            guaranteeStartingWildEncounter: true
+        );
+        if (definition == null)
+            return;
+
+        WorldMapGridSystem gridSystem = new();
+        gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
+
+        WorldMapSpawnSystem spawnSystem = new();
+        WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
+            definition,
+            gridSystem
+        );
+
+        int singleEncounterCount = 0;
+        StringName encounterProfileId = "";
+        foreach (EncounterAnchorData encounterAnchor in worldBuild.EncounterAnchors)
+        {
+            if (
+                encounterAnchor == null
+                || encounterAnchor.encounter_kind
+                    != EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
+            )
+            {
+                continue;
+            }
+            singleEncounterCount++;
+            encounterProfileId = encounterAnchor.encounter_profile_id;
+        }
+
+        _test.Eq(singleEncounterCount, 1, "非 procedural 模式应只补一个保证起始遭遇。");
+        _test.Eq(
+            encounterProfileId.ToString(),
+            playerStartsInNorth ? "wolf_wilds" : "mist_hollow",
+            "起始遭遇必须按玩家所在 vertical_band 选规则，不能取 rules[0]。"
         );
     }
 
@@ -692,31 +769,31 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
     private void TestSharedSettlementNamePoolExposes1000UniqueNames()
     {
-        AssertNamePool(SharedSettlementNamePoolPath, 1000, "", "", "共享据点名称池");
+        AssertNamePool(SharedSettlementNamePoolTier, 1000, "", "", "共享据点名称池");
     }
 
     private void TestSharedTownNamePoolExposes500UniqueNames()
     {
-        AssertNamePool(SharedTownNamePoolPath, 500, "镇", "", "共享城镇名称池");
+        AssertNamePool(SharedTownNamePoolTier, 500, "镇", "", "共享城镇名称池");
     }
 
     private void TestSharedCityNamePoolExposes300UniqueNames()
     {
-        AssertNamePool(SharedCityNamePoolPath, 300, "城", "", "共享城市名称池");
+        AssertNamePool(SharedCityNamePoolTier, 300, "城", "", "共享城市名称池");
     }
 
     private void TestSharedCapitalNamePoolExposes100UniqueNames()
     {
-        AssertNamePool(SharedCapitalNamePoolPath, 100, "王都", "王国", "共享主城名称池");
+        AssertNamePool(SharedCapitalNamePoolTier, 100, "王都", "王国", "共享主城名称池");
     }
 
     private void TestSharedMetropolisNamePoolExposes50UniqueNames()
     {
-        AssertNamePool(SharedMetropolisNamePoolPath, 50, "帝都", "帝国", "共享都会名称池");
+        AssertNamePool(SharedMetropolisNamePoolTier, 50, "帝都", "帝国", "共享都会名称池");
     }
 
     private void AssertNamePool(
-        string path,
+        SettlementTierKind settlementTier,
         int expectedCount,
         string expectedSuffix,
         string expectedContainedText,
@@ -725,7 +802,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     {
         WorldGenerationDefinition definition = GetProcessWorldDefinition(TestWorldConfig);
         definition.SettlementNamePools.TryGetValue(
-            ContentPathCanonicalizer.Canonicalize(path),
+            settlementTier,
             out WorldMapSettlementNamePoolDefinition namePool
         );
         _test.True(namePool != null, $"{label}应能在 host build 时完成投影。");
@@ -760,8 +837,10 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     }
 
     private WorldGenerationDefinition BuildWildSpawnDensityDefinition(
-        string canonicalPath,
-        IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules
+        StringName generationId,
+        IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules,
+        bool proceduralGenerationEnabled = true,
+        bool guaranteeStartingWildEncounter = false
     )
     {
         WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
@@ -771,15 +850,15 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             return null;
         }
         return new WorldGenerationDefinition(
-            ContentPathCanonicalizer.Canonicalize(canonicalPath),
+            generationId,
             source.Seed,
             source.WorldSizeInChunks,
             source.ChunkSize,
             source.PlayerStartCoord,
             source.PlayerVisionRange,
-            source.ProceduralGenerationEnabled,
+            proceduralGenerationEnabled,
             proceduralWildSpawnChunkChanceDenominator: 1,
-            injectDefaultMainWorldContent: false,
+            sharedContentId: "",
             source.ProceduralVillageCount,
             source.ProceduralTownCount,
             source.ProceduralCityCount,
@@ -792,7 +871,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             source.CapitalSpacingCells,
             source.WorldStrongholdSpacingCells,
             source.MetropolisSpacingCells,
-            guaranteeStartingWildEncounter: false,
+            guaranteeStartingWildEncounter,
             source.StartingWildSpawnMinDistance,
             source.StartingWildSpawnMaxDistance,
             source.EffectiveSettlementLibrary,
@@ -803,20 +882,20 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             source.WorldEvents,
             defaultSettlementBundle: null,
             defaultWildSpawnBundle: null,
-            new Dictionary<string, WorldMapSettlementNamePoolDefinition>(
-                StringComparer.Ordinal
-            )
+            new Dictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition>()
         );
     }
 
     private static WildSpawnRuleDefinition BuildWildSpawnRuleDefinition(
         string regionTag,
+        WorldVerticalBandKind verticalBand,
         string monsterName,
         string encounterProfileId
     )
     {
         return new WildSpawnRuleDefinition(
             regionTag,
+            verticalBand,
             monsterName,
             encounterProfileId,
             "",
@@ -836,7 +915,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
     )
     {
         GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-        int createError = gameSession.CreateNewSave(configPath, saveId, displayName);
+        int createError = gameSession.CreateNewSave(configPath, configPath, displayName);
         _test.Eq(createError, (int)Error.Ok, errorMessage);
         if (createError != (int)Error.Ok)
         {
@@ -856,13 +935,12 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         gameSession.Dispose();
     }
 
-    private static WorldGenerationDefinition GetProcessWorldDefinition(string resourcePath)
+    private static WorldGenerationDefinition GetProcessWorldDefinition(StringName generationId)
     {
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
         return GameSessionTestFactory
             .GetProcessSnapshot()
             .WorldGenerations.TryGetValue(
-                canonicalPath,
+                generationId,
                 out WorldGenerationDefinition definition
             )
             ? definition

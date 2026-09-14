@@ -399,18 +399,6 @@ public sealed class PracticeGrowthService
         if (unitProgress == null || oldSkillId == "")
             return;
 
-        if (unitProgress.active_level_trigger_core_skill_id == oldSkillId)
-            unitProgress.active_level_trigger_core_skill_id = "";
-        unitProgress.RemoveLockedLevelTriggerSkillId(oldSkillId);
-
-        UnitSkillProgress oldSkillProgress = unitProgress.GetSkillProgress(oldSkillId);
-        if (oldSkillProgress != null)
-        {
-            oldSkillProgress.is_level_trigger_active = false;
-            oldSkillProgress.is_level_trigger_locked = false;
-            unitProgress.SetSkillProgress(oldSkillProgress);
-        }
-
         foreach (StringName professionId in unitProgress.GetSortedProfessionIdsTyped())
         {
             UnitProfessionProgress professionProgress = unitProgress.GetProfessionProgress(

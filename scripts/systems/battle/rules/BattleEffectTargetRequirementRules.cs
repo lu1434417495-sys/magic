@@ -1,7 +1,24 @@
+using System.Collections.Generic;
 using Godot;
 
 internal static class BattleEffectTargetRequirementRules
 {
+    internal static bool AllowsDeadUnitTarget(CombatEffectDefinition effectDefinition) =>
+        effectDefinition?.EffectKind == BattleEffectKind.HealFatal;
+
+    internal static bool AllowsDeadUnitTarget(
+        IEnumerable<CombatEffectDefinition> effectDefinitions
+    )
+    {
+        foreach (CombatEffectDefinition effectDefinition in
+            effectDefinitions ?? System.Array.Empty<CombatEffectDefinition>())
+        {
+            if (AllowsDeadUnitTarget(effectDefinition))
+                return true;
+        }
+        return false;
+    }
+
     internal static bool IsSatisfied(
         CombatEffectDefinition effectDefinition,
         BattleUnitState targetUnit

@@ -12,7 +12,7 @@ expect window == warehouse
 close
 world open
 expect window == settlement
-settlement action service:warehouse
-expect window == warehouse
+settlement action service:basic_supply
+expect window == shop
 close
 snapshot

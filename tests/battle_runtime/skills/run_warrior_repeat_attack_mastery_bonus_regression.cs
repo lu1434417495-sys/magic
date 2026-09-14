@@ -23,7 +23,7 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
 
     private TestResult Run()
     {
-        TestRepeatAttackResolverUsesTypedResourceCosts();
+        TestRepeatAttackConsumesSelectedAuraCostAndStopsWhenItCannotPay();
         TestRepeatAttackMasteryBonusStartsOnFifthStageEntry();
         TestWeaponAttackQualityReadsWeaponDiceMaxReasonFromResultPayload();
         TestGuardMasteryGrantReadsSkillDefFromTypedDictionaryKey();
@@ -33,9 +33,11 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         return _test.Finish("Warrior repeat attack mastery bonus regression");
     }
 
-    private void TestRepeatAttackResolverUsesTypedResourceCosts()
+    private void TestRepeatAttackConsumesSelectedAuraCostAndStopsWhenItCannotPay()
     {
-        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(new[] { true });
+        using RepeatAttackFixture fixture = BuildRepeatAttackFixture(
+            new[] { true, true, true }
+        );
         SkillDefinition skillDefinition = BuildRepeatAttackSkillDefinition(
             "combo_mastery_stage_test",
             apCost: 2,
@@ -43,24 +45,40 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             staminaCost: 4,
             auraCost: 5
         );
+        CombatEffectDefinition repeatEffect =
+            skillDefinition.CombatProfile.EffectDefinitions[1];
+        fixture.ActiveUnit.SetCurrentAura(9);
+        int apBefore = fixture.ActiveUnit.GetCurrentAp();
+        int mpBefore = fixture.ActiveUnit.GetCurrentMp();
+        int staminaBefore = fixture.ActiveUnit.GetCurrentStamina();
 
-        CombatSkillResourceCosts costs = fixture.Resolver._resolve_effective_skill_costs(
+        using var batch = new BattleEventBatch();
+        bool executed = false;
+        BattleReactionRootTestHelper.ExecuteLogicalAttack(
+            fixture.Runtime, batch, fixture.ActiveUnit, skillDefinition.CombatProfile.EffectDefinitions,
+            actionContext => executed = fixture.Resolver.ApplyRepeatAttackSkillResult(
             fixture.ActiveUnit,
-            skillDefinition
+            fixture.TargetUnit,
+            skillDefinition,
+            skillDefinition.CombatProfile.EffectDefinitions,
+            repeatEffect,
+            batch,
+            actionContext
+            )
         );
-        _test.Eq(costs.ApCost, 2, "repeat attack typed costs 应保留 AP。");
-        _test.Eq(costs.MpCost, 3, "repeat attack typed costs 应保留 MP。");
-        _test.Eq(costs.StaminaCost, 4, "repeat attack typed costs 应保留 Stamina。");
-        _test.Eq(costs.AuraCost, 5, "repeat attack typed costs 应保留 Aura。");
-
+        _test.True(executed, "连击应执行首段并进入可支付的第二段。");
         _test.Eq(
-            fixture.Resolver._get_repeat_attack_base_resource_cost(
-                fixture.ActiveUnit,
-                skillDefinition,
-                CombatResourceKind.Aura
-            ),
-            5,
-            "repeat attack base resource cost 应直接来自 typed Aura cost。"
+            fixture.DamageResolver.call_count,
+            2,
+            "9 点斗气只够支付一次 5 点追击成本，第三段应在攻击前停止。"
+        );
+        _test.Eq(fixture.ActiveUnit.GetCurrentAura(), 4, "追击应真实扣除技能的 5 点 Aura 成本。");
+        _test.Eq(fixture.ActiveUnit.GetCurrentAp(), apBefore, "追击阶段不得重复扣除 AP 基础成本。");
+        _test.Eq(fixture.ActiveUnit.GetCurrentMp(), mpBefore, "Aura 追击不得误扣 MP。");
+        _test.Eq(
+            fixture.ActiveUnit.GetCurrentStamina(),
+            staminaBefore,
+            "Aura 追击不得误扣 Stamina。"
         );
     }
 
@@ -70,13 +88,32 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             new[] { true, true, true, true, false }
         );
         using var missBatch = new BattleEventBatch();
-        bool missExecuted = missFixture.Resolver.ApplyRepeatAttackSkillResult(
-            missFixture.ActiveUnit,
-            missFixture.TargetUnit,
-            missFixture.SkillDefinition,
-            missFixture.EffectDefinitions,
-            missFixture.RepeatEffectDefinition,
-            missBatch
+        bool missExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            missFixture.Runtime,
+            missBatch,
+            () =>
+            {
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        missFixture.EffectDefinitions,
+                        missFixture.ActiveUnit
+                            .GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    missFixture.Runtime.BeginLogicalAttack(deliveryKind);
+                missExecuted =
+                    missFixture.Resolver.ApplyRepeatAttackSkillResult(
+                        missFixture.ActiveUnit,
+                        missFixture.TargetUnit,
+                        missFixture.SkillDefinition,
+                        missFixture.EffectDefinitions,
+                        missFixture.RepeatEffectDefinition,
+                        missBatch,
+                        logicalAttack.Context
+                    );
+                logicalAttack.Complete();
+            }
         );
         _test.True(missExecuted, "连击段数熟练度回归前置：应至少执行到第五段。");
         _test.Eq(
@@ -94,13 +131,32 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             new[] { true, true, true, true, true, false }
         );
         using var hitBatch = new BattleEventBatch();
-        bool hitExecuted = hitFixture.Resolver.ApplyRepeatAttackSkillResult(
-            hitFixture.ActiveUnit,
-            hitFixture.TargetUnit,
-            hitFixture.SkillDefinition,
-            hitFixture.EffectDefinitions,
-            hitFixture.RepeatEffectDefinition,
-            hitBatch
+        bool hitExecuted = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            hitFixture.Runtime,
+            hitBatch,
+            () =>
+            {
+                BattleAttackDeliveryKind deliveryKind =
+                    BattleAttackDeliveryRules.Resolve(
+                        hitFixture.EffectDefinitions,
+                        hitFixture.ActiveUnit
+                            .GetWeaponProjectionReadViewTyped()
+                    );
+                using BattleLogicalAttackScope logicalAttack =
+                    hitFixture.Runtime.BeginLogicalAttack(deliveryKind);
+                hitExecuted =
+                    hitFixture.Resolver.ApplyRepeatAttackSkillResult(
+                        hitFixture.ActiveUnit,
+                        hitFixture.TargetUnit,
+                        hitFixture.SkillDefinition,
+                        hitFixture.EffectDefinitions,
+                        hitFixture.RepeatEffectDefinition,
+                        hitBatch,
+                        logicalAttack.Context
+                    );
+                logicalAttack.Complete();
+            }
         );
         _test.True(hitExecuted, "连击段数熟练度回归前置：命中夹具应执行。");
         _test.Eq(
@@ -147,6 +203,13 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
             "combo_mastery_stage_test"
         );
         CombatEffectDefinition repeatEffectDefinition = skillDefinition.CombatProfile.EffectDefinitions[1];
+        var state = new BattleState
+        {
+            map_size = new Vector2I(5, 5),
+        };
+        state.SetUnit(activeUnit);
+        state.SetUnit(targetUnit);
+        runtime.SetupStateForTests(state);
 
         return new RepeatAttackFixture
         {
@@ -593,12 +656,11 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : Lifecy
         );
         CombatEffectDefinition repeatEffect = TestSkillDefinitionProjection.BuildEffect(
             "repeat_attack_until_fail",
-            parameters: new Dictionary<string, object>
-            {
-                ["cost_resource"] = "aura",
-                ["follow_up_fixed_cost"] = 0,
-                ["follow_up_attack_penalty"] = 0,
-            }
+            payload: new RepeatAttackUntilFailEffectPayloadDefinition(
+                costResource: "aura",
+                followUpFixedCost: 0,
+                followUpAttackPenalty: 0
+            )
         );
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,

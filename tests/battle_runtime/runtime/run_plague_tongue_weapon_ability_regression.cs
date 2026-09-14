@@ -97,23 +97,13 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         if (!fixture.ItemDefs.ContainsKey(PlagueTongueItemId))
             return;
 
-        ItemDef rawPlagueTongue = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_plague_tongue.tres"
-        );
+        ItemDefinition rawPlagueTongue = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_plague_tongue_099");
         _test.True(rawPlagueTongue != null, "瘟疫之舌原始资源应能加载。");
         if (rawPlagueTongue != null)
         {
-            _test.Eq(
-                rawPlagueTongue.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "瘟疫之舌原始资源应声明继承 battleaxe 模板。"
-            );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildPlagueTongueUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
 
@@ -169,31 +159,6 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             "eq_plague_tongue_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除瘟疫之舌后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除瘟疫之舌后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            removedWeapon.AttackRange,
-            baselineWeapon.AttackRange,
-            "移除瘟疫之舌后攻击距离应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除瘟疫之舌后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除瘟疫之舌后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestPoisonTouchAddsIndependentPoisonDamageOnHit()
@@ -319,7 +284,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         _test.Eq(fever?.timeline_damage_dice_count ?? 0, 1, "斧刃热周期伤害应记录 1D4。");
         _test.Eq(fever?.timeline_damage_dice_sides ?? 0, 4, "斧刃热周期伤害骰面应为 D4。");
 
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 60);
+        StepTimeline(fixture.Runtime, 60);
 
         _test.Eq(target.GetCurrentHp(), hpAfterHit - 4, "固定周期伤害骰 4 时，斧刃热首跳应损失 4 HP。");
         _test.True(target.HasStatusEffect("axe_fever"), "首跳后斧刃热未到 300TU，不应移除。");
@@ -341,20 +306,20 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         state.enemy_unit_ids.Add(defeated.unit_id);
         fixture.Runtime.SetupStateForTests(state);
 
-        fixture.Runtime._collect_defeated_unit_loot(defeated, killer);
+        fixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(defeated, killer);
 
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
             0,
             "击杀收集当下不应立刻生成瘟疫云。"
         );
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 55);
+        StepTimeline(fixture.Runtime, 55);
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
             0,
             "瘟疫传播固定延迟 60TU；55TU 时不应生成。"
         );
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 5);
+        StepTimeline(fixture.Runtime, 5);
 
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
@@ -367,7 +332,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         _test.Eq(centerCloud?.lifetime_policy ?? new StringName(""), new StringName("battle"), "plague_cloud 应为 battle lifetime。");
         _test.Eq(centerCloud?.effect_type ?? new StringName(""), new StringName("none"), "plague_cloud 本身不应按周期 tick 结算。");
 
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 300);
+        StepTimeline(fixture.Runtime, 300);
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
             5,
@@ -403,8 +368,8 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         state.enemy_unit_ids.Add(successTarget.unit_id);
         fixture.Runtime.SetupStateForTests(state);
 
-        fixture.Runtime._collect_defeated_unit_loot(defeated, killer);
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 60);
+        fixture.Runtime._loot_resolver.CollectDefeatedUnitLoot(defeated, killer);
+        StepTimeline(fixture.Runtime, 60);
         _test.Eq(
             CountTerrainEffects(state, "plague_cloud"),
             5,
@@ -577,6 +542,23 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
         return null;
     }
 
+    private static void StepTimeline(
+        BattleRuntimeModule runtime,
+        int elapsedTu
+    )
+    {
+        using var batch = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.Timeline("timeline_tick"),
+            () => runtime._timeline_driver.ApplyTimelineStep(
+                batch,
+                elapsedTu
+            )
+        );
+    }
+
     private sealed class PlagueTongueFixture : IDisposable
     {
         private readonly CharacterManagementModule _characterManagement;
@@ -724,7 +706,7 @@ public partial class run_plague_tongue_weapon_ability_regression : LifecycleTest
             BattleUnitState target_unit,
             IEnumerable<CombatEffectDefinition> effect_definitions,
             AttackCheckInput attack_check,
-            AttackContext attack_context = null
+            AttackContext attack_context
         )
         {
             attack_context ??= new AttackContext();

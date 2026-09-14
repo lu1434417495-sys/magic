@@ -1,0 +1,951 @@
+{
+  "schema": 1,
+  "domain": "subraces",
+  "family": "canonical",
+  "templates": {},
+  "entries": [
+    {
+      "subrace_id": "asmodeus_tiefling",
+      "parent_race_id": "tiefling",
+      "display_name": "阿斯摩蒂尔斯提夫林",
+      "description": "与阿斯摩蒂尔斯和炼狱魔法相连的提夫林。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "racial_spell_grant",
+        "asmodeus_legacy"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "tiefling",
+        "asmodeus_tiefling"
+      ],
+      "racial_trait_summary": [
+        "阿斯摩蒂尔斯传承。"
+      ]
+    },
+    {
+      "subrace_id": "black_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "黑龙裔",
+      "description": "继承黑龙血脉、与酸蚀力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_acid_line",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "acid": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "black_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "酸蚀直线龙息。",
+        "酸蚀抗性。"
+      ]
+    },
+    {
+      "subrace_id": "blue_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "蓝龙裔",
+      "description": "继承蓝龙血脉、与闪电力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_lightning_line",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "lightning": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "blue_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "闪电直线龙息。",
+        "闪电抗性。"
+      ]
+    },
+    {
+      "subrace_id": "brass_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "黄铜龙裔",
+      "description": "继承黄铜龙血脉、与火焰力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_fire_line",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "fire": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "brass_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "火焰直线龙息。",
+        "火焰抗性。"
+      ]
+    },
+    {
+      "subrace_id": "bronze_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "青铜龙裔",
+      "description": "继承青铜龙血脉、与闪电力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_lightning_line",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "lightning": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "bronze_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "闪电直线龙息。",
+        "闪电抗性。"
+      ]
+    },
+    {
+      "subrace_id": "common_human",
+      "parent_race_id": "human",
+      "display_name": "普通人类",
+      "description": "标准人类血脉选项。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "human"
+      ],
+      "racial_trait_summary": []
+    },
+    {
+      "subrace_id": "copper_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "铜龙裔",
+      "description": "继承铜龙血脉、与酸蚀力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_acid_line",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "acid": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "copper_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "酸蚀直线龙息。",
+        "酸蚀抗性。"
+      ]
+    },
+    {
+      "subrace_id": "deep_gnome",
+      "parent_race_id": "gnome",
+      "display_name": "地底侏儒",
+      "description": "幽暗地域的侏儒，拥有高级黑暗视觉。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "superior_darkvision",
+        "deep_gnome_camouflage"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "stealth"
+      ],
+      "vision_tags": [
+        "superior_darkvision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "gnome",
+        "deep_gnome"
+      ],
+      "racial_trait_summary": [
+        "高级黑暗视觉。",
+        "石中伪装。"
+      ]
+    },
+    {
+      "subrace_id": "drow_half_elf",
+      "parent_race_id": "half_elf",
+      "display_name": "卓尔半精灵",
+      "description": "拥有卓尔血脉的半精灵。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "drow_magic"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "darkvision"
+      ],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_elf",
+        "drow"
+      ],
+      "racial_trait_summary": [
+        "卓尔魔法。"
+      ]
+    },
+    {
+      "subrace_id": "duergar",
+      "parent_race_id": "dwarf",
+      "display_name": "灰矮人",
+      "description": "幽暗地域的矮人，拥有高级黑暗视觉和灰矮人韧性。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "duergar_resilience",
+        "superior_darkvision",
+        "duergar_magic"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [
+        "superior_darkvision"
+      ],
+      "save_advantage_tags": [
+        "charm",
+        "paralysis",
+        "illusion"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "dwarf",
+        "duergar"
+      ],
+      "racial_trait_summary": [
+        "灰矮人韧性。",
+        "高级黑暗视觉。",
+        "灰矮人魔法。"
+      ]
+    },
+    {
+      "subrace_id": "forest_gnome",
+      "parent_race_id": "gnome",
+      "display_name": "森林侏儒",
+      "description": "拥有森林血脉身份标记的侏儒。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "forest_gnome_magic"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "forest_lore"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "gnome",
+        "forest_gnome"
+      ],
+      "racial_trait_summary": [
+        "森林侏儒魔法。"
+      ]
+    },
+    {
+      "subrace_id": "gold_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "金龙裔",
+      "description": "继承金龙血脉、与火焰力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_fire_cone",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "fire": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "gold_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "火焰锥形龙息。",
+        "火焰抗性。"
+      ]
+    },
+    {
+      "subrace_id": "gold_dwarf",
+      "parent_race_id": "dwarf",
+      "display_name": "黄金矮人",
+      "description": "传承黄金矮人血脉的矮人。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dwarven_toughness"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "dwarven_toughness"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "dwarf",
+        "gold_dwarf"
+      ],
+      "racial_trait_summary": [
+        "矮人坚韧。"
+      ]
+    },
+    {
+      "subrace_id": "green_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "绿龙裔",
+      "description": "继承绿龙血脉、与毒素力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_poison_cone",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "poison": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "green_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "毒素锥形龙息。",
+        "毒素抗性。"
+      ]
+    },
+    {
+      "subrace_id": "high_elf",
+      "parent_race_id": "elf",
+      "display_name": "高等精灵",
+      "description": "拥有高等精灵魔法标记的精灵。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "racial_spell_grant"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "elf",
+        "high_elf"
+      ],
+      "racial_trait_summary": [
+        "高等精灵戏法标记。"
+      ]
+    },
+    {
+      "subrace_id": "high_half_elf",
+      "parent_race_id": "half_elf",
+      "display_name": "高等半精灵",
+      "description": "拥有高等精灵魔法血脉的半精灵。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "racial_spell_grant"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_elf",
+        "high_elf"
+      ],
+      "racial_trait_summary": [
+        "高等半精灵戏法标记。"
+      ]
+    },
+    {
+      "subrace_id": "lightfoot_halfling",
+      "parent_race_id": "halfling",
+      "display_name": "轻足半身人",
+      "description": "拥有轻足隐匿身份的半身人。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "naturally_stealthy"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "stealth"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "halfling",
+        "lightfoot_halfling"
+      ],
+      "racial_trait_summary": [
+        "天生隐匿。"
+      ]
+    },
+    {
+      "subrace_id": "lolth_sworn_drow",
+      "parent_race_id": "drow",
+      "display_name": "罗丝誓约卓尔",
+      "description": "效忠罗丝的卓尔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "drow",
+        "lolth_sworn"
+      ],
+      "racial_trait_summary": [
+        "罗丝誓约对话身份。"
+      ]
+    },
+    {
+      "subrace_id": "mephistopheles_tiefling",
+      "parent_race_id": "tiefling",
+      "display_name": "墨菲斯托费利斯提夫林",
+      "description": "与墨菲斯托费利斯和炼狱奥术相连的提夫林。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "racial_spell_grant",
+        "mephistopheles_legacy"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "tiefling",
+        "mephistopheles_tiefling"
+      ],
+      "racial_trait_summary": [
+        "墨菲斯托费利斯传承。"
+      ]
+    },
+    {
+      "subrace_id": "red_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "红龙裔",
+      "description": "继承红龙血脉、与火焰力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_fire_cone",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "fire": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "red_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "火焰锥形龙息。",
+        "火焰抗性。"
+      ]
+    },
+    {
+      "subrace_id": "rock_gnome",
+      "parent_race_id": "gnome",
+      "display_name": "岩侏儒",
+      "description": "拥有工匠与学识身份的侏儒。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "artificers_lore"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "artificer_lore"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "gnome",
+        "rock_gnome"
+      ],
+      "racial_trait_summary": [
+        "工匠学识。"
+      ]
+    },
+    {
+      "subrace_id": "seldarine_drow",
+      "parent_race_id": "drow",
+      "display_name": "瑟达琳卓尔",
+      "description": "追随瑟达琳而非罗丝的卓尔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "drow",
+        "seldarine"
+      ],
+      "racial_trait_summary": [
+        "瑟达琳对话身份。"
+      ]
+    },
+    {
+      "subrace_id": "shield_dwarf",
+      "parent_race_id": "dwarf",
+      "display_name": "盾矮人",
+      "description": "拥有盾矮人护甲训练身份的矮人。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "shield_dwarf_armor_training"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "light_armor",
+        "medium_armor"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "dwarf",
+        "shield_dwarf"
+      ],
+      "racial_trait_summary": [
+        "盾矮人护甲训练。"
+      ]
+    },
+    {
+      "subrace_id": "silver_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "银龙裔",
+      "description": "继承银龙血脉、与寒霜力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_freeze_cone",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "freeze": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "silver_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "寒霜锥形龙息。",
+        "寒霜抗性。"
+      ]
+    },
+    {
+      "subrace_id": "standard_githyanki",
+      "parent_race_id": "githyanki",
+      "display_name": "吉斯洋基",
+      "description": "标准吉斯洋基血脉选项。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "githyanki"
+      ],
+      "racial_trait_summary": []
+    },
+    {
+      "subrace_id": "standard_half_orc",
+      "parent_race_id": "half_orc",
+      "display_name": "半兽人",
+      "description": "标准半兽人血脉选项。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_orc",
+        "orc"
+      ],
+      "racial_trait_summary": []
+    },
+    {
+      "subrace_id": "strongheart_halfling",
+      "parent_race_id": "halfling",
+      "display_name": "强心半身人",
+      "description": "拥有强心韧性的半身人。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "damage_resistance",
+        "save_advantage"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [
+        "poison"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "poison": "half"
+      },
+      "dialogue_tags": [
+        "halfling",
+        "strongheart_halfling"
+      ],
+      "racial_trait_summary": [
+        "强心韧性。"
+      ]
+    },
+    {
+      "subrace_id": "white_dragonborn",
+      "parent_race_id": "dragonborn",
+      "display_name": "白龙裔",
+      "description": "继承白龙血脉、与寒霜力量相连的龙裔。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "dragon_breath",
+        "damage_resistance"
+      ],
+      "racial_granted_skills": [
+        {
+          "skill_id": "dragon_breath_freeze_cone",
+          "minimum_skill_level": 1,
+          "charge_kind": "per_battle",
+          "charges": 1
+        }
+      ],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {
+        "freeze": "half"
+      },
+      "dialogue_tags": [
+        "dragonborn",
+        "white_dragonborn"
+      ],
+      "racial_trait_summary": [
+        "寒霜锥形龙息。",
+        "寒霜抗性。"
+      ]
+    },
+    {
+      "subrace_id": "wood_elf",
+      "parent_race_id": "elf",
+      "display_name": "木精灵",
+      "description": "拥有迅捷移动和木精灵血脉的精灵。",
+      "body_size_category_override": "",
+      "speed_bonus": 1,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "fleet_of_foot",
+        "mask_of_the_wild"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "stealth"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "elf",
+        "wood_elf"
+      ],
+      "racial_trait_summary": [
+        "迅捷步伐。",
+        "荒野面具。"
+      ]
+    },
+    {
+      "subrace_id": "wood_half_elf",
+      "parent_race_id": "half_elf",
+      "display_name": "木半精灵",
+      "description": "拥有木精灵移动血脉的半精灵。",
+      "body_size_category_override": "",
+      "speed_bonus": 1,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "fleet_of_foot",
+        "mask_of_the_wild"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [
+        "stealth"
+      ],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "half_elf",
+        "wood_elf"
+      ],
+      "racial_trait_summary": [
+        "迅捷步伐。",
+        "荒野面具。"
+      ]
+    },
+    {
+      "subrace_id": "zariel_tiefling",
+      "parent_race_id": "tiefling",
+      "display_name": "扎瑞尔提夫林",
+      "description": "与扎瑞尔和武斗型炼狱魔法相连的提夫林。",
+      "body_size_category_override": "",
+      "speed_bonus": 0,
+      "attribute_modifiers": [],
+      "trait_ids": [
+        "racial_spell_grant",
+        "zariel_legacy"
+      ],
+      "racial_granted_skills": [],
+      "proficiency_tags": [],
+      "vision_tags": [],
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "damage_resistances": {},
+      "dialogue_tags": [
+        "tiefling",
+        "zariel_tiefling"
+      ],
+      "racial_trait_summary": [
+        "扎瑞尔传承。"
+      ]
+    }
+  ]
+}

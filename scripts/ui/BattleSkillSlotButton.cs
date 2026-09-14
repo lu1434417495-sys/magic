@@ -1,147 +1,117 @@
-using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
 public partial class BattleSkillSlotButton : Button
 {
-    private const float TooltipMinWidth = 240.0f;
-    private const float TooltipMaxWidth = 320.0f;
-    private const int TooltipPadding = 14;
-    private const int TooltipMouseGap = 18;
-    private const int TooltipScreenMargin = 8;
+    private BattleHudSkillSlotSnapshot _snapshot;
+    private Timer _showTimer;
+    private Timer _hideTimer;
+    private CanvasLayer _tooltipLayer;
+    private BattleSkillTooltipPanel _tooltip;
+    private Vector2 _pointerPosition;
+    private Viewport _viewport;
 
-    public string skill_display_name = "";
-    public string skill_description = "";
-    public string skill_footer_text = "";
-    public string skill_disabled_reason = "";
-    public int skill_cooldown;
-    public Color skill_accent_color = BattleUiTheme.FATE_GATE();
+    internal void SetSnapshot(BattleHudSkillSlotSnapshot snapshot) => _snapshot = snapshot;
 
-    public override Control _MakeCustomTooltip(string _forText)
+    public override void _Ready()
     {
-        var root = new PanelContainer
-        {
-            MouseFilter = MouseFilterEnum.Ignore,
-            CustomMinimumSize = new Vector2(TooltipMinWidth, 0),
-        };
-        root.AddThemeStyleboxOverride("panel", _build_tooltip_panel_style());
-
-        var layout = new VBoxContainer();
-        layout.AddThemeConstantOverride("separation", 8);
-        root.AddChild(layout);
-
-        var accentStrip = new ColorRect
-        {
-            CustomMinimumSize = new Vector2(0, 3),
-            Color = skill_accent_color,
-        };
-        layout.AddChild(accentStrip);
-
-        var textPadding = new MarginContainer();
-        textPadding.AddThemeConstantOverride("margin_left", TooltipPadding);
-        textPadding.AddThemeConstantOverride("margin_right", TooltipPadding);
-        textPadding.AddThemeConstantOverride("margin_top", 6);
-        textPadding.AddThemeConstantOverride("margin_bottom", TooltipPadding);
-        layout.AddChild(textPadding);
-
-        var textColumn = new VBoxContainer();
-        textColumn.AddThemeConstantOverride("separation", 6);
-        textPadding.AddChild(textColumn);
-
-        var titleLabel = MakeLabel(
-            string.IsNullOrEmpty(skill_display_name) ? "未知技能" : skill_display_name,
-            BattleUiTheme.TEXT_PRIMARY(),
-            BattleUiTheme.FONT_TITLE()
-        );
-        textColumn.AddChild(titleLabel);
-
-        if (!string.IsNullOrEmpty(skill_description))
-        {
-            var descriptionLabel = MakeLabel(
-                skill_description,
-                BattleUiTheme.TEXT_SECONDARY(),
-                BattleUiTheme.FONT_BODY()
-            );
-            textColumn.AddChild(descriptionLabel);
-        }
-
-        var metaSegments = new List<string>();
-        if (skill_cooldown > 0)
-            metaSegments.Add($"冷却 {skill_cooldown}");
-        if (!string.IsNullOrEmpty(skill_footer_text) && skill_footer_text != "READY")
-            metaSegments.Add(skill_footer_text);
-        if (metaSegments.Count > 0)
-        {
-            var metaLabel = MakeLabel(
-                string.Join("  ·  ", metaSegments),
-                BattleUiTheme.TEXT_MUTED(),
-                BattleUiTheme.FONT_LABEL()
-            );
-            textColumn.AddChild(metaLabel);
-        }
-
-        if (!string.IsNullOrEmpty(skill_disabled_reason))
-        {
-            var disabledLabel = MakeLabel(
-                $"不可用：{skill_disabled_reason}",
-                BattleUiTheme.FATE_DANGER(),
-                BattleUiTheme.FONT_LABEL()
-            );
-            textColumn.AddChild(disabledLabel);
-        }
-
-        root.CustomMinimumSize = new Vector2(TooltipMinWidth, 0);
-        root.Size = new Vector2(TooltipMaxWidth, 0);
-
-        root.Resized += () =>
-        {
-            if (!GodotObject.IsInstanceValid(root))
-                return;
-            if (root.GetViewport() is not Window windowNode)
-                return;
-
-            Vector2I mouseScreen = DisplayServer.MouseGetPosition();
-            int tipW = Mathf.RoundToInt(root.Size.X);
-            int tipH = Mathf.RoundToInt(root.Size.Y);
-            Vector2I screenSize = DisplayServer.ScreenGetSize();
-            int maxX = Mathf.Max(screenSize.X - tipW - TooltipScreenMargin, TooltipScreenMargin);
-            int newX = Mathf.Clamp(mouseScreen.X - tipW / 2, TooltipScreenMargin, maxX);
-            int newY = Mathf.Max(mouseScreen.Y - tipH - TooltipMouseGap, TooltipScreenMargin);
-            windowNode.Position = new Vector2I(newX, newY);
-        };
-
-        return root;
+        _showTimer = new Timer { OneShot = true, WaitTime = 0.3 };
+        _hideTimer = new Timer { OneShot = true, WaitTime = 0.18 };
+        AddChild(_showTimer);
+        AddChild(_hideTimer);
+        _showTimer.Timeout += ShowTooltip;
+        _hideTimer.Timeout += CloseIfPointerOutside;
+        MouseEntered += BeginHover;
+        MouseExited += EndHover;
+        Pressed += CloseTooltip;
+        VisibilityChanged += CloseWhenHidden;
+        _viewport = GetViewport();
+        _viewport.SizeChanged += CloseTooltip;
+        SetProcessInput(false);
     }
 
-    private static Label MakeLabel(string text, Color color, int fontSize)
+    public override void _ExitTree()
     {
-        var label = new Label
-        {
-            Text = text,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(TooltipMinWidth - TooltipPadding * 2, 0),
-        };
-        label.AddThemeFontSizeOverride("font_size", fontSize);
-        label.AddThemeColorOverride("font_color", color);
-        return label;
+        if (_viewport != null) _viewport.SizeChanged -= CloseTooltip;
+        _viewport = null;
     }
 
-    private static StyleBoxFlat _build_tooltip_panel_style()
+    private void BeginHover()
     {
-        return new StyleBoxFlat
+        _pointerPosition = GetGlobalRect().GetCenter();
+        _hideTimer.Stop();
+        SetProcessInput(true);
+        if (_tooltip == null) _showTimer.Start();
+    }
+
+    private void EndHover()
+    {
+        // MouseExited can fire after child timers have left the tree during a grid rebuild.
+        if (_hideTimer?.IsInsideTree() != true) return;
+        _showTimer.Stop();
+        _hideTimer.Start();
+    }
+
+    private void ShowTooltip()
+    {
+        if (_snapshot == null || _snapshot.IsEmpty || !IsVisibleInTree() || _tooltip != null) return;
+        Vector2 viewportSize = GetViewportRect().Size;
+        Vector2 size = BattleSkillTooltipPanel.ResolveFrameSize(viewportSize);
+        Texture2D icon = string.IsNullOrEmpty(_snapshot.IconKey) ? null
+            : EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(this, _snapshot.IconKey);
+        _tooltip = BattleSkillTooltipPanel.Create(_snapshot, icon, size);
+        // Below battle modals; this layer is owned by this slot and leaves with it.
+        _tooltipLayer = new CanvasLayer { Name = "SkillTooltipLayer", Layer = 19 };
+        AddChild(_tooltipLayer);
+        _tooltipLayer.AddChild(_tooltip);
+        Rect2 source = GetGlobalRect();
+        float x = source.End.X + 12;
+        if (x + size.X > viewportSize.X - 16) x = source.Position.X - size.X - 12;
+        _tooltip.Position = new Vector2(Mathf.Clamp(x, 16, viewportSize.X - size.X - 16),
+            Mathf.Clamp(source.Position.Y - size.Y, 16, viewportSize.Y - size.Y - 16));
+        _tooltip.MouseEntered += () => _hideTimer.Stop();
+        _tooltip.MouseExited += EndHover;
+    }
+
+    public override void _Input(InputEvent input)
+    {
+        if (input is InputEventMouseMotion motion)
         {
-            BgColor = BattleUiTheme.PANEL_BG_ALT(),
-            BorderColor = BattleUiTheme.TEXT_ACCENT(),
-            BorderWidthLeft = 2,
-            BorderWidthRight = 2,
-            BorderWidthTop = 2,
-            BorderWidthBottom = 2,
-            CornerRadiusTopLeft = BattleUiTheme.PANEL_RADIUS_LARGE(),
-            CornerRadiusTopRight = BattleUiTheme.PANEL_RADIUS_LARGE(),
-            CornerRadiusBottomLeft = BattleUiTheme.PANEL_RADIUS_LARGE(),
-            CornerRadiusBottomRight = BattleUiTheme.PANEL_RADIUS_LARGE(),
-            ShadowColor = new Color(0, 0, 0, 0.7f),
-            ShadowSize = 12,
-        };
+            _pointerPosition = motion.Position;
+            if (PointerInside()) _hideTimer.Stop();
+            else if (_hideTimer.IsStopped()) _hideTimer.Start();
+        }
+        else if (input is InputEventMouseButton { Pressed: true } button)
+        {
+            _pointerPosition = button.Position;
+            if (!PointerInside()) CloseTooltip();
+        }
+        else if (input is InputEventKey { Pressed: true, Keycode: Key.Escape } && _tooltip != null)
+        {
+            CloseTooltip();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    private bool PointerInside() => GetGlobalRect().HasPoint(_pointerPosition)
+        || (_tooltip != null && _tooltip.GetGlobalRect().HasPoint(_pointerPosition));
+
+    private void CloseIfPointerOutside()
+    {
+        if (!PointerInside()) CloseTooltip();
+    }
+
+    private void CloseWhenHidden()
+    {
+        if (!IsVisibleInTree()) CloseTooltip();
+    }
+
+    private void CloseTooltip()
+    {
+        _showTimer?.Stop();
+        _hideTimer?.Stop();
+        _tooltipLayer?.QueueFree();
+        _tooltipLayer = null;
+        _tooltip = null;
+        SetProcessInput(false);
     }
 }

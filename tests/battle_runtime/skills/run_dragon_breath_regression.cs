@@ -26,7 +26,7 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
 
     private void TestOfficialDragonBreathSkillResourcesAreSchemaStable()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader());
+        using SkillContentRegistry registry = new();
         AssertCurrentOfficialSkillValidationErrors(
             registry.Validate(),
             "official skill registry should validate cleanly."
@@ -129,9 +129,9 @@ public partial class run_dragon_breath_regression : LifecycleTestSceneTree
     private void TestSkillCastRulesStayAlignedBetweenStateAndReadView()
     {
         StringName skillId = "skill_cast_read_view_alignment";
-        var levelOverrides = new Dictionary<int, IReadOnlyDictionary<string, object>>
+        var levelOverrides = new Dictionary<int, CombatSkillLevelOverrideImportModel>
         {
-            [2] = new Dictionary<string, object> { ["ap_cost"] = 2 },
+            [2] = new CombatSkillLevelOverrideImportModel(apCost: 2),
         };
         SkillDefinition skillDefinition = TestSkillDefinitionProjection.BuildSkill(
             skillId,

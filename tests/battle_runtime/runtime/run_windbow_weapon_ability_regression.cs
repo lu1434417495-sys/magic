@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -85,21 +84,14 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
             "风压推射应落成真实 SkillDef，而不是 trait 文本。"
         );
 
-        ItemDef rawWindbow = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longbow_windbow.tres"
-        );
+        ItemDefinition rawWindbow = TestItemDefinitionLookup.GetProductionItem("weapon_unique_bow_windbow_151");
         _test.True(rawWindbow != null, "风之弓原始资源应能加载。");
         if (rawWindbow != null)
         {
-            _test.Eq(rawWindbow.item_id, WindbowItemId, "风之弓内部 item_id 应保留设计源 id。");
-            _test.Eq(rawWindbow.display_name, "风之弓", "风之弓显示名应匹配方案。");
-            _test.Eq(
-                rawWindbow.base_item_id,
-                new StringName("weapon_type_longbow_base"),
-                "风之弓应继承 longbow 模板。"
-            );
-            _test.Eq(rawWindbow.base_price, 52000, "风之弓基础价格应为 52000。");
-            _test.Eq(rawWindbow.trait_ids.Count, 4, "风之弓应有且只有 4 个已落地特性。");
+            _test.Eq(rawWindbow.ItemId, WindbowItemId, "风之弓内部 item_id 应保留设计源 id。");
+            _test.Eq(rawWindbow.DisplayName, "风之弓", "风之弓显示名应匹配方案。");
+            _test.Eq(rawWindbow.BasePrice, 52000, "风之弓基础价格应为 52000。");
+            _test.Eq(rawWindbow.TraitIds.Count, 4, "风之弓应有且只有 4 个已落地特性。");
             foreach (
                 StringName traitId in new[]
                 {
@@ -110,17 +102,17 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
                 }
             )
             {
-                _test.True(rawWindbow.trait_ids.Contains(traitId), $"风之弓 item 应声明 {traitId}。");
+                _test.True(rawWindbow.TraitIds.Contains(traitId), $"风之弓 item 应声明 {traitId}。");
             }
 
-            WeaponProfileDef rawProfile = rawWindbow.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition rawProfile = rawWindbow.WeaponProfile;
             _test.True(rawProfile != null, "风之弓应声明 weapon_profile 覆写。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.attack_range, 6, "风之弓攻击距离应为 6，而不是源文 10。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_count ?? 0, 1, "风之弓应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.dice_sides ?? 0, 8, "风之弓应为 1D8+2。");
-                _test.Eq(rawProfile.two_handed_dice?.flat_bonus ?? 0, 2, "风之弓应为 1D8+2。");
+                _test.Eq(rawProfile.AttackRange, 6, "风之弓攻击距离应为 6，而不是源文 10。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceCount ?? 0, 1, "风之弓应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.DiceSides ?? 0, 8, "风之弓应为 1D8+2。");
+                _test.Eq(rawProfile.TwoHandedDice?.FlatBonus ?? 0, 2, "风之弓应为 1D8+2。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "heavy"),
                     "风之弓应声明 heavy 属性。"
@@ -504,10 +496,6 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
         StringName bindingId
     )
     {
-        PropertyInfo attributeModifierIdProperty =
-            typeof(AttackRollBonusActionPayloadDefinition).GetProperty("AttributeModifierId");
-        if (attributeModifierIdProperty == null)
-            return false;
         if (bindings == null || !bindings.TryGetValue(bindingId, out EquipmentAbilityBindingDefinition binding))
             return false;
         foreach (EquipmentAbilityReactionDefinition reaction in binding?.Reactions ?? Array.Empty<EquipmentAbilityReactionDefinition>())
@@ -519,10 +507,8 @@ public partial class run_windbow_weapon_ability_regression : LifecycleTestSceneT
                 {
                     continue;
                 }
-                StringName attributeModifierId =
-                    (StringName)(attributeModifierIdProperty.GetValue(payload) ?? new StringName(""));
                 if (
-                    attributeModifierId == PerceptionModifier
+                    payload.AttributeModifierId == PerceptionModifier
                     && payload.RequireWeaponDamage
                     && payload.TargetSelector == "attack_target"
                 )

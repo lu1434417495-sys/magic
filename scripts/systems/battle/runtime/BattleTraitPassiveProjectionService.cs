@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -25,6 +26,8 @@ internal static class BattleTraitPassiveProjectionService
         }
 
         ClearTraitPassiveStatuses(unitState);
+        var saveTagAddBonuses = new Dictionary<StringName, int>();
+        var saveTagHighestBonuses = new Dictionary<StringName, int>();
         foreach (
             BattleEffectiveTraitInstanceReadView instance
             in effectiveTraits.Instances
@@ -39,8 +42,74 @@ internal static class BattleTraitPassiveProjectionService
             ProjectSaveTags(unitState, traitDef);
             ProjectDamageResistances(unitState, traitDef);
             ProjectSaveBonuses(unitState, traitDef);
+            CollectSaveTagBonuses(
+                traitDef,
+                saveTagAddBonuses,
+                saveTagHighestBonuses
+            );
             ProjectPassiveStatuses(unitState, traitDef);
         }
+        ApplySaveTagBonuses(
+            unitState,
+            saveTagAddBonuses,
+            saveTagHighestBonuses
+        );
+    }
+
+    private static void CollectSaveTagBonuses(
+        TraitDefinition traitDef,
+        Dictionary<StringName, int> addBonuses,
+        Dictionary<StringName, int> highestBonuses
+    )
+    {
+        if (traitDef == null || addBonuses == null || highestBonuses == null)
+            return;
+
+        foreach (TraitSaveTagBonusEntryDefinition entry in traitDef.SaveTagBonusEntries)
+        {
+            StringName saveTag = ProgressionDataUtils.to_string_name(entry?.SaveTag ?? "");
+            int bonus = entry?.Bonus ?? 0;
+            if (saveTag == "" || bonus <= 0)
+                continue;
+
+            switch (entry.StackModeKind)
+            {
+                case TraitSaveTagBonusStackModeKind.Add:
+                    addBonuses.TryGetValue(saveTag, out int addTotal);
+                    addBonuses[saveTag] = checked(addTotal + bonus);
+                    break;
+                case TraitSaveTagBonusStackModeKind.Highest:
+                    highestBonuses.TryGetValue(saveTag, out int highestTotal);
+                    highestBonuses[saveTag] = Math.Max(highestTotal, bonus);
+                    break;
+            }
+        }
+    }
+
+    private static void ApplySaveTagBonuses(
+        BattleUnitState unitState,
+        Dictionary<StringName, int> addBonuses,
+        Dictionary<StringName, int> highestBonuses
+    )
+    {
+        if (unitState == null)
+            return;
+
+        var aggregated = new Dictionary<StringName, int>();
+        if (addBonuses != null)
+        {
+            foreach ((StringName saveTag, int bonus) in addBonuses)
+                aggregated[saveTag] = bonus;
+        }
+        if (highestBonuses != null)
+        {
+            foreach ((StringName saveTag, int bonus) in highestBonuses)
+            {
+                aggregated.TryGetValue(saveTag, out int addTotal);
+                aggregated[saveTag] = checked(addTotal + bonus);
+            }
+        }
+        unitState.ReplaceSaveTagBonusesTyped(aggregated);
     }
 
     private static void ClearTraitPassiveStatuses(BattleUnitState unitState)

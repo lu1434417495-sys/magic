@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_enemy_template_schema_boundary_regression : LifecycleTestSceneTree
 {
@@ -11,545 +9,519 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
 
     public override void _Initialize()
     {
-        TestTypedSchemaValidationAcceptsTypedReferenceTables();
-        TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys();
-        TestTypedSchemaValidationRejectsMissingTypedItemReferences();
+        TestLocalSchemaAcceptsValidJsonDto();
+        TestProjectedGraphAcceptsTypedReferenceTables();
+        TestProjectedGraphRejectsMissingItemReferences();
         TestCognitionKindIsRequiredAndClosed();
-        TestSaveAdvantageTagsExportFieldExists();
-        TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes();
-        TestSaveAdvantageTagsRejectEmptyTag();
-        TestSaveAdvantageTagsRejectUnsupportedBaseTag();
-        TestSaveAdvantageTagsRejectDuplicateTag();
-        TestDamageResistancesAcceptSupportedTagsAndTiers();
-        TestDamageResistancesRejectUnsupportedDamageTag();
-        TestDamageResistancesRejectUnsupportedMitigationTier();
+        TestSaveTagsProjectAndValidate();
+        TestDamageResistancesProjectAndValidate();
         TestDerivedHpAndAttackBonusFollowLevelFormula();
         TestCreatureLevelAndHitDieValidation();
-        TestSkillLevelMapValidationRemainsUnchanged();
+        TestBattleEquipmentEntriesRequireTypedEquipmentAndValidDurability();
+        TestSkillLevelMapUsesProjectedGraphSkillBounds();
 
         RequestTestExit(_test.Finish("Enemy template schema boundary regression"));
     }
 
-    private void TestTypedSchemaValidationAcceptsTypedReferenceTables()
+    private void TestLocalSchemaAcceptsValidJsonDto()
     {
-        EnemyTemplateDef template = BuildValidTemplate("typed_schema_template", "typed_schema_weapon");
-        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>
+        TemplateDtoBuilder template = BuildValidTemplate(
+            "typed_schema_template",
+            "typed_schema_weapon"
+        );
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = ValidateLocal(template);
+        _test.Eq(
+            diagnostics.Count,
+            0,
+            $"typed JSON template 应通过本地域校验。 diagnostics={FormatDiagnostics(diagnostics)}"
+        );
+    }
+
+    private void TestProjectedGraphAcceptsTypedReferenceTables()
+    {
+        TemplateDtoBuilder template = BuildValidTemplate(
+            "projected_graph_template",
+            "projected_graph_weapon"
+        );
+        var items = new Dictionary<StringName, ItemDefinition>
         {
-            [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
-        };
-        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
-        {
-            [template.attack_equipment_item_id] = MakeWeapon(
-                template.attack_equipment_item_id,
-                "typed_schema_weapon_type"
+            ["projected_graph_weapon"] = MakeWeapon(
+                "projected_graph_weapon",
+                "projected_graph_weapon_type"
             ),
         };
-        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
-        {
-            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
-        };
-
-        GStringArray errors = template.ValidateSchemaTyped(
-            brainIndex,
-            itemDefinitionIndex,
-            skillDefinitionIndex
+        IReadOnlyList<string> errors = ValidateProjectedGraph(template, items);
+        _test.Eq(
+            errors.Count,
+            0,
+            $"immutable Definition graph 应接受 typed 引用表。 errors={FormatErrors(errors)}"
         );
-        _test.True(
-            errors.Count == 0,
-            $"typed ValidateSchemaTyped() 应接受正式 typed 引用表。 errors={FormatErrors(errors)}"
+    }
+
+    private void TestProjectedGraphRejectsMissingItemReferences()
+    {
+        TemplateDtoBuilder template = BuildValidTemplate(
+            "missing_item_schema_template",
+            "missing_item_schema_weapon"
+        );
+        template.DropEntries.Clear();
+        template.DropEntries.Add(
+            new EnemyDropEntryJsonDto
+            {
+                DropEntryId = "missing_drop",
+                DropType = "item",
+                ItemId = "missing_drop_item",
+                Quantity = 1,
+            }
+        );
+
+        IReadOnlyList<string> errors = ValidateProjectedGraph(
+            template,
+            new Dictionary<StringName, ItemDefinition>()
+        );
+        _test.Eq(
+            errors.Count,
+            2,
+            $"缺失 item fixture 应只报告攻击装备与掉落两条引用错误。 errors={FormatErrors(errors)}"
+        );
+        AssertError(
+            errors,
+            "references missing attack equipment missing_item_schema_weapon",
+            "应报告缺失攻击装备。"
+        );
+        AssertError(
+            errors,
+            "drop missing_drop references missing item missing_drop_item",
+            "应报告缺失掉落物品。"
         );
     }
 
     private void TestCognitionKindIsRequiredAndClosed()
     {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder template = BuildValidTemplate(
             "cognition_schema_template",
             "cognition_schema_weapon"
         );
-        template.cognition_kind = "";
-        GStringArray missingErrors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(missingErrors, "cognition_kind"),
-            "enemy template 必须显式声明 cognition_kind。"
+        template.CognitionKind = "";
+        AssertDiagnostic(
+            ValidateLocal(template),
+            EnemyContentImportRules.ValueUnsupported,
+            "/cognition_kind",
+            "cognition_kind 不能为空。"
         );
 
-        template.cognition_kind = "clever";
-        GStringArray unknownErrors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(unknownErrors, "cognition_kind"),
-            "enemy template cognition_kind 应拒绝开放字符串。"
+        template.CognitionKind = "clever";
+        AssertDiagnostic(
+            ValidateLocal(template),
+            EnemyContentImportRules.ValueUnsupported,
+            "/cognition_kind",
+            "cognition_kind 应拒绝开放字符串。"
         );
 
-        template.cognition_kind = "mindless";
-        _test.Eq(
-            ValidateWithReferenceTables(template).Count,
-            0,
-            "mindless 应是合法的正式认知类型。"
-        );
-        template.cognition_kind = "instinctive";
-        _test.Eq(
-            ValidateWithReferenceTables(template).Count,
-            0,
-            "instinctive 应是合法的正式认知类型。"
-        );
-        template.cognition_kind = "sapient";
-        _test.Eq(
-            ValidateWithReferenceTables(template).Count,
-            0,
-            "sapient 应是合法的正式认知类型。"
-        );
-    }
-
-    private void TestDictionaryReferenceIndicesBuildTypedSchemaInputsFromStringNameKeys()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
-            "dictionary_schema_template",
-            "dictionary_schema_weapon"
-        );
-        GDictionary knownBrains = new()
+        foreach (string kind in new[] { "mindless", "instinctive", "sapient" })
         {
-            [new StringName("dictionary_schema_brain")] = BuildBrain("dictionary_schema_brain", "engage"),
-        };
-        GDictionary itemDefs = new()
-        {
-            [new StringName("dictionary_schema_weapon")] = MakeWeaponResource(
-                "dictionary_schema_weapon",
-                "dictionary_schema_weapon_type"
-            ),
-        };
-        GDictionary skillDefs = new()
-        {
-            [new StringName("typed_schema_skill")] = BuildSkill("typed_schema_skill", maxLevel: 2),
-        };
-
-        GStringArray errors = template.ValidateSchemaTyped(
-            EnemyTemplateDef.BuildBrainIndex(knownBrains),
-            BuildItemDefinitionIndex(itemDefs),
-            BuildSkillDefinitionIndex(skillDefs)
-        );
-        _test.True(
-            errors.Count == 0,
-            $"typed ValidateSchemaTyped() 应接受从 StringName-key Dictionary 物化出来的正式 typed 索引。 errors={FormatErrors(errors)}"
-        );
-    }
-
-    private static Dictionary<StringName, SkillDefinition> BuildSkillDefinitionIndex(
-        GDictionary skillDefs
-    )
-    {
-        var result = new Dictionary<StringName, SkillDefinition>();
-        if (skillDefs == null)
-            return result;
-        foreach (Variant rawKey in skillDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            SkillDefinition skillDefinition =
-                SkillDefinition.FromResource(skillDefs[rawKey].As<SkillDef>());
-            if (skillDefinition == null)
-                continue;
-            StringName keySkillId = rawKey.AsStringName();
-            if (keySkillId != "")
-                result[keySkillId] = skillDefinition;
+            template.CognitionKind = kind;
+            _test.Eq(
+                ValidateLocal(template).Count,
+                0,
+                $"{kind} 应是合法的正式认知类型。"
+            );
         }
-        return result;
     }
 
-    private static Dictionary<StringName, ItemDefinition> BuildItemDefinitionIndex(
-        GDictionary itemDefs
-    )
+    private void TestSaveTagsProjectAndValidate()
     {
-        var result = new Dictionary<StringName, ItemDefinition>();
-        if (itemDefs == null)
-            return result;
-        foreach (Variant rawKey in itemDefs.Keys)
-        {
-            if (rawKey.VariantType != Variant.Type.StringName)
-                continue;
-            ItemDef itemResource = itemDefs[rawKey].As<ItemDef>();
-            StringName itemId = rawKey.AsStringName();
-            if (itemResource != null && itemId != "")
-                result[itemId] = itemResource.ToDefinition();
-        }
-        return result;
-    }
-
-    private void TestTypedSchemaValidationRejectsMissingTypedItemReferences()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
-            "missing_item_schema_template",
-            "missing_item_schema_weapon"
-        );
-        template.drop_entries.Add(
-            new DropEntryDef
-            {
-                drop_entry_id = "missing_drop",
-                drop_type = "item",
-                item_id = "missing_drop_item",
-                quantity = 1,
-            }
-        );
-
-        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>
-        {
-            [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
-        };
-        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
-        {
-            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
-        };
-
-        GStringArray errors = template.ValidateSchemaTyped(
-            brainIndex,
-            new Dictionary<StringName, ItemDefinition>(),
-            skillDefinitionIndex
-        );
-        _test.True(
-            errors.Count >= 2,
-            $"typed ValidateSchemaTyped() 应直接报告缺失装备和掉落 item 引用。 errors={FormatErrors(errors)}"
-        );
-    }
-
-    private void TestSaveAdvantageTagsExportFieldExists()
-    {
-        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
-        _test.True(property != null, "EnemyTemplateDef 应公开 save_advantage_tags 导出字段。");
-        _test.True(
-            property != null
-                && Attribute.IsDefined(property, typeof(ExportAttribute), inherit: true),
-            "EnemyTemplateDef.save_advantage_tags 应使用 [Export] 暴露给模板资源。"
-        );
-    }
-
-    private void TestSaveTagFieldsAcceptBareTagsAndRejectSuffixes()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder template = BuildValidTemplate(
             "save_tag_schema_template",
             "save_tag_schema_weapon"
         );
-        SetSaveAdvantageTags(template, "illusion");
-        template.save_disadvantage_tags = new GStringNameArray { "frightened" };
-        template.save_immunity_tags = new GStringNameArray { "sleep", "poison" };
+        template.SaveAdvantageTags.AddRange(new[] { "illusion", "poison" });
+        template.SaveDisadvantageTags.Add("frightened");
+        template.SaveImmunityTags.AddRange(new[] { "sleep", "poison" });
 
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            errors.Count == 0,
-            $"三个豁免标签字段应各自接受裸 save tag。 errors={FormatErrors(errors)}"
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = ValidateLocal(template);
+        _test.Eq(
+            diagnostics.Count,
+            0,
+            $"三个豁免标签字段应接受闭集裸标签。 diagnostics={FormatDiagnostics(diagnostics)}"
         );
+        EnemyTemplateDefinition definition = Project(
+            template,
+            new Dictionary<StringName, ItemDefinition>()
+        );
+        _test.Eq(definition.SaveAdvantageTags.Count, 2, "save_advantage_tags 应完整投影。");
+        _test.Eq(definition.SaveAdvantageTags[0], new StringName("illusion"), "应保留第一项。");
+        _test.Eq(definition.SaveAdvantageTags[1], new StringName("poison"), "应保留第二项。");
 
-        EnemyTemplateDef suffixTemplate = BuildValidTemplate(
+        TemplateDtoBuilder suffix = BuildValidTemplate(
             "save_tag_suffix_schema_template",
             "save_tag_suffix_schema_weapon"
         );
-        SetSaveAdvantageTags(suffixTemplate, "illusion_immunity");
-        GStringArray suffixErrors = ValidateWithReferenceTables(suffixTemplate);
-        _test.True(
-            ContainsError(suffixErrors, "removed suffix"),
-            $"后缀写法已废除,应被 schema 拒绝并提示迁移。 errors={FormatErrors(suffixErrors)}"
+        suffix.SaveAdvantageTags.Add("illusion_immunity");
+        AssertDiagnostic(
+            ValidateLocal(suffix),
+            EnemyContentImportRules.ValueUnsupported,
+            "/save_advantage_tags/0",
+            "后缀式旧标签应被拒绝。"
         );
-    }
 
-    private void TestSaveAdvantageTagsRejectEmptyTag()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder empty = BuildValidTemplate(
             "empty_save_tag_schema_template",
             "empty_save_tag_schema_weapon"
         );
-        SetSaveAdvantageTags(template, "");
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "save_advantage_tags"),
-            $"save_advantage_tags 空元素应被 schema 拒绝。 errors={FormatErrors(errors)}"
+        empty.SaveAdvantageTags.Add("");
+        AssertDiagnostic(
+            ValidateLocal(empty),
+            EnemyContentImportRules.ValueUnsupported,
+            "/save_advantage_tags/0",
+            "空 save tag 应被拒绝。"
         );
-    }
 
-    private void TestSaveAdvantageTagsRejectUnsupportedBaseTag()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder unsupported = BuildValidTemplate(
             "unsupported_save_tag_schema_template",
             "unsupported_save_tag_schema_weapon"
         );
-        SetSaveAdvantageTags(template, "not_a_save_tag");
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "not_a_save_tag"),
-            $"save_advantage_tags 应拒绝不在豁免标签枚举内的裸标签。 errors={FormatErrors(errors)}"
+        unsupported.SaveAdvantageTags.Add("not_a_save_tag");
+        AssertDiagnostic(
+            ValidateLocal(unsupported),
+            EnemyContentImportRules.ValueUnsupported,
+            "/save_advantage_tags/0",
+            "未知 save tag 应被拒绝。"
         );
-    }
 
-    private void TestSaveAdvantageTagsRejectDuplicateTag()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder duplicate = BuildValidTemplate(
             "duplicate_save_tag_schema_template",
             "duplicate_save_tag_schema_weapon"
         );
-        template.save_advantage_tags = new GStringNameArray { "poison", "poison" };
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "duplicates save tag poison"),
-            $"save_advantage_tags 应拒绝重复标签。 errors={FormatErrors(errors)}"
+        duplicate.SaveAdvantageTags.AddRange(new[] { "poison", "poison" });
+        AssertDiagnostic(
+            ValidateLocal(duplicate),
+            EnemyContentImportRules.DuplicateId,
+            "/save_advantage_tags/1",
+            "重复 save tag 应被拒绝。"
         );
     }
 
-    private void TestDamageResistancesAcceptSupportedTagsAndTiers()
+    private void TestDamageResistancesProjectAndValidate()
     {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder template = BuildValidTemplate(
             "damage_resist_schema_template",
             "damage_resist_schema_weapon"
         );
-        template.damage_resistances = new GDictionary
-        {
-            [new StringName("physical_pierce")] = new StringName("half"),
-            [new StringName("fire")] = new StringName("double"),
-            [new StringName("freeze")] = new StringName("immune"),
-            [new StringName("magic")] = new StringName("normal"),
-        };
-
-        GStringArray errors = ValidateWithReferenceTables(template);
+        template.DamageResistances["physical_pierce"] = "half";
+        template.DamageResistances["fire"] = "double";
+        template.DamageResistances["freeze"] = "immune";
+        template.DamageResistances["magic"] = "normal";
+        _test.Eq(
+            ValidateLocal(template).Count,
+            0,
+            "damage_resistances 应接受闭集伤害标签与 mitigation tier。"
+        );
+        EnemyTemplateDefinition definition = Project(
+            template,
+            new Dictionary<StringName, ItemDefinition>()
+        );
         _test.True(
-            errors.Count == 0,
-            $"damage_resistances 应接受合法伤害标签与 mitigation tier。 errors={FormatErrors(errors)}"
+            definition.DamageResistances.Count == 4
+                && definition.DamageResistances["physical_pierce"] == (StringName)"half"
+                && definition.DamageResistances["fire"] == (StringName)"double",
+            "immutable Definition 应完整保留 damage_resistances。"
         );
 
-        IReadOnlyDictionary<StringName, StringName> typed = template.GetDamageResistancesTyped();
-        _test.True(
-            typed.Count == 4
-                && typed[new StringName("physical_pierce")] == new StringName("half")
-                && typed[new StringName("fire")] == new StringName("double"),
-            "GetDamageResistancesTyped() 应完整投影合法条目。"
-        );
-    }
-
-    private void TestDamageResistancesRejectUnsupportedDamageTag()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder badTag = BuildValidTemplate(
             "damage_resist_bad_tag_template",
             "damage_resist_bad_tag_weapon"
         );
-        template.damage_resistances = new GDictionary
-        {
-            [new StringName("shadow")] = new StringName("half"),
-        };
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "shadow"),
-            $"damage_resistances 应拒绝未知伤害标签。 errors={FormatErrors(errors)}"
+        badTag.DamageResistances["shadow"] = "half";
+        AssertDiagnostic(
+            ValidateLocal(badTag),
+            EnemyContentImportRules.ValueUnsupported,
+            "/damage_resistances/shadow",
+            "未知伤害标签应被拒绝。"
         );
-    }
 
-    private void TestDamageResistancesRejectUnsupportedMitigationTier()
-    {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder badTier = BuildValidTemplate(
             "damage_resist_bad_tier_template",
             "damage_resist_bad_tier_weapon"
         );
-        template.damage_resistances = new GDictionary
-        {
-            [new StringName("fire")] = new StringName("quarter"),
-        };
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "quarter"),
-            $"damage_resistances 应拒绝未知 mitigation tier。 errors={FormatErrors(errors)}"
+        badTier.DamageResistances["fire"] = "quarter";
+        AssertDiagnostic(
+            ValidateLocal(badTier),
+            EnemyContentImportRules.ValueUnsupported,
+            "/damage_resistances/fire",
+            "未知 mitigation tier 应被拒绝。"
         );
     }
 
     private void TestDerivedHpAndAttackBonusFollowLevelFormula()
     {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder template = BuildValidTemplate(
             "formula_schema_template",
             "formula_schema_weapon"
         );
-        template.creature_level = 10;
-        template.hit_die_sides = 12;
-        template.body_size = BattleUnitState.BodySizeLarge;
-        template.base_attribute_overrides[new StringName("strength")] = 18;
-        template.base_attribute_overrides[new StringName("constitution")] = 16;
-
-        _test.Eq(
-            template.GetDerivedHpMaxTyped(),
-            520,
-            "派生 HP 应为 首级取骰面最大值 (12+6) + 后9级 × (d12均值6.5 + 体质修正3×2)，向下取整后 × 2x2占位4格 = 520。"
-        );
-
-        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
+        template.CreatureLevel = 10;
+        template.HitDieSides = 12;
+        template.BodySize = BattleUnitState.BodySizeLarge;
+        template.BaseAttributeOverrides["strength"] = 18;
+        template.BaseAttributeOverrides["constitution"] = 16;
+        var items = new Dictionary<StringName, ItemDefinition>
         {
-            [template.attack_equipment_item_id] = MakeWeapon(
-                template.attack_equipment_item_id,
+            ["formula_schema_weapon"] = MakeWeapon(
+                "formula_schema_weapon",
                 "formula_schema_weapon_type"
             ),
         };
+        EnemyTemplateDefinition definition = Project(template, items);
         _test.Eq(
-            template.GetDerivedAttackBonusTyped(itemDefinitionIndex),
+            definition.DerivedHpMax,
+            520,
+            "派生 HP 应按等级、生命骰、体质与 2x2 占位公式得到 520。"
+        );
+        _test.Eq(
+            definition.DerivedAttackBonus,
             4,
-            "近战武器的派生攻击加值应等于力量修正 (18 → +4)。"
+            "近战武器的派生攻击加值应使用力量修正。"
         );
+        _test.Eq(ValidateLocal(template).Count, 0, "合法公式字段应通过 schema 校验。");
 
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            errors.Count == 0,
-            $"声明 creature_level/hit_die_sides 的模板应通过 schema 校验。 errors={FormatErrors(errors)}"
-        );
-
-        EnemyTemplateDef rangedTemplate = BuildValidTemplate(
+        TemplateDtoBuilder ranged = BuildValidTemplate(
             "formula_schema_ranged_template",
-            "formula_schema_ranged_weapon"
+            ""
         );
-        rangedTemplate.tags = new GStringNameArray { "beast" };
-        rangedTemplate.natural_weapon_damage_tag = "physical_pierce";
-        rangedTemplate.natural_weapon_attack_range = 5;
-        rangedTemplate.base_attribute_overrides[new StringName("perception")] = 12;
+        ranged.Tags.Add("beast");
+        ranged.NaturalWeaponDamageTag = "physical_pierce";
+        ranged.NaturalWeaponAttackRange = 5;
+        ranged.BaseAttributeOverrides["perception"] = 12;
+        EnemyTemplateDefinition rangedDefinition = Project(
+            ranged,
+            new Dictionary<StringName, ItemDefinition>()
+        );
         _test.Eq(
-            rangedTemplate.GetDerivedAttackBonusTyped(
-                new Dictionary<StringName, ItemDefinition>()
-            ),
+            rangedDefinition.DerivedAttackBonus,
             1,
-            "远程(攻击范围>2)天生武器的派生攻击加值应等于感知修正 (12 → +1)。"
+            "远程天生武器的派生攻击加值应使用感知修正。"
         );
     }
 
     private void TestCreatureLevelAndHitDieValidation()
     {
-        EnemyTemplateDef levelTemplate = BuildValidTemplate(
+        TemplateDtoBuilder negativeLevel = BuildValidTemplate(
             "bad_level_schema_template",
             "bad_level_schema_weapon"
         );
-        levelTemplate.creature_level = -1;
-        GStringArray levelErrors = ValidateWithReferenceTables(levelTemplate);
-        _test.True(
-            ContainsError(levelErrors, "creature_level"),
-            $"creature_level < 0 应被 schema 拒绝。 errors={FormatErrors(levelErrors)}"
+        negativeLevel.CreatureLevel = -1;
+        AssertDiagnostic(
+            ValidateLocal(negativeLevel),
+            EnemyContentImportRules.ValueOutOfRange,
+            "/creature_level",
+            "creature_level < 0 应被拒绝。"
         );
 
-        EnemyTemplateDef zeroLevelTemplate = BuildValidTemplate(
+        TemplateDtoBuilder zeroLevel = BuildValidTemplate(
             "zero_level_schema_template",
             "zero_level_schema_weapon"
         );
-        zeroLevelTemplate.creature_level = 0;
-        zeroLevelTemplate.hit_die_sides = 8;
-        zeroLevelTemplate.base_attribute_overrides[new StringName("constitution")] = 14;
-        GStringArray zeroLevelErrors = ValidateWithReferenceTables(zeroLevelTemplate);
-        _test.True(
-            zeroLevelErrors.Count == 0,
-            $"creature_level = 0 应是合法的杂兽等级。 errors={FormatErrors(zeroLevelErrors)}"
-        );
+        zeroLevel.CreatureLevel = 0;
+        zeroLevel.HitDieSides = 8;
+        zeroLevel.BaseAttributeOverrides["constitution"] = 14;
+        _test.Eq(ValidateLocal(zeroLevel).Count, 0, "creature_level = 0 应合法。");
         _test.Eq(
-            zeroLevelTemplate.GetDerivedHpMaxTyped(),
+            Project(zeroLevel, new Dictionary<StringName, ItemDefinition>()).DerivedHpMax,
             12,
-            "0 级生物同样享受首级满骰底子：d8满骰8 + 体质修正2×2 = 12。"
+            "0 级生物仍应享受首级满骰底子。"
         );
 
-        EnemyTemplateDef dieTemplate = BuildValidTemplate(
+        TemplateDtoBuilder invalidDie = BuildValidTemplate(
             "bad_die_schema_template",
             "bad_die_schema_weapon"
         );
-        dieTemplate.hit_die_sides = 7;
-        GStringArray dieErrors = ValidateWithReferenceTables(dieTemplate);
-        _test.True(
-            ContainsError(dieErrors, "hit_die_sides"),
-            $"非法生命骰面数应被 schema 拒绝。 errors={FormatErrors(dieErrors)}"
+        invalidDie.HitDieSides = 7;
+        AssertDiagnostic(
+            ValidateLocal(invalidDie),
+            EnemyContentImportRules.ValueUnsupported,
+            "/hit_die_sides",
+            "非法生命骰面数应被拒绝。"
         );
     }
 
-    private void TestSkillLevelMapValidationRemainsUnchanged()
+    private void TestBattleEquipmentEntriesRequireTypedEquipmentAndValidDurability()
     {
-        EnemyTemplateDef template = BuildValidTemplate(
+        TemplateDtoBuilder template = BuildValidTemplate(
+            "battle_equipment_schema_template",
+            "battle_equipment_schema_weapon"
+        );
+        template.BattleEquipmentEntries.Add(
+            new EnemyBattleEquipmentJsonDto
+            {
+                SlotId = "body",
+                ItemId = "battle_equipment_schema_armor",
+                Rarity = 1,
+                CurrentDurability = 84,
+            }
+        );
+        var items = new Dictionary<StringName, ItemDefinition>
+        {
+            ["battle_equipment_schema_weapon"] = MakeWeapon(
+                "battle_equipment_schema_weapon",
+                "battle_equipment_schema_weapon_type"
+            ),
+            ["battle_equipment_schema_armor"] = MakeArmor("battle_equipment_schema_armor"),
+        };
+        _test.Eq(ValidateLocal(template).Count, 0, "合法装备耐久应通过本地域校验。");
+        _test.Eq(
+            ValidateProjectedGraph(template, items).Count,
+            0,
+            "合法身体护甲应通过 Definition graph 校验。"
+        );
+
+        template.BattleEquipmentEntries[0] = new EnemyBattleEquipmentJsonDto
+        {
+            SlotId = "body",
+            ItemId = "battle_equipment_schema_armor",
+            Rarity = 1,
+            CurrentDurability = 85,
+        };
+        AssertDiagnostic(
+            ValidateLocal(template),
+            EnemyContentImportRules.ValueOutOfRange,
+            "/battle_equipment_entries/0/current_durability",
+            "uncommon 装备应拒绝超过 84 的初始耐久。"
+        );
+
+        template.BattleEquipmentEntries[0] = new EnemyBattleEquipmentJsonDto
+        {
+            SlotId = "body",
+            ItemId = "battle_equipment_schema_armor",
+            Rarity = 1,
+            CurrentDurability = 84,
+        };
+        items.Remove("battle_equipment_schema_armor");
+        AssertError(
+            ValidateProjectedGraph(template, items),
+            "references non-equipment item battle_equipment_schema_armor",
+            "缺失 battle equipment item 应被 graph validator 拒绝。"
+        );
+    }
+
+    private void TestSkillLevelMapUsesProjectedGraphSkillBounds()
+    {
+        TemplateDtoBuilder template = BuildValidTemplate(
             "skill_level_boundary_template",
             "skill_level_boundary_weapon"
         );
-        template.skill_level_map[new StringName("typed_schema_skill")] = 3;
-
-        GStringArray errors = ValidateWithReferenceTables(template);
-        _test.True(
-            ContainsError(errors, "skill_level_map[typed_schema_skill]"),
-            $"新增 save_advantage_tags 校验不应改变 skill_level_map 上限校验。 errors={FormatErrors(errors)}"
+        template.SkillLevelMap["typed_schema_skill"] = 3;
+        var items = new Dictionary<StringName, ItemDefinition>
+        {
+            ["skill_level_boundary_weapon"] = MakeWeapon(
+                "skill_level_boundary_weapon",
+                "skill_level_boundary_weapon_type"
+            ),
+        };
+        AssertError(
+            ValidateProjectedGraph(template, items),
+            "skill typed_schema_skill level 3 is outside 1..2",
+            "skill_level_map 应遵守 SkillDefinition.MaxLevel。"
         );
     }
 
-    private static EnemyTemplateDef BuildValidTemplate(StringName templateId, StringName weaponItemId)
+    private static TemplateDtoBuilder BuildValidTemplate(
+        string templateId,
+        string weaponItemId
+    )
     {
-        var template = new EnemyTemplateDef
+        var template = new TemplateDtoBuilder
         {
-            template_id = templateId,
-            display_name = templateId.ToString(),
-            brain_id = "dictionary_schema_brain",
-            initial_state_id = "engage",
-            cognition_kind = "sapient",
-            attack_equipment_item_id = weaponItemId,
-            skill_ids = new GStringNameArray { "typed_schema_skill" },
-            skill_level_map = new GDictionary { [new StringName("typed_schema_skill")] = 1 },
-            base_attribute_overrides = new GDictionary
-            {
-                [new StringName("strength")] = 10,
-                [new StringName("agility")] = 10,
-                [new StringName("constitution")] = 10,
-                [new StringName("perception")] = 10,
-                [new StringName("intelligence")] = 10,
-                [new StringName("willpower")] = 10,
-            },
+            TemplateId = templateId,
+            DisplayName = templateId,
+            BrainId = "dictionary_schema_brain",
+            InitialStateId = "engage",
+            CognitionKind = "sapient",
+            AttackEquipmentItemId = weaponItemId,
         };
-        template.drop_entries.Add(
-            new DropEntryDef
+        template.SkillIds.Add("typed_schema_skill");
+        template.SkillLevelMap["typed_schema_skill"] = 1;
+        template.DropEntries.Add(
+            new EnemyDropEntryJsonDto
             {
-                drop_entry_id = "typed_schema_drop",
-                drop_type = "item",
-                item_id = weaponItemId,
-                quantity = 1,
+                DropEntryId = "typed_schema_drop",
+                DropType = "item",
+                ItemId = weaponItemId,
+                Quantity = 1,
             }
         );
         return template;
     }
 
-    private static EnemyAiBrainDef BuildBrain(StringName brainId, StringName stateId)
+    private static IReadOnlyList<ContentJsonDiagnostic> ValidateLocal(
+        TemplateDtoBuilder template
+    ) =>
+        EnemyContentImportValidator.ValidateTemplate(
+            new JsonContentEntryContext(
+                EnemyContentJsonDomains.TemplateDomainId,
+                template.TemplateId,
+                $"{template.TemplateId}.json",
+                "/entries/0"
+            ),
+            template.Build()
+        );
+
+    private static EnemyTemplateDefinition Project(
+        TemplateDtoBuilder template,
+        IReadOnlyDictionary<StringName, ItemDefinition> items
+    ) => EnemyContentDefinitionProjector.ProjectTemplate(template.Build(), items);
+
+    private static IReadOnlyList<string> ValidateProjectedGraph(
+        TemplateDtoBuilder template,
+        IReadOnlyDictionary<StringName, ItemDefinition> items
+    )
     {
-        return TestResourceOwnership.Own(
-            new EnemyAiBrainDef
+        EnemyTemplateDefinition definition = Project(template, items);
+        EnemyAiBrainDefinition brain = TestEnemyDefinitionFactory.Brain(
+            "dictionary_schema_brain",
+            "engage",
+            TestEnemyDefinitionFactory.Wait("engage_wait")
+        );
+        var skills = new Dictionary<StringName, SkillDefinition>
+        {
+            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", 2),
+        };
+        return EnemyContentRegistry.ValidateProjectedGraph(
+            new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                brain_id = brainId,
-                default_state_id = stateId,
-                states = new Godot.Collections.Array<EnemyAiStateDef>
-                {
-                    new EnemyAiStateDef
-                    {
-                        state_id = stateId,
-                        actions = new Godot.Collections.Array<EnemyAiAction>
-                        {
-                            new WaitAction { action_id = $"{stateId}_wait" },
-                        },
-                    },
-                },
+                [definition.TemplateId] = definition,
             },
-            "EnemyTemplateSchemaBoundary.BuildBrain"
+            new Dictionary<StringName, EnemyAiBrainDefinition>
+            {
+                [brain.BrainId] = brain,
+            },
+            new Dictionary<StringName, WildEncounterRosterDefinition>(),
+            new EnemyContentValidationContext(items, skills, "")
         );
     }
 
-    private static SkillDef BuildSkill(StringName skillId, int maxLevel)
-    {
-        return TestResourceOwnership.Own(
-            new SkillDef
-            {
-                skill_id = skillId,
-                display_name = skillId.ToString(),
-                max_level = maxLevel,
-            },
-            "EnemyTemplateSchemaBoundary.BuildSkill"
-        );
-    }
-
-    private static SkillDefinition BuildSkillDefinition(StringName skillId, int maxLevel) =>
-        TestSkillDefinitionProjection.BuildSkill(skillId, displayName: skillId.ToString(), maxLevel: maxLevel);
+    private static SkillDefinition BuildSkillDefinition(string skillId, int maxLevel) =>
+        TestSkillDefinitionProjection.BuildSkill(skillId, displayName: skillId, maxLevel: maxLevel);
 
     private static ItemDefinition MakeWeapon(StringName itemId, StringName weaponTypeId) =>
-        MakeWeaponResource(itemId, weaponTypeId).ToDefinition();
+        MakeWeaponBuilder(itemId, weaponTypeId).ToDefinition();
 
-    private static ItemDef MakeWeaponResource(StringName itemId, StringName weaponTypeId)
+    private static ItemDefinition MakeArmor(StringName itemId) =>
+        new TestItemDefinitionBuilder
+        {
+            item_id = itemId,
+            CategoryKind = ItemCategoryKind.Equipment,
+            EquipmentTypeKind = ItemEquipmentTypeKind.Armor,
+            equipment_slot_ids = new Godot.Collections.Array<string> { "body" },
+            is_stackable = false,
+            max_stack = 1,
+        }.ToDefinition();
+
+    private static TestItemDefinitionBuilder MakeWeaponBuilder(
+        StringName itemId,
+        StringName weaponTypeId
+    )
     {
-        var itemDef = new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = itemId,
             CategoryKind = ItemCategoryKind.Equipment,
@@ -557,79 +529,127 @@ public partial class run_enemy_template_schema_boundary_regression : LifecycleTe
             equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             is_stackable = false,
             max_stack = 1,
-        };
-        itemDef.weapon_profile = new WeaponProfileDef
-        {
-            weapon_type_id = weaponTypeId,
-            training_group = "martial",
-            range_type = "melee",
-            family = "sword",
-            damage_tag = ItemDef.ToStringName(WeaponPhysicalDamageTagKind.Slash),
-            attack_range = 1,
-            one_handed_dice = new WeaponDamageDiceDef
+            weapon_profile = new TestWeaponProfileDefinitionBuilder
             {
-                dice_count = 1,
-                dice_sides = 6,
-                flat_bonus = 0,
+                weapon_type_id = weaponTypeId,
+                training_group = "martial",
+                range_type = "melee",
+                family = "sword",
+                damage_tag = TestItemDefinitionBuilder.ToStringName(
+                    WeaponPhysicalDamageTagKind.Slash
+                ),
+                attack_range = 1,
+                one_handed_dice = new TestWeaponDamageDiceDefinitionBuilder
+                {
+                    dice_count = 1,
+                    dice_sides = 6,
+                    flat_bonus = 0,
+                },
             },
         };
-        return TestResourceOwnership.Own(
-            itemDef,
-            $"EnemyTemplateSchemaBoundary.MakeWeaponResource.{itemId}"
-        );
     }
 
-    private static GStringArray ValidateWithReferenceTables(EnemyTemplateDef template)
-    {
-        var brainIndex = new Dictionary<StringName, EnemyAiBrainDef>
-        {
-            [template.brain_id] = BuildBrain(template.brain_id, template.initial_state_id),
-        };
-        var itemDefinitionIndex = new Dictionary<StringName, ItemDefinition>
-        {
-            [template.attack_equipment_item_id] = MakeWeapon(
-                template.attack_equipment_item_id,
-                $"{template.attack_equipment_item_id}_type"
-            ),
-        };
-        var skillDefinitionIndex = new Dictionary<StringName, SkillDefinition>
-        {
-            ["typed_schema_skill"] = BuildSkillDefinition("typed_schema_skill", maxLevel: 2),
-        };
-        return template.ValidateSchemaTyped(
-            brainIndex,
-            itemDefinitionIndex,
-            skillDefinitionIndex
-        );
-    }
-
-    private static void SetSaveAdvantageTags(
-        EnemyTemplateDef template,
-        params StringName[] saveAdvantageTags
+    private void AssertDiagnostic(
+        IEnumerable<ContentJsonDiagnostic> diagnostics,
+        string ruleId,
+        string pointerSuffix,
+        string message
     )
     {
-        var tags = new GStringNameArray();
-        foreach (StringName tag in saveAdvantageTags ?? Array.Empty<StringName>())
+        if (
+            diagnostics.Any(value =>
+                value.RuleId == ruleId
+                && value.JsonPointer.EndsWith(pointerSuffix, StringComparison.Ordinal)
+            )
+        )
         {
-            tags.Add(tag);
+            return;
         }
-
-        var property = typeof(EnemyTemplateDef).GetProperty("save_advantage_tags");
-        property?.SetValue(template, tags);
+        _test.Fail($"{message} diagnostics={FormatDiagnostics(diagnostics)}");
     }
 
-    private static bool ContainsError(GStringArray errors, string fragment)
+    private void AssertError(IEnumerable<string> errors, string fragment, string message)
     {
-        foreach (string error in errors)
-        {
-            if ((error ?? "").Contains(fragment, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
+        if (errors.Any(value => (value ?? "").Contains(fragment, StringComparison.Ordinal)))
+            return;
+        _test.Fail($"{message} errors={FormatErrors(errors)}");
     }
 
-    private static string FormatErrors(GStringArray errors) => string.Join(" | ", errors);
+    private static string FormatDiagnostics(IEnumerable<ContentJsonDiagnostic> diagnostics) =>
+        string.Join(
+            " | ",
+            diagnostics.Select(value => $"{value.RuleId}@{value.JsonPointer}: {value.Message}")
+        );
 
+    private static string FormatErrors(IEnumerable<string> errors) =>
+        string.Join(" | ", errors);
+
+    private sealed class TemplateDtoBuilder
+    {
+        internal string TemplateId { get; set; } = "";
+        internal string DisplayName { get; set; } = "";
+        internal string BattleSpriteAssetId { get; set; } = "";
+        internal string BrainId { get; set; } = "";
+        internal string InitialStateId { get; set; } = "";
+        internal int EnemyCount { get; set; } = 1;
+        internal int BodySize { get; set; } = BattleUnitState.BodySizeMedium;
+        internal int CreatureLevel { get; set; } = 1;
+        internal int HitDieSides { get; set; } = 8;
+        internal string CognitionKind { get; set; } = "sapient";
+        internal List<string> Tags { get; } = new();
+        internal List<string> SaveAdvantageTags { get; } = new();
+        internal List<string> SaveDisadvantageTags { get; } = new();
+        internal List<string> SaveImmunityTags { get; } = new();
+        internal Dictionary<string, string> DamageResistances { get; } = new();
+        internal string AttackEquipmentItemId { get; set; } = "";
+        internal List<EnemyBattleEquipmentJsonDto> BattleEquipmentEntries { get; } = new();
+        internal string NaturalWeaponDamageTag { get; set; } = "";
+        internal int NaturalWeaponAttackRange { get; set; } = 1;
+        internal Dictionary<string, int> BaseAttributeOverrides { get; } = new()
+        {
+            ["strength"] = 10,
+            ["agility"] = 10,
+            ["constitution"] = 10,
+            ["perception"] = 10,
+            ["intelligence"] = 10,
+            ["willpower"] = 10,
+        };
+        internal List<string> SkillIds { get; } = new();
+        internal Dictionary<string, int> SkillLevelMap { get; } = new();
+        internal int GeneratedCoreSkillCount { get; set; }
+        internal Dictionary<string, int> AttributeOverrides { get; } = new();
+        internal string TargetRank { get; set; } = "normal";
+        internal List<EnemyDropEntryJsonDto> DropEntries { get; } = new();
+
+        internal EnemyTemplateJsonDto Build() =>
+            new()
+            {
+                TemplateId = TemplateId,
+                DisplayName = DisplayName,
+                BattleSpriteAssetId = BattleSpriteAssetId,
+                BrainId = BrainId,
+                InitialStateId = InitialStateId,
+                EnemyCount = EnemyCount,
+                BodySize = BodySize,
+                CreatureLevel = CreatureLevel,
+                HitDieSides = HitDieSides,
+                CognitionKind = CognitionKind,
+                Tags = Tags,
+                SaveAdvantageTags = SaveAdvantageTags,
+                SaveDisadvantageTags = SaveDisadvantageTags,
+                SaveImmunityTags = SaveImmunityTags,
+                DamageResistances = DamageResistances,
+                AttackEquipmentItemId = AttackEquipmentItemId,
+                BattleEquipmentEntries = BattleEquipmentEntries,
+                NaturalWeaponDamageTag = NaturalWeaponDamageTag,
+                NaturalWeaponAttackRange = NaturalWeaponAttackRange,
+                BaseAttributeOverrides = BaseAttributeOverrides,
+                SkillIds = SkillIds,
+                SkillLevelMap = SkillLevelMap,
+                GeneratedCoreSkillCount = GeneratedCoreSkillCount,
+                AttributeOverrides = AttributeOverrides,
+                TargetRank = TargetRank,
+                DropEntries = DropEntries,
+            };
+    }
 }

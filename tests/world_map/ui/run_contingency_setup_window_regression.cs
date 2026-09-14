@@ -15,13 +15,23 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     public override async void _Initialize()
     {
-        await ProcessFrames(1);
-        await TestPartyManagementExposesContingencyEntrySignal();
-        await TestContingencyWindowRendersUnchargedSetup();
-        await TestUnchargedTemplateSelectionEmitsSelectedPayload();
-        await TestChargedSetupDisablesSaveAndShowsClearWarning();
-        await TestActionButtonsEmitSignalsWithoutMutatingMember();
-        RequestTestExit(_test.Finish("Contingency setup window regression"));
+        try
+        {
+            await ProcessFrames(1);
+            await TestPartyManagementExposesContingencyEntrySignal();
+            await TestContingencyWindowRendersUnchargedSetup();
+            await TestUnchargedTemplateSelectionEmitsSelectedPayload();
+            await TestChargedSetupDisablesSaveAndShowsClearWarning();
+            await TestActionButtonsEmitSignalsWithoutMutatingMember();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Contingency setup window regression"));
+        }
     }
 
     private async Task TestPartyManagementExposesContingencyEntrySignal()
@@ -61,9 +71,9 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         var saveRequests = new List<(StringName MemberId, StringName PayloadName)>();
         window.save_requested += (memberId, payloadName) => saveRequests.Add((memberId, payloadName));
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
-        int ownerTurnIndex = FindOptionIndex(window.trigger_selector, "owner_turn_started");
+        int ownerTurnIndex = FindOptionIndex(window.trigger_selector, "自身回合开始");
         _test.True(ownerTurnIndex >= 0, "trigger selector should expose owner_turn_started template.");
         if (ownerTurnIndex >= 0)
         {
@@ -99,19 +109,21 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         PartyMemberState member = MakeMember("hero", "Hero", UnchargedSetup());
         using CharacterManagementModule manager = BuildManager(member);
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
 
         _test.True(window.Visible, "ShowForMember should show the contingency setup window.");
         _test.True(window.member_status_label.Text.Contains("Hero"), "member status should identify the selected member.");
-        _test.True(window.setup_status_label.Text.Contains("hp_mirror_self"), "setup status should show setup id.");
-        _test.True(window.trigger_selector.GetItemText(window.trigger_selector.Selected).Contains("hp_below_percent"), "trigger selector should show hp_below_percent.");
-        _test.True(window.release_mode_selector.GetItemText(window.release_mode_selector.Selected).Contains("burst_release"), "release selector should show burst_release.");
-        _test.True(window.stored_spell_list.GetItemText(0).Contains("mage_mirror_image"), "stored spell list should show mirror image.");
-        _test.True(window.target_resolver_selector.GetItemText(window.target_resolver_selector.Selected).Contains("self"), "target resolver should show self.");
-        _test.True(window.matrix_preview_label.Text.Contains("matrix_load=3"), "matrix preview should show matrix load.");
-        _test.True(window.matrix_preview_label.Text.Contains("reserved_mp_max=0"), "matrix preview should show uncharged MP reservation.");
-        _test.True(window.material_preview_label.Text.Contains("special_contingency_gem:0"), "material preview should show zero material receipt.");
+        _test.False(window.setup_status_label.Text.Contains("hp_mirror_self"), "Setup title should use the authored display name.");
+        _test.Eq(window.trigger_selector.GetItemMetadata(window.trigger_selector.Selected).AsString(), "hp_mirror_self", "Localized selection retains the stable template id.");
+        _test.True(window.trigger_selector.GetItemText(window.trigger_selector.Selected).Contains("生命"), "Trigger has a player-facing label.");
+        _test.True(window.release_mode_selector.GetItemText(window.release_mode_selector.Selected).Contains("集中"), "Release mode has a player-facing label.");
+        _test.Eq(window.stored_spell_list.GetItemMetadata(0).AsString(), "mage_mirror_image", "Stored spell retains its stable id.");
+        _test.True(window.stored_spell_list.GetItemText(0).Contains("测试法术"), "Stored spell consumes its definition display name.");
+        _test.True(window.target_resolver_selector.GetItemText(window.target_resolver_selector.Selected).Contains("自身"), "Target resolver has a player-facing label.");
+        _test.True(window.matrix_preview_label.Text.Contains("矩阵负载 3"), "Matrix load is preserved.");
+        _test.True(window.matrix_preview_label.Text.Contains("预留魔力 0"), "Uncharged MP reservation is preserved.");
+        _test.True(window.material_preview_label.Text.Contains("Special Contingency Gem") && window.material_preview_label.Text.Contains("已投入 0"), "Material display name and zero receipt are preserved.");
         _test.False(window.save_button.Disabled, "uncharged setup should allow save.");
         _test.False(window.charge_button.Disabled, "uncharged setup should allow charge.");
 
@@ -124,7 +136,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         PartyMemberState member = MakeMember("hero", "Hero", ChargedSetup());
         using CharacterManagementModule manager = BuildManager(member);
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
 
         _test.True(window.save_button.Disabled, "charged setup should disable direct save/edit.");
@@ -149,7 +161,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         window.charge_requested += (memberId, setupId) => chargeRequests.Add((memberId, setupId));
         window.clear_charge_requested += (memberId, setupId) => clearRequests.Add((memberId, setupId));
 
-        window.ShowForMember(member, manager);
+        window.ShowForMember(member, manager, BuildTemplateDefinitions());
         await ProcessFrames(1);
         window.clear_charge_button.EmitSignal(Button.SignalName.Pressed);
         await ProcessFrames(1);
@@ -171,7 +183,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
     private async Task<PartyManagementWindow> CreatePartyWindow()
     {
         var window = EngineAssetAccess
-            .ResolveBorrowed<PackedScene>(PartyManagementWindowScenePath)
+            .ResolveCodeAssetBorrowed<PackedScene>(PartyManagementWindowScenePath)
             .Instantiate<PartyManagementWindow>();
         Root.AddChild(window);
         await ProcessFrames(1);
@@ -180,11 +192,12 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
 
     private async Task<ContingencySetupWindow> CreateContingencyWindow()
     {
-        PackedScene scene = EngineAssetAccess.ResolveBorrowed<PackedScene>(
+        PackedScene scene = EngineAssetAccess.ResolveCodeAssetBorrowed<PackedScene>(
             ContingencySetupWindowScenePath
         );
         _test.True(scene != null, "Contingency setup scene should exist.");
         var window = scene.Instantiate<ContingencySetupWindow>();
+        window.SetDisplayDefinitions(BuildSkillIndex(), BuildItemIndex());
         Root.AddChild(window);
         await ProcessFrames(1);
         return window;
@@ -302,6 +315,67 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
             granted_source_type = "test",
         };
 
+    private static IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> BuildTemplateDefinitions() =>
+        new Dictionary<StringName, ContingencySetupTemplateDefinition>
+        {
+            ["hp_mirror_self"] = BuildTemplate(
+                "hp_mirror_self",
+                "濒死镜影",
+                "hp_below_percent",
+                "after_hp_changed"
+            ),
+            ["owner_turn_mirror_self"] = BuildTemplate(
+                "owner_turn_mirror_self",
+                "起手镜影",
+                "owner_turn_started",
+                "owner_turn_started"
+            ),
+        };
+
+    private static ContingencySetupTemplateDefinition BuildTemplate(
+        StringName templateId,
+        string displayName,
+        StringName triggerType,
+        StringName timing
+    ) =>
+        new(
+            templateId,
+            displayName,
+            "mage_chain_contingency",
+            3,
+            2,
+            new[] { new ContingencyMaterialCostDefinition("special_contingency_gem", 1) },
+            "burst_release",
+            new ContingencyTriggerDefinition(
+                triggerType,
+                "owner",
+                timing,
+                triggerType == "hp_below_percent" ? 30 : 0,
+                triggerType == "hp_below_percent",
+                0,
+                "",
+                "",
+                "",
+                0,
+                "",
+                "",
+                System.Array.Empty<StringName>(),
+                "",
+                ""
+            ),
+            new[]
+            {
+                new ContingencyStoredSpellTemplateDefinition(
+                    "mage_mirror_image",
+                    2,
+                    1,
+                    new ContingencyTargetResolverDefinition("self", "", 0),
+                    new Dictionary<string, object>(),
+                    "skip_if_invalid"
+                ),
+            }
+        );
+
     private static Dictionary<StringName, SkillDefinition> BuildSkillIndex() =>
         new()
         {
@@ -323,7 +397,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
     {
         return TestSkillDefinitionProjection.BuildSkill(
             skillId,
-            displayName: skillId,
+            displayName: "测试法术",
             skillType: "passive",
             maxLevel: 10,
             tags: ToStringNames(tags),
@@ -347,7 +421,6 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         {
             ["special_contingency_gem"] = new ItemDefinition(
                 "special_contingency_gem",
-                "",
                 "Special Contingency Gem",
                 "",
                 "",

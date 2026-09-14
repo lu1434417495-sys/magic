@@ -10,7 +10,7 @@ internal enum CombatCastFootprintPattern
 }
 
 [GlobalClass]
-public partial class CombatCastVariantDef : Resource
+public partial class CombatCastVariantDef : RefCounted
 {
     [Export]
     public StringName variant_id { get; set; } = "";

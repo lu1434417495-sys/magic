@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_casting_time",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "black_contract_push",
+      "runtime_behavior": "black_contract_push",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "learn_source": "race",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "black_contract_push",
+        "effect_defs": [
+          {
+            "effect_type": "charge",
+            "payload": {}
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "effect_target_team_filter": "self",
+            "forced_move_mode": "jump"
+          }
+        ],
+        "casting_time_tu": 5,
+        "fumble_protection_curve": [
+          1
+        ],
+        "special_resolution_profile_id": "special",
+        "target_selection_mode": "random_chain"
+      },
+      "icon_id": "black_contract_push",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

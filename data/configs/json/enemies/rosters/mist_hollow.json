@@ -1,0 +1,73 @@
+{
+  "domain": "encounter_rosters",
+  "entries": [
+    {
+      "display_name": "\u96FE\u6CBC\u4F0F\u730E\u7FA4",
+      "growth_step_interval": 3,
+      "initial_stage": 0,
+      "profile_id": "mist_hollow",
+      "stages": [
+        {
+          "stage": 0,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_beast"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_harrier"
+            }
+          ]
+        },
+        {
+          "stage": 1,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_beast"
+            },
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "mist_harrier"
+            }
+          ]
+        },
+        {
+          "stage": 2,
+          "unit_entries": [
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "mist_beast"
+            },
+            {
+              "actor_id": "",
+              "count": 2,
+              "display_name": "",
+              "template_id": "mist_harrier"
+            },
+            {
+              "actor_id": "",
+              "count": 1,
+              "display_name": "",
+              "template_id": "mist_weaver"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "family": "mist_hollow",
+  "schema": 1,
+  "templates": {}
+}

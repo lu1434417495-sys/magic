@@ -142,7 +142,12 @@ public sealed class DisplaySettingsService
         {
             return;
         }
-        targetWindow.ContentScaleSize = resolution;
+        // CanvasItems keeps native rendering while limiting logical UI height.
+        float scale = Mathf.Max(1.0f, resolution.Y / 1080.0f);
+        targetWindow.ContentScaleSize = new Vector2I(
+            Mathf.RoundToInt(resolution.X / scale),
+            Mathf.RoundToInt(resolution.Y / scale)
+        );
     }
 
     private static string FormatResolutionLabel(Vector2I resolution)

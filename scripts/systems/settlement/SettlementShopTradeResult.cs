@@ -36,34 +36,20 @@ public sealed class SettlementShopTradeResult
 
 public sealed class SettlementShopWindowBuildResult
 {
-    private readonly Dictionary<string, object> _windowData;
-
-    public IReadOnlyDictionary<string, object> WindowDataPlain =>
-        RuntimePlainPayload.CloneDictionary(_windowData);
+    internal SettlementServiceWindowData WindowData { get; }
     public WorldMapSettlementStateData UpdatedSettlementState { get; }
     public bool StateChanged { get; }
 
-    public SettlementShopWindowBuildResult(
-        GDictionary windowData,
+    internal SettlementShopWindowBuildResult(
+        SettlementServiceWindowData windowData,
         WorldMapSettlementStateData updatedSettlementState,
         bool stateChanged
     )
     {
-        _windowData = RuntimePlainPayload.NormalizeDictionary(
-            windowData ?? new GDictionary(),
-            "SettlementShopWindowBuildResult.window_data"
-        );
+        WindowData = windowData ?? SettlementServiceWindowData.Empty;
         UpdatedSettlementState = updatedSettlementState;
         StateChanged = stateChanged;
     }
 
-    internal GodotProjectionLease<GDictionary> ProjectWindowDataLease(string reason) =>
-        RuntimePlainPayload.ProjectDictionaryLease(
-            _windowData,
-            "settlement-shop-window",
-            LifetimeDomain.Request,
-            string.IsNullOrEmpty(reason)
-                ? "SettlementShopWindowBuildResult.ProjectWindowDataLease"
-                : reason
-        );
+    internal bool HasWindowData => WindowData.IsValid;
 }

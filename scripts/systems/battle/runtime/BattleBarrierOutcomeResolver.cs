@@ -387,7 +387,8 @@ internal sealed class BattleBarrierOutcomeResolver
                 normalizedDamage,
                 damageTag,
                 sourceUnit,
-                runtime.GetState()
+                runtime.GetState(),
+                BattleDamageOriginKind.Terrain
             );
         unitState.SetCurrentHp(unitState.GetCurrentHp());
         return damage;

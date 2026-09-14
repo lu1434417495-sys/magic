@@ -16,6 +16,8 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         try
         {
             TestBlinkRepositionChoosesSaferGroundCoord();
+            TestBlinkRepositionDoesNothingWhenAlreadySafe();
+            TestBlinkRepositionDoesNothingWithoutSaferLandingCoord();
         }
         catch (Exception exception)
         {
@@ -50,22 +52,19 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         AddUnitToState(runtime, state, threat, isEnemy: false);
         runtime.SetupStateForTests(state);
 
-        var action = TestResourceOwnership.Own(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = "blink_reposition_probe",
-                target_selector = "nearest_enemy",
-                minimum_safe_distance = 3,
-                safe_distance_margin = 0,
-                desired_max_distance_bonus = 2,
-                min_survival_margin_gain_to_escape = -1,
-            },
-            "battle_ai_ground_reposition.action"
-        );
-        action.skill_ids.Add("mage_blink");
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_reposition_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
 
         BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
-            (UseGroundRepositionSkillActionDefinition)action.ToDefinition(),
+            action,
             BuildAiContext(runtime, mage)
         );
         _test.True(decision?.command != null, "blink reposition should produce a skill command.");
@@ -98,6 +97,98 @@ public partial class run_battle_ai_ground_reposition_behavior_regression : Lifec
         _test.True(
             landingDistance > currentDistance,
             "blink reposition should choose a landing coord farther from the focus threat."
+        );
+    }
+
+    private void TestBlinkRepositionDoesNothingWhenAlreadySafe()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(9, 5));
+        BattleUnitState mage = BuildUnit(
+            "blink_already_safe_mage",
+            "已安全法师",
+            "hostile",
+            new Vector2I(2, 2),
+            controlMode: "ai",
+            skillIds: new[] { "mage_blink" }
+        );
+        BattleUnitState threat = BuildUnit(
+            "blink_distant_threat",
+            "远处威胁",
+            "player",
+            new Vector2I(6, 2),
+            controlMode: "manual",
+            skillIds: Array.Empty<string>()
+        );
+        AddUnitToState(runtime, state, mage, isEnemy: true);
+        AddUnitToState(runtime, state, threat, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_already_safe_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
+
+        BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
+            action,
+            BuildAiContext(runtime, mage)
+        );
+        _test.True(
+            decision == null,
+            "已经达到安全距离时，不应为了拉开距离而浪费 blink。"
+        );
+    }
+
+    private void TestBlinkRepositionDoesNothingWithoutSaferLandingCoord()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(2, 1));
+        BattleUnitState mage = BuildUnit(
+            "blink_blocked_mage",
+            "受困法师",
+            "hostile",
+            Vector2I.Zero,
+            controlMode: "ai",
+            skillIds: new[] { "mage_blink" }
+        );
+        BattleUnitState threat = BuildUnit(
+            "blink_blocking_threat",
+            "封锁威胁",
+            "player",
+            new Vector2I(1, 0),
+            controlMode: "manual",
+            skillIds: Array.Empty<string>()
+        );
+        AddUnitToState(runtime, state, mage, isEnemy: true);
+        AddUnitToState(runtime, state, threat, isEnemy: false);
+        runtime.SetupStateForTests(state);
+
+        UseGroundRepositionSkillActionDefinition action =
+            TestEnemyDefinitionFactory.UseGroundRepositionSkill(
+                "blink_blocked_probe",
+                new StringName[] { "mage_blink" },
+                targetSelector: "nearest_enemy",
+                minimumSafeDistance: 3,
+                safeDistanceMargin: 0,
+                desiredMaxDistanceBonus: 2,
+                minSurvivalMarginGainToEscape: -1
+            );
+
+        BattleAiDecision decision = new BattleAiGroundRepositionActionEvaluator().Evaluate(
+            action,
+            BuildAiContext(runtime, mage)
+        );
+        _test.True(
+            decision == null,
+            "没有任何可达且更安全的落点时，不应生成形式上存在但无法改善安全性的命令。"
         );
     }
 

@@ -80,7 +80,7 @@ internal sealed class BattleBoardUnitSnapshot
         bool isAlive,
         Vector2I anchorCoord,
         IEnumerable<Vector2I> occupiedCoords,
-        string battleSpriteTexturePath,
+        StringName battleSpriteAssetId,
         int currentHp,
         int maxHp
     )
@@ -93,7 +93,7 @@ internal sealed class BattleBoardUnitSnapshot
         _occupiedCoords = new List<Vector2I>(
             occupiedCoords ?? Array.Empty<Vector2I>()
         ).AsReadOnly();
-        BattleSpriteTexturePath = battleSpriteTexturePath ?? "";
+        BattleSpriteAssetId = battleSpriteAssetId;
         CurrentHp = Math.Max(currentHp, 0);
         MaxHp = Math.Max(maxHp, 1);
     }
@@ -104,7 +104,7 @@ internal sealed class BattleBoardUnitSnapshot
     internal bool IsAlive { get; }
     internal Vector2I AnchorCoord { get; }
     internal IReadOnlyList<Vector2I> OccupiedCoords => _occupiedCoords;
-    internal string BattleSpriteTexturePath { get; }
+    internal StringName BattleSpriteAssetId { get; }
     internal int CurrentHp { get; }
     internal int MaxHp { get; }
 
@@ -410,10 +410,24 @@ internal sealed class BattleBoardSnapshotBuilder
             unit.IsAlive(),
             geometry.AnchorCoord,
             geometry.OccupiedCoords,
-            unit.battle_sprite_texture_path,
+            ResolveUnitSpriteAssetId(unit),
             currentHp,
             Math.Max(Math.Max(maxHp, currentHp), 1)
         );
+    }
+
+    private static StringName ResolveUnitSpriteAssetId(BattleUnitState unit)
+    {
+        // Authored sprites always win. Generic party artwork is presentation
+        // only; it must not write an inferred appearance into battle/save state.
+        if (unit.battle_sprite_asset_id != "" || unit.source_member_id == "")
+            return unit.battle_sprite_asset_id;
+        StringName family = unit.GetWeaponProjectionReadViewTyped().Values.Family;
+        if (family == "bow" || family == "crossbow")
+            return "battle.unit.player.archer";
+        if (family == "staff")
+            return "battle.unit.player.mage";
+        return "battle.unit.player.warrior";
     }
 
     private static IReadOnlyList<StringName> ResolveTerrainOverlayIds(BattleCellState cell)

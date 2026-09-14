@@ -1,4 +1,3 @@
-using System;
 using Godot;
 
 public sealed class TraitDamageResistanceEntryDefinition
@@ -11,16 +10,4 @@ public sealed class TraitDamageResistanceEntryDefinition
 
     public StringName DamageTag { get; }
     public StringName MitigationTier { get; }
-
-    internal static TraitDamageResistanceEntryDefinition FromResource(
-        TraitDamageResistanceEntryDef source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        return new TraitDamageResistanceEntryDefinition(
-            source.damage_tag,
-            source.mitigation_tier
-        );
-    }
 }

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "requirements_invalid",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_requirements_invalid",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_requirements_invalid"
+      },
+      "icon_id": "diagnostic_requirements_invalid",
+      "mastery_curve": [
+        10
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "bogus": -1
+      }
+    }
+  ]
+}

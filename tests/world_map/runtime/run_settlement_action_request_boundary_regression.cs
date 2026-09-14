@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_settlement_action_request_boundary_regression : LifecycleTestSceneTree
 {
-    private const string TestConfigPath = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestConfigPath = "test";
 
     private readonly TestHarness _test = new();
 
@@ -17,8 +17,18 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
 
     private async void RunAsync()
     {
-        await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
-        RequestTestExit(_test.Finish("Settlement action request boundary regression"));
+        try
+        {
+            await TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Settlement action request boundary regression"));
+        }
     }
 
     private async Task TestClientPayloadCannotInjectSettlementRewardsOrSuppressQuestProgress()
@@ -29,8 +39,8 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
             GameRuntimeFacade runtime = fixture.Runtime;
             var questState = new QuestState { quest_id = "contract_training" };
             questState.MarkAccepted(runtime.GetWorldStep());
-            runtime._party_state.SetActiveQuestState(questState);
-            runtime._character_management.SetPartyState(runtime._party_state);
+            runtime.GetPartyState().SetActiveQuestState(questState);
+            runtime._character_management.SetPartyState(runtime.GetPartyState());
 
             RuntimeCommandResult result =
                 runtime.CommandExecuteSettlementActionTyped(
@@ -48,11 +58,11 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
 
             _test.True(result.Ok, $"baseline settlement action should still execute. message={result.Message}");
             _test.False(
-                HasPendingRewardSource(runtime._party_state, "client_injected_reward"),
+                HasPendingRewardSource(runtime.GetPartyState(), "client_injected_reward"),
                 "client payload must not inject settlement pending rewards."
             );
             _test.True(
-                runtime._party_state.HasClaimableQuest("contract_training"),
+                runtime.GetPartyState().HasClaimableQuest("contract_training"),
                 "client payload must not suppress server-generated settlement quest progress."
             );
         }
@@ -84,14 +94,14 @@ public partial class run_settlement_action_request_boundary_regression : Lifecyc
         ConfigureSessionForRuntimeTest(gameSession, worldData, partyState);
         IReadOnlyDictionary<StringName, ItemDefinition> itemDefs = gameSession.GetItemDefsTyped();
 
-        var runtime = new GameRuntimeFacade
-        {
-            _game_session = gameSession,
-            _party_state = partyState,
-            _player_coord = Vector2I.Zero,
-            _selected_coord = Vector2I.Zero,
-            _player_faction_id = "player",
-        };
+        var runtime = new GameRuntimeFacade();
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState,
+            playerCoord: Vector2I.Zero,
+            selectedCoord: Vector2I.Zero,
+            playerFactionId: "player"
+        );
         runtime.SetActiveSettlementId("spring_village_01");
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);

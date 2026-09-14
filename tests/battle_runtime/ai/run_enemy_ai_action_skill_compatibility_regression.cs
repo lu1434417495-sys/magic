@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_enemy_ai_action_skill_compatibility_regression
     : LifecycleTestSceneTree
@@ -29,13 +28,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetSelectionMode: "single_coord"
         );
 
-        UseUnitSkillAction unitAction = OwnAction(
-            new UseUnitSkillAction
-            {
-                action_id = "unit_action",
-            }
-        );
-        unitAction.skill_ids.Add(groundSkill.SkillId);
+        ActionContract unitAction = Action(EnemyAiActionKind.UseUnitSkill);
         AssertInvalid(
             unitAction,
             groundSkill,
@@ -43,13 +36,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             "unit action 应拒绝 ground skill"
         );
 
-        UseGroundSkillAction groundAction = OwnAction(
-            new UseGroundSkillAction
-            {
-                action_id = "ground_action",
-            }
-        );
-        groundAction.skill_ids.Add(unitSkill.SkillId);
+        ActionContract groundAction = Action(EnemyAiActionKind.UseGroundSkill);
         AssertInvalid(
             groundAction,
             unitSkill,
@@ -57,12 +44,8 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             "ground action 应拒绝 unit skill"
         );
 
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(unitSkill.SkillId);
         AssertValid(unitAction, unitSkill, "unit action 应接受 unit skill");
 
-        groundAction.skill_ids.Clear();
-        groundAction.skill_ids.Add(groundSkill.SkillId);
         AssertValid(groundAction, groundSkill, "ground action 应接受非冲锋 ground skill");
     }
 
@@ -79,13 +62,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
         SkillDefinition profilelessActiveSkill = TestSkillDefinitionProjection.BuildSkill(
             "profileless_active_skill"
         );
-        UseUnitSkillAction action = OwnAction(
-            new UseUnitSkillAction
-            {
-                action_id = "castable_contract_action",
-            }
-        );
-        action.skill_ids.Add(passiveSkill.SkillId);
+        ActionContract action = Action(EnemyAiActionKind.UseUnitSkill);
         AssertInvalid(
             action,
             passiveSkill,
@@ -93,8 +70,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             "执行型 action 应拒绝 passive skill"
         );
 
-        action.skill_ids.Clear();
-        action.skill_ids.Add(profilelessActiveSkill.SkillId);
         AssertInvalid(
             action,
             profilelessActiveSkill,
@@ -117,8 +92,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        action.skill_ids.Clear();
-        action.skill_ids.Add(unitProfileWithGroundOnlyVariant.SkillId);
         AssertInvalid(
             action,
             unitProfileWithGroundOnlyVariant,
@@ -145,26 +118,16 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        UseMultiUnitSkillAction multiAction = OwnAction(
-            new UseMultiUnitSkillAction
-            {
-                action_id = "multi_action",
-            }
-        );
-        multiAction.skill_ids.Add(groundMultiUnitSkill.SkillId);
+        ActionContract multiAction = Action(EnemyAiActionKind.UseMultiUnitSkill);
         AssertValid(
             multiAction,
             groundMultiUnitSkill,
             "multi action 应允许正式存在的 ground + multi_unit 组合"
         );
 
-        MoveToMultiUnitSkillPositionAction moveToMultiAction = OwnAction(
-            new MoveToMultiUnitSkillPositionAction
-            {
-                action_id = "move_to_multi_action",
-            }
+        ActionContract moveToMultiAction = Action(
+            EnemyAiActionKind.MoveToMultiUnitSkillPosition
         );
-        moveToMultiAction.skill_ids.Add(groundMultiUnitSkill.SkillId);
         AssertValid(
             moveToMultiAction,
             groundMultiUnitSkill,
@@ -187,16 +150,12 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        multiAction.skill_ids.Clear();
-        multiAction.skill_ids.Add(mismatchedVariantSkill.SkillId);
         AssertInvalid(
             multiAction,
             mismatchedVariantSkill,
             "matching target_mode ground",
             "multi action 应拒绝会被正式 command route 拒绝的变体 target mode"
         );
-        moveToMultiAction.skill_ids.Clear();
-        moveToMultiAction.skill_ids.Add(mismatchedVariantSkill.SkillId);
         AssertInvalid(
             moveToMultiAction,
             mismatchedVariantSkill,
@@ -209,8 +168,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "unit",
             targetSelectionMode: "single_unit"
         );
-        multiAction.skill_ids.Clear();
-        multiAction.skill_ids.Add(unitSingleSkill.SkillId);
         AssertInvalid(
             multiAction,
             unitSingleSkill,
@@ -223,21 +180,13 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "unit",
             targetSelectionMode: "random_chain"
         );
-        UseRandomChainSkillAction randomChainAction = OwnAction(
-            new UseRandomChainSkillAction
-            {
-                action_id = "random_chain_action",
-            }
-        );
-        randomChainAction.skill_ids.Add(randomChainSkill.SkillId);
+        ActionContract randomChainAction = Action(EnemyAiActionKind.UseRandomChainSkill);
         AssertValid(
             randomChainAction,
             randomChainSkill,
             "random-chain action 应接受 unit + random_chain 技能"
         );
 
-        randomChainAction.skill_ids.Clear();
-        randomChainAction.skill_ids.Add(unitSingleSkill.SkillId);
         AssertInvalid(
             randomChainAction,
             unitSingleSkill,
@@ -253,17 +202,11 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "unit",
             targetSelectionMode: "random_chain"
         );
-        UseUnitSkillAction unitAction = OwnAction(
-            new UseUnitSkillAction
-            {
-                action_id = "unit_action_random_chain_guard",
-            }
-        );
-        unitAction.skill_ids.Add(unitRandomChainSkill.SkillId);
+        ActionContract unitAction = Action(EnemyAiActionKind.UseUnitSkill);
         AssertInvalid(
             unitAction,
             unitRandomChainSkill,
-            "random_chain requires UseRandomChainSkillAction",
+            "random_chain requires action kind use_random_chain_skill",
             "普通 unit action 不会构造 random-chain 命令，不应接受 random_chain 技能"
         );
 
@@ -272,17 +215,11 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "ground",
             targetSelectionMode: "random_chain"
         );
-        UseGroundSkillAction groundAction = OwnAction(
-            new UseGroundSkillAction
-            {
-                action_id = "ground_action_random_chain_guard",
-            }
-        );
-        groundAction.skill_ids.Add(groundRandomChainSkill.SkillId);
+        ActionContract groundAction = Action(EnemyAiActionKind.UseGroundSkill);
         AssertInvalid(
             groundAction,
             groundRandomChainSkill,
-            "random_chain requires UseRandomChainSkillAction",
+            "random_chain requires action kind use_random_chain_skill",
             "ground action 也不应绕过 random-chain 专用命令路径"
         );
 
@@ -293,8 +230,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             minTargetCount: 2,
             maxTargetCount: 2
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(requiresTwoTargetsSkill.SkillId);
         AssertInvalid(
             unitAction,
             requiresTwoTargetsSkill,
@@ -302,14 +237,10 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             "单目标 unit action 只会生成一个 target_unit_id，不应接受至少双目标技能"
         );
 
-        UseMultiUnitSkillAction undersizedMultiAction = OwnAction(
-            new UseMultiUnitSkillAction
-            {
-                action_id = "undersized_multi_action",
-                candidate_pool_limit = 1,
-            }
+        ActionContract undersizedMultiAction = Action(
+            EnemyAiActionKind.UseMultiUnitSkill,
+            candidatePoolLimit: 1
         );
-        undersizedMultiAction.skill_ids.Add(requiresTwoTargetsSkill.SkillId);
         AssertInvalid(
             undersizedMultiAction,
             requiresTwoTargetsSkill,
@@ -317,14 +248,10 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             "multi action 的候选池小于最低目标数时不可能组成合法命令"
         );
 
-        MoveToMultiUnitSkillPositionAction undersizedMoveToMultiAction = OwnAction(
-            new MoveToMultiUnitSkillPositionAction
-            {
-                action_id = "undersized_move_to_multi_action",
-                candidate_pool_limit = 1,
-            }
+        ActionContract undersizedMoveToMultiAction = Action(
+            EnemyAiActionKind.MoveToMultiUnitSkillPosition,
+            candidatePoolLimit: 1
         );
-        undersizedMoveToMultiAction.skill_ids.Add(requiresTwoTargetsSkill.SkillId);
         AssertInvalid(
             undersizedMoveToMultiAction,
             requiresTwoTargetsSkill,
@@ -339,8 +266,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             minTargetCount: 1,
             maxTargetCount: 1
         );
-        undersizedMultiAction.skill_ids.Clear();
-        undersizedMultiAction.skill_ids.Add(oneTargetMultiSkill.SkillId);
         AssertValid(
             undersizedMultiAction,
             oneTargetMultiSkill,
@@ -352,12 +277,10 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "unit",
             specialResolutionProfileId: "meteor_swarm"
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(unitMeteorSkill.SkillId);
         AssertInvalid(
             unitAction,
             unitMeteorSkill,
-            "meteor_swarm requires UseGroundSkillAction",
+            "meteor_swarm requires action kind use_ground_skill",
             "meteor 专用 preview 只接受地格命令，unit action 不应被放行"
         );
 
@@ -367,12 +290,10 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetSelectionMode: "single_coord",
             specialResolutionProfileId: "meteor_swarm"
         );
-        groundAction.skill_ids.Clear();
-        groundAction.skill_ids.Add(groundMeteorSkill.SkillId);
         AssertValid(
             groundAction,
             groundMeteorSkill,
-            "meteor 专用技能应保留 UseGroundSkillAction 正式路径"
+            "meteor 专用技能应保留 use_ground_skill 正式路径"
         );
 
         CombatEffectDefinition terrainEffect =
@@ -395,8 +316,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(unsupportedMergedUnitSkill.SkillId);
         AssertValid(
             unitAction,
             unsupportedMergedUnitSkill,
@@ -426,8 +345,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(highLevelVariantSkill.SkillId);
         AssertValid(
             unitAction,
             highLevelVariantSkill,
@@ -464,8 +381,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        groundAction.skill_ids.Clear();
-        groundAction.skill_ids.Add(highLevelGroundVariantSkill.SkillId);
         AssertValid(
             groundAction,
             highLevelGroundVariantSkill,
@@ -502,8 +417,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             effects: new[] { lowLevelTerrain, highLevelRepeat },
             maxLevel: 5
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(levelSplitUnitSkill.SkillId);
         AssertInvalidAtLevel(
             unitAction,
             levelSplitUnitSkill,
@@ -525,8 +438,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "unit",
             effects: new[] { terrainEffect, sameLevelRepeat }
         );
-        unitAction.skill_ids.Clear();
-        unitAction.skill_ids.Add(repeatWithUnsupportedSurface.SkillId);
         AssertValidAtLevel(
             unitAction,
             repeatWithUnsupportedSurface,
@@ -566,26 +477,14 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             }
         );
 
-        UseChargeAction chargeAction = OwnAction(
-            new UseChargeAction
-            {
-                action_id = "charge_action",
-                skill_id = splitChargePathSkill.SkillId,
-            }
-        );
+        ActionContract chargeAction = Action(EnemyAiActionKind.UseCharge);
         AssertValid(
             chargeAction,
             splitChargePathSkill,
             "charge action 应接受含 charge option 的技能"
         );
 
-        UseChargePathAoeAction chargePathAction = OwnAction(
-            new UseChargePathAoeAction
-            {
-                action_id = "charge_path_action",
-            }
-        );
-        chargePathAction.skill_ids.Add(splitChargePathSkill.SkillId);
+        ActionContract chargePathAction = Action(EnemyAiActionKind.UseChargePathAoe);
         AssertInvalid(
             chargePathAction,
             splitChargePathSkill,
@@ -609,8 +508,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        chargePathAction.skill_ids.Clear();
-        chargePathAction.skill_ids.Add(combinedChargePathSkill.SkillId);
         AssertValid(
             chargePathAction,
             combinedChargePathSkill,
@@ -633,15 +530,12 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        chargeAction.skill_id = multiCoordChargePathSkill.SkillId;
         AssertInvalid(
             chargeAction,
             multiCoordChargePathSkill,
             "single-coordinate ground cast option",
             "charge action 只构造一个地格，不应接受双格 charge option"
         );
-        chargePathAction.skill_ids.Clear();
-        chargePathAction.skill_ids.Add(multiCoordChargePathSkill.SkillId);
         AssertInvalid(
             chargePathAction,
             multiCoordChargePathSkill,
@@ -669,13 +563,9 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        UseGroundRepositionSkillAction repositionAction = OwnAction(
-            new UseGroundRepositionSkillAction
-            {
-                action_id = "reposition_action",
-            }
+        ActionContract repositionAction = Action(
+            EnemyAiActionKind.UseGroundRepositionSkill
         );
-        repositionAction.skill_ids.Add(blinkSkill.SkillId);
         AssertValid(
             repositionAction,
             blinkSkill,
@@ -698,8 +588,6 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        repositionAction.skill_ids.Clear();
-        repositionAction.skill_ids.Add(multiCoordBlinkSkill.SkillId);
         AssertInvalid(
             repositionAction,
             multiCoordBlinkSkill,
@@ -727,12 +615,10 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
                 ),
             }
         );
-        repositionAction.skill_ids.Clear();
-        repositionAction.skill_ids.Add(pushSkill.SkillId);
         AssertInvalid(
             repositionAction,
             pushSkill,
-            "blink or jump forced_move",
+            "supported ground relocation forced_move",
             "ground reposition action 应拒绝普通 push"
         );
     }
@@ -745,14 +631,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             targetMode: "ground",
             targetSelectionMode: "single_coord"
         );
-        MoveToRangeAction moveAction = OwnAction(
-            new MoveToRangeAction
-            {
-                action_id = "move_to_range",
-            }
-        );
-        moveAction.range_skill_ids.Add(unitSkill.SkillId);
-        moveAction.range_skill_ids.Add(groundSkill.SkillId);
+        ActionContract moveAction = Action(EnemyAiActionKind.MoveToRange);
 
         AssertValid(
             moveAction,
@@ -762,29 +641,29 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
     }
 
     private void AssertValid(
-        EnemyAiAction action,
+        ActionContract action,
         SkillDefinition skillDefinition,
         string message
     ) => AssertValid(action, new[] { skillDefinition }, message);
 
     private void AssertValid(
-        EnemyAiAction action,
+        ActionContract action,
         IReadOnlyList<SkillDefinition> skillDefinitions,
         string message
     )
     {
-        GStringArray errors = Validate(action, skillDefinitions);
+        IReadOnlyList<string> errors = Validate(action, skillDefinitions);
         _test.Eq(errors.Count, 0, $"{message}: {FormatErrors(errors)}");
     }
 
     private void AssertInvalid(
-        EnemyAiAction action,
+        ActionContract action,
         SkillDefinition skillDefinition,
         string expectedFragment,
         string message
     )
     {
-        GStringArray errors = Validate(action, new[] { skillDefinition });
+        IReadOnlyList<string> errors = Validate(action, new[] { skillDefinition });
         bool found = false;
         foreach (string error in errors)
         {
@@ -798,19 +677,19 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
     }
 
     private void AssertValidAtLevel(
-        EnemyAiAction action,
+        ActionContract action,
         SkillDefinition skillDefinition,
         int skillLevel,
         string message
     )
     {
         EnemyAiActionSkillCompatibilityResult result =
-            action.EvaluateSkillCompatibility(skillDefinition, skillLevel);
+            Evaluate(action, skillDefinition, skillLevel);
         _test.True(result.IsCompatible, $"{message}: {result.Reason}");
     }
 
     private void AssertInvalidAtLevel(
-        EnemyAiAction action,
+        ActionContract action,
         SkillDefinition skillDefinition,
         int skillLevel,
         string expectedFragment,
@@ -818,7 +697,7 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
     )
     {
         EnemyAiActionSkillCompatibilityResult result =
-            action.EvaluateSkillCompatibility(skillDefinition, skillLevel);
+            Evaluate(action, skillDefinition, skillLevel);
         _test.True(
             !result.IsCompatible
                 && result.Reason.Contains(expectedFragment, StringComparison.Ordinal),
@@ -826,21 +705,36 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
         );
     }
 
-    private static GStringArray Validate(
-        EnemyAiAction action,
+    private static IReadOnlyList<string> Validate(
+        ActionContract action,
         IReadOnlyList<SkillDefinition> skillDefinitions
     )
     {
-        var index = new Dictionary<StringName, SkillDefinition>();
+        var errors = new List<string>();
         foreach (SkillDefinition skillDefinition in skillDefinitions)
         {
-            index[skillDefinition.SkillId] = skillDefinition;
+            EnemyAiActionSkillCompatibilityResult result = Evaluate(
+                action,
+                skillDefinition,
+                skillLevel: null
+            );
+            if (!result.IsCompatible)
+                errors.Add(result.Reason);
         }
-        return TestResourceOwnership.OwnWrapper(
-            action.ValidateSkillReferences(index),
-            $"enemy_ai_action_skill_compatibility.errors.{action.action_id}"
-        );
+        return errors;
     }
+
+    private static EnemyAiActionSkillCompatibilityResult Evaluate(
+        ActionContract action,
+        SkillDefinition skillDefinition,
+        int? skillLevel
+    ) =>
+        EnemyAiActionSkillCompatibilityRules.Evaluate(
+            action.Kind,
+            skillDefinition,
+            action.CandidatePoolLimit,
+            skillLevel
+        );
 
     private static SkillDefinition BuildSkill(
         StringName skillId,
@@ -868,13 +762,16 @@ public partial class run_enemy_ai_action_skill_compatibility_regression
             )
         );
 
-    private static TAction OwnAction<TAction>(TAction action)
-        where TAction : EnemyAiAction =>
-        TestResourceOwnership.Own(
-            action,
-            $"enemy_ai_action_skill_compatibility.action.{action.action_id}"
-        );
+    private static ActionContract Action(
+        EnemyAiActionKind kind,
+        int candidatePoolLimit = int.MaxValue
+    ) => new(kind, candidatePoolLimit);
 
     private static string FormatErrors(IEnumerable<string> errors) =>
         string.Join(" | ", errors);
+
+    private readonly record struct ActionContract(
+        EnemyAiActionKind Kind,
+        int CandidatePoolLimit
+    );
 }

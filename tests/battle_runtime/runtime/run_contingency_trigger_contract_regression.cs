@@ -138,7 +138,8 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
             manager.GetMemberAttributeSnapshotForEquipmentView("cleric", new EquipmentState()),
             new Vector2I(1, 0)
         );
-        runtimeFromTurnProgression.SetupStateForTests(BuildBattleState(new[] { hookHeroUnit, hookClericUnit }));
+        BattleState turnState = BuildBattleState(new[] { hookHeroUnit, hookClericUnit });
+        runtimeFromTurnProgression.SetupStateForTests(turnState);
         BattleContingencySystem hookSidecar = runtimeFromTurnProgression.GetContingencySystemTyped();
 
         _test.Eq(
@@ -146,8 +147,10 @@ public partial class run_contingency_trigger_contract_regression : LifecycleTest
             2,
             "Two active owner-turn members should create two battle-local contingency instances."
         );
-        using BattleEventBatch ownerTurnBatch = new();
-        runtimeFromTurnProgression._record_turn_started(hookHeroUnit, ownerTurnBatch);
+        turnState.PhaseKind = BattlePhaseKind.TimelineRunning;
+        turnState.active_unit_id = "";
+        turnState.timeline.ready_unit_ids.Add(hookHeroUnit.unit_id);
+        using BattleEventBatch ownerTurnBatch = runtimeFromTurnProgression.advance(0);
         _test.Eq(
             hookSidecar.GetQueuedReleaseContextsTyped().Count,
             0,

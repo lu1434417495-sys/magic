@@ -24,14 +24,24 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
 
     public override async void _Initialize()
     {
-        Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
-        TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
-        TestCanyonMapSizeInputContract();
-        TestAllFormalTerrainProfilesReturnTypedLayouts();
-        TestTerrainLayoutTransfersCellOwnershipOnce();
-        TestRenderProfileFormalSourceSpecs();
-        await TestBoardSceneRendersGeneratedCanyon();
-        RequestTestExit(_test.Finish("Battle board regression"));
+        try
+        {
+            Root.Size = new Vector2I((int)ViewportSize.X, (int)ViewportSize.Y);
+            TestCanyonGenerationUsesTypedColumnsAndSupportedProps();
+            TestCanyonMapSizeInputContract();
+            TestAllFormalTerrainProfilesReturnTypedLayouts();
+            TestTerrainLayoutTransfersCellOwnershipOnce();
+            TestRenderProfileFormalSourceSpecs();
+            await TestBoardSceneRendersGeneratedCanyon();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Battle board regression"));
+        }
     }
 
     private void TestCanyonGenerationUsesTypedColumnsAndSupportedProps()
@@ -242,12 +252,108 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
         bool ready = await WaitForBoardRenderReady(board);
         _test.True(ready, "BattleBoard2D Configure 后应在有限帧内完成渲染内容。");
         _test.True(HasAnyUsedLayer(board, "TopH", 0, 8), "BattleBoard2D 应渲染至少一个 top tile。");
+        _test.Eq(board._controller.PaintedSurfaceCount, state.CellCount,
+            "每个可选地形格必须有一个实际手绘表面，隐藏的 TileMap 占位不能冒充渲染完成。");
+        AssertTacticalGridCoverage(board, state.CellCount);
         _test.True(board.prop_layer != null && board.prop_layer.GetChildCount() > 0, "BattleBoard2D 应渲染地形 prop。");
         _test.Eq(board.unit_layer?.GetChildCount() ?? 0, 2, "BattleBoard2D 应渲染测试双方单位 token。");
         _test.Eq(board._render_profile?.terrain_profile_id ?? new StringName(""), new StringName("canyon"), "BattleBoard2D 应按 battle state 绑定 terrain render profile。");
 
+        AssertUnitReadabilityAndPicking(board, state);
+
         board.QueueFree();
         await ProcessFrames(1);
+    }
+
+    private void AssertTacticalGridCoverage(BattleBoard2D board, int expectedCells)
+    {
+        var outlinedCoords = new HashSet<Vector2I>();
+        for (int height = 0; height <= 8; height++)
+        {
+            var grid = board.GetNodeOrNull<BattleTerrainPaintLayer>($"TacticalGridH{height}");
+            if (grid == null)
+                continue;
+            _test.True(grid.Visible && grid.Material != null, "常驻格线必须有独立可见绘制层。");
+            _test.True(grid.ZIndex < board.GetNode<TileMapLayer>($"MarkerH{height}").ZIndex,
+                "常驻格线应位于行动标记下方。");
+            foreach (BattleTerrainPaintLayer.Patch patch in grid.Patches)
+            {
+                Vector2 center = Vector2.Zero;
+                Vector2 uvCenter = Vector2.Zero;
+                for (int i = 0; i < patch.Points.Length; i++)
+                {
+                    center += patch.Points[i] / patch.Points.Length;
+                    uvCenter += patch.Uvs[i] / patch.Points.Length;
+                }
+                Vector2I coord = new(Mathf.RoundToInt(uvCenter.X), Mathf.RoundToInt(uvCenter.Y));
+                _test.True(outlinedCoords.Add(coord), "每个战斗格应只有一个常驻格线表面。");
+                _test.True(center.IsEqualApprox(board._get_coord_anchor(coord)),
+                    "格线中心必须与含高度偏移的实际拾取中心一致。");
+                var tree = board.GetNodeOrNull<Sprite2D>($"PaintedOak_{coord.X}_{coord.Y}");
+                if (tree != null)
+                    _test.True(grid.ZIndex > tree.ZIndex, "树冠不能盖住同层格子的战术边界。");
+            }
+        }
+        _test.Eq(outlinedCoords.Count, expectedCells, "常驻格线必须覆盖全部战斗格，包含水域和森林。");
+    }
+
+    private void AssertUnitReadabilityAndPicking(BattleBoard2D board, BattleState state)
+    {
+        Node2D token = board.unit_layer.GetNode<Node2D>("ally_board");
+        var glyph = token.GetNode<Label>("UnitGlyphLabel");
+        var healthBar = token.GetNode<Control>("HealthBarRoot");
+        var healthText = healthBar.GetNode<Label>("HealthBarTextLabel");
+        Vector2I clickedCoord = new(-1, -1);
+        board.battle_cell_clicked += coord => clickedCoord = coord;
+
+        foreach (Vector2 size in new[] { new Vector2(3840, 1560), new Vector2(1280, 520) })
+        {
+            board.SetViewportSize(size);
+            _test.True(glyph.Visible, "无贴图单位应保留可辨认的文字棋子。");
+            _test.True(glyph.GetThemeFontSize("font_size") * board.Scale.X >= 30,
+                $"{size}: 单位文字应达到可读的物理像素尺寸。");
+            _test.True(healthText.GetThemeFontSize("font_size") * board.Scale.X >= 18,
+                $"{size}: 血量文字不能退化成个位数像素。");
+            _test.True(healthBar.Size.Y >= healthText.GetCombinedMinimumSize().Y,
+                "血量数值应完整放入血条，不能被 ClipContents 裁切。");
+            foreach (BattleBoardCellSnapshot cell in board._pending_snapshot.Cells.Values)
+            {
+                if (!board.IsCoordInViewport(cell.Coord))
+                    continue;
+                Vector2 position = board.CoordToViewportPosition(cell.Coord);
+                clickedCoord = new(-1, -1);
+                board.HandleViewportMouseButton(position, (int)MouseButton.Left);
+                // A higher surface may overlap the center of a lower one. The
+                // visible picked surface must still contain the clicked point.
+                BattleBoardCellSnapshot picked = board._pending_snapshot.GetCell(clickedCoord);
+                _test.True(picked != null, $"{size}: 可见地表中心必须命中有效格子。");
+                if (picked != null)
+                    _test.True(board._render_profile.PointHitsTopSurface(
+                        board.ToLocal(position), board._get_coord_anchor(clickedCoord)),
+                        $"{size}: 高低差点击必须命中实际显示的表面。");
+            }
+        }
+
+        BattleUnitState ally = state.GetUnit("ally_board");
+        ally.battle_sprite_asset_id = "battle.unit.enemy.wolf";
+        board.RefreshUnits(new BattleBoardSnapshotBuilder().BuildUnitUpdate(state, new[] { ally.unit_id }));
+        Node2D spriteToken = board.unit_layer.GetNode<Node2D>("ally_board");
+        _test.True(spriteToken.GetNodeOrNull<Sprite2D>("UnitSprite")?.Texture != null,
+            "正式 sprite asset 应继续通过 engine asset catalog 显示。");
+        _test.False(spriteToken.GetNode<Label>("UnitGlyphLabel").Visible,
+            "有贴图单位不应在身体中央叠加替代文字。");
+        _test.True(spriteToken.GetNode<Control>("HealthBarRoot").Position.Y < 0,
+            "贴图单位应保留独立血量信息。");
+        Sprite2D sprite = spriteToken.GetNode<Sprite2D>("UnitSprite");
+        _test.True(spriteToken.GetNode<Control>("HealthBarRoot").Position.Y
+            > sprite.Position.Y - sprite.Texture.GetHeight() * sprite.Scale.Y * 0.5f,
+            "wolf 的透明顶边不应把血条推到空白图框上方。");
+        // The formal wolf image's opaque feet end at row 112; its faint
+        // shadow extends farther down and must not lift the body off the ring.
+        float feetY = sprite.Position.Y + (112 - sprite.Texture.GetHeight() * 0.5f) * sprite.Scale.Y;
+        float groundY = spriteToken.GetNode<BattleUnitTokenDecoration>("UnitDecoration").GroundAnchor.Y;
+        _test.True(Mathf.Abs(feetY - groundY) <= sprite.Scale.Y,
+            "狼的主体脚底应落在阵营环上，不能按透明阴影边缘悬空。");
     }
 
     private BattleTerrainLayout BuildLayout(string profileId, int seed)

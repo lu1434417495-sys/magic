@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_relationships",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_profile_relationships",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_profile_relationships",
+        "ground_effect_require_empty": true,
+        "stamina_cost_per_target_slot": 1,
+        "attack_roll_bonus_status_id": "marked",
+        "random_chain_attack_count": 1,
+        "random_chain_continue_on_miss": true
+      },
+      "icon_id": "diagnostic_profile_relationships",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

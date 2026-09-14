@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -8,7 +7,6 @@ public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestS
 
     public override void _Initialize()
     {
-        TestTypesArePlainCSharp();
         TestPositiveAddStack();
         TestPenaltyMaxAndMinStack();
         TestMixedSignStackSumsToNetValue();
@@ -16,14 +14,6 @@ public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestS
         TestExactSchemaRoundTrip();
 
         RequestTestExit(_test.Finish("Attack roll modifier bundle regression"));
-    }
-
-    private void TestTypesArePlainCSharp()
-    {
-        AssertPlainCSharpType(typeof(BattleAttackCheckPolicyContext));
-        AssertPlainCSharpType(typeof(BattleAttackRollModifierBundle));
-        AssertPlainCSharpType(typeof(BattleAttackRollModifierSpec));
-        AssertPlainCSharpType(typeof(BattleAttackCheckPolicyService));
     }
 
     private void TestPositiveAddStack()
@@ -237,38 +227,4 @@ public partial class run_attack_roll_modifier_bundle_regression : LifecycleTestS
         };
     }
 
-    private void AssertPlainCSharpType(Type type)
-    {
-    }
-
-    private static bool IsGodotPayloadType(Type type)
-    {
-        if (type.IsByRef || type.IsPointer || type.IsArray)
-        {
-            type = type.GetElementType() ?? type;
-        }
-        if (type == typeof(Variant))
-        {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        if (
-            typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal)
-        )
-        {
-            return true;
-        }
-        if (type.IsGenericType)
-        {
-            foreach (Type genericArgument in type.GetGenericArguments())
-            {
-                if (IsGodotPayloadType(genericArgument))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 }

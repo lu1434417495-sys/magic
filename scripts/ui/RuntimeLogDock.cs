@@ -70,6 +70,7 @@ public partial class RuntimeLogDock : PanelContainer
         collapse_button.Pressed += _toggle_collapsed;
         opacity_button.Pressed += _cycle_opacity;
         ShowWorldLogs(new Dictionary<string, object>(StringComparer.Ordinal), "", "");
+        _toggle_collapsed();
     }
 
     public bool IsCollapsed()
@@ -155,8 +156,7 @@ public partial class RuntimeLogDock : PanelContainer
 
         List<DisplayLogEntry> displayEntries = _build_battle_log_entries(battle_state.log_entries);
         string sourceId = $"battle:{battle_state.battle_id}";
-        string metaText =
-            $"当前 {battle_state.GetLogBudgetSummaryText()}  ·  上限 {BattleState.LogEntryLimit} 条 / {BattleState.LogTextByteLimit / (1024 * 1024)} MiB";
+        string metaText = $"最近 {battle_state.log_entries.Count} 条战斗记录";
 
         _sync_entries(sourceId, BattleLogTitle, metaText, BattleLogEmptyText, displayEntries);
         meta_label.TooltipText =
@@ -253,18 +253,12 @@ public partial class RuntimeLogDock : PanelContainer
                 continue;
             int seq = PlainInt(entry, "seq", 0);
             string eventId = PlainString(entry, "event_id", "");
-            string domain = PlainString(entry, "domain", "runtime").ToUpper(
-                System.Globalization.CultureInfo.GetCultureInfo("")
-            );
-            string level = PlainString(entry, "level", "info").ToUpper(
-                System.Globalization.CultureInfo.GetCultureInfo("")
-            );
             string timeText = _shorten_time_text(PlainString(entry, "time_text", ""));
 
             displayEntries.Add(
                 new DisplayLogEntry(
                     $"{seq}:{eventId}:{message}",
-                    $"[{timeText}][{domain}/{level}] {message}"
+                    $"[{timeText}] {message}"
                 )
             );
         }

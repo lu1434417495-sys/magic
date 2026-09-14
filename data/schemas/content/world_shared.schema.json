@@ -1,0 +1,430 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:world_shared:v1",
+  "title": "Magic shared world JSON authoring schema",
+  "description": "Strict shared settlement, facility, wild-spawn, and name-pool content.",
+  "$ref": "#/$defs/WorldSharedJsonDocumentDto",
+  "$defs": {
+    "WorldFacilityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_slot_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "bound_service_npcs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityNpcJsonDto"
+          }
+        },
+        "category": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "facility_id": {
+          "type": "string"
+        },
+        "interaction_type": {
+          "type": "string"
+        },
+        "min_settlement_tier": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "allowed_slot_tags",
+        "bound_service_npcs",
+        "category",
+        "display_name",
+        "facility_id",
+        "interaction_type",
+        "min_settlement_tier"
+      ]
+    },
+    "WorldFacilityNpcJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "interaction_script_id": {
+          "type": "string"
+        },
+        "local_slot_id": {
+          "type": "string"
+        },
+        "npc_id": {
+          "type": "string"
+        },
+        "service_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "display_name",
+        "interaction_script_id",
+        "local_slot_id",
+        "npc_id",
+        "service_type"
+      ]
+    },
+    "WorldFacilitySlotJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "local_coord": {
+          "$ref": "#/$defs/WorldVector2IJsonDto"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "slot_id": {
+          "type": "string"
+        },
+        "slot_tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_coord",
+        "required",
+        "slot_id",
+        "slot_tag"
+      ]
+    },
+    "WorldSettlementJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "facility_slots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilitySlotJsonDto"
+          }
+        },
+        "guaranteed_facility_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_optional_facilities": {
+          "type": "integer"
+        },
+        "optional_facility_pool": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWeightedFacilityJsonDto"
+          }
+        },
+        "settlement_id": {
+          "type": "string"
+        },
+        "tier": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "display_name",
+        "facility_slots",
+        "guaranteed_facility_ids",
+        "max_optional_facilities",
+        "optional_facility_pool",
+        "settlement_id",
+        "tier"
+      ]
+    },
+    "WorldSettlementNamePoolJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "display_names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "settlement_tier": {
+          "type": "string",
+          "enum": [
+            "village",
+            "town",
+            "city",
+            "capital",
+            "world_stronghold",
+            "metropolis"
+          ]
+        }
+      },
+      "required": [
+        "display_names",
+        "settlement_tier"
+      ]
+    },
+    "WorldSharedJsonDocumentDto": {
+      "description": "Shared world content document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "world_shared"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSharedJsonDto__authoring_shared_content_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/WorldSharedJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "WorldSharedJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "settlement_name_pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementNamePoolJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        }
+      },
+      "required": [
+        "facility_library",
+        "settlement_library",
+        "settlement_name_pools",
+        "shared_content_id",
+        "wild_monster_distribution"
+      ]
+    },
+    "WorldSharedJsonDto__authoring_shared_content_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/WorldSharedJsonDto"
+        },
+        {
+          "$ref": "#/$defs/WorldSharedJsonDto__templated_shared_content_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "WorldSharedJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "settlement_name_pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementNamePoolJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "WorldSharedJsonDto__templated_shared_content_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "facility_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldFacilityJsonDto"
+          }
+        },
+        "settlement_library": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementJsonDto"
+          }
+        },
+        "settlement_name_pools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldSettlementNamePoolJsonDto"
+          }
+        },
+        "shared_content_id": {
+          "type": "string"
+        },
+        "wild_monster_distribution": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldWildSpawnJsonDto"
+          }
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "shared_content_id",
+        "template"
+      ]
+    },
+    "WorldVector2IJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    },
+    "WorldWeightedFacilityJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "facility_id": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "facility_id",
+        "weight"
+      ]
+    },
+    "WorldWildSpawnJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chunk_coords": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorldVector2IJsonDto"
+          }
+        },
+        "density_per_chunk": {
+          "type": "integer"
+        },
+        "encounter_profile_id": {
+          "type": "string"
+        },
+        "min_distance_to_settlement": {
+          "type": "integer"
+        },
+        "monster_name": {
+          "type": "string"
+        },
+        "region_tag": {
+          "type": "string"
+        },
+        "settlement_encounter_display_name": {
+          "type": "string"
+        },
+        "settlement_encounter_profile_id": {
+          "type": "string"
+        },
+        "vertical_band": {
+          "type": "string",
+          "enum": [
+            "all",
+            "north",
+            "south"
+          ]
+        },
+        "vision_range": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "chunk_coords",
+        "density_per_chunk",
+        "encounter_profile_id",
+        "min_distance_to_settlement",
+        "monster_name",
+        "region_tag",
+        "settlement_encounter_display_name",
+        "settlement_encounter_profile_id",
+        "vertical_band",
+        "vision_range"
+      ]
+    }
+  }
+}

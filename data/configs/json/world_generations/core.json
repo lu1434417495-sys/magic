@@ -1,0 +1,1113 @@
+{
+  "schema": 1,
+  "domain": "world_generations",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "generation_id": "test",
+      "seed": 20260405,
+      "world_size_in_chunks": {
+        "x": 10,
+        "y": 10
+      },
+      "chunk_size": {
+        "x": 20,
+        "y": 20
+      },
+      "player_start_coord": {
+        "x": 100,
+        "y": 100
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": true,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "main_world_defaults",
+      "procedural_village_count": 1,
+      "procedural_town_count": 1,
+      "procedural_city_count": 1,
+      "procedural_capital_count": 1,
+      "procedural_world_stronghold_count": 1,
+      "procedural_metropolis_count": 1,
+      "village_spacing_cells": 16,
+      "town_spacing_cells": 22,
+      "city_spacing_cells": 28,
+      "capital_spacing_cells": 34,
+      "world_stronghold_spacing_cells": 40,
+      "metropolis_spacing_cells": 46,
+      "guarantee_starting_wild_encounter": true,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [],
+      "facility_library": [],
+      "settlement_distribution": [],
+      "wild_monster_distribution": [],
+      "mounted_submaps": [],
+      "world_events": []
+    },
+    {
+      "generation_id": "ashen_intersection",
+      "seed": 20260413,
+      "world_size_in_chunks": {
+        "x": 10,
+        "y": 10
+      },
+      "chunk_size": {
+        "x": 10,
+        "y": 10
+      },
+      "player_start_coord": {
+        "x": 49,
+        "y": 49
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": false,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "",
+      "procedural_village_count": 1,
+      "procedural_town_count": 1,
+      "procedural_city_count": 1,
+      "procedural_capital_count": 1,
+      "procedural_world_stronghold_count": 1,
+      "procedural_metropolis_count": 0,
+      "village_spacing_cells": 80,
+      "town_spacing_cells": 110,
+      "city_spacing_cells": 150,
+      "capital_spacing_cells": 220,
+      "world_stronghold_spacing_cells": 280,
+      "metropolis_spacing_cells": 340,
+      "guarantee_starting_wild_encounter": false,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [
+        {
+          "settlement_id": "ashen_outcast_hamlet",
+          "display_name": "黯火遗村",
+          "tier": 0,
+          "facility_slots": [],
+          "guaranteed_facility_ids": [],
+          "optional_facility_pool": [],
+          "max_optional_facilities": 0
+        },
+        {
+          "settlement_id": "gravefall_town",
+          "display_name": "坠墓镇",
+          "tier": 1,
+          "facility_slots": [
+            {
+              "slot_id": "town_core",
+              "local_coord": {
+                "x": 0,
+                "y": 0
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "town_market",
+              "local_coord": {
+                "x": 1,
+                "y": 0
+              },
+              "slot_tag": "trade",
+              "required": false
+            },
+            {
+              "slot_id": "town_support",
+              "local_coord": {
+                "x": 0,
+                "y": 1
+              },
+              "slot_tag": "support",
+              "required": false
+            },
+            {
+              "slot_id": "town_service",
+              "local_coord": {
+                "x": 1,
+                "y": 1
+              },
+              "slot_tag": "service",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "bonfire_sanctum",
+            "ash_forge",
+            "exile_bazaar",
+            "coach_station"
+          ],
+          "optional_facility_pool": [],
+          "max_optional_facilities": 0
+        },
+        {
+          "settlement_id": "drowned_archive",
+          "display_name": "沉钟书库",
+          "tier": 2,
+          "facility_slots": [
+            {
+              "slot_id": "city_core",
+              "local_coord": {
+                "x": 0,
+                "y": 0
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "city_trade",
+              "local_coord": {
+                "x": 1,
+                "y": 0
+              },
+              "slot_tag": "trade",
+              "required": false
+            },
+            {
+              "slot_id": "city_service",
+              "local_coord": {
+                "x": 0,
+                "y": 1
+              },
+              "slot_tag": "service",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "drowned_archive_hall"
+          ],
+          "optional_facility_pool": [
+            {
+              "facility_id": "memory_altar",
+              "weight": 1
+            }
+          ],
+          "max_optional_facilities": 1
+        },
+        {
+          "settlement_id": "charred_cathedral",
+          "display_name": "炭化大教堂",
+          "tier": 3,
+          "facility_slots": [
+            {
+              "slot_id": "capital_core",
+              "local_coord": {
+                "x": 1,
+                "y": 1
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "capital_civic",
+              "local_coord": {
+                "x": 0,
+                "y": 0
+              },
+              "slot_tag": "civic",
+              "required": false
+            },
+            {
+              "slot_id": "capital_service",
+              "local_coord": {
+                "x": 2,
+                "y": 0
+              },
+              "slot_tag": "service",
+              "required": false
+            },
+            {
+              "slot_id": "capital_support",
+              "local_coord": {
+                "x": 0,
+                "y": 2
+              },
+              "slot_tag": "support",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "cathedral_choir"
+          ],
+          "optional_facility_pool": [
+            {
+              "facility_id": "ash_forge",
+              "weight": 1
+            },
+            {
+              "facility_id": "memory_altar",
+              "weight": 1
+            },
+            {
+              "facility_id": "exile_bazaar",
+              "weight": 1
+            }
+          ],
+          "max_optional_facilities": 2
+        },
+        {
+          "settlement_id": "embershrine_nexus",
+          "display_name": "余烬祭所",
+          "tier": 4,
+          "facility_slots": [
+            {
+              "slot_id": "stronghold_core",
+              "local_coord": {
+                "x": 1,
+                "y": 1
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "stronghold_support",
+              "local_coord": {
+                "x": 2,
+                "y": 2
+              },
+              "slot_tag": "support",
+              "required": false
+            },
+            {
+              "slot_id": "stronghold_service",
+              "local_coord": {
+                "x": 3,
+                "y": 2
+              },
+              "slot_tag": "service",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "worldgate_brazier"
+          ],
+          "optional_facility_pool": [
+            {
+              "facility_id": "oath_command_post",
+              "weight": 1
+            }
+          ],
+          "max_optional_facilities": 1
+        },
+        {
+          "settlement_id": "silverlight_metropolis",
+          "display_name": "银辉都会",
+          "tier": 5,
+          "facility_slots": [
+            {
+              "slot_id": "metropolis_core",
+              "local_coord": {
+                "x": 2,
+                "y": 2
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "metropolis_civic",
+              "local_coord": {
+                "x": 0,
+                "y": 0
+              },
+              "slot_tag": "civic",
+              "required": false
+            },
+            {
+              "slot_id": "metropolis_trade",
+              "local_coord": {
+                "x": 4,
+                "y": 1
+              },
+              "slot_tag": "trade",
+              "required": false
+            },
+            {
+              "slot_id": "metropolis_service",
+              "local_coord": {
+                "x": 1,
+                "y": 4
+              },
+              "slot_tag": "service",
+              "required": false
+            },
+            {
+              "slot_id": "metropolis_support",
+              "local_coord": {
+                "x": 4,
+                "y": 4
+              },
+              "slot_tag": "support",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "cathedral_choir",
+            "worldgate_brazier"
+          ],
+          "optional_facility_pool": [
+            {
+              "facility_id": "memory_altar",
+              "weight": 1
+            },
+            {
+              "facility_id": "drowned_archive_hall",
+              "weight": 1
+            },
+            {
+              "facility_id": "oath_command_post",
+              "weight": 1
+            }
+          ],
+          "max_optional_facilities": 3
+        },
+        {
+          "settlement_id": "broken_bridge_keep",
+          "display_name": "断桥营寨",
+          "tier": 2,
+          "facility_slots": [
+            {
+              "slot_id": "city_core",
+              "local_coord": {
+                "x": 0,
+                "y": 0
+              },
+              "slot_tag": "core",
+              "required": true
+            },
+            {
+              "slot_id": "city_trade",
+              "local_coord": {
+                "x": 1,
+                "y": 0
+              },
+              "slot_tag": "trade",
+              "required": false
+            },
+            {
+              "slot_id": "city_service",
+              "local_coord": {
+                "x": 0,
+                "y": 1
+              },
+              "slot_tag": "service",
+              "required": false
+            }
+          ],
+          "guaranteed_facility_ids": [
+            "war_skill_cloister"
+          ],
+          "optional_facility_pool": [
+            {
+              "facility_id": "ash_forge",
+              "weight": 1
+            },
+            {
+              "facility_id": "exile_bazaar",
+              "weight": 1
+            }
+          ],
+          "max_optional_facilities": 1
+        }
+      ],
+      "facility_library": [
+        {
+          "facility_id": "coach_station",
+          "display_name": "裂界驿站",
+          "category": "transport",
+          "min_settlement_tier": 1,
+          "allowed_slot_tags": [
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_coachman",
+              "display_name": "裂界驿夫",
+              "service_type": "驿站",
+              "interaction_script_id": "service_stagecoach",
+              "local_slot_id": "coach_route"
+            }
+          ],
+          "interaction_type": "travel"
+        },
+        {
+          "facility_id": "covenant_hall",
+          "display_name": "誓约碑厅",
+          "category": "civic",
+          "min_settlement_tier": 2,
+          "allowed_slot_tags": [
+            "core",
+            "civic",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_covenant_herald",
+              "display_name": "誓约传令官",
+              "service_type": "誓约",
+              "interaction_script_id": "service_contract_board",
+              "local_slot_id": "notice_slot"
+            }
+          ],
+          "interaction_type": "covenant"
+        },
+        {
+          "facility_id": "exile_bazaar",
+          "display_name": "流亡商栈",
+          "category": "trade",
+          "min_settlement_tier": 1,
+          "allowed_slot_tags": [
+            "trade",
+            "service",
+            "support"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_exile_broker",
+              "display_name": "流亡经纪人",
+              "service_type": "流亡交易",
+              "interaction_script_id": "service_local_trade",
+              "local_slot_id": "supply_slot"
+            }
+          ],
+          "interaction_type": "market"
+        },
+        {
+          "facility_id": "bonfire_sanctum",
+          "display_name": "余火祭坛",
+          "category": "service",
+          "min_settlement_tier": 1,
+          "allowed_slot_tags": [
+            "core",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_bonfire_keeper",
+              "display_name": "余火守望者",
+              "service_type": "余火",
+              "interaction_script_id": "service_rest_full",
+              "local_slot_id": "inn_slot"
+            },
+            {
+              "npc_id": "npc_ash_keeper",
+              "display_name": "骨灰看守",
+              "service_type": "骨灰储箱",
+              "interaction_script_id": "party_warehouse",
+              "local_slot_id": "warehouse_slot"
+            }
+          ],
+          "interaction_type": "rest"
+        },
+        {
+          "facility_id": "ash_forge",
+          "display_name": "灰烬铁砧",
+          "category": "support",
+          "min_settlement_tier": 1,
+          "allowed_slot_tags": [
+            "support",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_ash_smith",
+              "display_name": "灰烬铁匠",
+              "service_type": "锻火",
+              "interaction_script_id": "service_repair_gear",
+              "local_slot_id": "workshop_slot"
+            },
+            {
+              "npc_id": "npc_ash_keeper",
+              "display_name": "骨灰看守",
+              "service_type": "骨灰储箱",
+              "interaction_script_id": "party_warehouse",
+              "local_slot_id": "warehouse_slot"
+            },
+            {
+              "npc_id": "npc_master_smith",
+              "display_name": "余烬大师匠",
+              "service_type": "重铸",
+              "interaction_script_id": "service_master_reforge",
+              "local_slot_id": "master_reforge_slot"
+            }
+          ],
+          "interaction_type": "craft"
+        },
+        {
+          "facility_id": "war_skill_cloister",
+          "display_name": "战技回廊",
+          "category": "military",
+          "min_settlement_tier": 2,
+          "allowed_slot_tags": [
+            "core",
+            "support",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_weapon_master",
+              "display_name": "旧战技教官",
+              "service_type": "战技",
+              "interaction_script_id": "service_join_guild",
+              "local_slot_id": "guild_slot"
+            }
+          ],
+          "interaction_type": "training"
+        },
+        {
+          "facility_id": "memory_altar",
+          "display_name": "追忆祭台",
+          "category": "knowledge",
+          "min_settlement_tier": 2,
+          "allowed_slot_tags": [
+            "trade",
+            "service",
+            "support"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_memory_broker",
+              "display_name": "追忆行商",
+              "service_type": "追忆",
+              "interaction_script_id": "service_identify_relic",
+              "local_slot_id": "market_slot"
+            }
+          ],
+          "interaction_type": "memory"
+        },
+        {
+          "facility_id": "cathedral_choir",
+          "display_name": "炭化圣堂",
+          "category": "faith",
+          "min_settlement_tier": 3,
+          "allowed_slot_tags": [
+            "core",
+            "civic",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_cathedral_matriarch",
+              "display_name": "炭化主教母",
+              "service_type": "祷告",
+              "interaction_script_id": "service_manage_reputation",
+              "local_slot_id": "council_slot"
+            },
+            {
+              "npc_id": "npc_covenant_herald",
+              "display_name": "誓约传令官",
+              "service_type": "誓约",
+              "interaction_script_id": "service_contract_board",
+              "local_slot_id": "notice_slot"
+            },
+            {
+              "npc_id": "npc_ashen_bounty_clerk",
+              "display_name": "灰烬悬赏司录",
+              "service_type": "悬赏",
+              "interaction_script_id": "service_bounty_registry",
+              "local_slot_id": "choir_bounty_registry"
+            }
+          ],
+          "interaction_type": "faith"
+        },
+        {
+          "facility_id": "drowned_archive_hall",
+          "display_name": "沉钟书库",
+          "category": "knowledge",
+          "min_settlement_tier": 2,
+          "allowed_slot_tags": [
+            "core",
+            "service",
+            "support"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_drowned_archivist",
+              "display_name": "沉钟书官",
+              "service_type": "咒术",
+              "interaction_script_id": "service_research",
+              "local_slot_id": "library_slot"
+            },
+            {
+              "npc_id": "npc_memory_broker",
+              "display_name": "追忆行商",
+              "service_type": "追忆",
+              "interaction_script_id": "service_identify_relic",
+              "local_slot_id": "market_slot"
+            }
+          ],
+          "interaction_type": "research"
+        },
+        {
+          "facility_id": "worldgate_brazier",
+          "display_name": "裂界火门",
+          "category": "world",
+          "min_settlement_tier": 4,
+          "allowed_slot_tags": [
+            "core",
+            "civic",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_gatefire_warden",
+              "display_name": "裂界火门看守",
+              "service_type": "裂界行路",
+              "interaction_script_id": "service_open_trade_route",
+              "local_slot_id": "gate_slot"
+            },
+            {
+              "npc_id": "npc_bonfire_keeper",
+              "display_name": "余火守望者",
+              "service_type": "余火",
+              "interaction_script_id": "service_rest_full",
+              "local_slot_id": "inn_slot"
+            },
+            {
+              "npc_id": "npc_ash_keeper",
+              "display_name": "骨灰看守",
+              "service_type": "骨灰储箱",
+              "interaction_script_id": "party_warehouse",
+              "local_slot_id": "warehouse_slot"
+            }
+          ],
+          "interaction_type": "travel"
+        },
+        {
+          "facility_id": "oath_command_post",
+          "display_name": "誓火指挥所",
+          "category": "military",
+          "min_settlement_tier": 4,
+          "allowed_slot_tags": [
+            "support",
+            "service"
+          ],
+          "bound_service_npcs": [
+            {
+              "npc_id": "npc_oath_captain",
+              "display_name": "誓火队长",
+              "service_type": "誓火部署",
+              "interaction_script_id": "service_elite_recruitment",
+              "local_slot_id": "command_slot"
+            },
+            {
+              "npc_id": "npc_weapon_master",
+              "display_name": "旧战技教官",
+              "service_type": "战技",
+              "interaction_script_id": "service_join_guild",
+              "local_slot_id": "guild_slot"
+            },
+            {
+              "npc_id": "npc_ash_smith",
+              "display_name": "灰烬铁匠",
+              "service_type": "锻火",
+              "interaction_script_id": "service_repair_gear",
+              "local_slot_id": "workshop_slot"
+            }
+          ],
+          "interaction_type": "command"
+        }
+      ],
+      "settlement_distribution": [
+        {
+          "settlement_id": "embershrine_nexus",
+          "preferred_origin": {
+            "x": 48,
+            "y": 48
+          },
+          "faction_id": "player",
+          "country_id": ""
+        },
+        {
+          "settlement_id": "charred_cathedral",
+          "preferred_origin": {
+            "x": 18,
+            "y": 18
+          },
+          "faction_id": "neutral",
+          "country_id": ""
+        },
+        {
+          "settlement_id": "drowned_archive",
+          "preferred_origin": {
+            "x": 72,
+            "y": 22
+          },
+          "faction_id": "neutral",
+          "country_id": ""
+        },
+        {
+          "settlement_id": "gravefall_town",
+          "preferred_origin": {
+            "x": 20,
+            "y": 74
+          },
+          "faction_id": "neutral",
+          "country_id": ""
+        },
+        {
+          "settlement_id": "silverlight_metropolis",
+          "preferred_origin": {
+            "x": 66,
+            "y": 18
+          },
+          "faction_id": "neutral",
+          "country_id": ""
+        },
+        {
+          "settlement_id": "broken_bridge_keep",
+          "preferred_origin": {
+            "x": 74,
+            "y": 74
+          },
+          "faction_id": "neutral",
+          "country_id": ""
+        }
+      ],
+      "wild_monster_distribution": [
+        {
+          "region_tag": "cathedral_ruins",
+          "vertical_band": "all",
+          "monster_name": "炭化朝圣者",
+          "encounter_profile_id": "mist_hollow",
+          "settlement_encounter_profile_id": "",
+          "settlement_encounter_display_name": "",
+          "density_per_chunk": 2,
+          "min_distance_to_settlement": 4,
+          "vision_range": 1,
+          "chunk_coords": [
+            {
+              "x": 1,
+              "y": 1
+            },
+            {
+              "x": 2,
+              "y": 1
+            },
+            {
+              "x": 3,
+              "y": 1
+            },
+            {
+              "x": 1,
+              "y": 2
+            },
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 3,
+              "y": 2
+            }
+          ]
+        },
+        {
+          "region_tag": "drowned_stacks",
+          "vertical_band": "all",
+          "monster_name": "沉钟幽形",
+          "encounter_profile_id": "mist_hollow",
+          "settlement_encounter_profile_id": "",
+          "settlement_encounter_display_name": "",
+          "density_per_chunk": 2,
+          "min_distance_to_settlement": 4,
+          "vision_range": 1,
+          "chunk_coords": [
+            {
+              "x": 6,
+              "y": 1
+            },
+            {
+              "x": 7,
+              "y": 1
+            },
+            {
+              "x": 8,
+              "y": 1
+            },
+            {
+              "x": 6,
+              "y": 2
+            },
+            {
+              "x": 7,
+              "y": 2
+            },
+            {
+              "x": 8,
+              "y": 2
+            },
+            {
+              "x": 7,
+              "y": 3
+            }
+          ]
+        },
+        {
+          "region_tag": "grave_slope",
+          "vertical_band": "all",
+          "monster_name": "墓火失犬",
+          "encounter_profile_id": "wolf_wilds",
+          "settlement_encounter_profile_id": "wolf_den",
+          "settlement_encounter_display_name": "荒狼巢穴",
+          "density_per_chunk": 2,
+          "min_distance_to_settlement": 4,
+          "vision_range": 1,
+          "chunk_coords": [
+            {
+              "x": 1,
+              "y": 6
+            },
+            {
+              "x": 2,
+              "y": 6
+            },
+            {
+              "x": 1,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 7
+            },
+            {
+              "x": 3,
+              "y": 7
+            },
+            {
+              "x": 2,
+              "y": 8
+            }
+          ]
+        },
+        {
+          "region_tag": "abyss_fringe",
+          "vertical_band": "all",
+          "monster_name": "深渊噬猎犬",
+          "encounter_profile_id": "wolf_wilds",
+          "settlement_encounter_profile_id": "",
+          "settlement_encounter_display_name": "",
+          "density_per_chunk": 2,
+          "min_distance_to_settlement": 4,
+          "vision_range": 1,
+          "chunk_coords": [
+            {
+              "x": 7,
+              "y": 7
+            },
+            {
+              "x": 8,
+              "y": 7
+            },
+            {
+              "x": 9,
+              "y": 7
+            },
+            {
+              "x": 7,
+              "y": 8
+            },
+            {
+              "x": 8,
+              "y": 8
+            },
+            {
+              "x": 9,
+              "y": 8
+            },
+            {
+              "x": 8,
+              "y": 9
+            }
+          ]
+        }
+      ],
+      "mounted_submaps": [
+        {
+          "submap_id": "ashen_ashlands",
+          "display_name": "灰烬地图",
+          "generation_id": "ashen_wastes",
+          "return_hint_text": "灰烬地图中，点击任意地点返回原位置。"
+        }
+      ],
+      "world_events": [
+        {
+          "event_id": "ashen_submap_gate",
+          "display_name": "灰烬裂隙",
+          "world_coord": {
+            "x": 52,
+            "y": 49
+          },
+          "event_type": "enter_submap",
+          "target_submap_id": "ashen_ashlands",
+          "discovery_condition_id": "always_true",
+          "prompt_title": "进入灰烬地图",
+          "prompt_text": "裂隙后的余灰仍在燃烧。确认后将进入灰烬地图，返回时会回到当前坐标。"
+        }
+      ]
+    },
+    {
+      "generation_id": "small",
+      "seed": 20260403,
+      "world_size_in_chunks": {
+        "x": 25,
+        "y": 25
+      },
+      "chunk_size": {
+        "x": 40,
+        "y": 40
+      },
+      "player_start_coord": {
+        "x": 500,
+        "y": 500
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": true,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "main_world_defaults",
+      "procedural_village_count": 12,
+      "procedural_town_count": 4,
+      "procedural_city_count": 2,
+      "procedural_capital_count": 1,
+      "procedural_world_stronghold_count": 1,
+      "procedural_metropolis_count": 1,
+      "village_spacing_cells": 80,
+      "town_spacing_cells": 110,
+      "city_spacing_cells": 150,
+      "capital_spacing_cells": 220,
+      "world_stronghold_spacing_cells": 280,
+      "metropolis_spacing_cells": 340,
+      "guarantee_starting_wild_encounter": true,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [],
+      "facility_library": [],
+      "settlement_distribution": [],
+      "wild_monster_distribution": [],
+      "mounted_submaps": [],
+      "world_events": []
+    },
+    {
+      "generation_id": "medium",
+      "seed": 20260403,
+      "world_size_in_chunks": {
+        "x": 30,
+        "y": 30
+      },
+      "chunk_size": {
+        "x": 50,
+        "y": 50
+      },
+      "player_start_coord": {
+        "x": 750,
+        "y": 750
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": true,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "main_world_defaults",
+      "procedural_village_count": 27,
+      "procedural_town_count": 10,
+      "procedural_city_count": 4,
+      "procedural_capital_count": 2,
+      "procedural_world_stronghold_count": 1,
+      "procedural_metropolis_count": 1,
+      "village_spacing_cells": 80,
+      "town_spacing_cells": 110,
+      "city_spacing_cells": 150,
+      "capital_spacing_cells": 220,
+      "world_stronghold_spacing_cells": 280,
+      "metropolis_spacing_cells": 340,
+      "guarantee_starting_wild_encounter": true,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [],
+      "facility_library": [],
+      "settlement_distribution": [],
+      "wild_monster_distribution": [],
+      "mounted_submaps": [],
+      "world_events": []
+    },
+    {
+      "generation_id": "giant",
+      "seed": 20260403,
+      "world_size_in_chunks": {
+        "x": 50,
+        "y": 50
+      },
+      "chunk_size": {
+        "x": 40,
+        "y": 40
+      },
+      "player_start_coord": {
+        "x": 1000,
+        "y": 1000
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": true,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "main_world_defaults",
+      "procedural_village_count": 48,
+      "procedural_town_count": 18,
+      "procedural_city_count": 8,
+      "procedural_capital_count": 3,
+      "procedural_world_stronghold_count": 2,
+      "procedural_metropolis_count": 1,
+      "village_spacing_cells": 80,
+      "town_spacing_cells": 110,
+      "city_spacing_cells": 150,
+      "capital_spacing_cells": 220,
+      "world_stronghold_spacing_cells": 280,
+      "metropolis_spacing_cells": 340,
+      "guarantee_starting_wild_encounter": true,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [],
+      "facility_library": [],
+      "settlement_distribution": [],
+      "wild_monster_distribution": [],
+      "mounted_submaps": [],
+      "world_events": []
+    },
+    {
+      "generation_id": "ashen_wastes",
+      "seed": 20260416,
+      "world_size_in_chunks": {
+        "x": 4,
+        "y": 4
+      },
+      "chunk_size": {
+        "x": 8,
+        "y": 8
+      },
+      "player_start_coord": {
+        "x": 15,
+        "y": 15
+      },
+      "player_vision_range": 4,
+      "procedural_generation_enabled": false,
+      "procedural_wild_spawn_chunk_chance_denominator": 2,
+      "shared_content_id": "",
+      "procedural_village_count": 1,
+      "procedural_town_count": 1,
+      "procedural_city_count": 1,
+      "procedural_capital_count": 1,
+      "procedural_world_stronghold_count": 1,
+      "procedural_metropolis_count": 0,
+      "village_spacing_cells": 80,
+      "town_spacing_cells": 110,
+      "city_spacing_cells": 150,
+      "capital_spacing_cells": 220,
+      "world_stronghold_spacing_cells": 280,
+      "metropolis_spacing_cells": 340,
+      "guarantee_starting_wild_encounter": false,
+      "starting_wild_spawn_min_distance": 3,
+      "starting_wild_spawn_max_distance": 4,
+      "settlement_library": [],
+      "facility_library": [],
+      "settlement_distribution": [],
+      "wild_monster_distribution": [],
+      "mounted_submaps": [],
+      "world_events": []
+    }
+  ]
+}

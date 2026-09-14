@@ -1,0 +1,6065 @@
+{
+  "entries": [
+    {
+      "skill_id": "mage_absolute_zero",
+      "icon_id": "mage_absolute_zero",
+      "display_name": "绝零坍缩",
+      "description": "冰系招牌终极技，对范围内敌人造成极寒伤害；对已浸湿的目标优先结算冰冻。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "ice",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，极寒伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "1": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "2": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "3": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "4": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "5": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "6": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "7": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "10D6",
+          "duration": "120",
+          "hit": "+-1",
+          "mp": "120",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_absolute_zero",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "mp_cost": 120,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 9,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 10,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frozen",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frozen",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "frozen",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 15,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": -1,
+            "area_value": 3
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_apocalypse_word",
+      "icon_id": "mage_apocalypse_word",
+      "display_name": "终焉言灵",
+      "description": "死灵系高阶斩杀技，对低生命目标有显著伤害提升，适合作为大招收尾。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "necromancy",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，负能量伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "1": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "2": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "3": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "4": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "5": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "6": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "7": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "10D6",
+          "duration": "120",
+          "hit": "+-1",
+          "mp": "120",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_apocalypse_word",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "mp_cost": 120,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 9,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 10,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 15,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": -1,
+            "area_value": 3
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arc_net",
+      "icon_id": "mage_arc_net",
+      "display_name": "电网术",
+      "description": "在一条直线上挂起电网，首个穿过的敌人被定身并附加感电。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，雷伤{dmg}，直线范围。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "1": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "2": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "3": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "4": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "5": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "6": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "7": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arc_net",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "line",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arcane_aegis",
+      "icon_id": "mage_arcane_aegis",
+      "display_name": "奥术圣域",
+      "description": "范围内友军获得法盾、净化一层负面效果，并提高法术命中。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "support"
+      ],
+      "level_description_template": "射程{range}，范围{area}格友军。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "100",
+          "range": "4"
+        },
+        "1": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "100",
+          "range": "4"
+        },
+        "2": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "20",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "100",
+          "range": "4"
+        },
+        "3": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "20",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "100",
+          "range": "5"
+        },
+        "4": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "20",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "100",
+          "range": "5"
+        },
+        "5": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "15",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "100",
+          "range": "5"
+        },
+        "6": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "15",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "100",
+          "range": "5"
+        },
+        "7": {
+          "ap": "3",
+          "area": "1",
+          "cooldown": "15",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "100",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_aegis",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "mp_cost": 100,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "magic_shield"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 15,
+            "range_value": 5
+          },
+          "7": {
+            "range_value": 6
+          }
+        },
+        "area_value": 1,
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell",
+          "force_effect"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 20,
+        "intelligence": 60,
+        "willpower": 100
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arcane_cataclysm",
+      "icon_id": "mage_arcane_cataclysm",
+      "display_name": "奥能崩解",
+      "description": "奥术系高阶领域爆发，命中的敌人统一获得奥术脆弱，方便后续整队压制。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，奥术伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力{{?aura}}/{aura}斗气{{/aura}}，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "6D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "1": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "2": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "7D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "5"
+        },
+        "3": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "4": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "20",
+          "dmg": "8D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "5": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "6": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "9D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "120",
+          "range": "6"
+        },
+        "7": {
+          "ap": "3",
+          "area": "2",
+          "aura": "1",
+          "cooldown": "15",
+          "dmg": "10D6",
+          "duration": "120",
+          "hit": "+-1",
+          "mp": "120",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_cataclysm",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "mp_cost": 120,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 9,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 10,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 15,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": -1,
+            "area_value": 3
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "aura_cost": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arcane_echo",
+      "icon_id": "mage_arcane_echo",
+      "display_name": "奥术回响",
+      "description": "令下一个单体法术以50%威力再触发一次，适合配合高价值点杀术。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "support"
+      ],
+      "level_description_template": "自身增益，令下一单体法术50%威力再触发。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_echo",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 10
+          },
+          "7": {}
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 90,
+        "perception": 20,
+        "willpower": 70
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arcane_missile",
+      "icon_id": "mage_arcane_missile",
+      "display_name": "奥术飞弹",
+      "description": "编排一组无需武器的奥术力场飞弹。每枚飞弹必定命中且不能暴击，可重复指定同一目标，并严格按选择顺序逐发结算；若既定目标提前倒下，分配给它的后续飞弹会消散。技能无冷却，法力与体力均按实际发射数量线性消耗。",
+      "max_level": 5,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "output"
+      ],
+      "level_description_template": "射程{range}（需要视线），可编排1至{missiles}枚力场飞弹；每枚必定命中且不能暴击，造成{dmg}力场伤害，可重复指定同一目标并按选择顺序逐发结算。无需武器。消耗1AP；每枚消耗{mp_per}法力/{stamina_per}体力，满额共{mp_total}法力/{stamina_total}体力；无冷却。动态最大等级:{dynamic_max_level}",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4+1",
+          "missiles": "3",
+          "mp_per": "10",
+          "mp_total": "30",
+          "range": "3",
+          "stamina_per": "11",
+          "stamina_total": "33"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4+1",
+          "missiles": "3",
+          "mp_per": "9",
+          "mp_total": "27",
+          "range": "4",
+          "stamina_per": "11",
+          "stamina_total": "33"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D4+1",
+          "missiles": "4",
+          "mp_per": "9",
+          "mp_total": "36",
+          "range": "4",
+          "stamina_per": "10",
+          "stamina_total": "40"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D6+1",
+          "missiles": "4",
+          "mp_per": "8",
+          "mp_total": "32",
+          "range": "4",
+          "stamina_per": "10",
+          "stamina_total": "40"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D6+1",
+          "missiles": "5",
+          "mp_per": "8",
+          "mp_total": "40",
+          "range": "5",
+          "stamina_per": "9",
+          "stamina_total": "45"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8+1",
+          "missiles": "5",
+          "mp_per": "7",
+          "mp_total": "35",
+          "range": "5",
+          "stamina_per": "9",
+          "stamina_total": "45"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8+1",
+          "missiles": "5",
+          "mp_per": "6",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "8",
+          "stamina_total": "40"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8+1",
+          "missiles": "6",
+          "mp_per": "6",
+          "mp_total": "36",
+          "range": "5",
+          "stamina_per": "8",
+          "stamina_total": "48"
+        },
+        "8": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8+2",
+          "missiles": "6",
+          "mp_per": "6",
+          "mp_total": "36",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        },
+        "9": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "1D8+2",
+          "missiles": "6",
+          "mp_per": "5",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        },
+        "10": {
+          "ap": "1",
+          "cooldown": "0",
+          "dmg": "2D4+2",
+          "missiles": "6",
+          "mp_per": "5",
+          "mp_total": "30",
+          "range": "5",
+          "stamina_per": "7",
+          "stamina_total": "42"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_missile",
+        "range_value": 3,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 4,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 6,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 7,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "max_skill_level": 9,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "dice_bonus": 2,
+            "effect_categories": [
+              "force_effect"
+            ]
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 10,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 2,
+            "dice_sides": 4,
+            "dice_bonus": 2,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "mp_cost_per_target_slot": 9,
+            "stamina_cost_per_target_slot": 11,
+            "range_value": 4
+          },
+          "2": {
+            "mp_cost_per_target_slot": 9,
+            "stamina_cost_per_target_slot": 10,
+            "max_target_count": 4
+          },
+          "3": {
+            "mp_cost_per_target_slot": 8,
+            "stamina_cost_per_target_slot": 10,
+            "max_target_count": 4
+          },
+          "4": {
+            "mp_cost_per_target_slot": 8,
+            "stamina_cost_per_target_slot": 9,
+            "range_value": 5,
+            "max_target_count": 5
+          },
+          "5": {
+            "mp_cost_per_target_slot": 7,
+            "stamina_cost_per_target_slot": 9,
+            "max_target_count": 5
+          },
+          "6": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 8,
+            "max_target_count": 5
+          },
+          "7": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 8,
+            "max_target_count": 6
+          },
+          "8": {
+            "mp_cost_per_target_slot": 6,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          },
+          "9": {
+            "mp_cost_per_target_slot": 5,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          },
+          "10": {
+            "mp_cost_per_target_slot": 5,
+            "stamina_cost_per_target_slot": 7,
+            "max_target_count": 6
+          }
+        },
+        "requires_los": true,
+        "mp_cost_per_target_slot": 10,
+        "stamina_cost_per_target_slot": 11,
+        "attack_resolution_mode": "force_hit_no_crit",
+        "ai_tags": [
+          "single_target",
+          "multi_target",
+          "reliable"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical",
+        "target_selection_mode": "multi_unit",
+        "max_target_count": 3,
+        "allow_repeat_target": true,
+        "unit_target_resolution_mode": "ordered_slots",
+        "selection_order_mode": "manual"
+      },
+      "non_core_max_level": 3,
+      "dynamic_max_level_stat_id": "profession_rank:mage",
+      "dynamic_max_level_base": 5,
+      "dynamic_max_level_per_stat": -2,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000,
+        17000,
+        22000,
+        28000
+      ],
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "intelligence": 60
+      }
+    },
+    {
+      "skill_id": "mage_arcane_orbit",
+      "icon_id": "mage_arcane_orbit",
+      "display_name": "轨道法珠",
+      "description": "在自身周围形成轨道法珠。持续期间，每当你成为弓或弩的直接远程武器攻击目标，待该次独立攻击检定及其全部效果结算完毕后，无论原攻击命中或未命中，均消耗1枚法珠对攻击者进行一次独立的接触攻击检定；命中时，复制该次攻击已快照的主武器骰及其W倍率并转为力场伤害。法珠不复制属性与固定加值、暴击额外骰、毒素、装备能力或其他伤害段，且本次反击不能暴击；反击沿用已成立的原弹道，不重新检查距离或视线。每次独立攻击检定最多触发并消耗1枚。重复施放不会叠加第二组法珠，而是将现有法珠补满至当前等级上限并刷新持续时间。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "arcane",
+        "reaction",
+        "defense",
+        "anti_ranged"
+      ],
+      "level_description_template": "形成{orbs}枚法珠，持续{duration}TU；每次受到弓/弩远程武器攻击检定后消耗1枚，以{hit}进行不可暴击的独立接触攻击，命中造成该次攻击主武器骰W倍率的力场伤害。重施补满并刷新。消耗1AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "cooldown": "240",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "100",
+          "orbs": "2"
+        },
+        "1": {
+          "cooldown": "240",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "100",
+          "orbs": "2"
+        },
+        "2": {
+          "cooldown": "240",
+          "duration": "75",
+          "hit": "+1",
+          "mp": "100",
+          "orbs": "2"
+        },
+        "3": {
+          "cooldown": "210",
+          "duration": "75",
+          "hit": "+1",
+          "mp": "100",
+          "orbs": "3"
+        },
+        "4": {
+          "cooldown": "210",
+          "duration": "75",
+          "hit": "+2",
+          "mp": "100",
+          "orbs": "3"
+        },
+        "5": {
+          "cooldown": "210",
+          "duration": "75",
+          "hit": "+2",
+          "mp": "90",
+          "orbs": "3"
+        },
+        "6": {
+          "cooldown": "210",
+          "duration": "90",
+          "hit": "+2",
+          "mp": "90",
+          "orbs": "3"
+        },
+        "7": {
+          "cooldown": "180",
+          "duration": "90",
+          "hit": "+3",
+          "mp": "90",
+          "orbs": "4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_orbit",
+        "target_team_filter": "self",
+        "range_value": 0,
+        "area_pattern": "self",
+        "mp_cost": 100,
+        "cooldown_tu": 240,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 1,
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "display_name": "轨道法珠",
+            "dispellable_magic": true,
+            "dispellable_beneficial_magic": true,
+            "status_id": "arcane_orbit_ready",
+            "stack_behavior": "add",
+            "stack_limit": 2
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 2,
+            "max_skill_level": 2,
+            "power": 2,
+            "duration_tu": 75,
+            "payload": {},
+            "display_name": "轨道法珠",
+            "dispellable_magic": true,
+            "dispellable_beneficial_magic": true,
+            "status_id": "arcane_orbit_ready",
+            "stack_behavior": "add",
+            "stack_limit": 2
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 5,
+            "power": 3,
+            "duration_tu": 75,
+            "payload": {},
+            "display_name": "轨道法珠",
+            "dispellable_magic": true,
+            "dispellable_beneficial_magic": true,
+            "status_id": "arcane_orbit_ready",
+            "stack_behavior": "add",
+            "stack_limit": 3
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "power": 3,
+            "duration_tu": 90,
+            "payload": {},
+            "display_name": "轨道法珠",
+            "dispellable_magic": true,
+            "dispellable_beneficial_magic": true,
+            "status_id": "arcane_orbit_ready",
+            "stack_behavior": "add",
+            "stack_limit": 3
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 4,
+            "duration_tu": 90,
+            "payload": {},
+            "display_name": "轨道法珠",
+            "dispellable_magic": true,
+            "dispellable_beneficial_magic": true,
+            "status_id": "arcane_orbit_ready",
+            "stack_behavior": "add",
+            "stack_limit": 4
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "cooldown_tu": 210
+          },
+          "5": {
+            "mp_cost": 90
+          },
+          "7": {
+            "cooldown_tu": 180
+          }
+        },
+        "ranged_weapon_reaction_profile": {
+          "readiness_status_id": "arcane_orbit_ready",
+          "trigger_weapon_families": [
+            "bow",
+            "crossbow"
+          ],
+          "attack_roll_bonus_by_skill_level": [
+            0,
+            1,
+            1,
+            1,
+            2,
+            2,
+            2,
+            3
+          ]
+        },
+        "attack_resolution_mode": "direct_effect",
+        "attack_defense_mode": "touch",
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 90,
+        "perception": 20,
+        "willpower": 70
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_arcane_turret",
+      "icon_id": "mage_arcane_turret",
+      "display_name": "奥术炮台",
+      "description": "固定炮台型召唤物，优先攻击带奥术脆弱的目标。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "summon",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，奥术伤{dmg}，召唤炮台。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_arcane_turret",
+        "target_mode": "ground",
+        "range_value": 4,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "area_value": 1,
+            "range_value": 5,
+            "area_pattern": "cross"
+          },
+          "5": {
+            "cooldown_tu": 10,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_ashen_mark",
+      "icon_id": "mage_ashen_mark",
+      "display_name": "烬痕烙印",
+      "description": "轻伤并施加强化版灼烧，目标承受下一次火焰技能时额外受到+20%伤害。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，火伤{dmg}。消耗{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "2D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "120",
+          "hit": "+3",
+          "mp": "60",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_ashen_mark",
+        "range_value": 5,
+        "mp_cost": 60,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": 3,
+            "range_value": 7
+          }
+        },
+        "attack_roll_bonus": 2,
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_astral_page",
+      "icon_id": "mage_astral_page",
+      "display_name": "星界书页",
+      "description": "召唤漂浮书页协助施法，使相邻友军首次施法消耗-1法力。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "summon",
+        "control"
+      ],
+      "level_description_template": "射程{range}，召唤书页辅助。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "10",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_astral_page",
+        "target_mode": "ground",
+        "range_value": 4,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "strength",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "strength",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "strength",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "strength",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "rooted",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "strength",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 10,
+            "range_value": 5
+          },
+          "7": {
+            "range_value": 6
+          }
+        },
+        "mastery_trigger_mode": "status_applied",
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_ball_lightning",
+      "icon_id": "mage_ball_lightning",
+      "display_name": "球形闪电",
+      "description": "生成持续120TU的游走电球，每60TU电击附近敌人并施加感电。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，雷伤{dmg}，范围{area}格，召唤电球。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "1": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "2": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "3": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "4": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "5": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "6": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "7": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_ball_lightning",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_banshee_wail",
+      "display_name": "女妖哀嚎",
+      "description": "近距离群体压制，命中的敌人获得失衡，并优先后退。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "necromancy",
+        "output",
+        "control"
+      ],
+      "level_description_template": "自身扇形范围，负能量伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "1": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "2": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "3": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "4": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "5": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "6": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        },
+        "7": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "0"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_banshee_wail",
+        "target_mode": "ground",
+        "range_value": 0,
+        "area_pattern": "cone",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "icon_id": "mage_banshee_wail",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_black_flame",
+      "icon_id": "mage_black_flame",
+      "display_name": "冥火术",
+      "description": "施加不可被普通净化立刻清除的暗焰灼烧，对高回复敌人特别克制。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "necromancy",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，负能量伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_black_flame",
+        "range_value": 5,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 7,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "range_value": 7
+          }
+        },
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_blink",
+      "display_name": "闪现术",
+      "description": "短距离空间跃迁。只按平面距离与落点可占用性验证目标地格，高等级提升距离。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "mobility"
+      ],
+      "level_description_template": "选地格位移最多{range}格。消耗1AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "20",
+          "mp": "80",
+          "range": "3"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "20",
+          "mp": "80",
+          "range": "3"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "20",
+          "mp": "80",
+          "range": "3"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "15",
+          "mp": "80",
+          "range": "4"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "15",
+          "mp": "80",
+          "range": "4"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "15",
+          "mp": "80",
+          "range": "4"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "15",
+          "mp": "80",
+          "range": "4"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "15",
+          "mp": "80",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_blink",
+        "target_mode": "ground",
+        "target_team_filter": "ally",
+        "range_value": 3,
+        "mp_cost": 80,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "blink",
+            "forced_move_distance": 5
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "cooldown_tu": 15,
+            "range_value": 4
+          },
+          "5": {
+            "cooldown_tu": 15,
+            "range_value": 4
+          },
+          "7": {
+            "range_value": 5
+          }
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "ai_tags": [
+          "mobility",
+          "escape"
+        ],
+        "delivery_categories": [
+          "spell",
+          "location"
+        ]
+      },
+      "icon_id": "mage_blink",
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 90,
+        "perception": 20,
+        "willpower": 70
+      },
+      "contingency_automation_profile": {
+        "can_be_stored_in_contingency": true,
+        "min_contingency_skill_level": 7,
+        "effect_category": "mobility",
+        "allowed_target_resolvers": [
+          "empty_cell_near_owner"
+        ]
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_blur",
+      "icon_id": "mage_blur",
+      "display_name": "幻身术",
+      "description": "获得持续60TU的闪避+20%，是法师基础自保技。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "illusion",
+        "support"
+      ],
+      "level_description_template": "自身增益，闪避+20%持续60TU。消耗{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "15",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "10",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "60",
+          "range": "0"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_blur",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "mp_cost": 60,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "dodge_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "dodge_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "dodge_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "dodge_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "dodge_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 10
+          },
+          "7": {}
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell"
+        ],
+        "target_selection_mode": "self"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 90,
+        "perception": 20,
+        "willpower": 70
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_bone_chill",
+      "icon_id": "mage_bone_chill",
+      "display_name": "骨寒术",
+      "description": "选择射程内一个可见的存活敌人（亡灵与构装除外），发射寒冷的负能量。命中造成负能量伤害并施加寒蚀；寒蚀期间，目标获得的生命治疗至多为正常值的50%。寒蚀只新增或刷新自身，不会延长其他减疗效果。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "necromancy",
+        "output",
+        "debuff"
+      ],
+      "level_description_template": "仅对非亡灵、非构装的存活敌人有效；射程{range}，接触攻击检定{hit}，命中造成{dmg}负能量伤害并施加寒蚀，使其获得的生命治疗至多为正常值的50%，持续{duration}TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "180",
+          "dmg": "1D4",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "20",
+          "range": "4"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "180",
+          "dmg": "1D4",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "20",
+          "range": "4"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "180",
+          "dmg": "1D4",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "15",
+          "range": "4"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "180",
+          "dmg": "2D4",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "15",
+          "range": "4"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "180",
+          "dmg": "2D4",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "15",
+          "range": "5"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "160",
+          "dmg": "2D4",
+          "duration": "60",
+          "hit": "+1",
+          "mp": "15",
+          "range": "5"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "160",
+          "dmg": "2D4",
+          "duration": "80",
+          "hit": "+1",
+          "mp": "15",
+          "range": "5"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "160",
+          "dmg": "3D4",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "15",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_bone_chill",
+        "range_value": 4,
+        "mp_cost": 20,
+        "cooldown_tu": 180,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 1,
+            "dice_sides": 4
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 2,
+            "dice_sides": 4
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "negative_energy",
+            "dice_count": 3,
+            "dice_sides": 4
+          },
+          {
+            "effect_type": "status",
+            "max_skill_level": 5,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "heal_multiplier_percent": 50,
+            "effect_target_team_filter": "enemy",
+            "status_id": "bone_chill"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 6,
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "heal_multiplier_percent": 50,
+            "effect_target_team_filter": "enemy",
+            "status_id": "bone_chill"
+          }
+        ],
+        "level_overrides": {
+          "1": {
+            "attack_roll_bonus": 1
+          },
+          "2": {
+            "mp_cost": 15
+          },
+          "4": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 160
+          },
+          "7": {
+            "attack_roll_bonus": 2
+          }
+        },
+        "excluded_target_creature_type_tags": [
+          "undead",
+          "construct"
+        ],
+        "requires_los": true,
+        "attack_defense_mode": "touch",
+        "mastery_trigger_mode": "status_applied",
+        "ai_tags": [
+          "debuff"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_boulder_throw",
+      "icon_id": "mage_boulder_throw",
+      "display_name": "巨岩投射",
+      "description": "朴素但扎实的土石高伤单体技，命中后附带小幅击退。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "earth",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，土石伤{dmg}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "1": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "2": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "3": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "4": {
+          "ap": "2",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "5": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "6": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "6"
+        },
+        "7": {
+          "ap": "2",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_boulder_throw",
+        "range_value": 5,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "physical_blunt",
+            "dice_count": 7,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "range_value": 7
+          }
+        },
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "constitution": 50,
+        "intelligence": 100,
+        "willpower": 30
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_burning_hands",
+      "icon_id": "mage_burning_hands",
+      "display_name": "焚掌喷流",
+      "description": "选择相邻地格确定喷流方向，对锥形范围内所有单位造成火焰伤害；敏捷豁免成功伤害减半。3级起，豁免失败者还会燃烧：同一施法者的本技能最多叠加3层；不同施法者或其他技能/效果形成独立来源，分别叠加、计时和结算。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "aoe",
+        "output",
+        "control"
+      ],
+      "level_description_template": "选择相邻地格确定方向；自身前方{area}内所有单位进行敏捷豁免，失败受到{dmg}火焰伤害，成功减半{{?burn}}；失败者附加燃烧（强度{burn_power}，持续{burn_duration}TU，每{burn_tick}TU结算；同源最多3层，不同施法者或其他技能/效果独立叠加、计时和结算）{{/burn}}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "mp": "70"
+        },
+        "1": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "mp": "70"
+        },
+        "2": {
+          "ap": "2",
+          "area": "小锥形",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "mp": "70"
+        },
+        "3": {
+          "ap": "2",
+          "area": "小锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "1",
+          "burn_tick": "10",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "mp": "70"
+        },
+        "4": {
+          "ap": "2",
+          "area": "小锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "1",
+          "burn_tick": "10",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "mp": "70"
+        },
+        "5": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "mp": "70"
+        },
+        "6": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "20",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "mp": "70"
+        },
+        "7": {
+          "ap": "2",
+          "area": "大锥形",
+          "burn": "true",
+          "burn_duration": "30",
+          "burn_power": "2",
+          "burn_tick": "10",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "mp": "70"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_burning_hands",
+        "target_mode": "ground",
+        "area_pattern": "cone",
+        "ap_cost": 2,
+        "mp_cost": 70,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 1,
+            "duration_tu": 20,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 20,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "power": 2,
+            "duration_tu": 30,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "burning",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 5,
+            "area_value": 2
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "attack_resolution_mode": "direct_effect",
+        "ai_tags": [
+          "aoe",
+          "close_range"
+        ],
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_chain_contingency",
+      "icon_id": "mage_chain_contingency",
+      "display_name": "连锁应急术",
+      "description": "预先编织触发矩阵，在危险条件满足时释放已储存的法术。",
+      "skill_type": "passive",
+      "max_level": 9,
+      "tags": [
+        "mage",
+        "magic",
+        "contingency",
+        "meta_spell"
+      ],
+      "level_description_template": "允许配置连锁应急术矩阵。",
+      "level_description_configs": {
+        "0": {},
+        "1": {},
+        "2": {},
+        "3": {},
+        "4": {},
+        "5": {},
+        "6": {},
+        "7": {},
+        "8": {},
+        "9": {}
+      },
+      "non_core_max_level": 9,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000,
+        17000,
+        22000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 100,
+        "perception": 30,
+        "willpower": 50
+      },
+      "template": "growth_tier_advanced"
+    },
+    {
+      "skill_id": "mage_chain_lightning",
+      "icon_id": "mage_chain_lightning",
+      "display_name": "链式闪击",
+      "description": "锁定射程5内一名敌人，以其为主目标释放链式雷电；即使没有可连锁目标也可以施放。雷电从每个已命中的单位继续跳向跳距内最近、尚未命中的存活单位，不分敌我且可能跳回施法者，不设目标数量上限，直到没有合法目标。单位在施法前已感电或站在湿地上时，从该单位发出的跳跃使用导电跳距；本次施法新施加的感电不会延长同一次连锁。每个目标分别进行敏捷豁免，技能成长会额外提高豁免DC；失败承受全额雷电伤害并感电，成功承受一半伤害且不感电。任一跳被魔法屏障阻挡时，剩余连锁停止。受保护的大失败额外消耗至多等于本次已支付法力的剩余法力、跳过全部效果且不返还已支付的AP、法力和冷却；保护次数耗尽后的大失败触发反噬，使每跳距离+1。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "aoe",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程5，锁定1名敌人（没有可连锁目标也可施放）；雷电逐跳选择最近的未命中存活单位，不设目标数量上限，基础/导电跳距为{base_hop}/{conductive_hop}格。每个目标敏捷豁免（{save_dc_text}）：失败承受{dmg}雷电伤害并感电{shock_duration}TU，成功承受一半伤害且不感电。连锁不分敌我且可能命中施法者；屏障阻断任一跳时停止剩余连锁。{fumble_text}消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+          "mp": "180",
+          "save_dc_text": "豁免DC无额外加值",
+          "shock_duration": "40"
+        },
+        "1": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+          "mp": "180",
+          "save_dc_text": "豁免DC额外+1",
+          "shock_duration": "40"
+        },
+        "2": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "4D6",
+          "fumble_text": "本等级无大失败保护；大失败触发反噬，使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+1",
+          "shock_duration": "40"
+        },
+        "3": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "160",
+          "dmg": "5D6",
+          "fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+1",
+          "shock_duration": "60"
+        },
+        "4": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有1次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+1",
+          "shock_duration": "60"
+        },
+        "5": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+1",
+          "shock_duration": "60"
+        },
+        "6": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "5D6",
+          "fumble_text": "本场有2次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+2",
+          "shock_duration": "60"
+        },
+        "7": {
+          "ap": "2",
+          "base_hop": "1",
+          "conductive_hop": "2",
+          "cooldown": "100",
+          "dmg": "6D6",
+          "fumble_text": "本场有3次大失败保护：额外消耗至多等于本次已支付法力的剩余法力并跳过效果；用尽后大失败使每跳距离+1。",
+          "mp": "160",
+          "save_dc_text": "豁免DC额外+2",
+          "shock_duration": "80"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_chain_lightning",
+        "range_value": 5,
+        "ap_cost": 2,
+        "mp_cost": 180,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "duration_tu": 40,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 5,
+            "duration_tu": 60,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 1,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "duration_tu": 60,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 2,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "duration_tu": 80,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_target_team_filter": "any",
+            "save_dc_bonus": 2,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_failure_status_id": "shocked",
+            "save_partial_on_success": true,
+            "save_tag": "chain_lightning"
+          },
+          {
+            "effect_type": "chain_damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 1,
+            "max_skill_level": 4,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          },
+          {
+            "effect_type": "chain_damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "chain_base_hop_range": 1,
+            "chain_conductive_hop_range": 2,
+            "chain_conductive_status_ids": [
+              "shocked"
+            ],
+            "chain_conductive_terrain_effect_ids": [
+              "wet"
+            ],
+            "chain_backlash_hop_range_bonus": 1,
+            "effect_target_team_filter": "any"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "mp_cost": 160
+          },
+          "4": {
+            "cooldown_tu": 100
+          }
+        },
+        "spell_fate_mode": "control_roll",
+        "spell_critical_mode": "mp_refund",
+        "spell_critical_mp_refund_percent": 50,
+        "fumble_protection_curve": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3
+        ],
+        "ai_tags": [
+          "chain",
+          "aoe",
+          "setup"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_cinder_bolt",
+      "icon_id": "mage_cinder_bolt",
+      "display_name": "余烬飞弹",
+      "description": "低耗起手法术，命中后施加灼烧，用于给后续火焰连段打底。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，火伤{dmg}。消耗{mp}法力",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "2D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "120",
+          "hit": "+3",
+          "mp": "60",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_cinder_bolt",
+        "range_value": 5,
+        "mp_cost": 60,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": 3,
+            "range_value": 7
+          }
+        },
+        "attack_roll_bonus": 2,
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_cold_snap",
+      "icon_id": "mage_cold_snap",
+      "display_name": "霜爆回响",
+      "description": "若区域内存在带寒蚀的敌人，则对其追加一次50%碎裂伤害。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "ice",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，冰伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "1": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "2": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+0",
+          "mp": "80",
+          "range": "4"
+        },
+        "3": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "4": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "10",
+          "dmg": "6D6",
+          "duration": "80",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "5": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "6": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "7D6",
+          "duration": "100",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        },
+        "7": {
+          "ap": "2",
+          "area": "1",
+          "cooldown": "5",
+          "dmg": "8D6",
+          "duration": "120",
+          "hit": "+0",
+          "mp": "80",
+          "range": "5"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_cold_snap",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_color_spray",
+      "icon_id": "mage_color_spray",
+      "display_name": "七色炫光",
+      "description": "选择射程内一个可见敌人，以智力法术DC迫使其进行意志（幻术）豁免。豁免成功时承受一半心灵伤害且不受控制；豁免失败时承受全额心灵伤害，并等概率随机获得一种控制：目眩（下一次实际攻击检定受到-2，4级起为-3，随后消耗）、失衡（系统中的“踉跄”；power=1，持续期间每次自身回合开始损失1AP、攻击处于劣势且无法维持待结算施法）或感电（无法反击，4级起同时无法暴击）。失衡不在4级获得额外强化。三种结果只会出现一种，重复施加刷新同名状态而不叠层。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "illusion",
+        "output",
+        "control"
+      ],
+      "level_description_template": "选择{range}格内一个可见敌人，造成{dmg}心灵伤害；意志（幻术）豁免成功半伤且无控制，失败全伤并等概率随机施加目眩、失衡或感电，持续{duration}TU。{control}消耗{ap}AP/{mp}法力，冷却{cooldown}TU。",
+      "level_description_configs": {
+        "0": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-2；失衡power=1；感电封锁反击。",
+          "cooldown": "180",
+          "dmg": "4D6",
+          "duration": "60",
+          "mp": "80",
+          "range": "3"
+        },
+        "1": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-2；失衡power=1；感电封锁反击。",
+          "cooldown": "180",
+          "dmg": "5D6",
+          "duration": "60",
+          "mp": "80",
+          "range": "3"
+        },
+        "2": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-2；失衡power=1；感电封锁反击。",
+          "cooldown": "180",
+          "dmg": "5D6",
+          "duration": "60",
+          "mp": "75",
+          "range": "3"
+        },
+        "3": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-2；失衡power=1；感电封锁反击。",
+          "cooldown": "150",
+          "dmg": "6D6",
+          "duration": "80",
+          "mp": "75",
+          "range": "3"
+        },
+        "4": {
+          "ap": "2",
+          "control": "目眩提升为下一次攻击-3；感电同时封锁暴击；失衡维持power=1。",
+          "cooldown": "150",
+          "dmg": "6D6",
+          "duration": "80",
+          "mp": "75",
+          "range": "3"
+        },
+        "5": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-3；感电封锁反击与暴击；失衡power=1。",
+          "cooldown": "150",
+          "dmg": "7D6",
+          "duration": "80",
+          "mp": "75",
+          "range": "3"
+        },
+        "6": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-3；感电封锁反击与暴击；失衡power=1。",
+          "cooldown": "120",
+          "dmg": "7D6",
+          "duration": "100",
+          "mp": "70",
+          "range": "3"
+        },
+        "7": {
+          "ap": "2",
+          "control": "目眩使下一次攻击-3；感电封锁反击与暴击；失衡power=1。",
+          "cooldown": "120",
+          "dmg": "8D6",
+          "duration": "100",
+          "mp": "70",
+          "range": "4"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_color_spray",
+        "range_value": 3,
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 180,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 2,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 2,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 60,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 3,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 2,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 4,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 3,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true,
+                  "lock_crit": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 5,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 3,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 80,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true,
+                  "lock_crit": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 3,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true,
+                  "lock_crit": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "psychic",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "effect_categories": [
+              "mental_attack",
+              "psychic"
+            ],
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_failure_status_outcomes": [
+              {
+                "outcome_id": "dazzled",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "目眩",
+                  "attack_roll_penalty": 3,
+                  "consume_on_next_attack_check": true,
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_dazzled",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "staggered",
+                "status_effect": {
+                  "effect_type": "status",
+                  "power": 1,
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "失衡",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "staggered",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true
+                }
+              },
+              {
+                "outcome_id": "shocked",
+                "status_effect": {
+                  "effect_type": "status",
+                  "duration_tu": 100,
+                  "payload": {},
+                  "display_name": "感电",
+                  "dispellable_harmful_magic": true,
+                  "status_id": "color_spray_shocked",
+                  "stack_limit": 1,
+                  "counts_as_debuff_override": true,
+                  "counts_as_debuff": true,
+                  "lock_counterattack": true,
+                  "lock_crit": true
+                }
+              }
+            ],
+            "save_partial_on_success": true,
+            "save_tag": "illusion"
+          }
+        ],
+        "level_overrides": {
+          "2": {
+            "mp_cost": 75
+          },
+          "3": {
+            "cooldown_tu": 150
+          },
+          "6": {
+            "mp_cost": 70,
+            "cooldown_tu": 120
+          },
+          "7": {
+            "range_value": 4
+          }
+        },
+        "requires_los": true,
+        "ai_tags": [
+          "single_target",
+          "damage",
+          "control",
+          "save_dependent"
+        ],
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_comet_drop",
+      "icon_id": "mage_comet_drop",
+      "display_name": "焰星坠",
+      "description": "高阶落点爆破技，中心敌人额外承受+25%伤害。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "fire",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，火伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "15",
+          "dmg": "5D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "5"
+        },
+        "1": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "5"
+        },
+        "2": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "15",
+          "dmg": "6D6",
+          "duration": "60",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "5"
+        },
+        "3": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "15",
+          "dmg": "7D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "6"
+        },
+        "4": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "15",
+          "dmg": "7D6",
+          "duration": "80",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "6"
+        },
+        "5": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "10",
+          "dmg": "8D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "6"
+        },
+        "6": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "10",
+          "dmg": "8D6",
+          "duration": "100",
+          "hit": "+-2",
+          "mp": "100",
+          "range": "6"
+        },
+        "7": {
+          "ap": "3",
+          "area": "2",
+          "cooldown": "10",
+          "dmg": "9D6",
+          "duration": "120",
+          "hit": "+-1",
+          "mp": "100",
+          "range": "6"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_comet_drop",
+        "target_mode": "ground",
+        "range_value": 5,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "mp_cost": 100,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 9,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 10,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": -1,
+            "area_value": 3
+          }
+        },
+        "area_value": 2,
+        "attack_roll_bonus": -2,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    },
+    {
+      "skill_id": "mage_conductive_mark",
+      "icon_id": "mage_conductive_mark",
+      "display_name": "导电印记",
+      "description": "纯联动技能，目标在120TU内承受的第一个雷系技能必定附加感电。",
+      "max_level": 7,
+      "tags": [
+        "mage",
+        "magic",
+        "lightning",
+        "output",
+        "control"
+      ],
+      "level_description_template": "射程{range}，攻击检定{hit}，雷伤{dmg}。消耗{mp}法力，冷却{cooldown}TU",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "2D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "1": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "2": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "3D6",
+          "duration": "60",
+          "hit": "+2",
+          "mp": "60",
+          "range": "5"
+        },
+        "3": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "4": {
+          "ap": "1",
+          "cooldown": "10",
+          "dmg": "4D6",
+          "duration": "80",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "5": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "6": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "5D6",
+          "duration": "100",
+          "hit": "+2",
+          "mp": "60",
+          "range": "6"
+        },
+        "7": {
+          "ap": "1",
+          "cooldown": "5",
+          "dmg": "6D6",
+          "duration": "120",
+          "hit": "+3",
+          "mp": "60",
+          "range": "7"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_conductive_mark",
+        "range_value": 5,
+        "mp_cost": 60,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 2,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 3,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 4,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 5,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "lightning",
+            "dice_count": 6,
+            "dice_sides": 6
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "shocked"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 6
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 6
+          },
+          "7": {
+            "attack_roll_bonus": 3,
+            "range_value": 7
+          }
+        },
+        "attack_roll_bonus": 2,
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical"
+      },
+      "non_core_max_level": 5,
+      "mastery_curve": [
+        400,
+        1000,
+        2200,
+        4000,
+        6500,
+        9500,
+        13000
+      ],
+      "growth_tier": "advanced",
+      "attribute_growth_progress": {
+        "intelligence": 110,
+        "perception": 20,
+        "willpower": 50
+      },
+      "template": "max_level_7"
+    }
+  ],
+  "family": "mage_01",
+  "templates": {
+    "max_level_7": {
+      "max_level": 7
+    },
+    "growth_tier_advanced": {
+      "growth_tier": "advanced"
+    }
+  },
+  "domain": "skills",
+  "schema": 1
+}

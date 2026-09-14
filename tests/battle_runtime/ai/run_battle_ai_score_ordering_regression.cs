@@ -340,16 +340,13 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
 
     private void TestGroundControlMinimumPolicyMigratedFromGdRunner()
     {
-        var action = TestResourceOwnership.Own(
-            new UseGroundSkillAction
-        {
-            action_id = "partial_hit_ground_control_probe",
-            minimum_hit_count = 2,
-            allow_empty_ground_control = true,
-            minimum_ground_control_score = 1,
-            },
-            "battle_ai_score_ordering.ground_action"
-        );
+        UseGroundSkillActionDefinition strictAction =
+            TestEnemyDefinitionFactory.UseGroundSkill(
+                "partial_hit_ground_control_probe",
+                minimumHitCount: 2,
+                allowEmptyGroundControl: true,
+                minimumGroundControlScore: 1
+            );
         var scoreInput = new BattleAiScoreInput
         {
             effective_target_count = 1,
@@ -359,16 +356,23 @@ public partial class run_battle_ai_score_ordering_regression : LifecycleTestScen
         var evaluator = new BattleAiGroundSkillActionEvaluator();
         _test.True(
             !evaluator.PassesMinimumEffectiveTargetOrGroundControl(
-                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                strictAction,
                 scoreInput
             ),
             "已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
         );
 
-        action.allow_ground_control_supplement_partial_hits = true;
+        UseGroundSkillActionDefinition supplementAction =
+            TestEnemyDefinitionFactory.UseGroundSkill(
+                "partial_hit_ground_control_probe",
+                minimumHitCount: 2,
+                allowEmptyGroundControl: true,
+                allowGroundControlSupplementPartialHits: true,
+                minimumGroundControlScore: 1
+            );
         _test.True(
             evaluator.PassesMinimumEffectiveTargetOrGroundControl(
-                (UseGroundSkillActionDefinition)action.ToDefinition(),
+                supplementAction,
                 scoreInput
             ),
             "显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"

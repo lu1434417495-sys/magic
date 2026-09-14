@@ -7,18 +7,18 @@ using GDictionary = Godot.Collections.Dictionary;
 
 internal class BattleGroundRelocationService
 {
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<IBattleGroundEffectRuntimePort> _runtimeRef;
     private BattleGroundEffectService _owner;
     private BattleGroundEffectCoordService _coordService;
 
-    private BattleRuntimeModule _runtime
+    private IBattleGroundEffectRuntimePort _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IBattleGroundEffectRuntimePort>(value) : null;
     }
 
     internal void Setup(
-        BattleRuntimeModule runtime,
+        IBattleGroundEffectRuntimePort runtime,
         BattleGroundEffectService owner,
         BattleGroundEffectCoordService coordService
     )
@@ -40,9 +40,9 @@ internal class BattleGroundRelocationService
         _runtime = null;
     }
 
-    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
+    private static IBattleGroundEffectRuntimePort ResolveWeakRef(WeakReference<IBattleGroundEffectRuntimePort> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
+        if (weakRef == null || !weakRef.TryGetTarget(out IBattleGroundEffectRuntimePort target))
         {
             return null;
         }
@@ -51,10 +51,10 @@ internal class BattleGroundRelocationService
 
     private static readonly StringName Empty = "";
 
-    private BattleRuntimeModule Runtime => _runtime;
-    private BattleState State => Runtime?._state;
-    private BattleGridService GridService => Runtime?._grid_service;
-    private BattleLayeredBarrierService LayeredBarrierService => Runtime?._layered_barrier_service;
+    private IBattleGroundEffectRuntimePort Runtime => _runtime;
+    private BattleState State => Runtime?.GetBattleState();
+    private BattleGridService GridService => Runtime?.GetGridService();
+    private BattleLayeredBarrierService LayeredBarrierService => Runtime?.GetLayeredBarrierService();
 
 
     internal bool ApplyGroundPrecastSpecialEffects(
@@ -65,9 +65,11 @@ internal class BattleGroundRelocationService
         BattleEventBatch batch
     )
     {
+        int skillLevel = ResolveSkillLevel(activeUnit, skillDefinition);
         return _get_ground_relocation_effect_definition(
                 skillDefinition,
-                castVariantDefinition
+                castVariantDefinition,
+                skillLevel
             ) == null
             || ApplyGroundRelocation(
                 activeUnit,
@@ -91,7 +93,11 @@ internal class BattleGroundRelocationService
             return false;
         }
         CombatEffectDefinition effectDefinition =
-            _get_ground_relocation_effect_definition(skillDefinition, castVariantDefinition);
+            _get_ground_relocation_effect_definition(
+                skillDefinition,
+                castVariantDefinition,
+                ResolveSkillLevel(activeUnit, skillDefinition)
+            );
         return effectDefinition != null
             && ApplyGroundRelocationWithMode(
                 activeUnit,
@@ -158,7 +164,12 @@ internal class BattleGroundRelocationService
         _owner.AppendChangedCoords(batch, previousCoords);
         _owner._append_changed_unit_coords(batch, active_unit);
         _owner._append_changed_unit_id(batch, active_unit.unit_id);
-        string moveLabel = move_mode == BattleForcedMoveMode.Blink ? "闪现至" : "跳至";
+        string moveLabel = move_mode switch
+        {
+            BattleForcedMoveMode.Blink => "闪现至",
+            BattleForcedMoveMode.GrappleAscent => "攀登至",
+            _ => "跳至",
+        };
         BattleGroundEffectService.AppendLog(
             batch,
             $"{BattleGroundEffectService.DisplayName(active_unit)} 从 ({previousAnchor.X}, {previousAnchor.Y}) {moveLabel} ({landingCoord.X}, {landingCoord.Y})。"
@@ -182,7 +193,8 @@ internal class BattleGroundRelocationService
 
     internal CombatEffectDefinition _get_ground_relocation_effect_definition(
         SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariantDefinition
+        CombatCastVariantDefinition castVariantDefinition,
+        int skillLevel = -1
     )
     {
         if (castVariantDefinition != null)
@@ -192,7 +204,10 @@ internal class BattleGroundRelocationService
                     ?? Array.Empty<CombatEffectDefinition>()
             )
             {
-                if (_is_ground_relocation_effect(effectDefinition))
+                if (
+                    _is_ground_relocation_effect(effectDefinition)
+                    && (skillLevel < 0 || effectDefinition.IsUnlockedAtSkillLevel(skillLevel))
+                )
                 {
                     return effectDefinition;
                 }
@@ -206,7 +221,10 @@ internal class BattleGroundRelocationService
                     ?? Array.Empty<CombatEffectDefinition>()
             )
             {
-                if (_is_ground_relocation_effect(effectDefinition))
+                if (
+                    _is_ground_relocation_effect(effectDefinition)
+                    && (skillLevel < 0 || effectDefinition.IsUnlockedAtSkillLevel(skillLevel))
+                )
                 {
                     return effectDefinition;
                 }
@@ -224,7 +242,9 @@ internal class BattleGroundRelocationService
 
     internal bool _is_ground_relocation_mode(BattleForcedMoveMode mode)
     {
-        return mode == BattleForcedMoveMode.Jump || mode == BattleForcedMoveMode.Blink;
+        return mode is BattleForcedMoveMode.Jump
+            or BattleForcedMoveMode.Blink
+            or BattleForcedMoveMode.GrappleAscent;
     }
 
     internal bool _can_use_ground_relocation(
@@ -250,6 +270,15 @@ internal class BattleGroundRelocationService
         if (mode == BattleForcedMoveMode.Blink)
         {
             return GridService.CanBlinkToCoord(
+                State,
+                active_unit,
+                landing_coord,
+                effectDefinition
+            );
+        }
+        if (mode == BattleForcedMoveMode.GrappleAscent)
+        {
+            return GridService.CanGrappleAscent(
                 State,
                 active_unit,
                 landing_coord,
@@ -288,7 +317,49 @@ internal class BattleGroundRelocationService
                 effectDefinition
             );
         }
+        if (mode == BattleForcedMoveMode.GrappleAscent)
+        {
+            return GridService.CanGrappleAscent(
+                State,
+                active_unit,
+                landing_coord,
+                effectDefinition
+            );
+        }
         return false;
+    }
+
+    internal int ResolveSkillLevel(
+        BattleUnitState activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (activeUnit == null || skillDefinition == null)
+        {
+            return 0;
+        }
+        int runtimeLevel = Runtime?.GetUnitSkillLevel(
+            activeUnit,
+            skillDefinition.SkillId
+        ) ?? 0;
+        return runtimeLevel > 0
+            ? runtimeLevel
+            : Math.Max(activeUnit.GetKnownSkillLevelTyped(skillDefinition.SkillId), 1);
+    }
+
+    internal int ResolveSkillLevel(
+        BattleUnitReadView activeUnit,
+        SkillDefinition skillDefinition
+    )
+    {
+        if (!activeUnit.IsValid || skillDefinition == null)
+        {
+            return 0;
+        }
+        BattleUnitState mutableUnit = State?.GetUnit(activeUnit.UnitId);
+        return mutableUnit != null
+            ? ResolveSkillLevel(mutableUnit, skillDefinition)
+            : 1;
     }
 
     internal static BattleForcedMoveContext BuildGroundForcedMoveContext(
@@ -358,7 +429,7 @@ internal class BattleGroundRelocationService
     internal int _perpendicular_coord(Vector2I coord, Vector2I direction) =>
         direction.X != 0 ? coord.Y : coord.X;
 
-    private List<BattleUnitState> SortWindPushUnitsNearToFar(
+    private List<BattleUnitState> SortWindPushUnitsFarToNear(
         IReadOnlyList<BattleUnitState> units,
         Vector2I direction
     )
@@ -384,7 +455,7 @@ internal class BattleGroundRelocationService
                 );
                 if (leftProjection != rightProjection)
                 {
-                    return leftProjection.CompareTo(rightProjection);
+                    return rightProjection.CompareTo(leftProjection);
                 }
                 int leftSide = _perpendicular_coord(
                     left.GetAnchorCoord(),
@@ -447,138 +518,15 @@ internal class BattleGroundRelocationService
         return units;
     }
 
-    private bool TryWindPushUnitOneStep(
-        BattleUnitState sourceUnit,
-        SkillDefinition skillDefinition,
-        CombatEffectDefinition effectDefinition,
-        BattleUnitState unitState,
-        Vector2I direction,
-        HashSet<StringName> movedThisStep,
-        HashSet<StringName> affectedUnitIds,
-        HashSet<StringName> recursionStack,
-        BattleEventBatch batch
-    )
-    {
-        BattleState state = State;
-        BattleGridService gridService = GridService;
-        if (
-            Runtime == null
-            || state == null
-            || gridService == null
-            || unitState == null
-            || !unitState.IsAlive()
-            || direction == Vector2I.Zero
-        )
-        {
-            return false;
-        }
-        StringName unitId = unitState.unit_id;
-        if (movedThisStep.Contains(unitId))
-        {
-            return false;
-        }
-        if (Runtime._blocks_enemy_forced_move(sourceUnit, unitState))
-        {
-            BattleGroundEffectService.AppendLog(batch, $"{unitState.display_name} 稳如金刚，未被强制位移。");
-            return false;
-        }
-        if (recursionStack.Contains(unitId))
-        {
-            return false;
-        }
-        Vector2I currentCoord = unitState.GetAnchorCoord();
-        Vector2I nextCoord = currentCoord + direction;
-        if (!gridService.IsInside(state, nextCoord))
-        {
-            return false;
-        }
-        var nextStack = new HashSet<StringName>(recursionStack) { unitId };
-        StringName targetFilter = _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition);
-        foreach (
-            var rawBlockingUnitId in gridService.CollectBlockingUnitIds(
-                state,
-                unitState,
-                nextCoord
-            )
-        )
-        {
-            StringName blockingUnitId = BattleGroundEffectService.ToStringName(rawBlockingUnitId);
-            if (blockingUnitId == unitId)
-            {
-                continue;
-            }
-            if (
-                !state.TryGetUnitTyped(blockingUnitId, out BattleUnitState blockingUnit)
-                || !blockingUnit.IsAlive()
-            )
-            {
-                return false;
-            }
-            if (!_owner._is_unit_valid_for_effect(sourceUnit, blockingUnit, targetFilter))
-            {
-                return false;
-            }
-            if (
-                !TryWindPushUnitOneStep(
-                    sourceUnit,
-                    skillDefinition,
-                    effectDefinition,
-                    blockingUnit,
-                    direction,
-                    movedThisStep,
-                    affectedUnitIds,
-                    nextStack,
-                    batch
-                )
-            )
-            {
-                return false;
-            }
-        }
-        if (!gridService.CanTraverse(state, currentCoord, nextCoord, unitState))
-        {
-            return false;
-        }
-        BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
-        BattleBarrierInteractionResult barrierResult =
-            layeredBarrierService != null
-                ? layeredBarrierService.ResolveUnitBoundaryCrossingResult(
-                    unitState,
-                    currentCoord,
-                    nextCoord,
-                    batch
-                )
-                : new BattleBarrierInteractionResult(false, false);
-        if (barrierResult.Blocked || !unitState.IsAlive())
-        {
-            AppendAffectedUnitId(affectedUnitIds, unitState);
-            return false;
-        }
-        BattleOccupiedCoordReadView occupiedCoords =
-            unitState.GetOccupiedCoordsReadViewTyped();
-        List<Vector2I> previousCoords =
-            occupiedCoords.IsPresent
-                ? new List<Vector2I>(occupiedCoords)
-                : new List<Vector2I>();
-        if (!gridService.MoveUnit(state, unitState, nextCoord))
-        {
-            return false;
-        }
-        movedThisStep.Add(unitId);
-        AppendAffectedUnitId(affectedUnitIds, unitState);
-        _owner.AppendChangedCoords(batch, previousCoords);
-        _owner._append_changed_unit_coords(batch, unitState);
-        _owner._append_changed_unit_id(batch, unitId);
-        return true;
-    }
-
     internal BattleGroundWindPushResult _apply_ground_wind_push_effects_result(
         BattleUnitState sourceUnit,
         SkillDefinition skillDefinition,
         IReadOnlyList<CombatEffectDefinition> windPushEffects,
         IReadOnlyList<Vector2I> effectCoords,
         IReadOnlyList<Vector2I> targetCoords,
-        BattleEventBatch batch
+        BattleEventBatch batch,
+        IReadOnlyDictionary<CombatEffectDefinition, IReadOnlyList<BattleUnitState>>
+            effectTargetPlan = null
     )
     {
         bool applied = false;
@@ -602,56 +550,67 @@ internal class BattleGroundRelocationService
             {
                 continue;
             }
-            List<BattleUnitState> targetUnits = CollectWindPushTargetUnits(
-                sourceUnit,
-                skillDefinition,
-                effectDefinition,
-                effectCoords
-            );
+            List<BattleUnitState> targetUnits =
+                effectTargetPlan != null
+                && effectTargetPlan.TryGetValue(
+                    effectDefinition,
+                    out IReadOnlyList<BattleUnitState> plannedTargets
+                )
+                    ? new List<BattleUnitState>(plannedTargets)
+                    : CollectWindPushTargetUnits(
+                        sourceUnit,
+                        skillDefinition,
+                        effectDefinition,
+                        effectCoords
+                    );
             if (targetUnits.Count == 0)
             {
                 continue;
             }
-            int moveDistance = Math.Max(effectDefinition.ForcedMoveDistance, 0);
-            for (int stepIndex = 0; stepIndex < moveDistance; stepIndex++)
+            List<BattleUnitState> orderedUnits = SortWindPushUnitsFarToNear(
+                targetUnits,
+                direction
+            );
+            foreach (BattleUnitState targetUnit in orderedUnits)
             {
-                var movedThisStep = new HashSet<StringName>();
-                bool movedAny = false;
-                List<BattleUnitState> orderedUnits = SortWindPushUnitsNearToFar(
-                    targetUnits,
-                    direction
-                );
-                foreach (BattleUnitState targetUnit in orderedUnits)
+                if (targetUnit == null || !targetUnit.IsAlive())
                 {
-                    if (targetUnit == null || !targetUnit.IsAlive())
-                    {
-                        continue;
-                    }
-                    if (movedThisStep.Contains(targetUnit.unit_id))
-                    {
-                        continue;
-                    }
-                    if (
-                        TryWindPushUnitOneStep(
-                            sourceUnit,
-                            skillDefinition,
-                            effectDefinition,
-                            targetUnit,
-                            direction,
-                            movedThisStep,
-                            affectedUnitIds,
-                            new HashSet<StringName>(),
-                            batch
-                        )
-                    )
-                    {
-                        movedAny = true;
-                        applied = true;
-                    }
+                    continue;
                 }
-                if (!movedAny)
+                int movedSteps = Runtime?.ApplyForcedMoveEffect(
+                    sourceUnit,
+                    targetUnit,
+                    effectDefinition,
+                    batch,
+                    BattleForcedMoveContext.FromDirection(direction),
+                    BattleSaveContext.ForSkill(skillDefinition?.SkillId ?? Empty)
+                ) ?? 0;
+                if (movedSteps <= 0)
                 {
-                    break;
+                    continue;
+                }
+                applied = true;
+                AppendAffectedUnitId(affectedUnitIds, targetUnit);
+            }
+        }
+        BattleSkillMasteryService masteryService = Runtime?.GetSkillMasteryService();
+        if (masteryService != null && skillDefinition != null)
+        {
+            foreach (StringName targetUnitId in affectedUnitIds)
+            {
+                if (
+                    State?.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit) == true
+                    && targetUnit != null
+                )
+                {
+                    masteryService.RecordTargetResult(
+                        sourceUnit,
+                        targetUnit,
+                        skillDefinition,
+                        BattleDamageResolver.BuildEmptyResolutionResult(skillDefinition.SkillId),
+                        windPushEffects,
+                        additionalEffectApplied: true
+                    );
                 }
             }
         }

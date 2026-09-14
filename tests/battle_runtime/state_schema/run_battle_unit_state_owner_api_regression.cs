@@ -630,6 +630,7 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
         );
         _test.True(defaults.ImmunityTags.IsPresent, "默认 immunity tags 应存在。");
         _test.True(defaults.BonusByAbility.IsPresent, "默认 ability bonus map 应存在。");
+        _test.True(defaults.BonusByTag.IsPresent, "默认 tag bonus map 应存在。");
 
         unit.ReplaceSaveModifiersTyped(
             new StringNameList { "charm", "", "charm", "fear" },
@@ -638,6 +639,11 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             new Dictionary<StringName, int>
             {
                 ["wisdom"] = 2,
+                [""] = 99,
+            },
+            new Dictionary<StringName, int>
+            {
+                ["frightened"] = 3,
                 [""] = 99,
             }
         );
@@ -660,6 +666,12 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             "immunity tags 应过滤空值、去重并保序。"
         );
         _test.Eq(normalized.BonusByAbility.Count, 1, "ability bonus 应过滤空 ability。");
+        _test.Eq(normalized.BonusByTag.Count, 1, "tag bonus 应过滤空 tag。");
+        _test.Eq(
+            unit.GetSaveBonusByTagTyped("frightened"),
+            3,
+            "tag bonus 应通过 typed gateway 读取。"
+        );
 
         _test.True(
             unit.AddSaveBonusByAbilityTyped("wisdom", 3),
@@ -695,16 +707,20 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
         var rawBonuses = new BattleStringNameIntMap();
         rawBonuses.Put("constitution", 0);
         rawBonuses.Put("wisdom", -2);
+        var rawTagBonuses = new BattleStringNameIntMap();
+        rawTagBonuses.Put("poison", 4);
         unit.RestoreSaveModifiersForMutationSnapshotExact(
             BattleUnitSaveModifierSnapshot.Present(
                 null,
                 new StringNameList(),
                 rawImmunityTags,
-                rawBonuses
+                rawBonuses,
+                rawTagBonuses
             )
         );
         rawImmunityTags.Clear();
         rawBonuses.Put("wisdom", 99);
+        rawTagBonuses.Put("poison", 99);
         BattleUnitSaveModifierSnapshot raw =
             unit.CaptureSaveModifiersForMutationSnapshotExact();
         _test.True(raw.OwnerPresent, "exact save-modifier snapshot 应保留 owner presence。");
@@ -723,12 +739,15 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
         );
         _test.Eq(raw.BonusByAbility.Get("constitution", 99), 0, "exact seam 应保留显式 0 bonus。");
         _test.Eq(raw.BonusByAbility.Get("wisdom"), -2, "exact restore 应深拷贝 raw bonus map。");
+        _test.Eq(raw.BonusByTag.Get("poison"), 4, "exact restore 应深拷贝 raw tag bonus map。");
         raw.ImmunityTags.Clear();
         raw.BonusByAbility.Put("wisdom", 77);
+        raw.BonusByTag.Put("poison", 77);
         BattleUnitSaveModifierSnapshot recaptured =
             unit.CaptureSaveModifiersForMutationSnapshotExact();
         _test.Eq(recaptured.ImmunityTags.Count, 3, "exact capture 应返回 detached tags。");
         _test.Eq(recaptured.BonusByAbility.Get("wisdom"), -2, "exact capture 应返回 detached map。");
+        _test.Eq(recaptured.BonusByTag.Get("poison"), 4, "exact capture 应返回 detached tag map。");
 
         BattleUnitState clone = unit.clone();
         BattleUnitSaveModifierReadView cloneView =
@@ -743,8 +762,16 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             3,
             "clone 应保留非 null immunity tags 的 raw 形态。"
         );
+        _test.Eq(
+            clone.GetSaveBonusByTagTyped("poison"),
+            4,
+            "clone 应保留 source 的 tag bonus map。"
+        );
         clone.AddSaveImmunityTagTyped("clone_only");
         clone.AddSaveBonusByAbilityTyped("wisdom", 5);
+        clone.ReplaceSaveTagBonusesTyped(
+            new Dictionary<StringName, int> { ["charm"] = 9 }
+        );
         _test.Eq(
             unit.CaptureSaveModifiersForMutationSnapshotExact().ImmunityTags.Count,
             3,
@@ -755,9 +782,14 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             -2,
             "clone 的 bonus 写入不得回写 source owner。"
         );
+        _test.Eq(
+            unit.GetSaveBonusByTagTyped("charm", -1),
+            -1,
+            "clone 的 tag bonus 写入不得回写 source owner。"
+        );
 
         unit.RestoreSaveModifiersForMutationSnapshotExact(
-            BattleUnitSaveModifierSnapshot.Present(null, null, null, null)
+            BattleUnitSaveModifierSnapshot.Present(null, null, null, null, null)
         );
         BattleUnitSaveModifierReadView nullComponentClone =
             unit.clone().GetSaveModifiersReadViewTyped();
@@ -765,8 +797,9 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
             nullComponentClone.AdvantageTags.IsPresent
             && nullComponentClone.DisadvantageTags.IsPresent
             && nullComponentClone.ImmunityTags.IsPresent
-            && nullComponentClone.BonusByAbility.IsPresent,
-            "gameplay clone 应把四个 present-null 组件分别归一为空集合。"
+            && nullComponentClone.BonusByAbility.IsPresent
+            && nullComponentClone.BonusByTag.IsPresent,
+            "gameplay clone 应把五个 present-null 组件分别归一为空集合。"
         );
 
         unit.RestoreSaveModifiersForMutationSnapshotExact(
@@ -790,7 +823,8 @@ public partial class run_battle_unit_state_owner_api_regression : LifecycleTestS
         _test.True(
             rematerialized.DisadvantageTags.IsPresent
             && rematerialized.ImmunityTags.IsPresent
-            && rematerialized.BonusByAbility.IsPresent,
+            && rematerialized.BonusByAbility.IsPresent
+            && rematerialized.BonusByTag.IsPresent,
             "missing owner 重物化后其余组件也应恢复默认空 owner。"
         );
     }

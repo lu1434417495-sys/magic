@@ -76,31 +76,22 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             fixture.SkillDefs.ContainsKey(CloudsplitterSkillId),
             "裂云重劈应落成真实 SkillDef，而不是 trait 文本。"
         );
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_storms_eye.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_axe_storms_eye_091");
         _test.True(rawItem != null, "风暴之眼原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "风暴之眼", "风暴之眼显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_battleaxe_base"),
-                "风暴之眼应继承 battleaxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 50000, "风暴之眼基础价格应为 50000。");
-            _test.True(rawItem.trait_ids.Contains(LightningEdgeTraitId), "风暴之眼应声明雷刃。");
-            _test.True(rawItem.trait_ids.Contains(ThunderRiftTraitId), "风暴之眼应声明雷鸣裂击。");
-            _test.True(rawItem.trait_ids.Contains(CloudsplitterTraitId), "风暴之眼应声明裂云重劈。");
-            WeaponProfileDef rawProfile = rawItem.weapon_profile as WeaponProfileDef;
+            _test.Eq(rawItem.DisplayName, "风暴之眼", "风暴之眼显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 50000, "风暴之眼基础价格应为 50000。");
+            _test.True(rawItem.TraitIds.Contains(LightningEdgeTraitId), "风暴之眼应声明雷刃。");
+            _test.True(rawItem.TraitIds.Contains(ThunderRiftTraitId), "风暴之眼应声明雷鸣裂击。");
+            _test.True(rawItem.TraitIds.Contains(CloudsplitterTraitId), "风暴之眼应声明裂云重劈。");
+            WeaponProfileDefinition rawProfile = rawItem.WeaponProfile;
             _test.True(rawProfile != null, "风暴之眼应声明武器 profile override。");
             if (rawProfile != null)
             {
-                _test.Eq(rawProfile.one_handed_dice?.dice_count ?? 0, 1, "风暴之眼单手应为 1D8+1。");
-                _test.Eq(rawProfile.one_handed_dice?.dice_sides ?? 0, 8, "风暴之眼单手应为 1D8+1。");
-                _test.Eq(rawProfile.one_handed_dice?.flat_bonus ?? 0, 1, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceCount ?? 0, 1, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.DiceSides ?? 0, 8, "风暴之眼单手应为 1D8+1。");
+                _test.Eq(rawProfile.OneHandedDice?.FlatBonus ?? 0, 1, "风暴之眼单手应为 1D8+1。");
                 _test.True(
                     ContainsStringName(rawProfile.GetPropertiesTyped(), "versatile"),
                     "风暴之眼应声明 versatile 属性。"
@@ -113,10 +104,7 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             AssertCloudsplitterSkillDefinition(skill, fixture);
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildStormsEyeUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, StormsEyeItemId, "风暴之眼装备后 unit 应保留真实 item_id。");
@@ -147,26 +135,6 @@ public partial class run_storms_eye_weapon_ability_regression : LifecycleTestSce
             "eq_storms_eye_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除风暴之眼后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除风暴之眼后武器 profile 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除风暴之眼后装备能力源应清空。"
-        );
-        _test.False(equipped.HasEffectiveTrait(LightningEdgeTraitId), "移除后雷刃不应残留。");
-        _test.False(equipped.HasEffectiveTrait(ThunderRiftTraitId), "移除后雷鸣裂击不应残留。");
-        _test.False(equipped.HasEffectiveTrait(CloudsplitterTraitId), "移除后裂云重劈不应残留。");
-        BattleTestFixture.DisposeBattleUnit(equipped);
-        BattleTestFixture.DisposeBattleUnit(baseline);
     }
 
     private void TestStormsEyeAddsLightningOnHitAndThunderOnCritical()

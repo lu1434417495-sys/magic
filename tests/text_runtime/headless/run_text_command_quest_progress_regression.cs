@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_text_command_quest_progress_regression : LifecycleTestSceneTree
@@ -14,7 +15,8 @@ public partial class run_text_command_quest_progress_regression : LifecycleTestS
 
     private void Run()
     {
-        TestQuestProgressPayloadAndProgressionFactsUseFormalStringKeys();
+        TestQuestProgressPayloadUsesFormalStringFields();
+        TestProgressionDeltaFactsUseFormalProjection();
         TestTextCommandQuestProgressUsesTypedPayloadBoundary();
 
         RequestTestExit(_test.Finish("Text command quest progress regression"));
@@ -106,7 +108,7 @@ public partial class run_text_command_quest_progress_regression : LifecycleTestS
         }
     }
 
-    private void TestQuestProgressPayloadAndProgressionFactsUseFormalStringKeys()
+    private void TestQuestProgressPayloadUsesFormalStringFields()
     {
         var progressPayload = new GDictionary
         {
@@ -155,63 +157,242 @@ public partial class run_text_command_quest_progress_regression : LifecycleTestS
                 $"StringName {fieldName} 不应被 quest progress payload 当作正式字符串字段。"
             );
         }
+    }
 
-        CharacterKnowledgeChangeFact knowledgeFact = new(
-            "alchemy",
-            "Alchemy",
-            "Discovered in archive"
+    private void TestProgressionDeltaFactsUseFormalProjection()
+    {
+        var progressionDelta = new CharacterProgressionDelta { member_id = "hero_a" };
+        progressionDelta.AddKnowledgeChange(
+            new CharacterKnowledgeChangeFact(
+                "alchemy",
+                "Alchemy",
+                "Discovered in archive"
+            )
         );
-        _test.True(knowledgeFact != null, "knowledge fact formal payload 应成功 materialize。");
-        if (knowledgeFact != null)
+        progressionDelta.AddAttributeChange(
+            new CharacterAttributeChangeFact(
+                "agility",
+                "Agility",
+                2,
+                "Training",
+                40,
+                10,
+                50,
+                6,
+                8
+            )
+        );
+        progressionDelta.AddMasteryChange(
+            new CharacterMasteryChangeFact(
+                "slash",
+                "Slash",
+                3,
+                "battle",
+                "Battle",
+                "First hit"
+            )
+        );
+
+        using GDictionary deltaPayload = progressionDelta.ToDictionary();
+        using GArray knowledgeChanges = ReadFactArray(deltaPayload, "knowledge_changes");
+        using GArray attributeChanges = ReadFactArray(deltaPayload, "attribute_changes");
+        using GArray masteryChanges = ReadFactArray(deltaPayload, "mastery_changes");
+        _test.Eq(knowledgeChanges.Count, 1, "progression delta 应投影一条 knowledge change。");
+        _test.Eq(attributeChanges.Count, 1, "progression delta 应投影一条 attribute change。");
+        _test.Eq(masteryChanges.Count, 1, "progression delta 应投影一条 mastery change。");
+
+        using GDictionary knowledgePayload = ReadFirstFactPayload(
+            knowledgeChanges,
+            "knowledge_changes"
+        );
+        AssertStringNameField(knowledgePayload, "knowledge_id", "alchemy", "knowledge change");
+        AssertStringField(knowledgePayload, "knowledge_label", "Alchemy", "knowledge change");
+        AssertStringField(
+            knowledgePayload,
+            "reason_text",
+            "Discovered in archive",
+            "knowledge change"
+        );
+
+        using GDictionary attributePayload = ReadFirstFactPayload(
+            attributeChanges,
+            "attribute_changes"
+        );
+        AssertStringNameField(attributePayload, "attribute_id", "agility", "attribute change");
+        AssertStringField(attributePayload, "attribute_label", "Agility", "attribute change");
+        AssertIntField(attributePayload, "delta", 2, "attribute change");
+        AssertStringField(attributePayload, "reason_text", "Training", "attribute change");
+        AssertIntField(attributePayload, "progress_delta", 40, "attribute change");
+        AssertIntField(attributePayload, "progress_before", 10, "attribute change");
+        AssertIntField(attributePayload, "progress_after", 50, "attribute change");
+        AssertIntField(attributePayload, "attribute_before", 6, "attribute change");
+        AssertIntField(attributePayload, "attribute_after", 8, "attribute change");
+
+        using GDictionary masteryPayload = ReadFirstFactPayload(
+            masteryChanges,
+            "mastery_changes"
+        );
+        AssertStringNameField(masteryPayload, "skill_id", "slash", "mastery change");
+        AssertStringField(masteryPayload, "skill_name", "Slash", "mastery change");
+        AssertIntField(masteryPayload, "mastery_amount", 3, "mastery change");
+        AssertStringNameField(masteryPayload, "source_type", "battle", "mastery change");
+        AssertStringField(masteryPayload, "source_label", "Battle", "mastery change");
+        AssertStringField(masteryPayload, "reason_text", "First hit", "mastery change");
+
+        CharacterProgressionDelta restoredDelta = CharacterProgressionDelta.FromDictionary(
+            deltaPayload
+        );
+        _test.True(restoredDelta != null, "CharacterProgressionDelta formal payload 应能 roundtrip。");
+        if (restoredDelta != null)
         {
-            _test.Eq(knowledgeFact.KnowledgeId, new StringName("alchemy"), "knowledge fact 应保留 knowledge_id。");
-            _test.Eq(knowledgeFact.KnowledgeLabel, "Alchemy", "knowledge fact 应保留 knowledge_label。");
-            _test.Eq(knowledgeFact.ReasonText, "Discovered in archive", "knowledge fact 应保留 reason_text。");
+            _test.Eq(restoredDelta.KnowledgeChangesTyped.Count, 1, "roundtrip 应保留 knowledge change。");
+            _test.Eq(restoredDelta.AttributeChangesTyped.Count, 1, "roundtrip 应保留 attribute change。");
+            _test.Eq(restoredDelta.MasteryChangesTyped.Count, 1, "roundtrip 应保留 mastery change。");
+            if (restoredDelta.KnowledgeChangesTyped.Count == 1)
+            {
+                CharacterKnowledgeChangeFact restoredKnowledge =
+                    restoredDelta.KnowledgeChangesTyped[0];
+                _test.Eq(restoredKnowledge.KnowledgeId, new StringName("alchemy"), "roundtrip 应保留 knowledge_id。");
+                _test.Eq(restoredKnowledge.KnowledgeLabel, "Alchemy", "roundtrip 应保留 knowledge_label。");
+                _test.Eq(restoredKnowledge.ReasonText, "Discovered in archive", "roundtrip 应保留 knowledge reason_text。");
+            }
+            if (restoredDelta.AttributeChangesTyped.Count == 1)
+            {
+                CharacterAttributeChangeFact restoredAttribute =
+                    restoredDelta.AttributeChangesTyped[0];
+                _test.Eq(restoredAttribute.AttributeId, new StringName("agility"), "roundtrip 应保留 attribute_id。");
+                _test.Eq(restoredAttribute.Delta, 2, "roundtrip 应保留 attribute delta。");
+                _test.Eq(restoredAttribute.ProgressAfter, 50, "roundtrip 应保留 attribute progress_after。");
+                _test.Eq(restoredAttribute.AttributeAfter, 8, "roundtrip 应保留 attribute_after。");
+            }
+            if (restoredDelta.MasteryChangesTyped.Count == 1)
+            {
+                CharacterMasteryChangeFact restoredMastery = restoredDelta.MasteryChangesTyped[0];
+                _test.Eq(restoredMastery.SkillId, new StringName("slash"), "roundtrip 应保留 mastery skill_id。");
+                _test.Eq(restoredMastery.MasteryAmount, 3, "roundtrip 应保留 mastery_amount。");
+                _test.Eq(restoredMastery.SourceType, new StringName("battle"), "roundtrip 应保留 mastery source_type。");
+            }
         }
 
-        CharacterAttributeChangeFact attributeFact = new(
-            "agility",
-            "Agility",
-            2,
-            "Training",
-            40,
-            10,
-            50,
-            6,
-            8
+        AssertProgressionDeltaRejectsWrongFactFieldType(
+            deltaPayload,
+            "knowledge_changes",
+            "knowledge_label",
+            new StringName("Alchemy"),
+            "knowledge_label 的 StringName 冒充 string 时应拒绝整个 progression delta。"
         );
-        _test.True(attributeFact != null, "attribute fact formal payload 应成功 materialize。");
-        if (attributeFact != null)
-        {
-            _test.Eq(attributeFact.AttributeId, new StringName("agility"), "attribute fact 应保留 attribute_id。");
-            _test.Eq(attributeFact.AttributeLabel, "Agility", "attribute fact 应保留 attribute_label。");
-            _test.Eq(attributeFact.Delta, 2, "attribute fact 应保留 delta。");
-            _test.Eq(attributeFact.ReasonText, "Training", "attribute fact 应保留 reason_text。");
-            _test.Eq(attributeFact.ProgressDelta, 40, "attribute fact 应保留 progress_delta。");
-            _test.Eq(attributeFact.ProgressBefore, 10, "attribute fact 应保留 progress_before。");
-            _test.Eq(attributeFact.ProgressAfter, 50, "attribute fact 应保留 progress_after。");
-            _test.Eq(attributeFact.AttributeBefore, 6, "attribute fact 应保留 attribute_before。");
-            _test.Eq(attributeFact.AttributeAfter, 8, "attribute fact 应保留 attribute_after。");
-        }
+        AssertProgressionDeltaRejectsWrongFactFieldType(
+            deltaPayload,
+            "attribute_changes",
+            "delta",
+            "2",
+            "attribute delta 的 string 冒充 int 时应拒绝整个 progression delta。"
+        );
+        AssertProgressionDeltaRejectsWrongFactFieldType(
+            deltaPayload,
+            "mastery_changes",
+            "source_label",
+            new StringName("Battle"),
+            "mastery source_label 的 StringName 冒充 string 时应拒绝整个 progression delta。"
+        );
+    }
 
-        CharacterMasteryChangeFact masteryFact = new(
-            "slash",
-            "Slash",
-            3,
-            "battle",
-            "Battle",
-            "First hit"
-        );
-        _test.True(masteryFact != null, "mastery fact formal payload 应成功 materialize。");
-        if (masteryFact != null)
+    private GArray ReadFactArray(GDictionary payload, string key)
+    {
+        _test.True(payload != null && payload.ContainsKey(key), $"progression delta 应包含 {key} formal key。");
+        if (payload == null || !payload.ContainsKey(key))
+            return new GArray();
+        Variant value = payload[key];
+        _test.Eq(value.VariantType, Variant.Type.Array, $"progression delta {key} 应是 Array。");
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private GDictionary ReadFirstFactPayload(GArray values, string key)
+    {
+        if (values == null || values.Count == 0)
         {
-            _test.Eq(masteryFact.SkillId, new StringName("slash"), "mastery fact 应保留 skill_id。");
-            _test.Eq(masteryFact.SkillName, "Slash", "mastery fact 应保留 skill_name。");
-            _test.Eq(masteryFact.MasteryAmount, 3, "mastery fact 应保留 mastery_amount。");
-            _test.Eq(masteryFact.SourceType, new StringName("battle"), "mastery fact 应保留 source_type。");
-            _test.Eq(masteryFact.SourceLabel, "Battle", "mastery fact 应保留 source_label。");
-            _test.Eq(masteryFact.ReasonText, "First hit", "mastery fact 应保留 reason_text。");
+            _test.Fail($"progression delta {key} 应至少包含一条 fixture fact。");
+            return new GDictionary();
         }
+        Variant value = values[0];
+        _test.Eq(value.VariantType, Variant.Type.Dictionary, $"progression delta {key}[0] 应是 Dictionary。");
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private void AssertStringNameField(
+        GDictionary payload,
+        string key,
+        StringName expected,
+        string ownerLabel
+    )
+    {
+        _test.True(payload != null && payload.ContainsKey(key), $"{ownerLabel} 应包含 {key} formal key。");
+        if (payload == null || !payload.ContainsKey(key))
+            return;
+        Variant value = payload[key];
+        _test.Eq(value.VariantType, Variant.Type.StringName, $"{ownerLabel}.{key} 应投影为 StringName。");
+        if (value.VariantType == Variant.Type.StringName)
+            _test.Eq(value.AsStringName(), expected, $"{ownerLabel}.{key} 应保留 formal value。");
+    }
+
+    private void AssertStringField(
+        GDictionary payload,
+        string key,
+        string expected,
+        string ownerLabel
+    )
+    {
+        _test.True(payload != null && payload.ContainsKey(key), $"{ownerLabel} 应包含 {key} formal key。");
+        if (payload == null || !payload.ContainsKey(key))
+            return;
+        Variant value = payload[key];
+        _test.Eq(value.VariantType, Variant.Type.String, $"{ownerLabel}.{key} 应投影为 string。");
+        if (value.VariantType == Variant.Type.String)
+            _test.Eq(value.AsString(), expected, $"{ownerLabel}.{key} 应保留 formal value。");
+    }
+
+    private void AssertIntField(
+        GDictionary payload,
+        string key,
+        int expected,
+        string ownerLabel
+    )
+    {
+        _test.True(payload != null && payload.ContainsKey(key), $"{ownerLabel} 应包含 {key} formal key。");
+        if (payload == null || !payload.ContainsKey(key))
+            return;
+        Variant value = payload[key];
+        _test.Eq(value.VariantType, Variant.Type.Int, $"{ownerLabel}.{key} 应投影为 int。");
+        if (value.VariantType == Variant.Type.Int)
+            _test.Eq(value.AsInt32(), expected, $"{ownerLabel}.{key} 应保留 formal value。");
+    }
+
+    private void AssertProgressionDeltaRejectsWrongFactFieldType(
+        GDictionary validPayload,
+        string collectionKey,
+        string fieldKey,
+        Variant wrongValue,
+        string message
+    )
+    {
+        using GDictionary invalidPayload = (GDictionary)validPayload.Duplicate(true);
+        if (!invalidPayload.ContainsKey(collectionKey))
+        {
+            _test.Fail($"类型拒绝 fixture 缺少 {collectionKey}。");
+            return;
+        }
+        using GArray changes = invalidPayload[collectionKey].AsGodotArray();
+        if (changes.Count == 0 || changes[0].VariantType != Variant.Type.Dictionary)
+        {
+            _test.Fail($"类型拒绝 fixture 缺少 {collectionKey}[0] dictionary。");
+            return;
+        }
+        using GDictionary change = changes[0].AsGodotDictionary();
+        change[fieldKey] = wrongValue;
+
+        _test.True(CharacterProgressionDelta.FromDictionary(invalidPayload) == null, message);
     }
 
     private static IReadOnlyDictionary<string, object> FindQuestEntry(
@@ -249,16 +430,6 @@ public partial class run_text_command_quest_progress_regression : LifecycleTestS
         }
         return false;
     }
-
-    private static GDictionary Dict(GDictionary dictionary, string key) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsGodotDictionary()
-            : new GDictionary();
-
-    private static int DictInt(GDictionary dictionary, string key, int fallback) =>
-        dictionary != null && dictionary.ContainsKey(key)
-            ? dictionary[key].AsInt32()
-            : fallback;
 
     private static string DictString(GDictionary dictionary, string key, string fallback) =>
         dictionary != null && dictionary.ContainsKey(key)
@@ -318,11 +489,17 @@ public partial class run_text_command_quest_progress_regression : LifecycleTestS
 
     private void AssertCommandOk(GameTextCommandResult result, string message)
     {
-        _test.True(result != null && result.ok, $"{message} message={result?.message}");
+        _test.True(
+            result != null && !result.skipped && result.ok,
+            $"{message} skipped={result?.skipped} message={result?.message}"
+        );
     }
 
     private void AssertCommandApplied(GameTextCommandResult result, string message)
     {
-        _test.True(result != null && result.ok, $"{message} message={result?.message}");
+        _test.True(
+            result != null && !result.skipped && result.ok,
+            $"{message} skipped={result?.skipped} message={result?.message}"
+        );
     }
 }

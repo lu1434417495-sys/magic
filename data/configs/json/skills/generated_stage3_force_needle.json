@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "stage3_generated_force_needle",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "mage_generated_force_needle",
+      "icon_id": "mage_generated_force_needle",
+      "display_name": "力场针矢",
+      "description": "阶段 3 生成闭环的内置试制法术。编排三枚稳定命中的微型力场针矢，用于验证单体魔法投射物的完整内容链路。",
+      "skill_type": "active",
+      "max_level": 0,
+      "learn_source": "internal",
+      "tags": [
+        "mage",
+        "magic",
+        "force",
+        "output",
+        "generated_stage3"
+      ],
+      "level_description_template": "射程{range}，可编排{missiles}枚力场针矢；每枚造成{damage}力场伤害。消耗{ap}AP，每枚消耗{mp}法力与{stamina}体力。",
+      "level_description_configs": {
+        "0": {
+          "ap": "1",
+          "damage": "1D4+1",
+          "missiles": "3",
+          "mp": "10",
+          "range": "3",
+          "stamina": "11"
+        }
+      },
+      "combat_profile": {
+        "skill_id": "mage_generated_force_needle",
+        "target_mode": "unit",
+        "target_team_filter": "enemy",
+        "range_pattern": "single",
+        "range_value": 3,
+        "area_pattern": "single",
+        "ap_cost": 1,
+        "cooldown_tu": 0,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 4,
+            "dice_bonus": 1,
+            "effect_categories": [
+              "force_effect"
+            ]
+          }
+        ],
+        "level_overrides": {},
+        "requires_los": true,
+        "mp_cost_per_target_slot": 10,
+        "stamina_cost_per_target_slot": 11,
+        "attack_resolution_mode": "force_hit_no_crit",
+        "ai_tags": [
+          "single_target",
+          "multi_target",
+          "reliable"
+        ],
+        "delivery_categories": [
+          "spell"
+        ],
+        "projectile_kind": "magical",
+        "target_selection_mode": "multi_unit",
+        "min_target_count": 1,
+        "max_target_count": 3,
+        "allow_repeat_target": true,
+        "unit_target_resolution_mode": "ordered_slots",
+        "selection_order_mode": "manual"
+      },
+      "growth_tier": "basic",
+      "attribute_growth_progress": {
+        "intelligence": 60
+      }
+    }
+  ]
+}

@@ -18,10 +18,20 @@ public partial class run_modal_window_shell_regression : LifecycleTestSceneTree
 
     public override async void _Initialize()
     {
-        await TestEscapeClosesCharacterInfoWindow();
-        await TestEscapeDoesNotCloseMasteryRewardWindow();
-        await TestSubmapEntryEscapeHonorsDismissFlag();
-        RequestTestExit(_test.Finish("Modal window shell regression"));
+        try
+        {
+            await TestEscapeClosesCharacterInfoWindow();
+            await TestEscapeDoesNotCloseMasteryRewardWindow();
+            await TestSubmapEntryEscapeHonorsDismissFlag();
+        }
+        catch (System.Exception exception)
+        {
+            _test.Fail($"Unhandled exception: {exception}");
+        }
+        finally
+        {
+            RequestTestExit(_test.Finish("Modal window shell regression"));
+        }
     }
 
     private async Task TestEscapeClosesCharacterInfoWindow()
@@ -33,23 +43,19 @@ public partial class run_modal_window_shell_regression : LifecycleTestSceneTree
         bool closedEmitted = false;
         window.closed += () => closedEmitted = true;
         window.ShowCharacter(
-            new GDictionary
-            {
-                ["display_name"] = "测试角色",
-                ["meta_label"] = "测试单位",
-                ["status_label"] = "",
-                ["sections"] = new Godot.Collections.Array
+            new GameRuntimeCharacterInfoContext(
+                GameRuntimeCharacterInfoSource.World,
+                "测试角色",
+                "测试单位",
+                "",
+                new[]
                 {
-                    new GDictionary
-                    {
-                        ["title"] = "基础概览",
-                        ["entries"] = new Godot.Collections.Array
-                        {
-                            new GDictionary { ["label"] = "职业", ["value"] = "测试" },
-                        },
-                    },
-                },
-            }
+                    new GameRuntimeCharacterInfoSection(
+                        "基础概览",
+                        new[] { GameRuntimeCharacterInfoEntry.Pair("职业", "测试") }
+                    ),
+                }
+            )
         );
         _test.True(window.Visible, "ShowCharacter 后窗口应可见。");
 

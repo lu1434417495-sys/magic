@@ -1,0 +1,65 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 12,
+        "constitution": 15,
+        "intelligence": 10,
+        "perception": 12,
+        "strength": 14,
+        "willpower": 11
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "",
+      "body_size": 2,
+      "brain_id": "dragon_tyrant",
+      "cognition_kind": "sapient",
+      "creature_level": 5,
+      "damage_resistances": {
+        "poison": "immune"
+      },
+      "display_name": "\u7EFF\u9F99\u5E7C\u5D3D",
+      "drop_entries": [
+        {
+          "drop_entry_id": "green_wyrmling_scale",
+          "drop_type": "item",
+          "item_id": "dragon_scale",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 12,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 2,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [
+        "sleep",
+        "paralysis",
+        "poison"
+      ],
+      "skill_ids": [
+        "dragon_breath_poison_cone"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "dragon",
+        "beast",
+        "bite"
+      ],
+      "target_rank": "elite",
+      "template_id": "green_dragon_wyrmling"
+    }
+  ],
+  "family": "green_dragon_wyrmling",
+  "schema": 1,
+  "templates": {}
+}

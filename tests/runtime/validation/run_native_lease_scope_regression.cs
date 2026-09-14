@@ -104,7 +104,7 @@ public partial class run_native_lease_scope_regression : LifecycleTestSceneTree
         node.Free();
 
         Resource pathBacked = GD.Load<Resource>(
-            "res://data/configs/age_profiles/dragonborn_age_profile.tres"
+            "res://data/configs/engine_assets/engine_asset_catalog.tres"
         );
         _test.True(pathBacked != null, "path-backed fixture loads");
         _test.True(

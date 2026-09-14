@@ -145,18 +145,15 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
 
     private static Dictionary<StringName, ItemDefinition> BuildItemDefinitions()
     {
-        ItemDef authored = TestResourceOwnership.Own(
-            new ItemDef
-            {
-                item_id = "skill_book_focus",
-                display_name = "Focus Manual",
-                CategoryKind = ItemCategoryKind.SkillBook,
-                is_stackable = true,
-                max_stack = 20,
-                granted_skill_id = "focus",
-            },
-            "party_item_use_service.skill_book_focus"
-        );
+        TestItemDefinitionBuilder authored = new()
+        {
+            item_id = "skill_book_focus",
+            display_name = "Focus Manual",
+            CategoryKind = ItemCategoryKind.SkillBook,
+            is_stackable = true,
+            max_stack = 20,
+            granted_skill_id = "focus",
+        };
         return new Dictionary<StringName, ItemDefinition>
         {
             ["skill_book_focus"] = authored.ToDefinition(),
@@ -196,7 +193,7 @@ public partial class run_party_item_use_service_regression : LifecycleTestSceneT
             "",
             System.Array.Empty<AttributeModifierDefinition>(),
             "",
-            new Dictionary<int, IReadOnlyDictionary<string, object>>(),
+            new Dictionary<int, SkillDescriptionVariables>(),
             null
         );
         return result;

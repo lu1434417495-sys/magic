@@ -17,7 +17,7 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
 
     private void TestDefaultAttackBonusAndAcAreInitialized()
     {
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_default",
             display_name = "默认模拟单位",
@@ -28,17 +28,17 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
         _test.Eq(
             unitState.attribute_snapshot.GetValue(AttributeService.ATTACK_BONUS),
             4,
-            "BattleSimUnitSpec 默认应初始化 +4 攻击加值，避免 simulation 中退化到仅天然 20 命中。"
+            "BattleSimTestUnitBuilder 默认应初始化 +4 攻击加值，避免 simulation 中退化到仅天然 20 命中。"
         );
         _test.False(
             unitState.attribute_snapshot.HasValue(AttributeService.ARMOR_CLASS),
-            "BattleSimUnitSpec 空单位不应再隐式初始化 AC；simulation 应提供 base_attributes。"
+            "BattleSimTestUnitBuilder 空单位不应再隐式初始化 AC；simulation 应提供 base_attributes。"
         );
     }
 
     private void TestBaseAttributesUseFormalAttributeService()
     {
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_formal_base",
             display_name = "正式属性模拟单位",
@@ -49,21 +49,27 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
             base_attributes = BaseAttributes(10, 16, 12, 14, 8, 10),
         };
         BattleUnitState unitState = unitSpec.ToDefinition("player", "ai").CreateRuntimeState();
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 16, "BattleSimUnitSpec 有 base_attributes 时应使用正式 0 级初始 HP 公式。");
-        _test.Eq(unitState.GetCurrentHp(), 16, "BattleSimUnitSpec 当前 HP 应按正式 HP 上限 clamp。");
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.STAMINA_MAX), 110, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生体力。");
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ACTION_POINTS), 2, "BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生 AP。");
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 11, "BattleSimUnitSpec 有 base_attributes 时 AC 应来自正式 AttributeService。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.HP_MAX), 16, "BattleSimTestUnitBuilder 有 base_attributes 时应使用正式 0 级初始 HP 公式。");
+        _test.Eq(unitState.GetCurrentHp(), 16, "BattleSimTestUnitBuilder 当前 HP 应按正式 HP 上限 clamp。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.STAMINA_MAX), 110, "BattleSimTestUnitBuilder 有 base_attributes 时应通过 AttributeService 派生体力。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ACTION_POINTS), 2, "BattleSimTestUnitBuilder 有 base_attributes 时应通过 AttributeService 派生 AP。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 11, "BattleSimTestUnitBuilder 有 base_attributes 时 AC 应来自正式 AttributeService。");
+        // agility 16 -> 调整值 +3 -> 派生表第二档 30 TU；不再是基数 40。
         _test.Eq(
             unitState.GetActionThresholdTyped(),
-            AttributeService.DEFAULT_CHARACTER_ACTION_THRESHOLD,
-            "BattleSimUnitSpec 有 base_attributes 时 action_threshold 应来自正式属性快照。"
+            ActionCadenceContentRules.ResolveActionThreshold(3),
+            "BattleSimTestUnitBuilder 有 base_attributes 时 action_threshold 应按 agility 调整值派生。"
+        );
+        _test.Eq(
+            unitState.GetActionThresholdTyped(),
+            30,
+            "agility 16（调整值 +3）应落在派生表的 30 TU 档。"
         );
     }
 
     private void TestAttributeOverridesCanReplaceAttackBonusWithoutFinalAc()
     {
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_override",
             display_name = "覆盖模拟单位",
@@ -76,13 +82,13 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
             },
         };
         BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ATTACK_BONUS), 6, "BattleSimUnitSpec 应允许 attribute_overrides 覆盖默认攻击加值。");
-        _test.False(unitState.attribute_snapshot.HasValue(AttributeService.ARMOR_CLASS), "BattleSimUnitSpec 不应接受无 base_attributes 的最终 armor_class 兼容路径。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ATTACK_BONUS), 6, "BattleSimTestUnitBuilder 应允许 attribute_overrides 覆盖默认攻击加值。");
+        _test.False(unitState.attribute_snapshot.HasValue(AttributeService.ARMOR_CLASS), "BattleSimTestUnitBuilder 不应接受无 base_attributes 的最终 armor_class 兼容路径。");
     }
 
     private void TestFormalBaseAttributesUseAcComponents()
     {
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_formal_ac_components",
             display_name = "正式 AC 组件模拟单位",
@@ -97,12 +103,12 @@ public partial class run_battle_sim_unit_spec_defaults_regression : LifecycleTes
             },
         };
         BattleUnitState unitState = unitSpec.ToDefinition("hostile", "ai").CreateRuntimeState();
-        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 14, "BattleSimUnitSpec 有 base_attributes 时应忽略最终 armor_class，改用基础 8 + AC 组件。");
+        _test.Eq(unitState.attribute_snapshot.GetValue(AttributeService.ARMOR_CLASS), 14, "BattleSimTestUnitBuilder 有 base_attributes 时应忽略最终 armor_class，改用基础 8 + AC 组件。");
     }
 
     private void TestBaseAttributeOverridesUseFormalActionThreshold()
     {
-        var unitSpec = new BattleSimUnitSpec
+        var unitSpec = new BattleSimTestUnitBuilder
         {
             unit_id = "sim_threshold_override",
             display_name = "行动阈值覆盖单位",

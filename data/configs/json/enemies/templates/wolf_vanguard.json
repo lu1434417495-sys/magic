@@ -1,0 +1,62 @@
+{
+  "domain": "enemy_templates",
+  "entries": [
+    {
+      "attack_equipment_item_id": "",
+      "attribute_overrides": {
+        "action_points": 2,
+        "mp_max": 0
+      },
+      "base_attribute_overrides": {
+        "agility": 12,
+        "constitution": 16,
+        "intelligence": 3,
+        "perception": 12,
+        "strength": 14,
+        "willpower": 8
+      },
+      "battle_equipment_entries": [],
+      "battle_sprite_asset_id": "battle.unit.enemy.wolf",
+      "body_size": 2,
+      "brain_id": "frontline_bulwark",
+      "cognition_kind": "instinctive",
+      "creature_level": 4,
+      "damage_resistances": {},
+      "display_name": "\u8352\u72FC\u5148\u950B",
+      "drop_entries": [
+        {
+          "drop_entry_id": "wolf_hide",
+          "drop_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 1
+        }
+      ],
+      "enemy_count": 1,
+      "generated_core_skill_count": 0,
+      "hit_die_sides": 10,
+      "initial_state_id": "engage",
+      "natural_weapon_attack_range": 1,
+      "natural_weapon_damage_tag": "",
+      "save_advantage_tags": [
+        "charm",
+        "constitution"
+      ],
+      "save_disadvantage_tags": [],
+      "save_immunity_tags": [],
+      "skill_ids": [
+        "warrior_heavy_strike"
+      ],
+      "skill_level_map": {},
+      "tags": [
+        "beast",
+        "wolf",
+        "bite"
+      ],
+      "target_rank": "normal",
+      "template_id": "wolf_vanguard"
+    }
+  ],
+  "family": "wolf_vanguard",
+  "schema": 1,
+  "templates": {}
+}

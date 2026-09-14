@@ -20,8 +20,7 @@ public partial class run_battle_sim_exception_cleanup_regression : LifecycleTest
         }
     }
 
-    private const string ScenarioPath =
-        "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres";
+    private static readonly StringName ScenarioId = "ai_vs_ai_duel_example";
     private const string TraceEnvironmentName = "SIM_LOOP_TRACE";
 
     private readonly TestHarness _test = new();
@@ -111,10 +110,13 @@ public partial class run_battle_sim_exception_cleanup_regression : LifecycleTest
         try
         {
             ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
-            using var resourceLoader = new TestContentResourceLoader();
-            BattleSimScenarioDef scenarioResource =
-                resourceLoader.LoadCanonical<BattleSimScenarioDef>(ScenarioPath);
-            BattleSimScenarioDefinition scenarioDefinition = scenarioResource.ToDefinition();
+            var scenarioCatalog = new BattleSimContentCatalog();
+            scenarioCatalog.Rebuild();
+            if (!scenarioCatalog.TryGetScenario(ScenarioId, out BattleSimScenarioDefinition scenarioDefinition))
+            {
+                _test.Fail("AI vs AI scenario 应通过 JSON catalog 按 ID 加载。");
+                return;
+            }
             using var contentProvider = new BattleSimContentProvider(snapshot);
             using var terrainGenerator = new ThrowingTerrainGenerator();
             var runner = new BattleSimRunner(

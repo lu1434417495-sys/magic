@@ -9,71 +9,59 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
 
     public override void _Initialize()
     {
-        TestWindPushUsesTypedAffectedSets();
-        TestGroundUnitEffectsMergesTypedWindPushAffectedIds();
+        TestGroundUnitEffectsDoNotPushUnitsOutsideArea();
+        TestGroundUnitEffectsMoveAffectedUnitsFarToNear();
         TestSpecialForcedMoveUsesTypedContextDirection();
         TestGroundApplicationResultsProjectInternalBoundary();
-        TestBuildGroundEffectCoordsUsesTypedHelperBoundary();
-        TestDedupeEffectDefsUsesTypedHelperBoundary();
+        TestSquare2GroundEffectCoordsExpandAndSort();
+        TestDuplicateWeaponAttackEffectDamagesGroundTargetOnce();
         RequestTestExit(_test.Finish("Battle ground effect typed sets regression"));
     }
 
-    private void TestGroundEffectServiceUsesPlainTypedHelperBoundary()
-    {
-    }
-
-    private void TestWindPushUsesTypedAffectedSets()
-    {
-        Fixture fixture = BuildWindPushFixture();
-        var batch = new BattleEventBatch();
-        BattleGroundWindPushResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
-                fixture.Source,
-                fixture.Skill,
-                new[] { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                new List<Vector2I> { new Vector2I(1, 0) },
-                batch
-            );
-
-        _test.True(result.Applied, "wind push 应成功推动连锁单位。");
-        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "前排单位应被推到后排原坐标。");
-        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "后排阻挡单位应先被递归推开。");
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Front.unit_id),
-            "typed affected set 应包含前排单位。"
-        );
-        _test.True(
-            result.AffectedUnitIds.Contains(fixture.Back.unit_id),
-            "typed affected set 应包含递归推动的后排单位。"
-        );
-        _test.Eq(result.AffectedUnitIds.Count, 2, "typed affected set 不应重复记录单位。");
-        CleanupFixture(fixture, batch);
-    }
-
-    private void TestSpecialSkillResolverUsesPlainTypedHelperBoundary()
-    {
-    }
-
-    private void TestGroundUnitEffectsMergesTypedWindPushAffectedIds()
+    private void TestGroundUnitEffectsDoNotPushUnitsOutsideArea()
     {
         Fixture fixture = BuildWindPushFixture();
         var batch = new BattleEventBatch();
         BattleGroundUnitEffectsResult result =
-            fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
+                    fixture.Source, fixture.Skill, null,
+                    new[] { fixture.WindPushEffect },
+                    new[] { new Vector2I(1, 0) }, batch,
+                    new[] { new Vector2I(1, 0) }
+                )
+            );
+
+        _test.False(result.Applied, "锥形外阻挡单位不得被 wind push 递归带动。");
+        _test.Eq(result.AffectedUnitCount, 0, "零位移不得报告 affected unit。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(1, 0), "范围内目标应被锥形外单位挡住。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(2, 0), "锥形外阻挡单位必须保持原位。");
+        CleanupFixture(fixture, batch);
+    }
+
+    private void TestGroundUnitEffectsMoveAffectedUnitsFarToNear()
+    {
+        Fixture fixture = BuildWindPushFixture();
+        var batch = new BattleEventBatch();
+        BattleGroundUnitEffectsResult result =
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime, batch,
+                () => fixture.Runtime.ApplyGroundUnitEffectsResultTyped(
                 fixture.Source,
                 fixture.Skill,
                 null,
                 new[] { fixture.WindPushEffect },
-                new List<Vector2I> { new Vector2I(1, 0) },
+                new List<Vector2I> { new Vector2I(1, 0), new Vector2I(2, 0) },
                 batch,
                 new List<Vector2I> { new Vector2I(1, 0) }
+            )
             );
 
-        _test.True(result.Applied, "ground unit effects 应应用 wind push。");
-        _test.Eq(result.AffectedUnitCount, 2, "ground unit effects 应合并 wind push affected set。");
-        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "ground unit effects 应推动前排单位。");
-        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "ground unit effects 应推动递归阻挡单位。");
+        _test.True(result.Applied, "同一风区内的相邻目标应能按风向整体后移。");
+        _test.Eq(result.AffectedUnitCount, 2, "每个实际移动的风区目标都应计入 affected set。");
+        _test.Eq(fixture.Front.GetAnchorCoord(), new Vector2I(2, 0), "近端目标应在远端目标腾空后移动。");
+        _test.Eq(fixture.Back.GetAnchorCoord(), new Vector2I(3, 0), "远端目标必须先沿风向移动。");
         CleanupFixture(fixture, batch);
     }
 
@@ -99,18 +87,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             "typed context direction 应覆盖 source->target fallback 方向。"
         );
         CleanupFixture(fixture, batch);
-    }
-
-    private void TestGroundApplicationResultPublicApiStaysTyped()
-    {
-    }
-
-    private void AssertResultTypePublicApiStaysTyped(Type type, string typeName)
-    {
-        _test.True(
-            type.IsValueType || type.IsSealed,
-            $"{typeName} 应保持 plain C# result DTO。"
-        );
     }
 
     private void TestGroundApplicationResultsProjectInternalBoundary()
@@ -156,29 +132,64 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         );
     }
 
-    private void TestBuildGroundEffectCoordsUsesTypedHelperBoundary()
+    private void TestSquare2GroundEffectCoordsExpandAndSort()
     {
         Fixture fixture = BuildGroundEffectCoordsFixture();
         try
         {
-            CombatCastVariantDefinition castVariant = TestSkillDefinitionProjection.BuildCastVariant(
-                "square2_probe",
-                minSkillLevel: 0,
-                effects: Array.Empty<CombatEffectDefinition>(),
-                parameters: new Dictionary<string, object> { ["square2_corner"] = "top_left" }
-            );
-            IReadOnlyList<Vector2I> typedCoords = fixture.Runtime._ground_effect_service
-                .BuildGroundEffectCoords(
-                    null,
-                    new List<Vector2I> { new Vector2I(1, 1) },
-                    new Vector2I(-1, -1),
-                    null,
-                    castVariant
-                );
+            var cases = new[]
+            {
+                (Wire: "top_left", Kind: CombatCastSquare2CornerKind.TopLeft,
+                    Coords: new[] { new Vector2I(1, 1), new Vector2I(2, 1), new Vector2I(1, 2), new Vector2I(2, 2) },
+                    Edge: new Vector2I(3, 3)),
+                (Wire: "top_right", Kind: CombatCastSquare2CornerKind.TopRight,
+                    Coords: new[] { new Vector2I(0, 1), new Vector2I(1, 1), new Vector2I(0, 2), new Vector2I(1, 2) },
+                    Edge: new Vector2I(0, 3)),
+                (Wire: "bottom_left", Kind: CombatCastSquare2CornerKind.BottomLeft,
+                    Coords: new[] { new Vector2I(1, 0), new Vector2I(2, 0), new Vector2I(1, 1), new Vector2I(2, 1) },
+                    Edge: new Vector2I(3, 0)),
+                (Wire: "bottom_right", Kind: CombatCastSquare2CornerKind.BottomRight,
+                    Coords: new[] { new Vector2I(0, 0), new Vector2I(1, 0), new Vector2I(0, 1), new Vector2I(1, 1) },
+                    Edge: new Vector2I(0, 0)),
+            };
+            foreach (var testCase in cases)
+            {
+                CombatCastVariantDefinition variant = ImportSquare2Variant(testCase.Wire);
+                _test.Eq(variant.Square2Corner, testCase.Kind,
+                    $"{testCase.Wire} 应由 JSON 保真投影为 typed corner。");
+                AssertGroundCoords(fixture, variant, new[] { new Vector2I(1, 1) },
+                    testCase.Coords, $"{testCase.Wire} 四格展开");
+                AssertGroundCoords(fixture, variant, new[] { testCase.Edge },
+                    new[] { testCase.Edge }, $"{testCase.Wire} 地图角落裁剪");
+            }
 
-            _test.Eq(typedCoords.Count, 4, "typed ground effect coords 应展开 square2。");
-            _test.Eq(typedCoords[0], new Vector2I(1, 1), "typed ground effect coords 应按 Y/X 排序。");
-            _test.Eq(typedCoords[3], new Vector2I(2, 2), "typed ground effect coords 应包含右下角。");
+            CombatCastVariantDefinition topLeft = ImportSquare2Variant("top_left");
+            AssertGroundCoords(fixture, topLeft, new[] { new Vector2I(3, 1) },
+                new[] { new Vector2I(3, 1), new Vector2I(3, 2) }, "边缘裁剪保留两格");
+            AssertGroundCoords(fixture, topLeft, Array.Empty<Vector2I>(),
+                Array.Empty<Vector2I>(), "空目标不展开");
+            AssertGroundCoords(fixture, topLeft,
+                new[] { new Vector2I(2, 2), new Vector2I(0, 1) },
+                new[] { new Vector2I(0, 1), new Vector2I(2, 2) }, "显式多格目标只排序不再展开");
+
+            CombatCastVariantDefinition omitted = ImportSquare2Variant(null);
+            _test.False(omitted.Square2Corner.HasValue, "省略 corner 必须保留未配置语义。");
+            AssertGroundCoords(fixture, omitted, new[] { new Vector2I(1, 1) },
+                new[] { new Vector2I(1, 1) }, "未配置 corner 不触发局部展开");
+
+            bool invalidCornerRejected = false;
+            try
+            {
+                TestSkillDefinitionProjection.BuildCastVariant(
+                    "invalid_corner", 0, Array.Empty<CombatEffectDefinition>(),
+                    square2Corner: (CombatCastSquare2CornerKind)(-1)
+                );
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                invalidCornerRejected = true;
+            }
+            _test.True(invalidCornerRejected, "Definition 不得接收未定义的 corner 枚举值。");
         }
         finally
         {
@@ -186,26 +197,90 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         }
     }
 
-    private void TestDedupeEffectDefsUsesTypedHelperBoundary()
+    private CombatCastVariantDefinition ImportSquare2Variant(string corner)
+    {
+        string payload = corner == null
+            ? ""
+            : $",\"payload\":{{\"square2_corner\":\"{corner}\"}}";
+        ContentImportStageResult<SkillImportModel> import = SkillJsonImportParser.Parse(
+            new JsonContentEntryContext("skills", "square2_probe", "fixture.json#square2_probe", "/entries/0"),
+            "{\"skill_id\":\"square2_probe\",\"display_name\":\"Square\","
+                + "\"combat_profile\":{\"skill_id\":\"square2_probe\",\"cast_variants\":["
+                + "{\"variant_id\":\"square\",\"footprint_pattern\":\"square2\",\"required_coord_count\":1"
+                + payload + "}]}}"
+        );
+        if (!import.HasValue)
+            throw new InvalidOperationException(string.Join(" | ", import.Diagnostics.Select(d => d.RuleId)));
+        return SkillDefinitionProjector.Project(import.Value).CombatProfile.CastVariants[0];
+    }
+
+    private void AssertGroundCoords(
+        Fixture fixture,
+        CombatCastVariantDefinition variant,
+        IReadOnlyList<Vector2I> targets,
+        IReadOnlyList<Vector2I> expected,
+        string label
+    )
+    {
+        BattleGroundEffectService service = fixture.Runtime._ground_effect_service;
+        IReadOnlyList<Vector2I> stateCoords = service.BuildGroundEffectCoords(
+            null, targets, new Vector2I(-1, -1), (BattleUnitState)null, variant
+        );
+        IReadOnlyList<Vector2I> viewCoords = service.BuildGroundEffectCoords(
+            null, targets, new Vector2I(-1, -1), default(BattleUnitReadView), variant
+        );
+        _test.True(stateCoords.SequenceEqual(expected),
+            $"{label}：state 入口坐标应正确且按 Y/X 排序；actual={string.Join(",", stateCoords)}。");
+        _test.True(viewCoords.SequenceEqual(expected),
+            $"{label}：read-view 入口坐标应与 state 入口一致；actual={string.Join(",", viewCoords)}。");
+    }
+
+    private void TestDuplicateWeaponAttackEffectDamagesGroundTargetOnce()
     {
         Fixture fixture = BuildWindPushFixture();
         try
         {
-            CombatEffectDefinition windPushDefinition = fixture.WindPushEffect;
-            var duplicatePayload = new List<CombatEffectDefinition>
-            {
-                windPushDefinition,
-                windPushDefinition,
-            };
-            IReadOnlyList<CombatEffectDefinition> typedDeduped = fixture
+            CombatEffectDefinition weaponDamage = TestSkillDefinitionProjection.BuildEffect(
+                "damage",
+                effectTargetTeamFilter: "enemy",
+                power: 6,
+                damageTag: "force",
+                resolveAsWeaponAttack: true
+            );
+            fixture.Source.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 100);
+            fixture.Front.attribute_snapshot.SetValue(AttributeService.ARMOR_CLASS, 1);
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                fixture.Runtime,
+                new FixedHitMaxDamageResolver()
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(
+                fixture.Runtime,
+                new FixedHitResolver()
+            );
+            int hpBefore = fixture.Front.GetCurrentHp();
+            using var batch = new BattleEventBatch();
+            AttackEffectResolutionResult result = default;
+            BattleReactionRootTestHelper.ExecuteLogicalAttack(
+                fixture.Runtime, batch, fixture.Source, new[] { weaponDamage, weaponDamage },
+                actionContext => result = fixture
                 .Runtime
                 ._ground_effect_service
-                .DedupeEffectDefinitionsByIdentityTyped(duplicatePayload);
+                .ResolveGroundUnitEffectResult(
+                    fixture.Source,
+                    fixture.Front,
+                    fixture.Skill,
+                    new[] { weaponDamage, weaponDamage },
+                    batch,
+                    actionContext
+                )
+            );
 
-            _test.Eq(typedDeduped.Count, 1, "typed dedupe helper 应按实例去重。");
-            _test.True(
-                ReferenceEquals(typedDeduped[0], windPushDefinition),
-                "typed dedupe helper 应保留原始 effect definition 实例。"
+            _test.True(result.AttackSuccess, "ground weapon-attack 路径应完成真实命中结算。");
+            _test.Eq(result.Damage, 6, "重复引用同一伤害效果时，结算结果只能包含一次伤害。");
+            _test.Eq(
+                fixture.Front.GetCurrentHp(),
+                hpBefore - 6,
+                "重复效果实例不得让 ground 目标被扣血两次。"
             );
         }
         finally
@@ -214,9 +289,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
         }
     }
 
-    private void TestEdgeClearUsesTypedPrivateBoundary()
-    {
-    }
 
     private Fixture BuildWindPushFixture()
     {
@@ -415,16 +487,6 @@ public partial class run_battle_ground_effect_typed_sets_regression : LifecycleT
             runtime._grid_service.PlaceUnit(state, unit, unit.GetAnchorCoord(), true),
             $"单位应能放入测试棋盘：{unit.unit_id}"
         );
-    }
-
-    private static bool IsGodotCollectionOrVariant(Type type)
-    {
-        if (type == typeof(Variant))
-            return true;
-        Type genericDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        return genericDefinition == typeof(Godot.Collections.Dictionary)
-            || genericDefinition == typeof(Godot.Collections.Array)
-            || type.Namespace == "Godot.Collections";
     }
 
     private static bool ReadBool(Godot.Collections.Dictionary source, string key) =>

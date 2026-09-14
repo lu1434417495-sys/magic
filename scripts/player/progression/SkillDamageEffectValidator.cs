@@ -219,6 +219,15 @@ internal sealed class SkillDamageEffectValidator
                     $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] must set dice_count and dice_sides >= 1 together."
                 );
             }
+            if (
+                segment.double_dice_on_critical
+                && (segment.dice_count < 1 || segment.dice_sides < 1)
+            )
+            {
+                errors.Add(
+                    $"Skill {skillId} damage effect in {contextLabel} extra_damage_segments[{index}] double_dice_on_critical requires dice_count and dice_sides >= 1."
+                );
+            }
             for (int damageTagIndex = 0; damageTagIndex < segment.damage_tags.Count; damageTagIndex++)
             {
                 StringName damageTag = ProgressionDataUtils.to_string_name(

@@ -63,22 +63,17 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         _test.True(fixture.Bindings.ContainsKey(ChoppingRhythmBindingId), "真实装备能力内容应包含顺纹连斩 binding。");
         _test.True(fixture.Bindings.ContainsKey(PlantSlayerBindingId), "真实装备能力内容应包含植物杀手 binding。");
         _test.True(fixture.Bindings.ContainsKey(FellingMomentumBindingId), "真实装备能力内容应包含倒木回势 binding。");
-
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_battleaxe_lumberjack.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_battleaxe_lumberjack_383");
         _test.True(rawItem != null, "伐木工之斧原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "伐木工之斧", "显示名应匹配设计。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_battleaxe_base"), "应继承 battleaxe 模板。");
-            _test.Eq(rawItem.base_price, 38000, "基础价格应为 38000。");
-            _test.Eq(rawItem.buy_price, 38000, "购买价格应为 38000。");
-            _test.Eq(rawItem.sell_price, 19000, "出售价格应为 19000。");
-            _test.True(rawItem.trait_ids.Contains(ChoppingRhythmTraitId), "物品应声明顺纹连斩。");
-            _test.True(rawItem.trait_ids.Contains(PlantSlayerTraitId), "物品应声明植物杀手。");
-            _test.True(rawItem.trait_ids.Contains(FellingMomentumTraitId), "物品应声明倒木回势。");
+            _test.Eq(rawItem.DisplayName, "伐木工之斧", "显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 38000, "基础价格应为 38000。");
+            _test.Eq(rawItem.BuyPrice, 38000, "购买价格应为 38000。");
+            _test.Eq(rawItem.SellPrice, 19000, "出售价格应为 19000。");
+            _test.True(rawItem.TraitIds.Contains(ChoppingRhythmTraitId), "物品应声明顺纹连斩。");
+            _test.True(rawItem.TraitIds.Contains(PlantSlayerTraitId), "物品应声明植物杀手。");
+            _test.True(rawItem.TraitIds.Contains(FellingMomentumTraitId), "物品应声明倒木回势。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
@@ -275,7 +270,8 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
         BattleState state = WeaponAbilityCommandTestSupport.BuildFlatState("lumberjack_ap_chain", holder, anchor);
         fixture.Runtime.SetupStateForTests(state);
         StringName equipmentInstanceId = holder.GetEquipmentView().GetEquippedInstanceId("main_hand");
-        BattleKillProvenance matchingProvenance = BattleKillProvenance.ForEquipmentAttack(
+        BattleKillProvenance matchingProvenance = BattleKillProvenance.ForWeaponAttack(
+            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
             equipmentInstanceId,
             "",
             "basic_attack"
@@ -305,7 +301,12 @@ public partial class run_lumberjack_axe_weapon_ability_regression : LifecycleTes
             holder,
             wrongEquipment,
             state,
-            BattleKillProvenance.ForEquipmentAttack("other_equipment", "", "basic_attack")
+            BattleKillProvenance.ForWeaponAttack(
+                BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
+                "other_equipment",
+                "",
+                "basic_attack"
+            )
         );
         _test.Eq(holder.GetCurrentAp(), 0, "其他装备实例造成的击杀不能触发 AP 恢复。");
 

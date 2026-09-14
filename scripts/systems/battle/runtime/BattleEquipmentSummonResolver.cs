@@ -204,6 +204,10 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
+            BattleReactionBudgetRules.InitializeUnitForAdmission(
+                state,
+                summoned
+            );
             state.SetUnit(summoned);
             if (!_runtime._grid_service.PlaceUnit(state, summoned, coord, true))
             {
@@ -288,6 +292,10 @@ internal sealed class BattleEquipmentSummonResolver
             );
             if (summoned == null)
                 continue;
+            BattleReactionBudgetRules.InitializeUnitForAdmission(
+                state,
+                summoned
+            );
             state.SetUnit(summoned);
             if (!_runtime._grid_service.PlaceUnit(state, summoned, coord, true))
             {
@@ -456,7 +464,7 @@ internal sealed class BattleEquipmentSummonResolver
             unit.AddKnownActiveSkill(normalizedSkillId);
             unit.SetKnownSkillLevelTyped(
                 normalizedSkillId,
-                normalizedSkillId == "basic_attack" ? 0 : 1,
+                normalizedSkillId == _runtime?.GetBasicAttackSkillId() ? 0 : 1,
                 preserveZero: true
             );
         }

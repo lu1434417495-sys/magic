@@ -7,7 +7,7 @@ using GStringArray = Godot.Collections.Array<string>;
 public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSceneTree
 {
     private const string SkillPath =
-        "res://data/configs/skills/warrior_heavy_blow.tres";
+        "warrior_heavy_blow";
     private static readonly StringName SkillId = "warrior_heavy_blow";
     private readonly TestHarness _test = new();
 
@@ -413,9 +413,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             ReleaseContext = releaseContext,
         };
         BattleEventBatch autoBatch = new();
-        bool autoApplied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(
-            request,
-            autoBatch
+        bool autoApplied = false;
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            fixture.Runtime, autoBatch, BattleEffectOrigin.AutoCast(request),
+            () => autoApplied = fixture.Runtime._skill_orchestrator.ExecuteAutoCast(request, autoBatch)
         );
         _test.False(autoApplied, "contingency 自动施放应拒绝蓄力技能。");
         _test.True(LogsContain(autoBatch.LogLinesTyped, "不能通过"), "自动施放拒绝应有明确日志。");
@@ -427,14 +428,17 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
         var context = new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = new HashSet<StringName>(),
-            KnownSkillIds = new HashSet<StringName> { SkillId },
+            KnownSkillDefinitions = new Dictionary<StringName, SkillDefinition> { [SkillId] = TestSkillDefinitionProjection.BuildSkill(SkillId) },
             WindupSkillIds = new HashSet<StringName> { SkillId },
             KnownStatusIds = new HashSet<StringName>(),
         };
 
         var immediateErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateImmediateWeaponAttackPayload(
-            new ImmediateWeaponAttackActionPayloadDef { skill_id = SkillId },
+            new ImmediateWeaponAttackActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.immediate_weapon_attack",
             immediateErrors
@@ -446,7 +450,10 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
         var triggerErrors = new List<string>();
         EquipmentAbilityPayloadValidators.ValidateTriggerSkillPayload(
-            new TriggerSkillActionPayloadDef { skill_id = SkillId },
+            new TriggerSkillActionPayloadImportModel
+            {
+                skill_id = SkillId.ToString(),
+            },
             context,
             "test.trigger_skill",
             triggerErrors
@@ -464,7 +471,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             delayed_resolution_cost_per_5_tu = 7,
         };
         BattleAiScoreProfileDefinition definition =
-            BattleAiScoreProfileDefinition.FromResource(resource);
+            BattleAiScoreProfileDefinition.FromDiagnosticFixture(resource);
 
         _test.Eq(
             definition.DelayedResolutionCostPer5Tu,
@@ -781,7 +788,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
     {
         Fixture fixture = BuildFixture(skillLevel: 2, heavyWeapon: true);
         SkillDefinition basicAttack = TestSkillDefinitionProjection.LoadSkillDefinition(
-            "res://data/configs/skills/basic_attack.tres",
+            "basic_attack",
             "warrior_heavy_blow_windup_ai_neutral"
         );
         BattleAiContext context = BuildAiContext(fixture, basicAttack);
@@ -1174,16 +1181,14 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
 
     private static SkillDefinition LoadSkillWithHeavyRequirement(bool requiresHeavyWeapon)
     {
-        SkillDef skillDef = ResourceLoader.Load<SkillDef>(
-            SkillPath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        GodotContentOwnership.RegisterBorrowedContent(
-            skillDef,
-            "warrior_heavy_blow_windup_authored_heavy_gate"
-        );
-        skillDef.combat_profile.requires_heavy_weapon = requiresHeavyWeapon;
-        return SkillDefinition.FromResource(skillDef);
+        using var registry = new SkillContentRegistry();
+        SkillDefinition skill = registry.GetSkillDefinitionsTyped()[SkillId];
+        System.Reflection.FieldInfo field = typeof(CombatSkillDefinition).GetField(
+            "<RequiresHeavyWeapon>k__BackingField",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+        ) ?? throw new InvalidOperationException("RequiresHeavyWeapon backing field was not found.");
+        field.SetValue(skill.CombatProfile, requiresHeavyWeapon);
+        return skill;
     }
 
     private static BattleState BuildState()

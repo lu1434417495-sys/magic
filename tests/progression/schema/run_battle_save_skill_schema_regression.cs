@@ -6,10 +6,6 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_save_skill_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://skill_level_override_schema_regression";
-    private const string TempSkillPath =
-        "user://skill_level_override_schema_regression/invalid_override_skill.tres";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -20,18 +16,46 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
     private void Run()
     {
         TestSkillSchemaAcceptsValidSaveFields();
+        TestDragonFrightfulPresenceSaveTagContract();
         TestDamageSaveCanApplyFailureStatus();
+        TestWeightedSaveFailureStatusOutcomesValidation();
         TestSkillSchemaAcceptsDynamicCasterSpellSaveDc();
         TestSkillSchemaRejectsInvalidSaveFields();
         TestSkillSchemaRejectsInvalidSaveTagLists();
+        TestStatusLifecycleSchemaValidation();
         TestLevelOverridesRejectNonIntFields();
 
         RequestTestExit(_test.Finish("Battle save skill schema regression"));
     }
 
+    private void TestDragonFrightfulPresenceSaveTagContract()
+    {
+        StringName authoredTag = "dragon_frightful_presence";
+        BattleSaveTagKind kind = BattleSaveContentRules.ToSaveTagKind(authoredTag);
+
+        _test.Eq(
+            kind,
+            BattleSaveTagKind.DragonFrightfulPresence,
+            "dragon frightful presence should map to its typed save-tag kind."
+        );
+        _test.Eq(
+            BattleSaveContentRules.ToStringName(kind),
+            authoredTag,
+            "dragon frightful presence should round-trip through the typed save-tag contract."
+        );
+        _test.True(
+            BattleSaveContentRules.IsValidSaveTag(authoredTag),
+            "dragon frightful presence should be a valid authored save tag."
+        );
+        _test.True(
+            BattleSaveContentRules.IsControlSaveTag(authoredTag),
+            "dragon frightful presence should be classified as a control save tag."
+        );
+    }
+
     private void TestSkillSchemaAcceptsValidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -81,7 +105,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestDamageSaveCanApplyFailureStatus()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
@@ -108,15 +132,97 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
     }
 
+    private void TestWeightedSaveFailureStatusOutcomesValidation()
+    {
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
+        using CombatEffectDef dazzled = new()
+        {
+            effect_type = "status",
+            status_id = "weighted_dazzled",
+            duration_tu = 50,
+            attack_roll_penalty = 2,
+        };
+        using CombatEffectDef staggered = new()
+        {
+            effect_type = "status",
+            status_id = "staggered",
+            power = 1,
+            duration_tu = 50,
+        };
+        using CombatWeightedStatusOutcomeDef first = new()
+        {
+            outcome_id = "dazzled",
+            weight = 1,
+            status_effect = dazzled,
+        };
+        using CombatWeightedStatusOutcomeDef second = new()
+        {
+            outcome_id = "staggered",
+            weight = 2,
+            status_effect = staggered,
+        };
+        using CombatEffectDef validDamage = BuildValidDynamicSaveEffect();
+        validDamage.save_failure_status_outcomes = new()
+        {
+            first,
+            second,
+        };
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_weighted_failure_outcomes", validDamage),
+            "valid weighted save-failure status outcomes"
+        );
+
+        using CombatEffectDef invalidNestedStatus = new()
+        {
+            effect_type = "status",
+            status_id = "invalid_nested_save",
+            duration_tu = 50,
+            save_dc = 10,
+            save_ability = "willpower",
+            save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Magic),
+        };
+        using CombatWeightedStatusOutcomeDef invalidFirst = new()
+        {
+            outcome_id = "duplicate",
+            weight = 0,
+            status_effect = invalidNestedStatus,
+        };
+        using CombatWeightedStatusOutcomeDef invalidSecond = new()
+        {
+            outcome_id = "duplicate",
+            weight = 1,
+            status_effect = staggered,
+        };
+        using CombatEffectDef invalidDamage = BuildValidDynamicSaveEffect();
+        invalidDamage.save_failure_status_id = "legacy_static_status";
+        invalidDamage.save_failure_status_outcomes = new()
+        {
+            invalidFirst,
+            invalidSecond,
+        };
+        string formattedErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "invalid_weighted_failure_outcomes", invalidDamage)
+        );
+        _test.True(
+            formattedErrors.Contains("cannot combine save_failure_status_id")
+                && formattedErrors.Contains(".weight must be > 0")
+                && formattedErrors.Contains("outcome_id duplicate is duplicated")
+                && formattedErrors.Contains("cannot define a nested save or failure outcome"),
+            $"加权失败状态池应拒绝旧静态状态混用、非正权重、重复ID与嵌套豁免。 errors={formattedErrors}"
+        );
+    }
+
     private void TestSkillSchemaAcceptsDynamicCasterSpellSaveDc()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef damageEffect = new()
         {
             effect_type = "damage",
             power = 8,
             damage_tag = "fire",
             save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
+            save_dc_bonus = 2,
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
@@ -131,7 +237,7 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
         _test.True(
             errors.Count == 0,
-            "caster_spell save_dc_mode should allow save fields without static save_dc."
+            "caster_spell save_dc_mode should allow a non-negative authored save DC bonus without static save_dc."
         );
 
         using CombatEffectDef genericMagicEffect = new()
@@ -160,69 +266,175 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
 
     private void TestSkillSchemaRejectsInvalidSaveFields()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        using CombatEffectDef invalidEffect = new()
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
+
+        using CombatEffectDef validStatusBaseline = BuildValidStatusSaveEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_status_baseline", validStatusBaseline),
+            "valid status-save baseline"
+        );
+
+        using CombatEffectDef invalidAbilityEffect = BuildValidStatusSaveEffect();
+        invalidAbilityEffect.save_ability = "fortune";
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_ability", invalidAbilityEffect),
+            "unsupported save ability",
+            "Skill invalid_save_ability effect test_effect uses unsupported save_ability fortune."
+        );
+
+        using CombatEffectDef invalidTagEffect = BuildValidStatusSaveEffect();
+        invalidTagEffect.save_tag = "cold";
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_tag", invalidTagEffect),
+            "unsupported save tag",
+            "Skill invalid_save_tag effect test_effect uses unsupported save_tag cold."
+        );
+
+        using CombatEffectDef invalidPartialEffect = BuildValidStatusSaveEffect();
+        invalidPartialEffect.save_partial_on_success = true;
+        AssertExactErrors(
+            ValidateEffect(registry, "invalid_save_partial", invalidPartialEffect),
+            "status save partial-on-success",
+            "Skill invalid_save_partial effect test_effect save_partial_on_success is only supported on damage effects."
+        );
+
+        using CombatEffectDef noSaveBaseline = BuildPlainDamageEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "no_save_baseline", noSaveBaseline),
+            "damage effect without save fields baseline"
+        );
+
+        using CombatEffectDef tagWithoutDcEffect = BuildPlainDamageEffect();
+        tagWithoutDcEffect.save_tag = BattleSaveContentRules.ToStringName(
+            BattleSaveTagKind.Poison
+        );
+        AssertExactErrors(
+            ValidateEffect(registry, "save_tag_without_dc", tagWithoutDcEffect),
+            "save tag without save DC",
+            "Skill save_tag_without_dc effect test_effect save_tag requires save_dc >= 1 or caster_spell save_dc_mode."
+        );
+
+        using CombatEffectDef validDynamicBaseline = BuildValidDynamicSaveEffect();
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_dynamic_baseline", validDynamicBaseline),
+            "caster-spell save baseline"
+        );
+
+        using CombatEffectDef dynamicStaticDcEffect = BuildValidDynamicSaveEffect();
+        dynamicStaticDcEffect.save_dc = 12;
+        AssertExactErrors(
+            ValidateEffect(registry, "dynamic_static_dc", dynamicStaticDcEffect),
+            "caster-spell save with static DC",
+            "Skill dynamic_static_dc effect test_effect caster_spell save_dc_mode must leave static save_dc at 0."
+        );
+
+        using CombatEffectDef dynamicInvalidSourceEffect = BuildValidDynamicSaveEffect();
+        dynamicInvalidSourceEffect.save_dc_source_ability = "fortune";
+        AssertExactErrors(
+            ValidateEffect(registry, "dynamic_invalid_source", dynamicInvalidSourceEffect),
+            "caster-spell save with invalid source ability",
+            "Skill dynamic_invalid_source effect test_effect uses unsupported save_dc_source_ability fortune."
+        );
+
+        using CombatEffectDef negativeDcBonusEffect = BuildValidDynamicSaveEffect();
+        negativeDcBonusEffect.save_dc_bonus = -1;
+        AssertExactErrors(
+            ValidateEffect(registry, "negative_save_dc_bonus", negativeDcBonusEffect),
+            "negative caster-spell save DC bonus",
+            "Skill negative_save_dc_bonus effect test_effect save_dc_bonus must be >= 0."
+        );
+
+        using CombatEffectDef staticDcBonusEffect = BuildPlainDamageEffect();
+        staticDcBonusEffect.save_dc = 12;
+        staticDcBonusEffect.save_dc_bonus = 1;
+        staticDcBonusEffect.save_ability = "agility";
+        staticDcBonusEffect.save_tag = BattleSaveContentRules.ToStringName(
+            BattleSaveTagKind.Magic
+        );
+        AssertExactErrors(
+            ValidateEffect(registry, "static_save_dc_bonus", staticDcBonusEffect),
+            "authored save DC bonus on a static save",
+            "Skill static_save_dc_bonus effect test_effect save_dc_bonus requires caster_spell save_dc_mode."
+        );
+    }
+
+    private static CombatEffectDef BuildValidStatusSaveEffect()
+    {
+        return new CombatEffectDef
         {
             effect_type = "status",
-            status_id = "bad_status",
+            status_id = "test_status",
             save_dc = 10,
-            save_ability = "fortune",
-            save_tag = "cold",
-            save_partial_on_success = true,
-        };
-        GStringArray invalidErrors = new();
-        registry.AppendEffectValidationErrors(
-            invalidErrors,
-            "invalid_save_status",
-            invalidEffect,
-            "test_effect"
-        );
-        _test.True(
-            invalidErrors.Count >= 3,
-            "invalid save fields should be rejected."
-        );
-
-        using CombatEffectDef noopEffect = new()
-        {
-            effect_type = "damage",
-            power = 4,
-            damage_tag = "fire",
+            save_ability = "constitution",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Poison),
         };
-        GStringArray noopErrors = new();
-        registry.AppendEffectValidationErrors(noopErrors, "noop_save", noopEffect, "test_effect");
-        _test.True(noopErrors.Count > 0, "save_tag without save_dc should be rejected.");
+    }
 
-        using CombatEffectDef badDynamicEffect = new()
+    private static CombatEffectDef BuildPlainDamageEffect()
+    {
+        return new CombatEffectDef
         {
             effect_type = "damage",
             power = 4,
             damage_tag = "fire",
-            save_dc = 12,
+        };
+    }
+
+    private static CombatEffectDef BuildValidDynamicSaveEffect()
+    {
+        return new CombatEffectDef
+        {
+            effect_type = "damage",
+            power = 4,
+            damage_tag = "fire",
             save_dc_mode = BattleSaveContentRules.ToStringName(BattleSaveDcMode.CasterSpell),
-            save_dc_source_ability = "fortune",
+            save_dc_source_ability = "intelligence",
             save_ability = "agility",
             save_tag = BattleSaveContentRules.ToStringName(BattleSaveTagKind.Fireball),
         };
-        GStringArray badDynamicErrors = new();
+    }
+
+    private static GStringArray ValidateEffect(
+        SkillContentRegistry registry,
+        StringName skillId,
+        CombatEffectDef effect
+    )
+    {
+        GStringArray errors = new();
         registry.AppendEffectValidationErrors(
-            badDynamicErrors,
-            "bad_dynamic_save",
-            badDynamicEffect,
+            errors,
+            skillId,
+            effect,
             "test_effect"
         );
-        _test.True(
-            badDynamicErrors.Count >= 2,
-            "caster_spell save_dc_mode should reject static save_dc and invalid source ability."
+        return errors;
+    }
+
+    private void AssertExactErrors(
+        GStringArray actualErrors,
+        string label,
+        params string[] expectedErrors
+    )
+    {
+        _test.Eq(
+            actualErrors.Count,
+            expectedErrors.Length,
+            $"{label} should produce only its target diagnostics. errors={string.Join(" | ", actualErrors)}"
         );
+        int comparableCount = System.Math.Min(actualErrors.Count, expectedErrors.Length);
+        for (int index = 0; index < comparableCount; index++)
+        {
+            _test.Eq(
+                actualErrors[index],
+                expectedErrors[index],
+                $"{label} diagnostic {index} should match exactly."
+            );
+        }
     }
 
     private void TestSkillSchemaRejectsInvalidSaveTagLists()
     {
-        using SkillContentRegistry registry = new(
-            new TestContentResourceLoader(),
-            loadDefaultContent: false
-        );
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidEffect = new()
         {
             effect_type = "status",
@@ -256,45 +468,137 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
     }
 
+    private void TestStatusLifecycleSchemaValidation()
+    {
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
+        using CombatEffectDef validSleep = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            skip_turn = true,
+            break_on_positive_damage = true,
+            on_removed_status_id = "wakeful",
+            on_removed_status_save_immunity_tags = new GStringNameArray { "sleep" },
+            on_removed_status_undispellable = true,
+            on_removed_status_consume_after_normal_turn = true,
+        };
+        AssertExactErrors(
+            ValidateEffect(registry, "valid_sleep_lifecycle", validSleep),
+            "valid typed sleep lifecycle"
+        );
+
+        using CombatEffectDef lifecycleOnDamage = BuildPlainDamageEffect();
+        lifecycleOnDamage.break_on_positive_damage = true;
+        string nonStatusErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "lifecycle_on_damage", lifecycleOnDamage)
+        );
+        _test.True(
+            nonStatusErrors.Contains("status lifecycle fields are only supported on status effects"),
+            $"非状态效果不得使用状态生命周期字段。 errors={nonStatusErrors}"
+        );
+
+        using CombatEffectDef zeroDurationSkip = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            skip_turn = true,
+        };
+        string zeroDurationSkipErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "zero_duration_skip", zeroDurationSkip)
+        );
+        _test.True(
+            zeroDurationSkipErrors.Contains("skip_turn requires positive duration_tu"),
+            $"跳过回合的状态必须提供正持续时间。 errors={zeroDurationSkipErrors}"
+        );
+
+        using CombatEffectDef missingSuccessor = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_save_immunity_tags = new GStringNameArray { "sleep" },
+        };
+        string missingSuccessorErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "missing_lifecycle_successor", missingSuccessor)
+        );
+        _test.True(
+            missingSuccessorErrors.Contains("requires on_removed_status_id"),
+            $"解除后配置缺少状态ID时必须拒绝。 errors={missingSuccessorErrors}"
+        );
+
+        using CombatEffectDef recursiveSuccessor = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_id = "sleeping",
+        };
+        string recursiveErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "recursive_lifecycle_successor", recursiveSuccessor)
+        );
+        _test.True(
+            recursiveErrors.Contains("must differ from status_id"),
+            $"状态不得在解除时递归生成自身。 errors={recursiveErrors}"
+        );
+
+        using CombatEffectDef invalidSuccessorSaveTag = new()
+        {
+            effect_type = "status",
+            status_id = "sleeping",
+            duration_tu = 60,
+            on_removed_status_id = "wakeful",
+            on_removed_status_save_immunity_tags = new GStringNameArray { "not_a_save_tag" },
+        };
+        string invalidSuccessorSaveTagErrors = string.Join(
+            " | ",
+            ValidateEffect(registry, "invalid_successor_save_tag", invalidSuccessorSaveTag)
+        );
+        _test.True(
+            invalidSuccessorSaveTagErrors.Contains(
+                "on_removed_status_save_immunity_tags contains unsupported save tag not_a_save_tag"
+            ),
+            $"解除后状态的豁免标签必须来自正式 save tag 集合。 errors={invalidSuccessorSaveTagErrors}"
+        );
+    }
+
     private void TestLevelOverridesRejectNonIntFields()
     {
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "应能创建 skill override schema 临时目录。"
-        );
-
         SkillDef skillDef = BuildSkillWithInvalidLevelOverrides();
-        _test.Eq(
-            ResourceSaver.Save(skillDef, TempSkillPath),
-            Error.Ok,
-            "应能写入 skill override schema 测试资源。"
+        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
+            skillDef,
+            "battle_save_skill_schema"
         );
-
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        GStringArray errors = registry.Validate();
         string formattedErrors = string.Join(" | ", errors);
 
         _test.True(
-            formattedErrors.Contains("level override 1.range_value must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/range_value: Level override member must be an Int32 integer."
+            ),
             $"range_value 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.attack_roll_bonus must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/attack_roll_bonus: Level override member must be an Int32 integer."
+            ),
             $"attack_roll_bonus 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.area_value must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/area_value: Level override member must be an Int32 integer."
+            ),
             $"area_value 非 int override 应被拒绝。 errors={formattedErrors}"
         );
         _test.True(
-            formattedErrors.Contains("level override 1.max_target_count must be an int."),
+            formattedErrors.Contains(
+                "/combat_profile/level_overrides/1/max_target_count: Level override member must be an Int32 integer."
+            ),
             $"max_target_count 非 int override 应被拒绝。 errors={formattedErrors}"
         );
-
-        CleanupTempSkillDirectory();
     }
 
     private static SkillDef BuildSkillWithInvalidLevelOverrides()
@@ -334,13 +638,4 @@ public partial class run_battle_save_skill_schema_regression : LifecycleTestScen
         );
     }
 
-    private static void CleanupTempSkillDirectory()
-    {
-        string absoluteFilePath = ProjectSettings.GlobalizePath(TempSkillPath);
-        if (FileAccess.FileExists(absoluteFilePath))
-            DirAccess.RemoveAbsolute(absoluteFilePath);
-        string absoluteDirectoryPath = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (DirAccess.DirExistsAbsolute(absoluteDirectoryPath))
-            DirAccess.RemoveAbsolute(absoluteDirectoryPath);
-    }
 }

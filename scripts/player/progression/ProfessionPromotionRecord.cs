@@ -8,6 +8,8 @@ public class ProfessionPromotionRecord
     private static readonly string[] ToDictFields =
     {
         "new_rank",
+        "growth_trigger_skill_id",
+        "growth_trigger_level",
         "consumed_skill_ids",
         "qualifier_skill_ids",
         "snapshot_unit_base_attributes",
@@ -15,6 +17,8 @@ public class ProfessionPromotionRecord
     };
 
     public int new_rank;
+    public StringName growth_trigger_skill_id = "";
+    public int growth_trigger_level;
     public StringNameList consumed_skill_ids = new();
     public StringNameList qualifier_skill_ids = new();
     public UnitBaseAttributes snapshot_unit_base_attributes = new();
@@ -25,6 +29,8 @@ public class ProfessionPromotionRecord
         return new ProfessionPromotionRecord
         {
             new_rank = new_rank,
+            growth_trigger_skill_id = growth_trigger_skill_id,
+            growth_trigger_level = growth_trigger_level,
             consumed_skill_ids = consumed_skill_ids?.Duplicate() ?? new StringNameList(),
             qualifier_skill_ids = qualifier_skill_ids?.Duplicate() ?? new StringNameList(),
             snapshot_unit_base_attributes =
@@ -38,6 +44,8 @@ public class ProfessionPromotionRecord
         return new GDictionary
         {
             ["new_rank"] = new_rank,
+            ["growth_trigger_skill_id"] = growth_trigger_skill_id.ToString(),
+            ["growth_trigger_level"] = growth_trigger_level,
             ["consumed_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
                 consumed_skill_ids
             ),
@@ -68,8 +76,12 @@ public class ProfessionPromotionRecord
         {
             return null;
         }
+        var triggerId = _parse_string_name_field(data["growth_trigger_skill_id"], out bool triggerOk);
+        if (!triggerOk || data["growth_trigger_level"].VariantType != Variant.Type.Int
+            || data["growth_trigger_level"].AsInt64() <= 0 || data["growth_trigger_level"].AsInt64() > int.MaxValue)
+            return null;
         var newRankValue = data["new_rank"];
-        if (newRankValue.VariantType != Variant.Type.Int || newRankValue.AsInt32() < 0)
+        if (newRankValue.VariantType != Variant.Type.Int || newRankValue.AsInt64() <= 0 || newRankValue.AsInt64() > int.MaxValue)
         {
             return null;
         }
@@ -87,6 +99,8 @@ public class ProfessionPromotionRecord
         {
             return null;
         }
+        if (!consumedSkillIds.Contains(triggerId) && !qualifierSkillIds.Contains(triggerId))
+            return null;
         var timestampValue = data["timestamp"];
         if (timestampValue.VariantType != Variant.Type.Int || timestampValue.AsInt32() < 0)
         {
@@ -103,6 +117,8 @@ public class ProfessionPromotionRecord
         return new ProfessionPromotionRecord
         {
             new_rank = newRankValue.AsInt32(),
+            growth_trigger_skill_id = triggerId,
+            growth_trigger_level = data["growth_trigger_level"].AsInt32(),
             consumed_skill_ids = consumedSkillIds,
             qualifier_skill_ids = qualifierSkillIds,
             snapshot_unit_base_attributes = snapshotUnitBaseAttributes,

@@ -77,23 +77,14 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             "孤独的懦弱应有装备能力 binding。"
         );
         _test.True(fixture.SkillDefs.ContainsKey(InspireSkillId), "鼓舞应落成真实 SkillDef。");
-
-        using TestContentResourceLoader loader = new();
-        ItemDef rawItem = loader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_courage.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_longsword_courage");
         _test.True(rawItem != null, "勇气之刃原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "勇气之刃 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "勇气之刃", "勇气之刃显示名应匹配设计源。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_longsword_base"),
-                "勇气之刃应继承 longsword 模板。"
-            );
-            _test.Eq(rawItem.base_price, 72000, "勇气之刃价格应为 72000。");
-            _test.Eq(rawItem.trait_ids.Count, 4, "勇气之刃应显式挂载 4 个特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "勇气之刃 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "勇气之刃", "勇气之刃显示名应匹配设计源。");
+            _test.Eq(rawItem.BasePrice, 72000, "勇气之刃价格应为 72000。");
+            _test.Eq(rawItem.TraitIds.Count, 4, "勇气之刃应显式挂载 4 个特性。");
         }
 
         BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
@@ -104,6 +95,11 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ItemId, "装备后 unit 应保留真实 item_id。");
         _test.Eq(equippedWeapon.ProfileTypeId, new StringName("longsword"), "勇气之刃应投影为 longsword。");
+        _test.Eq(
+            equippedWeapon.RangeType,
+            new StringName("melee"),
+            "勇气之刃应投影为 concrete melee range type。"
+        );
         _test.Eq(equippedWeapon.AttackRange, 1, "勇气之刃攻击距离应为 1。");
         _test.True(equippedWeapon.IsVersatile, "勇气之刃应保留 versatile。");
         _test.Eq(equippedWeapon.OneHandedDice.DiceCount, 1, "勇气之刃单手应为 1D8+3。");
@@ -501,6 +497,7 @@ public partial class run_courage_weapon_ability_regression : LifecycleTestSceneT
         unit.attribute_snapshot.SetValue(AttributeService.ATTACK_BONUS, 20);
         unit.attribute_snapshot.SetValue("willpower", 14);
         unit.attribute_snapshot.SetValue("willpower_modifier", 2);
+        unit.SetUnarmedWeaponProjection();
         unit.SetAnchorCoord(coord);
         return unit;
     }

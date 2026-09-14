@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "profile_approach_damage",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_approach_damage",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_approach_damage",
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire"
+          }
+        ],
+        "approach_attack_profile": {}
+      },
+      "icon_id": "diagnostic_approach_damage",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

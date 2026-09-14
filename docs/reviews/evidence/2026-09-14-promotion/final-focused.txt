@@ -1,0 +1,557 @@
+Final focused verification: 48 tests, current compiled assembly, per-test user data.
+
+[1/48] [RUN] tests/battle_runtime/runtime/run_battle_projection_lease_regression.cs
+
+[2/48] [RUN] tests/battle_runtime/runtime/run_hunter_axe_weapon_ability_regression.cs
+
+[3/48] [RUN] tests/progression/core/run_attribute_growth_service_regression.cs
+
+[4/48] [RUN] tests/progression/core/run_attribute_trait_modifier_regression.cs
+
+[5/48] [RUN] tests/progression/core/run_base_attack_bonus_regression.cs
+
+[6/48] [RUN] tests/progression/core/run_bounty_mist_harrier_quest_regression.cs
+[5/48] [DONE] tests/progression/core/run_base_attack_bonus_regression.cs - 成功 (7.79s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Base attack bonus regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[7/48] [RUN] tests/progression/core/run_character_creation_service_regression.cs
+[4/48] [DONE] tests/progression/core/run_attribute_trait_modifier_regression.cs - 成功 (7.80s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Attribute trait modifier regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[8/48] [RUN] tests/progression/core/run_character_management_achievement_summary_regression.cs
+[6/48] [DONE] tests/progression/core/run_bounty_mist_harrier_quest_regression.cs - 成功 (7.88s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Bounty mist harrier quest regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[9/48] [RUN] tests/progression/core/run_character_management_practice_regression.cs
+[3/48] [DONE] tests/progression/core/run_attribute_growth_service_regression.cs - 成功 (7.89s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Attribute growth service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[10/48] [RUN] tests/progression/core/run_character_management_quest_materializer_regression.cs
+[1/48] [DONE] tests/battle_runtime/runtime/run_battle_projection_lease_regression.cs - 成功 (7.98s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Battle projection lease regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[11/48] [RUN] tests/progression/core/run_character_management_trait_attribute_regression.cs
+[2/48] [DONE] tests/battle_runtime/runtime/run_hunter_axe_weapon_ability_regression.cs - 成功 (8.26s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Hunter Axe weapon ability regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[12/48] [RUN] tests/progression/core/run_character_management_weapon_projection_regression.cs
+[8/48] [DONE] tests/progression/core/run_character_management_achievement_summary_regression.cs - 成功 (6.02s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management achievement summary regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[13/48] [RUN] tests/progression/core/run_character_trait_service_regression.cs
+[7/48] [DONE] tests/progression/core/run_character_creation_service_regression.cs - 成功 (6.11s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+CharacterCreationService regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[14/48] [RUN] tests/progression/core/run_effective_trait_set_regression.cs
+[11/48] [DONE] tests/progression/core/run_character_management_trait_attribute_regression.cs - 成功 (6.02s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management trait attribute regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[15/48] [RUN] tests/progression/core/run_level_description_template_regression.cs
+[9/48] [DONE] tests/progression/core/run_character_management_practice_regression.cs - 成功 (6.11s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management practice regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[16/48] [RUN] tests/progression/core/run_party_state_duplicate_regression.cs
+[10/48] [DONE] tests/progression/core/run_character_management_quest_materializer_regression.cs - 成功 (6.21s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management quest materializer regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[17/48] [RUN] tests/progression/core/run_profession_assignment_service_regression.cs
+[12/48] [DONE] tests/progression/core/run_character_management_weapon_projection_regression.cs - 成功 (6.02s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character management weapon projection regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[18/48] [RUN] tests/progression/core/run_profession_rule_service_regression.cs
+[13/48] [DONE] tests/progression/core/run_character_trait_service_regression.cs - 成功 (6.01s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Character trait service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[19/48] [RUN] tests/progression/core/run_progression_service_resource_unlock_typed_regression.cs
+[14/48] [DONE] tests/progression/core/run_effective_trait_set_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Effective trait set regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[20/48] [RUN] tests/progression/core/run_promotion_selection_typed_regression.cs
+[16/48] [DONE] tests/progression/core/run_party_state_duplicate_regression.cs - 成功 (6.01s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Party state duplicate regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[21/48] [RUN] tests/progression/core/run_quest_accept_requirement_evaluator_regression.cs
+[17/48] [DONE] tests/progression/core/run_profession_assignment_service_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Profession assignment service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[22/48] [RUN] tests/progression/core/run_quest_danger_rating_resolver_regression.cs
+[18/48] [DONE] tests/progression/core/run_profession_rule_service_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Profession rule service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[23/48] [RUN] tests/progression/core/run_quest_progress_service_regression.cs
+[15/48] [DONE] tests/progression/core/run_level_description_template_regression.cs - 成功 (6.61s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Level description template regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[24/48] [RUN] tests/progression/core/run_racial_skill_grant_service_regression.cs
+[19/48] [DONE] tests/progression/core/run_progression_service_resource_unlock_typed_regression.cs - 成功 (5.93s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Progression service resource unlock typed regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[25/48] [RUN] tests/progression/core/run_skill_description_consistency_regression.cs
+[20/48] [DONE] tests/progression/core/run_promotion_selection_typed_regression.cs - 成功 (5.93s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Promotion selection typed regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[26/48] [RUN] tests/progression/core/run_skill_effective_max_level_rules_regression.cs
+[21/48] [DONE] tests/progression/core/run_quest_accept_requirement_evaluator_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Quest accept requirement evaluator regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[27/48] [RUN] tests/progression/core/run_skill_merge_service_regression.cs
+[23/48] [DONE] tests/progression/core/run_quest_progress_service_regression.cs - 成功 (5.83s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Quest progress service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[28/48] [RUN] tests/progression/core/run_typed_party_quest_state_regression.cs
+[22/48] [DONE] tests/progression/core/run_quest_danger_rating_resolver_regression.cs - 成功 (6.01s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Quest danger rating resolver regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[29/48] [RUN] tests/progression/fate/run_low_luck_event_service_regression.cs
+[24/48] [DONE] tests/progression/core/run_racial_skill_grant_service_regression.cs - 成功 (6.08s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Racial skill grant service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[30/48] [RUN] tests/progression/schema/run_contingency_content_validator_regression.cs
+[26/48] [DONE] tests/progression/core/run_skill_effective_max_level_rules_regression.cs - 成功 (5.93s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Skill effective max level rules regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[31/48] [RUN] tests/progression/schema/run_contingency_setup_schema_regression.cs
+[25/48] [DONE] tests/progression/core/run_skill_description_consistency_regression.cs - 成功 (5.93s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Skill description consistency regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[32/48] [RUN] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs
+[27/48] [DONE] tests/progression/core/run_skill_merge_service_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Skill merge service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[33/48] [RUN] tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs
+[28/48] [DONE] tests/progression/core/run_typed_party_quest_state_regression.cs - 成功 (6.02s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Typed party quest state regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[34/48] [RUN] tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs
+[29/48] [DONE] tests/progression/fate/run_low_luck_event_service_regression.cs - 成功 (6.01s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Low luck event service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[35/48] [RUN] tests/runtime/persistence/run_display_settings_service_regression.cs
+[30/48] [DONE] tests/progression/schema/run_contingency_content_validator_regression.cs - 成功 (6.49s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Contingency content validator regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+2026-09-13T17:23:50.483Z [ERROR] [session] [session.save.load.contingency_content_invalid] 存档中的连锁应急术配置引用了非法技能内容。 | context={"error_count":1,"first_error":"party_state.member_states.hero_001.contingency_matrix_setups[0].stored_spells[0].stored_skill_id: automation_profile_missing:mage_chain_contingency"}
+
+
+[36/48] [RUN] tests/runtime/persistence/run_game_log_service_regression.cs
+[31/48] [DONE] tests/progression/schema/run_contingency_setup_schema_regression.cs - 成功 (6.21s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Contingency setup schema regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[37/48] [RUN] tests/runtime/persistence/run_game_session_persistence_options_regression.cs
+[35/48] [DONE] tests/runtime/persistence/run_display_settings_service_regression.cs - 成功 (6.11s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Display settings service regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[38/48] [RUN] tests/runtime/persistence/run_game_session_random_start_skill_regression.cs
+[32/48] [DONE] tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs - 成功 (6.67s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Battle session promotion prompt regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[39/48] [RUN] tests/runtime/persistence/run_game_session_transaction_regression.cs
+[33/48] [DONE] tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs - 成功 (6.81s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Game runtime snapshot builder regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[40/48] [RUN] tests/runtime/persistence/run_invalid_save_graceful_regression.cs
+[36/48] [DONE] tests/runtime/persistence/run_game_log_service_regression.cs - 成功 (6.11s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Game log module regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[41/48] [RUN] tests/runtime/persistence/run_save_payload_string_minimization_regression.cs
+[37/48] [DONE] tests/runtime/persistence/run_game_session_persistence_options_regression.cs - 成功 (6.01s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+GameSession persistence options regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[42/48] [RUN] tests/runtime/persistence/run_save_serializer_quest_round_trip_regression.cs
+[38/48] [DONE] tests/runtime/persistence/run_game_session_random_start_skill_regression.cs - 成功 (6.29s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+GameSession random start skill regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[43/48] [RUN] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs
+[41/48] [DONE] tests/runtime/persistence/run_save_payload_string_minimization_regression.cs - 成功 (6.39s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Save payload string minimization regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[44/48] [RUN] tests/text_runtime/headless/run_progression_text_snapshot_regression.cs
+[39/48] [DONE] tests/runtime/persistence/run_game_session_transaction_regression.cs - 成功 (7.40s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+GameSession transaction regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[45/48] [RUN] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs
+[40/48] [DONE] tests/runtime/persistence/run_invalid_save_graceful_regression.cs - 成功 (7.33s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Invalid save graceful regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+--- stderr ---
+2026-09-13T17:24:01.915Z [ERROR] [session] [session.config.definition_unavailable] GameSession snapshot has no world generation definition for missing_generation. | context={"world_generation_id":"missing_generation"}
+2026-09-13T17:24:02.316Z [ERROR] [session] [session.save.load.decode_rejected] 存档内容未通过解码校验。 | context={"rejection_reason":"world_data_normalization_failed:Corrupt save world_data: missing required field 'next_equipment_instance_serial'.","world_generation_id":"test"}
+2026-09-13T17:24:02.874Z [ERROR] [session] [session.save.read.missing] GameSession could not find persisted save user://saves/save_20260913_172402_087203.dat. Error: 33
+2026-09-13T17:24:02.953Z [ERROR] [session] [session.character_creation.invalid_payload] GameSession rejected invalid character creation payload for main character player_sword_01. | context={"member_id":"player_sword_01"}
+
+
+[46/48] [RUN] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs
+[44/48] [DONE] tests/text_runtime/headless/run_progression_text_snapshot_regression.cs - 成功 (5.94s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Progression text snapshot regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[47/48] [RUN] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs
+[46/48] [DONE] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs - 成功 (5.92s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Game runtime reward flow handler regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+
+[48/48] [RUN] tests/world_map/ui/run_promotion_window_flow_regression.cs
+[45/48] [DONE] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs - 成功 (6.38s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Text command reward flow regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+[43/48] [DONE] tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs - 成功 (7.86s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+First promotion closed loop regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+[42/48] [DONE] tests/runtime/persistence/run_save_serializer_quest_round_trip_regression.cs - 成功 (8.60s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Save serializer quest round trip regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+[47/48] [DONE] tests/world_map/ui/run_promotion_choice_window_schema_regression.cs - 成功 (5.83s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Promotion choice window schema regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+[48/48] [DONE] tests/world_map/ui/run_promotion_window_flow_regression.cs - 成功 (7.40s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Promotion window flow regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+[34/48] [SLOW] tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs - 执行耗时 52.23s，超过 30s 阈值
+[34/48] [DONE] tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs - 成功 (52.23s)
+--- stdout ---
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+[LIFECYCLE-SOAK] cycle=1 managed=23200792 private=905834496 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=2 managed=23202472 private=908640256 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3970/3970,native:3922/3922,projection:3907/3907,transfer:0/0
+[LIFECYCLE-SOAK] cycle=3 managed=23202832 private=905175040 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3673/3673,native:3625/3625,projection:3610/3610,transfer:0/0
+[LIFECYCLE-SOAK] cycle=4 managed=23203064 private=902656000 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3763/3763,native:3715/3715,projection:3700/3700,transfer:0/0
+[LIFECYCLE-SOAK] cycle=5 managed=23203296 private=903778304 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=6 managed=23203528 private=905920512 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3691/3691,native:3643/3643,projection:3628/3628,transfer:0/0
+[LIFECYCLE-SOAK] cycle=7 managed=23203760 private=903561216 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=8 managed=23203992 private=906461184 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3871/3871,native:3823/3823,projection:3808/3808,transfer:0/0
+[LIFECYCLE-SOAK] cycle=9 managed=23204224 private=904364032 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=10 managed=23204456 private=904065024 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3889/3889,native:3841/3841,projection:3826/3826,transfer:0/0
+[LIFECYCLE-SOAK] cycle=11 managed=23204688 private=908230656 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3781/3781,native:3733/3733,projection:3718/3718,transfer:0/0
+[LIFECYCLE-SOAK] cycle=12 managed=23204920 private=906162176 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=13 managed=23205152 private=903876608 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3907/3907,native:3859/3859,projection:3844/3844,transfer:0/0
+[LIFECYCLE-SOAK] cycle=14 managed=23205384 private=904167424 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=15 managed=23205616 private=903671808 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=16 managed=23205848 private=900743168 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=17 managed=23206080 private=903135232 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3700/3700,native:3652/3652,projection:3637/3637,transfer:0/0
+[LIFECYCLE-SOAK] cycle=18 managed=23206312 private=904839168 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4033/4033,native:3985/3985,projection:3970/3970,transfer:0/0
+[LIFECYCLE-SOAK] cycle=19 managed=23206544 private=902193152 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3853/3853,native:3805/3805,projection:3790/3790,transfer:0/0
+[LIFECYCLE-SOAK] cycle=20 managed=23206776 private=901349376 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3862/3862,native:3814/3814,projection:3799/3799,transfer:0/0
+[LIFECYCLE-SOAK] cycle=21 managed=23207008 private=902807552 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3727/3727,native:3679/3679,projection:3664/3664,transfer:0/0
+[LIFECYCLE-SOAK] cycle=22 managed=23207240 private=901730304 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=23 managed=23207472 private=901599232 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3871/3871,native:3823/3823,projection:3808/3808,transfer:0/0
+[LIFECYCLE-SOAK] cycle=24 managed=23207704 private=901758976 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3979/3979,native:3931/3931,projection:3916/3916,transfer:0/0
+[LIFECYCLE-SOAK] cycle=25 managed=23207936 private=903540736 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3781/3781,native:3733/3733,projection:3718/3718,transfer:0/0
+[LIFECYCLE-SOAK] cycle=26 managed=23208168 private=899190784 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3817/3817,native:3769/3769,projection:3754/3754,transfer:0/0
+[LIFECYCLE-SOAK] cycle=27 managed=23208400 private=903319552 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=28 managed=23208632 private=899485696 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=29 managed=23208864 private=903782400 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3853/3853,native:3805/3805,projection:3790/3790,transfer:0/0
+[LIFECYCLE-SOAK] cycle=30 managed=23209096 private=904368128 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=31 managed=23209328 private=905228288 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3781/3781,native:3733/3733,projection:3718/3718,transfer:0/0
+[LIFECYCLE-SOAK] cycle=32 managed=23209560 private=904912896 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3880/3880,native:3832/3832,projection:3817/3817,transfer:0/0
+[LIFECYCLE-SOAK] cycle=33 managed=23209792 private=905379840 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3943/3943,native:3895/3895,projection:3880/3880,transfer:0/0
+[LIFECYCLE-SOAK] cycle=34 managed=23210024 private=906633216 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3952/3952,native:3904/3904,projection:3889/3889,transfer:0/0
+[LIFECYCLE-SOAK] cycle=35 managed=23210256 private=905580544 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3880/3880,native:3832/3832,projection:3817/3817,transfer:0/0
+[LIFECYCLE-SOAK] cycle=36 managed=23210488 private=902762496 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3970/3970,native:3922/3922,projection:3907/3907,transfer:0/0
+[LIFECYCLE-SOAK] cycle=37 managed=23210720 private=904597504 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3826/3826,native:3778/3778,projection:3763/3763,transfer:0/0
+[LIFECYCLE-SOAK] cycle=38 managed=23210952 private=904925184 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=39 managed=23211184 private=901500928 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3997/3997,native:3949/3949,projection:3934/3934,transfer:0/0
+[LIFECYCLE-SOAK] cycle=40 managed=23211416 private=902180864 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3727/3727,native:3679/3679,projection:3664/3664,transfer:0/0
+[LIFECYCLE-SOAK] cycle=41 managed=23211648 private=900059136 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3943/3943,native:3895/3895,projection:3880/3880,transfer:0/0
+[LIFECYCLE-SOAK] cycle=42 managed=23211880 private=904503296 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3862/3862,native:3814/3814,projection:3799/3799,transfer:0/0
+[LIFECYCLE-SOAK] cycle=43 managed=23212400 private=904437760 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3978/3978,native:3930/3930,projection:3915/3915,transfer:0/0
+[LIFECYCLE-SOAK] cycle=44 managed=23212632 private=904724480 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=45 managed=23212864 private=903045120 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3790/3790,native:3742/3742,projection:3727/3727,transfer:0/0
+[LIFECYCLE-SOAK] cycle=46 managed=23213096 private=903475200 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3898/3898,native:3850/3850,projection:3835/3835,transfer:0/0
+[LIFECYCLE-SOAK] cycle=47 managed=23213328 private=905322496 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3862/3862,native:3814/3814,projection:3799/3799,transfer:0/0
+[LIFECYCLE-SOAK] cycle=48 managed=23213560 private=901976064 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3772/3772,native:3724/3724,projection:3709/3709,transfer:0/0
+[LIFECYCLE-SOAK] cycle=49 managed=23213792 private=900653056 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3952/3952,native:3904/3904,projection:3889/3889,transfer:0/0
+[LIFECYCLE-SOAK] cycle=50 managed=23214024 private=903831552 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3853/3853,native:3805/3805,projection:3790/3790,transfer:0/0
+[LIFECYCLE-SOAK] cycle=51 managed=23214256 private=902475776 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3700/3700,native:3652/3652,projection:3637/3637,transfer:0/0
+[LIFECYCLE-SOAK] cycle=52 managed=23214488 private=904085504 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3934/3934,native:3886/3886,projection:3871/3871,transfer:0/0
+[LIFECYCLE-SOAK] cycle=53 managed=23214720 private=903380992 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3853/3853,native:3805/3805,projection:3790/3790,transfer:0/0
+[LIFECYCLE-SOAK] cycle=54 managed=23214952 private=903729152 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3880/3880,native:3832/3832,projection:3817/3817,transfer:0/0
+[LIFECYCLE-SOAK] cycle=55 managed=23215184 private=904167424 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3889/3889,native:3841/3841,projection:3826/3826,transfer:0/0
+[LIFECYCLE-SOAK] cycle=56 managed=23215416 private=900100096 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=57 managed=23215648 private=904433664 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4024/4024,native:3976/3976,projection:3961/3961,transfer:0/0
+[LIFECYCLE-SOAK] cycle=58 managed=23215880 private=904982528 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4033/4033,native:3985/3985,projection:3970/3970,transfer:0/0
+[LIFECYCLE-SOAK] cycle=59 managed=23216112 private=903598080 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3898/3898,native:3850/3850,projection:3835/3835,transfer:0/0
+[LIFECYCLE-SOAK] cycle=60 managed=23216344 private=902934528 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=61 managed=23216576 private=903950336 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3934/3934,native:3886/3886,projection:3871/3871,transfer:0/0
+[LIFECYCLE-SOAK] cycle=62 managed=23216808 private=904699904 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3898/3898,native:3850/3850,projection:3835/3835,transfer:0/0
+[LIFECYCLE-SOAK] cycle=63 managed=23217040 private=904671232 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=64 managed=23216976 private=904359936 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3862/3862,native:3814/3814,projection:3799/3799,transfer:0/0
+[LIFECYCLE-SOAK] cycle=65 managed=23217208 private=903950336 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3871/3871,native:3823/3823,projection:3808/3808,transfer:0/0
+[LIFECYCLE-SOAK] cycle=66 managed=23215368 private=904183808 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=67 managed=20069824 private=903495680 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3673/3673,native:3625/3625,projection:3610/3610,transfer:0/0
+[LIFECYCLE-SOAK] cycle=68 managed=20070056 private=903081984 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4015/4015,native:3967/3967,projection:3952/3952,transfer:0/0
+[LIFECYCLE-SOAK] cycle=69 managed=19543640 private=903430144 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3934/3934,native:3886/3886,projection:3871/3871,transfer:0/0
+[LIFECYCLE-SOAK] cycle=70 managed=19543872 private=902053888 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=71 managed=19544104 private=903467008 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=72 managed=19544336 private=902000640 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3853/3853,native:3805/3805,projection:3790/3790,transfer:0/0
+[LIFECYCLE-SOAK] cycle=73 managed=19544568 private=899903488 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=74 managed=19544800 private=903524352 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=75 managed=19545032 private=901525504 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3799/3799,native:3751/3751,projection:3736/3736,transfer:0/0
+[LIFECYCLE-SOAK] cycle=76 managed=19545264 private=902520832 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=77 managed=19545496 private=901988352 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3961/3961,native:3913/3913,projection:3898/3898,transfer:0/0
+[LIFECYCLE-SOAK] cycle=78 managed=19545728 private=902029312 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3862/3862,native:3814/3814,projection:3799/3799,transfer:0/0
+[LIFECYCLE-SOAK] cycle=79 managed=19545960 private=903053312 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3907/3907,native:3859/3859,projection:3844/3844,transfer:0/0
+[LIFECYCLE-SOAK] cycle=80 managed=19546192 private=904482816 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3727/3727,native:3679/3679,projection:3664/3664,transfer:0/0
+[LIFECYCLE-SOAK] cycle=81 managed=19546424 private=899985408 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=82 managed=19546656 private=902008832 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3979/3979,native:3931/3931,projection:3916/3916,transfer:0/0
+[LIFECYCLE-SOAK] cycle=83 managed=19546888 private=902373376 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=84 managed=19547120 private=901169152 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3889/3889,native:3841/3841,projection:3826/3826,transfer:0/0
+[LIFECYCLE-SOAK] cycle=85 managed=19547352 private=901742592 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3871/3871,native:3823/3823,projection:3808/3808,transfer:0/0
+[LIFECYCLE-SOAK] cycle=86 managed=19547584 private=899899392 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=87 managed=19547816 private=899493888 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=88 managed=19548048 private=901115904 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=89 managed=19548280 private=900931584 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3817/3817,native:3769/3769,projection:3754/3754,transfer:0/0
+[LIFECYCLE-SOAK] cycle=90 managed=19548512 private=902385664 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4006/4006,native:3958/3958,projection:3943/3943,transfer:0/0
+[LIFECYCLE-SOAK] cycle=91 managed=19548744 private=899219456 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3763/3763,native:3715/3715,projection:3700/3700,transfer:0/0
+[LIFECYCLE-SOAK] cycle=92 managed=19548976 private=901742592 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3925/3925,native:3877/3877,projection:3862/3862,transfer:0/0
+[LIFECYCLE-SOAK] cycle=93 managed=19549208 private=899559424 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3763/3763,native:3715/3715,projection:3700/3700,transfer:0/0
+[LIFECYCLE-SOAK] cycle=94 managed=19549440 private=905723904 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3916/3916,native:3868/3868,projection:3853/3853,transfer:0/0
+[LIFECYCLE-SOAK] cycle=95 managed=19549672 private=900452352 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=96 managed=19549904 private=904511488 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=97 managed=19550136 private=900272128 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3907/3907,native:3859/3859,projection:3844/3844,transfer:0/0
+[LIFECYCLE-SOAK] cycle=98 managed=19550368 private=902795264 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3619/3619,native:3571/3571,projection:3556/3556,transfer:0/0
+[LIFECYCLE-SOAK] cycle=99 managed=19550600 private=902897664 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3808/3808,native:3760/3760,projection:3745/3745,transfer:0/0
+[LIFECYCLE-SOAK] cycle=100 managed=19550832 private=905654272 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3889/3889,native:3841/3841,projection:3826/3826,transfer:0/0
+[LIFECYCLE-SOAK] cycle=101 managed=19551064 private=902197248 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3898/3898,native:3850/3850,projection:3835/3835,transfer:0/0
+[LIFECYCLE-SOAK] cycle=102 managed=19551296 private=904687616 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3673/3673,native:3625/3625,projection:3610/3610,transfer:0/0
+[LIFECYCLE-SOAK] cycle=103 managed=19551528 private=905162752 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=104 managed=19551760 private=904753152 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3682/3682,native:3634/3634,projection:3619/3619,transfer:0/0
+[LIFECYCLE-SOAK] cycle=105 managed=19551992 private=901480448 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3844/3844,native:3796/3796,projection:3781/3781,transfer:0/0
+[LIFECYCLE-SOAK] cycle=106 managed=19552224 private=905158656 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3817/3817,native:3769/3769,projection:3754/3754,transfer:0/0
+[LIFECYCLE-SOAK] cycle=107 managed=19552456 private=905375744 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3871/3871,native:3823/3823,projection:3808/3808,transfer:0/0
+[LIFECYCLE-SOAK] cycle=108 managed=19552688 private=902225920 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3835/3835,native:3787/3787,projection:3772/3772,transfer:0/0
+[LIFECYCLE-SOAK] cycle=109 managed=19552920 private=906309632 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:4006/4006,native:3958/3958,projection:3943/3943,transfer:0/0
+[LIFECYCLE-SOAK] cycle=110 managed=19553152 private=905859072 owners=session:0,battle:0,decision:0,request:0,scene_tree:0 borrowers=0 jobs=0 scopes=<empty> leases=<empty> epoch=1 violations=unknown:0,conflict:0,escaped:0,after_close:0 suppressions=0 quarantine=0 activity=owners:3916/3916,native:3868/3868,projection:3853/3853,transfer:0/0
+[LIFECYCLE-SOAK] summary samples=110 passed=True managed_baseline=23205732.00 managed_final=19552108.00 managed_delta=-3653624.00 managed_allowed=8388608.00 managed_slope=-54009.50 private_baseline=903774208.00 private_final=904955904.00 private_delta=1181696.00 private_allowed=90377420.80 private_slope=-7988.81 failures=0
+Application lifecycle soak regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+
+Passed: 48
+Failed: 0
+Source/content files changed during run: []

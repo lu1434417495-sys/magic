@@ -2,7 +2,9 @@
 
 > 本文档是对 `set_bonus_design.md` 中提出的套装效果的技术落地方案，包含对抗性审查中发现的问题、修正后的最终实现设计，以及支持全部 1500 件装备所需的补充路线图。
 >
-> **状态说明（2026-07-31）**：本文保留为早期需求与缺口记录，不再作为当前实现蓝图。其中 GDScript registry、目录自行扫描、按 tag occurrence 计数、弱 `Dictionary` DTO 与 opaque `special_effect_ids` 均已被当前 C# typed content/runtime 边界取代。首个完整套装的现行方案见 [龙鳞铠甲套装完整落地方案](dragon_scale_set_full_landing.md)。
+> **状态说明（2026-08-16）**：本文保留为早期需求与缺口记录，不再作为当前实现蓝图。其中 GDScript registry、目录自行扫描、按 tag occurrence 计数、弱 `Dictionary` DTO 与 opaque `special_effect_ids` 均已被当前 C# typed content/runtime 边界取代。当前实现真相见 [`docs/design/progression/equipment_sets.md`](../../design/progression/equipment_sets.md)；首个完整套装已落地为凤凰重生套装。 [龙鳞铠甲套装完整落地方案](dragon_scale_set_full_landing.md)仍是 proposal，不代表当前实现。
+>
+> **落地核对摘要（2026-08-16）**：套装核心引擎已按 typed C# 架构落地，包括内容快照、显式成员计数、阈值叠加、属性/trait 投影、战斗换装刷新、UI 摘要与凤凰套装回归；正式内容目前只有 `phoenix_rebirth_set` 一套，尚未达到本文的 100 套内容目标。第 1–3 节保留历史 GDScript 设计，不能再按文件路径或 API 字面执行；第 4–6 节已补充当前缺口状态。面向后续方案设计的自我完备现状包见 [装备套装系统现状与缺口设计输入](gear_set_current_state_and_gaps.md)。
 
 ---
 
@@ -314,77 +316,66 @@ CharacterManagementModule._build_attribute_source_context()
 
 ## 四、全局装备系统 Gap 补充路线图
 
-套装系统只解决了 **200 个 threshold 效果中的属性修正部分**（约 30%）。要完全支持 1500 件装备的设计，还需要以下补充：
+以下是本文形成时的缺口记录，并补充 2026-08-16 的当前实现状态。旧文本所说“套装系统只解决 200 个 threshold 效果中的属性修正部分”已经过时：通用 typed equipment-ability framework 已覆盖其中一部分机制，但 100 套套装与 1500 件装备内容仍未批量落地。
 
 ### 4.1 P0 — 阻塞级（必须先解决）
 
-| # | 补充项 | 影响范围 | 说明 |
-|---|--------|----------|------|
-| 1 | **43 个自定义属性 ID 的处理器** | 1000+ 件装备 | `resistance_cold`、`stealth_bonus`、`saving_throw_wisdom`、`movement_speed`、`max_mana` 等可存入 `UnitBaseAttributes.custom_stats`，但 `AttributeService` 和战斗系统不读取。需要：a) 在 `AttributeService` 中添加 custom stat 的 derived rule；b) 或在战斗/判定系统中直接读取 custom stats |
-| 2 | **15 个未知属性 ID 的映射** | 200+ 件装备 | `max_hp` → 映射到 `hp_max`；`spell_dc_bonus` → 新增 custom stat + 战斗系统读取；`critical_threat_range` → 需要战斗系统支持；`attack_bonus_ranged`/`attack_bonus_undead` → 需要条件攻击加值系统 |
-| 3 | **6 个缺失 damage tag** | 300+ 处效果 | `acid`、`cold`、`force`、`necrotic`、`poison`、`silver` 不在 `BattleDamageResolver` 常量中。`cold` 可映射到现有 `freeze`，其余需要新增 |
+| # | 补充项 | 当前状态（2026-08-16） | 说明 |
+|---|--------|----------------------|------|
+| 1 | **43 个自定义属性 ID 的处理器** | **未闭环** | custom attribute 现在可以进入 `AttributeSnapshot`，装备能力也可用 `attribute_value` fact 读取；但 `resistance_*`、`saving_throw_*`、`movement_speed`、`stealth_bonus` 等仍没有核心语义消费者。抗性的正式路径已改为 trait mitigation tier，不再应补 `resistance_* +N` 属性处理器。 |
+| 2 | **15 个未知属性 ID 的映射** | **部分被替代，仍未闭环** | `max_hp` 没有别名，正式内容直接写 `hp_max`；`attack_bonus_ranged`/`attack_bonus_undead` 可由 typed equipment attack modifier 条件表达；`spell_dc_bonus` 是未优化内容留下的全局法术 DC 占位，不应实现为通用属性，后续应归一为按伤害类型/豁免标签区分的豁免 DC 加值；数值型 `critical_threat_range` 仍无运行时消费者。 |
+| 3 | **6 个缺失 damage tag** | **部分落地** | `acid`、`force`、`poison` 已进入 `DamageTagContentRules`；`cold` 的正式映射是 `freeze`；`necrotic` 尚无别名（语义近似物为 `negative_energy`），`silver` 仍不存在。 |
 
 ### 4.2 P1 — 高影响
 
-| # | 补充项 | 设计文档中出现次数 | 说明 |
-|---|--------|-------------------|------|
-| 4 | **装备 on-hit / on-crit / on-kill 效果系统** | ~379 | `ItemDef`/`WeaponProfileDef` 需要增加 `effect_defs` 或类似的触发效果字段；`BattleDamageResolver` 需要查询装备特效并应用 |
-| 5 | **每日/充能能力系统** | ~1120 | `ItemDef` 的 `granted_skill_id` 只能授予一个技能，没有使用次数。需要新增 `granted_skill_charges: int`、`granted_skill_cooldown_tu: int` 等字段，或在角色状态中追踪 |
-| 6 | **元素伤害附加（武器）** | ~162 | `WeaponProfileDef` 需要 `bonus_damage_tags: Array[Dictionary]` 来支持"近战附加 1D6 cold" |
+| # | 补充项 | 当前状态（2026-08-16） | 说明 |
+|---|--------|----------------------|------|
+| 4 | **装备 on-hit / on-crit / on-kill 效果系统** | **框架已落地** | 已由 typed equipment-ability trigger/timing/condition/action ABI 覆盖；on-crit 通过 hit/damage-roll trigger 加 `critical_hit` fact 表达。 |
+| 5 | **每日/充能能力系统** | **框架已落地** | 已有 `per_battle`、`per_world_day`、`per_world_month` 与每周期次数账本；凤凰套装和多个单件装备已实际使用。 |
+| 6 | **元素伤害附加（武器）** | **框架已落地** | 已由 `add_damage_dice` 的 typed damage tag 与 replacement group 支持；火焰、寒冰（`freeze`）、闪电、光辉等武器内容已有回归。 |
 
 ### 4.3 P2 — 中等影响
 
-| # | 补充项 | 设计文档中出现次数 | 说明 |
-|---|--------|-------------------|------|
-| 7 | **反应性触发系统**（受击/低血量） | ~343 | 战斗运行时增加 equipment-trigger hooks：`BattleDamageResolver` 在造成伤害/受到伤害时查询 `PartyEquipmentService.get_active_gear_set_bonuses()` 中的 reactive `special_effect_ids` |
-| 8 | **吸血/生命偷取** | ~330 | 新增 vampirism 效果类型，或扩展 `CombatEffectDef` 支持 `heal_percent_of_damage_dealt` |
-| 9 | **光环/范围效果** | ~373 | 装备 aura 系统：战斗开始时将 aura `special_effect_ids` 注册到 `BattleUnitState` 或战场管理器 |
+| # | 补充项 | 当前状态（2026-08-16） | 说明 |
+|---|--------|----------------------|------|
+| 7 | **反应性触发系统**（受击/低血量） | **框架已落地** | 已由 `on_damage_taken_finalized`、`on_hit_received` 等 trigger 与 `hp_percent_bp` fact 覆盖；凤凰 7 件阈值是套装侧真实用例。旧 `special_effect_ids` 查询链不会实现。 |
+| 8 | **吸血/生命偷取** | **框架已落地** | 已由 `heal_from_fact` 按 `hp_damage` 计算治疗实现，并已有武器内容；未使用 `vampirism` 或 `heal_percent_of_damage_dealt` 字段。 |
+| 9 | **光环/范围效果** | **部分落地** | mitigation aura 已落地并用于凤凰徽章；通用属性/增益光环仍无独立机制，只能用 reaction + status 近似。 |
 
 ### 4.4 P3 — 低影响/复杂
 
-| # | 补充项 | 设计文档中出现次数 | 说明 |
-|---|--------|-------------------|------|
-| 10 | **传送/瞬移效果** | ~90 | `CombatEffectDef` 新增 `forced_move_mode = "teleport"` 或独立效果类型 |
-| 11 | **召唤系统** | ~286 | 全新子系统：召唤物定义、AI、生命周期管理 |
-| 12 | **伤害吸收/转化** | ~512 | 扩展伤害结算管线：在 `BattleDamageResolver._apply_damage_to_target()` 中增加吸收/转化钩子 |
-| 13 | **状态效果映射** | ~500+ | 设计文档使用大量 D&D 标准状态（`blinded`、`frightened`、`poisoned`、`charmed`、`restrained`、`prone`、`grappled`、`invisible` 等），需要在 `BattleStatusSemanticTable` 中新增映射或别名 |
+| # | 补充项 | 当前状态（2026-08-16） | 说明 |
+|---|--------|----------------------|------|
+| 10 | **传送/瞬移效果** | **部分落地** | 技能侧已有 blink forced-move 管线；equipment ability 尚无原生 teleport/blink action，只能经授予或触发技能间接实现。 |
+| 11 | **召唤系统** | **框架已落地** | `summon_units` 已包含召唤物属性、AI、生命周期、数量上限与消费动作，并已有武器内容；尚无套装召唤内容。 |
+| 12 | **伤害吸收/转化** | **部分落地** | 已有 mitigation tier、护盾、固定减伤、减伤光环和致死拦截；尚无“把伤害转化为治疗/其他资源”的通用钩子或装备吸收池。 |
+| 13 | **状态效果映射** | **部分落地** | 已有 `blind`、`poisoned`、`frightened`、`stunned`、`paralyzed`、`prone`、`petrified` 等映射；`charmed`、`restrained`、`grappled`、`invisible`、`deafened` 等仍缺 canonical 状态或语义。 |
 
 ---
 
 ## 五、遗留决策
 
-| 决策项 | 状态 | 建议 |
-|--------|------|------|
-| Set 95 重命名 | **待确认** | 建议将 Set 95 的 tag 从 `star_weaver_set` 改为 `cosmic_star_weaver_set`，避免与 Set 11 混穿 |
-| 条件效果实现时机 | **推迟** | "日出后1小时""夜间"等条件效果当前用 `special_effect_ids` 占位，由环境/战斗系统后续扩展 |
-| 自定义属性处理器优先级 | **P0** | 建议先实现 `resistance_*` 系列（出现频率最高），再逐步添加技能 bonus |
+| 决策项 | 状态（2026-08-16） | 建议 |
+|--------|-------------------|------|
+| Set 95 重命名 | **已废弃** | 当前套装不按 tag occurrence 计数，`star_weaver_set` tag 冲突不再会影响套装成员数；无需再做 `cosmic_star_weaver_set` 迁移。 |
+| 条件效果实现时机 | **旧占位方案已废弃** | `special_effect_ids` 和弱 `conditions: Array[Dictionary]` 不会实现；条件效果应走 typed trait、condition/fact 与 equipment-ability binding。具体环境条件仍需新增 typed owner 后再接内容。 |
+| 自定义属性处理器优先级 | **仍是开放缺口，但优先级重排** | 不建议补 `resistance_* +N` 处理器，也不实现全局 `spell_dc_bonus`；优先定义按伤害类型/豁免标签区分的豁免 DC 加值 owner，以及数值型 crit threshold、movement/stealth/skill bonus 的正式 owner。抗性继续走 mitigation tier。 |
 
 ---
 
-## 六、测试计划
+## 六、测试状态
 
-### 6.1 单元测试（headless GDScript）
+本节原为历史测试计划；其中 `run_gear_set_smoke.gd` 没有落地。当前对应覆盖已由 C# headless regression 取代：
 
-`tests/equipment/gear_set/run_gear_set_smoke.gd`
+- `tests/equipment/run_gear_set_evaluation_regression.cs`：覆盖显式成员计数、重复成员去重、破损件、槽位与 footprint 校验、阈值叠加、source provenance、属性流入 `AttributeService`、trait 与战斗能力投影。
+- `tests/battle_runtime/runtime/run_phoenix_rebirth_set_regression.cs`：覆盖凤凰套装 3/5/7/10 阈值的真实战斗行为。
+- `tests/battle_runtime/runtime/run_phoenix_rebirth_single_item_behavior_regression.cs`、`run_phoenix_rebirth_body_cloak_behavior_regression.cs`：覆盖套装单件能力。
+- `tests/equipment/run_phoenix_rebirth_unique_acquisition_regression.cs`：覆盖凤凰唯一实例池与获取链。
+- `tests/world_map/ui/run_party_management_window_regression.cs`：覆盖队伍装备页套装摘要。
 
-```gdscript
-func run_tests():
-    # Test 1: 2-piece bonus applied
-    # Test 2: 4-piece + 2-piece stacked
-    # Test 3: 6-piece accessory (2+4+6 stacked)
-    # Test 4: Two-handed weapon counts as 1
-    # Test 5: Two rings from same set count as 2
-    # Test 6: Non-set items ignored
-    # Test 7: Modifier source_type = "gear_set"
-    # Test 8: get_active_gear_set_bonuses() returns correct special_effect_ids
-```
-
-### 6.2 集成测试
-
-- 通过 `CharacterManagementModule` 构建 attribute context，验证套装 modifier 流入 `AttributeService`
-- 验证 UI 面板能正确显示套装激活状态（通过 `get_active_gear_set_bonuses()`）
+旧测试计划中的两项语义已改变：同一成员物品的重复副本不再按 tag occurrence 计 2 件；`get_active_gear_set_bonuses()` / `special_effect_ids` 已由 typed `GearSetEvaluationSnapshot`、阈值 trait 和 equipment-ability binding 取代。双手武器通过单 entry 与 canonical footprint 只计 1 件，但仍可补一个使用双手套装成员的专项目归。
 
 ---
 
-*文档版本: 1.0*
-*基于对抗性审查后的修正方案*
+*文档版本: 1.1*
+*基于对抗性审查后的历史方案；2026-08-16 补充当前落地核对状态*

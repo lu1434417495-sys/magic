@@ -132,8 +132,16 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return _runtime != null;
     }
 
-    internal IReadOnlyList<WorldPresetRegistry.WorldPresetInfo> ListPresetsTyped() =>
-        WorldPresetRegistry.ListPresetsTyped();
+    internal IReadOnlyList<WorldPresetDefinition> ListPresetsTyped()
+    {
+        EnsureGameSession();
+        var presets = new List<WorldPresetDefinition>(_gameSession.GetWorldPresets().Values);
+        presets.Sort((left, right) => string.CompareOrdinal(
+            left.PresetId.ToString(),
+            right.PresetId.ToString()
+        ));
+        return presets;
+    }
 
     internal List<Dictionary<string, object>> ListSaveSlotsPlain()
     {
@@ -144,7 +152,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
     internal SessionCommandOutcome CreateNewGameTyped(StringName preset_id)
     {
         EnsureGameSession();
-        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var preset))
+        if (!_gameSession.TryGetWorldPreset(preset_id, out WorldPresetDefinition preset))
         {
             return new SessionCommandOutcome(
                 false,
@@ -155,7 +163,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
 
         UnloadWorldScene();
         int createError = _gameSession.CreateNewSave(
-            preset.GenerationConfigPath,
+            preset.GenerationId,
             preset_id,
             string.IsNullOrEmpty(preset.DisplayName) ? "世界" : preset.DisplayName
         );
@@ -686,8 +694,8 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         var sessionSnapshot = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["active_save_id"] = _gameSession != null ? _gameSession.GetActiveSaveId() : "",
-            ["generation_config_path"] =
-                _gameSession != null ? _gameSession.GetGenerationConfigPath() : "",
+            ["world_generation_id"] =
+                _gameSession != null ? _gameSession.GetWorldGenerationId().ToString() : "",
             ["world_loaded"] = HasWorldLoaded(),
             ["presets"] = BuildPresetSnapshotsPlain(),
             ["save_slots"] =
@@ -993,7 +1001,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         string regionTag = encounterAnchor.region_tag.ToString().StripEdges().ToLower(System.Globalization.CultureInfo.GetCultureInfo(""));
         return regionTag switch
         {
-            "canyon" or "north_wilds" or "south_wilds" => "canyon",
+            "canyon" => "canyon",
             "narrow_assault" => "narrow_assault",
             "holdout_push" => "holdout_push",
             _ => "default",
@@ -1539,10 +1547,12 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
         return result;
     }
 
-    private static List<object> BuildPresetSnapshotsPlain()
+    private List<object> BuildPresetSnapshotsPlain()
     {
         var result = new List<object>();
-        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
+        if (_gameSession == null)
+            return result;
+        foreach (WorldPresetDefinition preset in ListPresetsTyped())
         {
             result.Add(
                 new Dictionary<string, object>(StringComparer.Ordinal)
@@ -1550,7 +1560,7 @@ public sealed class HeadlessGameTestSession : IDisposable, IApplicationShutdownP
                     ["preset_id"] = preset.PresetId,
                     ["display_name"] = preset.DisplayName,
                     ["size_label"] = preset.SizeLabel,
-                    ["generation_config_path"] = preset.GenerationConfigPath,
+                    ["world_generation_id"] = preset.GenerationId.ToString(),
                 }
             );
         }

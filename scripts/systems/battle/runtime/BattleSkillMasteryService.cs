@@ -7,7 +7,6 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class BattleSkillMasteryService : IDisposable
 {
     private static readonly StringName BattleRatingSourceType = "battle_rating";
-    private static readonly StringName BasicAttackSkillId = "basic_attack";
     private static readonly StringName BowTrainingSkillId = "bow_training";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
@@ -24,6 +23,12 @@ internal sealed class BattleSkillMasteryService : IDisposable
     private static readonly StringName StaminaMax = "stamina_max";
 
     private readonly List<SkillMasteryResolutionEvent> _resolutionEvents = new();
+    private StringName _basicAttackSkillId = "";
+
+    internal void Setup(StringName basicAttackSkillId)
+    {
+        _basicAttackSkillId = basicAttackSkillId ?? "";
+    }
 
     internal void Clear()
     {
@@ -59,7 +64,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 targetUnit.unit_id,
                 amount,
                 resultSnapshot.CriticalHit,
-                resultSnapshot.HasSkillDamageDieEvent,
+                resultSnapshot.HasHighDamageDiceEvent,
                 resultSnapshot.HasWeaponDiceMaxEvent
             )
         );
@@ -94,7 +99,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 targetUnit.unit_id,
                 amount,
                 result.CriticalHit,
-                _ResultHasSkillDamageDieEvent(result),
+                _ResultHasHighDamageDiceEvent(result),
                 _ResultHasWeaponDiceMaxEvent(result)
             )
         );
@@ -118,6 +123,12 @@ internal sealed class BattleSkillMasteryService : IDisposable
         );
     }
 
+    internal int ResolveTargetMasteryAmount(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDefinition skillDefinition
+    ) => _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDefinition);
+
     public void RecordMasteryAmount(StringName skillId, int amount)
     {
         if (skillId == "" || amount <= 0)
@@ -135,6 +146,35 @@ internal sealed class BattleSkillMasteryService : IDisposable
             total += Mathf.Max(resolutionEvent.Amount, 0);
         }
         return total;
+    }
+
+    internal void CollapseTargetResultsToSingleGrant()
+    {
+        int selectedIndex = -1;
+        int selectedAmount = -1;
+        for (int index = 0; index < _resolutionEvents.Count; index++)
+        {
+            SkillMasteryResolutionEvent resolutionEvent = _resolutionEvents[index];
+            if (resolutionEvent.TargetUnitId == "")
+                continue;
+            if (resolutionEvent.Amount > selectedAmount)
+            {
+                selectedIndex = index;
+                selectedAmount = resolutionEvent.Amount;
+            }
+        }
+        if (selectedIndex < 0)
+            return;
+        for (int index = _resolutionEvents.Count - 1; index >= 0; index--)
+        {
+            if (
+                index != selectedIndex
+                && _resolutionEvents[index].TargetUnitId != ""
+            )
+            {
+                _resolutionEvents.RemoveAt(index);
+            }
+        }
     }
 
     internal IReadOnlyList<BattleSkillMasteryGrant> BuildSourceBoundWeaponBonusMasteryGrants(
@@ -204,10 +244,30 @@ internal sealed class BattleSkillMasteryService : IDisposable
     public StringName ResolveMasteryRewardSkillId(BattleUnitState sourceUnit, StringName skillId)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (normalizedSkillId != BasicAttackSkillId)
+        if (_basicAttackSkillId == "" || normalizedSkillId != _basicAttackSkillId)
             return normalizedSkillId;
+        StringName weaponTrainingSkillId =
+            ResolveWeaponTrainingSkillId(sourceUnit);
+        return weaponTrainingSkillId != new StringName("")
+            ? weaponTrainingSkillId
+            : normalizedSkillId;
+    }
+
+    internal static bool IsWeaponTrainingSkillId(StringName skillId)
+    {
+        StringName normalizedSkillId =
+            ProgressionDataUtils.to_string_name(skillId);
+        return normalizedSkillId == SwordTrainingSkillId
+            || normalizedSkillId == BowTrainingSkillId
+            || normalizedSkillId == UnarmedTrainingSkillId;
+    }
+
+    internal StringName ResolveWeaponTrainingSkillId(
+        BattleUnitState sourceUnit
+    )
+    {
         if (sourceUnit == null)
-            return normalizedSkillId;
+            return new StringName("");
         BattleWeaponProjectionValues weaponProjection =
             sourceUnit.GetWeaponProjectionReadViewTyped().Values;
         var weaponFamily = ProgressionDataUtils.to_string_name(weaponProjection.Family);
@@ -223,7 +283,72 @@ internal sealed class BattleSkillMasteryService : IDisposable
             || weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Natural)
         )
             return UnarmedTrainingSkillId;
-        return normalizedSkillId;
+        return new StringName("");
+    }
+
+    internal BattleSkillMasteryGrant
+        BuildCounterattackWeaponTrainingMasteryGrant(
+            BattleUnitState sourceUnit,
+            BattleUnitState targetUnit,
+            StringName frozenWeaponTrainingSkillId,
+            AttackEffectResolutionResult result,
+            IReadOnlyDictionary<StringName, SkillDefinition>
+                skillDefinitions
+        )
+    {
+        StringName masterySkillId =
+            ProgressionDataUtils.to_string_name(
+                frozenWeaponTrainingSkillId
+            );
+        if (
+            sourceUnit == null
+            || targetUnit == null
+            || !result.Applied
+            || sourceUnit.source_member_id == new StringName("")
+            || !IsWeaponTrainingSkillId(masterySkillId)
+        )
+        {
+            return null;
+        }
+        if (
+            !TryGetSkillDefinition(
+                skillDefinitions,
+                _basicAttackSkillId,
+                out SkillDefinition basicAttackDefinition
+            )
+            || !TryGetSkillDefinition(
+                skillDefinitions,
+                masterySkillId,
+                out _
+            )
+            || _GetSkillMasteryTriggerMode(basicAttackDefinition)
+                != CombatSkillMasteryTriggerMode.WeaponAttackQuality
+            || !_IsSkillMasteryQualifyingResult(
+                result,
+                basicAttackDefinition
+            )
+        )
+        {
+            return null;
+        }
+
+        int amount = _ResolveSkillMasteryTargetAmount(
+            sourceUnit,
+            targetUnit,
+            basicAttackDefinition
+        );
+        if (amount <= 0)
+            return null;
+        return new BattleSkillMasteryGrant
+        {
+            MemberId = sourceUnit.source_member_id,
+            SkillId = masterySkillId,
+            Amount = amount,
+            SourceType = "battle",
+            SourceLabel = "战斗",
+            ReasonText = "反击：武器高质量攻击",
+            AllowUnlocks = true,
+        };
     }
 
     internal BattleSkillMasteryGrant BuildVajraBodyMasteryGrantTyped(
@@ -414,11 +539,11 @@ internal sealed class BattleSkillMasteryService : IDisposable
             case CombatSkillMasteryTriggerMode.SkillDamageDiceMax:
                 if (!result.HasEffectiveDamageOrAbsorb)
                     return false;
-                return result.HasSkillDamageDieEvent;
+                return result.HasHighDamageDiceEvent;
             default:
                 if (!result.HasEffectiveDamageOrAbsorb)
                     return false;
-                return result.HasSkillDamageDieEvent;
+                return result.HasHighDamageDiceEvent;
         }
     }
 
@@ -449,11 +574,11 @@ internal sealed class BattleSkillMasteryService : IDisposable
             case CombatSkillMasteryTriggerMode.SkillDamageDiceMax:
                 if (!_ResultHasEffectiveDamageOrAbsorb(result))
                     return false;
-                return _ResultHasSkillDamageDieEvent(result);
+                return _ResultHasHighDamageDiceEvent(result);
             default:
                 if (!_ResultHasEffectiveDamageOrAbsorb(result))
                     return false;
-                return _ResultHasSkillDamageDieEvent(result);
+                return _ResultHasHighDamageDiceEvent(result);
         }
     }
 
@@ -485,13 +610,13 @@ internal sealed class BattleSkillMasteryService : IDisposable
         return result.StatusEffectIds != null && result.StatusEffectIds.Count > 0;
     }
 
-    private bool _ResultHasSkillDamageDieEvent(AttackEffectResolutionResult result)
+    private bool _ResultHasHighDamageDiceEvent(AttackEffectResolutionResult result)
     {
-        if (result.SkillDamageDiceIsMax)
+        if (result.DamageDiceHighTotalRoll)
             return true;
         foreach (DamageEventResult damageEvent in result.DamageEvents ?? System.Array.Empty<DamageEventResult>())
         {
-            if (damageEvent.SkillDamageDiceIsMax)
+            if (damageEvent.DamageDiceHighTotalRoll)
                 return true;
         }
         return false;
@@ -645,6 +770,10 @@ internal sealed class BattleSkillMasteryService : IDisposable
         if (sourceUnit == null || targetUnit == null)
             return 0;
         var amountMode = _GetSkillMasteryAmountMode(skillDefinition);
+        int masteryBaseAmount = Math.Max(
+            skillDefinition?.CombatProfile?.MasteryBaseAmount ?? 1,
+            1
+        );
         switch (amountMode)
         {
             case CombatSkillMasteryAmountMode.PerCastHpRatio:
@@ -691,15 +820,15 @@ internal sealed class BattleSkillMasteryService : IDisposable
                                 baseAmount = multiplier;
                         }
                     }
-                    return baseAmount;
+                    return baseAmount * masteryBaseAmount;
                 }
                 if (!_AreOpposingFactions(sourceUnit, targetUnit))
                     return 0;
                 if (_IsBossTarget(targetUnit))
-                    return 3;
+                    return 3 * masteryBaseAmount;
                 if (_IsEliteOrBossTarget(targetUnit))
-                    return 2;
-                return 1;
+                    return 2 * masteryBaseAmount;
+                return masteryBaseAmount;
             }
             default:
                 return 0;
@@ -717,6 +846,25 @@ internal sealed class BattleSkillMasteryService : IDisposable
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (combatProfile == null)
             return false;
+        foreach (
+            CombatEffectDefinition effectDefinition in
+                combatProfile.EffectDefinitions ?? Array.Empty<CombatEffectDefinition>()
+        )
+        {
+            if (effectDefinition?.EffectKind == BattleEffectKind.PositionSwap)
+                return true;
+        }
+        foreach (
+            CombatCastVariantDefinition castVariant in
+                combatProfile.CastVariants ?? Array.Empty<CombatCastVariantDefinition>()
+        )
+        {
+            if (
+                castVariant != null
+                && BattlePositionSwapRules.FindEffect(castVariant.EffectDefinitions) != null
+            )
+                return true;
+        }
         var targetFilter = ProgressionDataUtils.to_string_name(combatProfile.TargetTeamFilter);
         return targetFilter == "ally" || targetFilter == "self";
     }
@@ -783,7 +931,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             int damage,
             int shieldAbsorbed,
             int statusEffectCount,
-            bool skillDamageDiceIsMax,
+            bool damageDiceHighTotalRoll,
             SkillMasteryDamageEventSnapshot[] damageEvents
         )
         {
@@ -794,7 +942,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             Damage = damage;
             ShieldAbsorbed = shieldAbsorbed;
             StatusEffectCount = statusEffectCount;
-            SkillDamageDiceIsMax = skillDamageDiceIsMax;
+            DamageDiceHighTotalRoll = damageDiceHighTotalRoll;
             _damageEvents = damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>();
         }
 
@@ -805,20 +953,20 @@ internal sealed class BattleSkillMasteryService : IDisposable
         public int Damage { get; }
         public int ShieldAbsorbed { get; }
         public int StatusEffectCount { get; }
-        public bool SkillDamageDiceIsMax { get; }
+        public bool DamageDiceHighTotalRoll { get; }
 
         public bool HasEffectiveDamageOrAbsorb => Damage > 0 || ShieldAbsorbed > 0;
         public bool HasStatusApplied => StatusEffectCount > 0;
 
-        public bool HasSkillDamageDieEvent
+        public bool HasHighDamageDiceEvent
         {
             get
             {
-                if (SkillDamageDiceIsMax)
+                if (DamageDiceHighTotalRoll)
                     return true;
                 foreach (var damageEvent in _damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>())
                 {
-                    if (damageEvent.SkillDamageDiceIsMax)
+                    if (damageEvent.DamageDiceHighTotalRoll)
                         return true;
                 }
                 return false;
@@ -866,7 +1014,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 IntegerField(source, "damage"),
                 IntegerField(source, "shield_absorbed"),
                 ArrayField(source, "status_effect_ids").Count,
-                BooleanField(source, "skill_damage_dice_is_max"),
+                BooleanField(source, "damage_dice_high_total_roll"),
                 ReadDamageEvents(source)
             );
         }
@@ -883,7 +1031,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 result.Damage,
                 result.ShieldAbsorbed,
                 result.StatusEffectIds?.Count ?? 0,
-                result.SkillDamageDiceIsMax,
+                result.DamageDiceHighTotalRoll,
                 ReadDamageEvents(result)
             );
         }
@@ -970,7 +1118,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             StringName skillId,
             int amount,
             bool criticalHit,
-            bool skillDamageDiceIsMax,
+            bool highDamageDiceEvent,
             bool weaponDamageDiceIsMax
         )
         {
@@ -978,7 +1126,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             SkillId = skillId ?? "";
             Amount = amount;
             CriticalHit = criticalHit;
-            SkillDamageDiceIsMax = skillDamageDiceIsMax;
+            HighDamageDiceEvent = highDamageDiceEvent;
             WeaponDamageDiceIsMax = weaponDamageDiceIsMax;
         }
 
@@ -986,14 +1134,14 @@ internal sealed class BattleSkillMasteryService : IDisposable
         public StringName SkillId { get; }
         public int Amount { get; }
         public bool CriticalHit { get; }
-        public bool SkillDamageDiceIsMax { get; }
+        public bool HighDamageDiceEvent { get; }
         public bool WeaponDamageDiceIsMax { get; }
 
         public static SkillMasteryResolutionEvent ForTargetResult(
             StringName targetUnitId,
             int amount,
             bool criticalHit,
-            bool skillDamageDiceIsMax,
+            bool highDamageDiceEvent,
             bool weaponDamageDiceIsMax
         )
         {
@@ -1002,7 +1150,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 "",
                 amount,
                 criticalHit,
-                skillDamageDiceIsMax,
+                highDamageDiceEvent,
                 weaponDamageDiceIsMax
             );
         }

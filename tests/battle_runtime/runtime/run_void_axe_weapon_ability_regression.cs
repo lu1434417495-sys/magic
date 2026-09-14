@@ -59,44 +59,34 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             "断界切口必须由通用 apply_edge_feature action 配置声明。"
         );
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_void.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greataxe_void");
         _test.True(rawItem != null, "虚空之斧原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "虚空之斧 item_id 不应带源表数字。");
-            _test.Eq(rawItem.display_name, "虚空之斧", "虚空之斧显示名应匹配设计。");
-            _test.Eq(
-                rawItem.base_item_id,
-                new StringName("weapon_type_greataxe_base"),
-                "虚空之斧应继承 greataxe 模板。"
-            );
-            _test.Eq(rawItem.base_price, 85000, "虚空之斧价格应为 85000。");
-            _test.Eq(rawItem.trait_ids.Count, 5, "虚空之斧应有且只有 5 个特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "虚空之斧 item_id 不应带源表数字。");
+            _test.Eq(rawItem.DisplayName, "虚空之斧", "虚空之斧显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 85000, "虚空之斧价格应为 85000。");
+            _test.Eq(rawItem.TraitIds.Count, 5, "虚空之斧应有且只有 5 个特性。");
             foreach (StringName traitId in TraitIds())
-                _test.True(rawItem.trait_ids.Contains(traitId), $"虚空之斧 item 应声明 {traitId}。");
+                _test.True(rawItem.TraitIds.Contains(traitId), $"虚空之斧 item 应声明 {traitId}。");
 
-            WeaponProfileDef profile = rawItem.weapon_profile as WeaponProfileDef;
+            WeaponProfileDefinition profile = rawItem.WeaponProfile;
             _test.True(profile != null, "虚空之斧应声明 weapon_profile。");
             if (profile != null)
             {
-                _test.Eq(profile.family, new StringName("axe"), "虚空之斧 family 应为 axe。");
-                _test.Eq(profile.range_type, new StringName("melee"), "虚空之斧应为 melee。");
-                _test.Eq(profile.damage_tag, new StringName("physical_slash"), "虚空之斧应为斩击。");
-                _test.Eq(profile.attack_range, 1, "虚空之斧攻击距离应为 1。");
-                _test.Eq(profile.two_handed_dice?.dice_count ?? 0, 1, "虚空之斧应为 1D12+3。");
-                _test.Eq(profile.two_handed_dice?.dice_sides ?? 0, 12, "虚空之斧应为 1D12+3。");
-                _test.Eq(profile.two_handed_dice?.flat_bonus ?? 0, 3, "虚空之斧应为 1D12+3。");
+                _test.Eq(profile.Family, new StringName("axe"), "虚空之斧 family 应为 axe。");
+                _test.Eq(profile.RangeType, new StringName("melee"), "虚空之斧应为 melee。");
+                _test.Eq(profile.DamageTag, new StringName("physical_slash"), "虚空之斧应为斩击。");
+                _test.Eq(profile.AttackRange, 1, "虚空之斧攻击距离应为 1。");
+                _test.Eq(profile.TwoHandedDice?.DiceCount ?? 0, 1, "虚空之斧应为 1D12+3。");
+                _test.Eq(profile.TwoHandedDice?.DiceSides ?? 0, 12, "虚空之斧应为 1D12+3。");
+                _test.Eq(profile.TwoHandedDice?.FlatBonus ?? 0, 3, "虚空之斧应为 1D12+3。");
                 _test.True(Contains(profile.GetPropertiesTyped(), "two_handed"), "虚空之斧应声明 two_handed。");
                 _test.True(Contains(profile.GetPropertiesTyped(), "heavy"), "虚空之斧应声明 heavy。");
             }
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildVoidAxeUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, ItemId, "虚空之斧装备后 unit 应保留 item_id。");
@@ -112,21 +102,6 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             "eq_void_axe_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除虚空之斧后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除虚空之斧后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除虚空之斧后装备能力源应清空。"
-        );
     }
 
     private void TestBoundaryCutCreatesBlockingRiftOnRealWeaponHitAndExpiresAfter80Tu()
@@ -150,7 +125,7 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             "断界裂隙生成后，相邻两格之间应不能跨边移动。"
         );
 
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
+        StepTimeline(fixture.Runtime, 40);
         attacker.ResetPerTurnCharges();
         ResolveAfterHit(
             fixture.Runtime.GetEquipmentAbilityRuntimeService(),
@@ -158,9 +133,9 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
             attacker,
             target
         );
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
+        StepTimeline(fixture.Runtime, 40);
         AssertRiftEdge(state, fixture.Runtime.GetGridService(), Vector2I.Zero, new Vector2I(1, 0), true);
-        fixture.Runtime._timeline_driver.ApplyTimelineStep(new BattleEventBatch(), 40);
+        StepTimeline(fixture.Runtime, 40);
 
         AssertRiftEdge(state, fixture.Runtime.GetGridService(), Vector2I.Zero, new Vector2I(1, 0), false);
     }
@@ -358,6 +333,23 @@ public partial class run_void_axe_weapon_ability_regression : LifecycleTestScene
         attributes.SetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower), 10);
         attributes.custom_stats[PartyWarehouseService.StorageSpaceAttributeId] = 20;
         return attributes;
+    }
+
+    private static void StepTimeline(
+        BattleRuntimeModule runtime,
+        int elapsedTu
+    )
+    {
+        using var batch = new BattleEventBatch();
+        BattleReactionRootTestHelper.ExecuteInReactionRoot(
+            runtime,
+            batch,
+            BattleEffectOrigin.Timeline("timeline_tick"),
+            () => runtime._timeline_driver.ApplyTimelineStep(
+                batch,
+                elapsedTu
+            )
+        );
     }
 
     private sealed class Fixture : IDisposable

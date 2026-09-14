@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -5,7 +6,7 @@ internal static class EquipmentAbilityStatusDeclarationCatalog
 {
     internal static EquipmentAbilityContentValidationContext ExpandWithEquipmentDeclarations(
         EquipmentAbilityContentValidationContext context,
-        IReadOnlyList<EquipmentAbilityContentPackDef> packs
+        IReadOnlyList<EquipmentAbilityContentPackImportModel> packs
     )
     {
         var knownStatusIds = new HashSet<StringName>(context.KnownStatusIds);
@@ -13,7 +14,9 @@ internal static class EquipmentAbilityStatusDeclarationCatalog
         return new EquipmentAbilityContentValidationContext
         {
             KnownTraitIds = context.KnownTraitIds,
-            KnownSkillIds = context.KnownSkillIds,
+            KnownSkillDefinitions =
+                context.KnownSkillDefinitions,
+            WindupSkillIds = context.WindupSkillIds,
             KnownStatusIds = EquipmentAbilityReadOnlySet<StringName>.From(knownStatusIds),
         };
     }
@@ -82,60 +85,68 @@ internal static class EquipmentAbilityStatusDeclarationCatalog
 
     private static void CollectEquipmentStatusDeclarations(
         HashSet<StringName> result,
-        IReadOnlyList<EquipmentAbilityContentPackDef> packs
+        IReadOnlyList<EquipmentAbilityContentPackImportModel> packs
     )
     {
         if (packs == null)
             return;
-        foreach (EquipmentAbilityContentPackDef pack in packs)
+        foreach (EquipmentAbilityContentPackImportModel pack in packs)
         {
             if (pack?.bindings == null)
                 continue;
-            foreach (EquipmentAbilityBindingDef binding in pack.bindings)
+            foreach (EquipmentAbilityBindingImportModel binding in pack.bindings)
             {
                 if (binding == null)
                     continue;
-                foreach (EquipmentAbilityReactionDef reaction in binding.reactions)
+                foreach (EquipmentAbilityReactionImportModel reaction in binding.reactions)
                 {
                     if (reaction == null)
                         continue;
                     CollectActionStatusDeclarations(result, reaction.actions);
                     foreach (
-                        EquipmentOutcomeEntryDef entry in reaction.outcome_table?.entries
-                            ?? new Godot.Collections.Array<EquipmentOutcomeEntryDef>()
+                        EquipmentOutcomeEntryImportModel entry in reaction.outcome_table?.entries
+                            ?? Array.Empty<EquipmentOutcomeEntryImportModel>()
                     )
                     {
                         CollectActionStatusDeclarations(result, entry?.actions);
                     }
                 }
-                foreach (EquipmentWorldEffectDef worldEffect in binding.world_effects)
+                foreach (EquipmentWorldEffectImportModel worldEffect in binding.world_effects)
                     CollectActionStatusDeclarations(result, worldEffect?.actions);
+                foreach (
+                    EquipmentFatalInterceptImportModel fatalIntercept
+                    in binding.fatal_intercepts
+                        ?? Array.Empty<EquipmentFatalInterceptImportModel>()
+                )
+                {
+                    CollectActionStatusDeclarations(result, fatalIntercept?.success_actions);
+                }
             }
         }
     }
 
     private static void CollectActionStatusDeclarations(
         HashSet<StringName> result,
-        IEnumerable<EquipmentAbilityActionDef> actions
+        IEnumerable<EquipmentAbilityActionImportModel> actions
     )
     {
         if (actions == null)
             return;
-        foreach (EquipmentAbilityActionDef action in actions)
+        foreach (EquipmentAbilityActionImportModel action in actions)
         {
             switch (action?.payload)
             {
-                case ApplyStatusActionPayloadDef applyStatus:
+                case ApplyStatusActionPayloadImportModel applyStatus:
                     Add(result, applyStatus.status_id);
                     break;
-                case ModifyActionPointsActionPayloadDef actionPoints
+                case ModifyActionPointsActionPayloadImportModel actionPoints
                     when actionPoints.mode == "set_next_turn_ap_to_zero":
                     Add(result, actionPoints.status_id);
                     break;
-                case MarkTargetActionPayloadDef markTarget:
+                case MarkTargetActionPayloadImportModel markTarget:
                     Add(result, markTarget.mirror_status_id);
                     break;
-                case ScheduleAreaEffectActionPayloadDef areaEffect:
+                case ScheduleAreaEffectActionPayloadImportModel areaEffect:
                     Add(result, areaEffect.contact_status_id);
                     break;
             }

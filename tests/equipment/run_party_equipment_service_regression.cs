@@ -43,6 +43,11 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         );
 
         _test.True(preview.Success, "Two-handed weapon preview should succeed.");
+        _test.Eq(
+            preview.EntrySlotId,
+            new StringName("main_hand"),
+            "Two-handed preview should identify main_hand as its entry slot."
+        );
         AssertStringListEq(
             preview.OccupiedSlotIds.ConvertAll(slot => slot.ToString()),
             new List<string> { "main_hand", "off_hand" },
@@ -237,7 +242,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
     {
         return new Dictionary<StringName, ItemDefinition>
         {
-            [new StringName("bronze_sword")] = new ItemDef
+            [new StringName("bronze_sword")] = new TestItemDefinitionBuilder
             {
                 item_id = "bronze_sword",
                 display_name = "Bronze Sword",
@@ -247,7 +252,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
                 EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
                 equipment_slot_ids = new Godot.Collections.Array<string> { "main_hand" },
             }.ToDefinition(),
-            [new StringName("iron_greatsword")] = new ItemDef
+            [new StringName("iron_greatsword")] = new TestItemDefinitionBuilder
             {
                 item_id = "iron_greatsword",
                 display_name = "Iron Greatsword",
@@ -262,7 +267,7 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
                     "off_hand",
                 },
             }.ToDefinition(),
-            [new StringName("iron_sword")] = new ItemDef
+            [new StringName("iron_sword")] = new TestItemDefinitionBuilder
             {
                 item_id = "iron_sword",
                 display_name = "Iron Sword",
@@ -303,11 +308,13 @@ public partial class run_party_equipment_service_regression : LifecycleTestScene
         );
         GameRuntimeFacade runtime = new()
         {
-            _game_session = gameSession,
-            _party_state = partyState,
             _party_warehouse_service = warehouseService,
             _equipment_drop_service = new EquipmentDropService(),
         };
+        runtime.SetupForTestFixture(
+            gameSession: gameSession,
+            partyState: partyState
+        );
         runtime._battle_loot_commit_service.Setup(runtime);
         return new LootCommitFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
     }

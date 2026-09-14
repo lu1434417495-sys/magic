@@ -12,12 +12,18 @@ internal sealed class DamageResolutionContext
     public bool CriticalHit { get; }
     public bool AttackSuccess { get; }
     public bool SecondaryHitSuccess { get; }
+    public bool ForcedMoveApplied { get; }
+    public bool HasAttackCheck { get; }
+    internal BattleDamageOriginKind DamageOriginKind { get; }
     public StringName SkillId { get; }
     public int SourceSkillLevel { get; }
     public IReadOnlyList<int> SaveRollOverrides { get; }
     public bool DispatchEvents { get; }
     public StringName EquipmentSlotOverride { get; }
     public BattleState BattleState { get; }
+    internal bool IsPreview { get; }
+    internal bool IsDetachedPreview { get; }
+    internal int DetachedPreviewDepth { get; }
     internal BattleEventBatch DamageApplicationHookBatch { get; }
     internal BattleEffectOrigin DamageApplicationHookOrigin { get; }
 
@@ -33,13 +39,20 @@ internal sealed class DamageResolutionContext
         StringName equipmentSlotOverride,
         BattleEventBatch damageApplicationHookBatch = null,
         BattleEffectOrigin damageApplicationHookOrigin = null,
-        BattleState battleState = null
+        BattleState battleState = null,
+        bool isPreview = false,
+        bool isDetachedPreview = false,
+        int detachedPreviewDepth = 0,
+        bool forcedMoveApplied = false,
+        bool hasAttackCheck = false,
+        BattleDamageOriginKind damageOriginKind = BattleDamageOriginKind.Unknown
     )
     {
         DamageRollMode = damageRollMode == "" ? DefaultDamageRollMode : damageRollMode;
         CriticalHit = criticalHit;
         AttackSuccess = attackSuccess;
         SecondaryHitSuccess = secondaryHitSuccess;
+        ForcedMoveApplied = forcedMoveApplied;
         SkillId = skillId == default ? new StringName("") : skillId;
         SourceSkillLevel = Math.Max(sourceSkillLevel, 0);
         SaveRollOverrides = saveRollOverrides ?? Array.Empty<int>();
@@ -47,8 +60,13 @@ internal sealed class DamageResolutionContext
         EquipmentSlotOverride =
             equipmentSlotOverride == default ? new StringName("") : equipmentSlotOverride;
         BattleState = battleState;
+        IsPreview = isPreview;
+        IsDetachedPreview = isDetachedPreview;
+        DetachedPreviewDepth = Math.Max(detachedPreviewDepth, 0);
         DamageApplicationHookBatch = damageApplicationHookBatch;
         DamageApplicationHookOrigin = damageApplicationHookOrigin ?? BattleEffectOrigin.PlayerCommand();
+        HasAttackCheck = hasAttackCheck;
+        DamageOriginKind = damageOriginKind;
     }
 
     public static DamageResolutionContext Empty() =>
@@ -133,7 +151,13 @@ internal sealed class DamageResolutionContext
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
             DamageApplicationHookOrigin,
-            BattleState
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
         );
     }
 
@@ -152,7 +176,13 @@ internal sealed class DamageResolutionContext
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
             DamageApplicationHookOrigin,
-            BattleState
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
         );
     }
 
@@ -174,7 +204,13 @@ internal sealed class DamageResolutionContext
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
             DamageApplicationHookOrigin,
-            BattleState
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
         );
     }
 
@@ -192,7 +228,13 @@ internal sealed class DamageResolutionContext
             EquipmentSlotOverride,
             DamageApplicationHookBatch,
             DamageApplicationHookOrigin,
-            battleState
+            battleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
         );
     }
 
@@ -213,7 +255,159 @@ internal sealed class DamageResolutionContext
             EquipmentSlotOverride,
             batch,
             origin ?? BattleEffectOrigin.PlayerCommand(),
-            BattleState
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithPreviewMode()
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            true,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithDetachedPreviewMode()
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            true,
+            true,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithDetachedPreviewDepth(int detachedPreviewDepth)
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            true,
+            true,
+            Math.Max(detachedPreviewDepth, 0),
+            ForcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithForcedMoveApplied(bool forcedMoveApplied = true)
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            forcedMoveApplied,
+            HasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithAttackCheck(bool hasAttackCheck = true)
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            hasAttackCheck,
+            DamageOriginKind
+        );
+    }
+
+    internal DamageResolutionContext WithDamageOriginKind(
+        BattleDamageOriginKind damageOriginKind
+    )
+    {
+        return new DamageResolutionContext(
+            DamageRollMode,
+            CriticalHit,
+            AttackSuccess,
+            SecondaryHitSuccess,
+            SkillId,
+            SourceSkillLevel,
+            SaveRollOverrides,
+            DispatchEvents,
+            EquipmentSlotOverride,
+            DamageApplicationHookBatch,
+            DamageApplicationHookOrigin,
+            BattleState,
+            IsPreview,
+            IsDetachedPreview,
+            DetachedPreviewDepth,
+            ForcedMoveApplied,
+            HasAttackCheck,
+            damageOriginKind
         );
     }
 

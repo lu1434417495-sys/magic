@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_shield_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_shield_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_shield_gap",
+        "effect_defs": [
+          {
+            "effect_type": "shield",
+            "duration_tu": 5,
+            "payload": {},
+            "dice_count": 1
+          }
+        ]
+      },
+      "icon_id": "diagnostic_shield_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

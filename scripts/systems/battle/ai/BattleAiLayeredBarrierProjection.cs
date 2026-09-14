@@ -31,8 +31,9 @@ public sealed class BattleAiLayeredBarrierProjection
         CombatEffectDefinition effectDefinition
     )
     {
-        StringName profileId = effectDefinition?.GetStringNameParamTyped("profile_id", "")
-            ?? new StringName("");
+        LayeredBarrierEffectPayloadDefinition payload =
+            effectDefinition?.Payload as LayeredBarrierEffectPayloadDefinition;
+        StringName profileId = payload?.ProfileId ?? new StringName("");
         Vector2I anchorCoord =
             targetUnit?.GetAnchorCoord()
             ?? sourceUnit?.GetAnchorCoord()
@@ -58,11 +59,11 @@ public sealed class BattleAiLayeredBarrierProjection
             };
         }
 
-        int radius = effectDefinition.GetIntParamTyped("radius_cells", 0);
+        int radius = payload.RadiusCells;
         if (radius <= 0)
             radius = profile.RadiusCells;
         radius = Math.Max(radius, 1);
-        StringName areaPattern = effectDefinition.GetStringNameParamTyped("area_pattern", "");
+        StringName areaPattern = payload.AreaPattern;
         if (areaPattern == "")
             areaPattern = profile.AreaPattern;
         int projectedDuration = effectDefinition.DurationTu > 0

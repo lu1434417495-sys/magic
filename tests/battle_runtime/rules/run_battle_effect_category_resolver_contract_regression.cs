@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using System;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -9,24 +9,14 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
 
     public override void _Initialize()
     {
-        TestResolverTypeIsPlainStaticCSharp();
         TestCategoryFieldsAreFormalSchema();
         TestResolverUsesExplicitDeliveryAndEffectCategories();
         TestTypedProjectileKindsDeriveInteractionCategories();
         TestCastVariantProjectileOverrideWins();
-        TestResolverIgnoresLegacyParamsBarrierCategories();
+        TestResolverRequiresFormalEffectCategories();
         TestResolverDoesNotGuessFromSkillIdOrTags();
 
         RequestTestExit(_test.Finish("Battle effect category resolver contract regression"));
-    }
-
-    private void TestResolverTypeIsPlainStaticCSharp()
-    {
-        Type resolverType = typeof(BattleEffectCategoryResolver);
-        _test.True(
-            resolverType.IsAbstract && resolverType.IsSealed,
-            "效果类别 resolver 应是 plain static C# class。"
-        );
     }
 
     private void TestCategoryFieldsAreFormalSchema()
@@ -115,7 +105,7 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
             durationTu: 0,
             tickIntervalTu: 0,
             effectTags: Array.Empty<StringName>(),
-            parameters: null,
+            payload: EmptyCombatEffectPayloadDefinition.Instance,
             effectCategories: new[] { new StringName("force_effect"), new StringName("mental_attack") }
         );
 
@@ -237,40 +227,25 @@ public partial class run_battle_effect_category_resolver_contract_regression : L
         );
     }
 
-    private void TestResolverIgnoresLegacyParamsBarrierCategories()
+    private void TestResolverRequiresFormalEffectCategories()
     {
-        SkillDefinition skill = BuildSkill("contract_legacy_params", Array.Empty<StringName>());
-        var effect = TestResourceOwnership.Own(
-            new CombatEffectDef(),
-            "BattleEffectCategoryResolverContract.legacy-params-effect"
+        SkillDefinition skill = BuildSkill("contract_without_categories", Array.Empty<StringName>());
+        CombatEffectDefinition effect = TestSkillDefinitionProjection.BuildEffect(
+            "damage"
         );
-        effect.@params = new Godot.Collections.Dictionary
-        {
-            ["barrier_categories"] = new Godot.Collections.Array<StringName>
-            {
-                new("spell"),
-                new("force_effect"),
-            },
-        };
 
         var categories = BattleEffectCategoryResolver.ResolveCategories(
             skill,
-            new[]
-            {
-                CombatEffectDefinition.FromResource(
-                    effect,
-                    "test.battle_effect_category.legacy_params"
-                ),
-            }
+            new[] { effect }
         );
 
         _test.False(
             ContainsCategory(categories, "spell"),
-            "Resolver 不应读取 legacy params.barrier_categories。"
+            "未声明正式 effect_categories 时不应推导 spell 类别。"
         );
         _test.False(
             ContainsCategory(categories, "force_effect"),
-            "Resolver 不应读取 legacy params.barrier_categories。"
+            "未声明正式 effect_categories 时不应推导 force_effect 类别。"
         );
     }
 

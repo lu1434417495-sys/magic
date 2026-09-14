@@ -22,16 +22,19 @@ internal sealed class SyntheticContentSnapshotSeed
     internal IReadOnlyDictionary<StringName, BarrierProfileDefinition> BarrierProfiles { get; set; }
     internal IReadOnlyDictionary<StringName, ContingencySetupTemplateDefinition> ContingencyTemplates { get; set; }
     internal IReadOnlyDictionary<StringName, ItemDefinition> Items { get; set; }
+    internal IReadOnlyDictionary<StringName, GearSetDefinition> GearSets { get; set; }
     internal IReadOnlyDictionary<StringName, RecipeDefinition> Recipes { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityContentPackDefinition> EquipmentAbilityPacks { get; set; }
     internal IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> EquipmentAbilityBindings { get; set; }
-    internal IReadOnlyDictionary<string, WorldGenerationDefinition> WorldGenerations { get; set; }
+    internal IReadOnlyDictionary<StringName, WorldPresetDefinition> WorldPresets { get; set; }
+    internal IReadOnlyDictionary<StringName, WorldGenerationDefinition> WorldGenerations { get; set; }
     internal IBattleSpecialProfileView BattleSpecialProfiles { get; set; }
     internal IReadOnlyDictionary<StringName, EnemyTemplateDefinition> EnemyTemplates { get; set; }
     internal IReadOnlyDictionary<StringName, EnemyAiBrainDefinition> EnemyBrains { get; set; }
     internal IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> EncounterRosters { get; set; }
     internal IReadOnlyDictionary<StringName, BattleEncounterDefinition> BattleEncounters { get; set; }
     internal IReadOnlyDictionary<StringName, BattleSimProfileDefinition> BattleSimProfiles { get; set; }
+    internal GameplayConfigurationDefinition GameplayConfiguration { get; set; }
 }
 
 internal static class SyntheticContentSnapshotFactory
@@ -61,16 +64,19 @@ internal static class SyntheticContentSnapshotFactory
             OrEmpty(seed.BarrierProfiles),
             OrEmpty(seed.ContingencyTemplates),
             OrEmpty(seed.Items),
+            OrEmpty(seed.GearSets),
             OrEmpty(seed.Recipes),
             OrEmpty(seed.EquipmentAbilityPacks),
             OrEmpty(seed.EquipmentAbilityBindings),
-            seed.WorldGenerations ?? new Dictionary<string, WorldGenerationDefinition>(StringComparer.Ordinal),
+            OrEmpty(seed.WorldPresets),
+            OrEmpty(seed.WorldGenerations),
             seed.BattleSpecialProfiles ?? BattleSpecialProfileRuntimeView.Empty,
             OrEmpty(seed.EnemyTemplates),
             OrEmpty(seed.EnemyBrains),
             OrEmpty(seed.EncounterRosters),
             OrEmpty(seed.BattleEncounters),
-            OrEmpty(seed.BattleSimProfiles)
+            OrEmpty(seed.BattleSimProfiles),
+            seed.GameplayConfiguration
         );
     }
 
@@ -97,9 +103,11 @@ internal static class SyntheticContentSnapshotFactory
             BarrierProfiles = source.BarrierProfiles,
             ContingencyTemplates = source.ContingencyTemplates,
             Items = source.Items,
+            GearSets = source.GearSets,
             Recipes = source.Recipes,
             EquipmentAbilityPacks = source.EquipmentAbilityPacks,
             EquipmentAbilityBindings = source.EquipmentAbilityBindings,
+            WorldPresets = source.WorldPresets,
             WorldGenerations = source.WorldGenerations,
             BattleSpecialProfiles = source.BattleSpecialProfiles,
             EnemyTemplates = source.EnemyTemplates,
@@ -107,6 +115,7 @@ internal static class SyntheticContentSnapshotFactory
             EncounterRosters = source.EncounterRosters,
             BattleEncounters = source.BattleEncounters,
             BattleSimProfiles = source.BattleSimProfiles,
+            GameplayConfiguration = source.GameplayConfiguration,
         };
     }
 

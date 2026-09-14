@@ -1,22 +1,21 @@
 using System.Collections.Generic;
-using System.IO;
 using Godot;
 
 public class AgeContentRegistry : IdentityContentRegistryBase
 {
-    private const string AgeProfileConfigDirectoryPath = "res://data/configs/age_profiles";
+    private const string AgeProfileConfigDirectoryPath = ProfessionIdentityJsonDomains.AgeProfileDirectory;
 
     private readonly Dictionary<StringName, AgeProfileDefinition> _age_profile_defs = new();
+    private readonly IContentJsonSourceReader _jsonSourceReader;
 
-    internal AgeContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal AgeContentRegistry(bool loadDefaultContent = true)
+        : this(new GodotContentJsonSourceReader(), loadDefaultContent) { }
 
-    internal AgeContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
-        : base(resourceLoader)
+    internal AgeContentRegistry(IContentJsonSourceReader jsonSourceReader, bool loadDefaultContent = true)
+        : base()
     {
+        _jsonSourceReader = jsonSourceReader
+            ?? throw new System.ArgumentNullException(nameof(jsonSourceReader));
         _registry_label = "AgeContentRegistry";
         if (loadDefaultContent)
             Rebuild();
@@ -34,7 +33,7 @@ public class AgeContentRegistry : IdentityContentRegistryBase
         _age_profile_defs.Clear();
         _validation_errors.Clear();
         foreach (var directoryPath in directoryPaths)
-            _scan_directory(directoryPath);
+            ImportDirectory(directoryPath);
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
     }
@@ -47,43 +46,29 @@ public class AgeContentRegistry : IdentityContentRegistryBase
         _age_profile_defs.Clear();
     }
 
-    protected override void _register_resource(string resourcePath)
+    private void ImportDirectory(string directoryPath)
     {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        ContentImportBatch<AgeProfileImportModel> batch = ProfessionIdentityJsonImport
+            .CreateAgeProfileDescriptor(directoryPath, _jsonSourceReader)
+            .Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
+            _validation_errors.Add(ProfessionIdentityJsonImport.FormatDiagnostic(diagnostic));
+        foreach (ContentImportEntry<AgeProfileImportModel> entry in batch.Entries)
         {
-            _validation_errors.Add($"Failed to load age profile config {resourcePath}.");
-            return;
-        }
-        if (resource is not AgeProfileDef profileDef)
-        {
-            _validation_errors.Add($"Age profile config {resourcePath} is not an AgeProfileDef.");
-            return;
-        }
-        if (profileDef.profile_id == "")
-        {
-            _validation_errors.Add($"Age profile config {resourcePath} is missing profile_id.");
-            return;
-        }
-        if (_age_profile_defs.ContainsKey(profileDef.profile_id))
-        {
-            _validation_errors.Add($"Duplicate age profile_id registered: {profileDef.profile_id}");
-            return;
-        }
-
-        try
-        {
-            AgeProfileDefinition definition = AgeProfileDefinition.FromResource(
-                profileDef,
-                $"age_profile.{profileDef.profile_id}"
-            );
-            _age_profile_defs.Add(definition.ProfileId, definition);
-        }
-        catch (InvalidDataException exception)
-        {
-            _validation_errors.Add(
-                $"Age profile config {resourcePath} projection failed: {exception.Message}"
-            );
+            try
+            {
+                AgeProfileDefinition definition = ProfessionIdentityDefinitionProjector.Project(entry.Import);
+                if (!_age_profile_defs.TryAdd(definition.ProfileId, definition))
+                    _validation_errors.Add($"Duplicate age profile_id registered: {definition.ProfileId}");
+            }
+            catch (System.Exception exception)
+                when (exception is System.IO.InvalidDataException
+                    or System.InvalidOperationException)
+            {
+                _validation_errors.Add(
+                    $"Age profile JSON {entry.Context.SourceLabel} projection failed: {exception.GetType().Name}: {exception.Message}"
+                );
+            }
         }
     }
 
@@ -193,7 +178,7 @@ public class AgeContentRegistry : IdentityContentRegistryBase
             var stageLabel = $"{ownerLabel}.{fieldLabel}[{index}]";
             if (stageRule == null)
             {
-                errors.Add($"{stageLabel} must be an AgeStageRule.");
+                errors.Add($"{stageLabel} must be an AgeStageRuleDefinition.");
                 continue;
             }
 

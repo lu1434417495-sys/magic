@@ -19,13 +19,6 @@ internal enum BattleCommandKind
     CancelCast,
 }
 
-public enum PendingCastBindingModeKind
-{
-    SoftAnchor = 0,
-    HardAnchor,
-    GroundBind,
-}
-
 internal enum PendingCastRefundPolicy
 {
     None = 0,
@@ -85,6 +78,7 @@ internal enum BattleEffectKind
     ChainDamage,
     Charge,
     ForcedMove,
+    PositionSwap,
     SourceRetreat,
     VaultBehindTarget,
     PathStepAoe,
@@ -111,7 +105,13 @@ internal enum BattleEffectKind
     Height,
     HeightDelta,
     TerrainEffect,
-    EdgeClear,
+}
+
+internal enum CombatEffectTargetOrder
+{
+    Unknown = 0,
+    None,
+    LowestHpPercentThenUnitId,
 }
 
 internal enum BattleDamageBonusConditionKind
@@ -135,6 +135,8 @@ internal enum BattleForcedMoveMode
     Retreat,
     Knockback,
     Reposition,
+    GrappleAscent,
+    AirbornePull,
 }
 
 internal enum BattleTerrainEffectRuntimeKind
@@ -202,6 +204,7 @@ internal enum CombatSkillMasteryTriggerMode
     IncomingPhysicalHit,
     SecondaryHit,
     SourceBoundWeaponBonusDamage,
+    TerrainEffectiveTrigger,
 }
 
 internal enum CombatSkillMasteryAmountMode
@@ -260,11 +263,11 @@ internal static class BattleTypedNames
     internal static readonly StringName EffectCharge = "charge";
     internal static readonly StringName EffectDamage = "damage";
     internal static readonly StringName EffectDispelMagic = "dispel_magic";
-    internal static readonly StringName EffectEdgeClear = "edge_clear";
     internal static readonly StringName EffectEquipmentDurabilityDamage =
         "equipment_durability_damage";
     internal static readonly StringName EffectExecute = "execute";
     internal static readonly StringName EffectForcedMove = "forced_move";
+    internal static readonly StringName EffectPositionSwap = "position_swap";
     internal static readonly StringName EffectSourceRetreat = "source_retreat";
     internal static readonly StringName EffectVaultBehindTarget = "vault_behind_target";
     internal static readonly StringName EffectGradedSaveExecute = "graded_save_execute";
@@ -302,6 +305,8 @@ internal static class BattleTypedNames
     internal static readonly StringName ForcedMoveRetreat = "retreat";
     internal static readonly StringName ForcedMoveKnockback = "knockback";
     internal static readonly StringName ForcedMoveReposition = "reposition";
+    internal static readonly StringName ForcedMoveGrappleAscent = "grapple_ascent";
+    internal static readonly StringName ForcedMoveAirbornePull = "airborne_pull";
     internal static readonly StringName TerrainEffectRuntimeMovementCost = "movement_cost";
     internal static readonly StringName TerrainEffectRuntimeNone = "none";
     internal static readonly StringName PositionCastDistance = "cast_distance";
@@ -336,6 +341,8 @@ internal static class BattleTypedNames
     internal static readonly StringName MasteryTriggerSecondaryHit = "secondary_hit";
     internal static readonly StringName MasteryTriggerSourceBoundWeaponBonusDamage =
         "source_bound_weapon_bonus_damage";
+    internal static readonly StringName MasteryTriggerTerrainEffectiveTrigger =
+        "terrain_effective_trigger";
     internal static readonly StringName MasteryAmountPerTargetRank = "per_target_rank";
     internal static readonly StringName MasteryAmountPerCastHpRatio = "per_cast_hp_ratio";
     internal static readonly StringName EnemyTargetRankNormal = "normal";
@@ -577,6 +584,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.Charge;
         if (value == EffectForcedMove)
             return BattleEffectKind.ForcedMove;
+        if (value == EffectPositionSwap)
+            return BattleEffectKind.PositionSwap;
         if (value == EffectSourceRetreat)
             return BattleEffectKind.SourceRetreat;
         if (value == EffectVaultBehindTarget)
@@ -629,8 +638,6 @@ internal static class BattleTypedNames
             return BattleEffectKind.HeightDelta;
         if (value == EffectTerrainEffect)
             return BattleEffectKind.TerrainEffect;
-        if (value == EffectEdgeClear)
-            return BattleEffectKind.EdgeClear;
         return BattleEffectKind.Unknown;
     }
 
@@ -642,6 +649,7 @@ internal static class BattleTypedNames
             BattleEffectKind.ChainDamage => EffectChainDamage,
             BattleEffectKind.Charge => EffectCharge,
             BattleEffectKind.ForcedMove => EffectForcedMove,
+            BattleEffectKind.PositionSwap => EffectPositionSwap,
             BattleEffectKind.SourceRetreat => EffectSourceRetreat,
             BattleEffectKind.VaultBehindTarget => EffectVaultBehindTarget,
             BattleEffectKind.PathStepAoe => EffectPathStepAoe,
@@ -668,7 +676,6 @@ internal static class BattleTypedNames
             BattleEffectKind.Height => EffectHeight,
             BattleEffectKind.HeightDelta => EffectHeightDelta,
             BattleEffectKind.TerrainEffect => EffectTerrainEffect,
-            BattleEffectKind.EdgeClear => EffectEdgeClear,
             _ => Empty,
         };
     }
@@ -726,6 +733,10 @@ internal static class BattleTypedNames
             return BattleForcedMoveMode.Knockback;
         if (value == ForcedMoveReposition)
             return BattleForcedMoveMode.Reposition;
+        if (value == ForcedMoveGrappleAscent)
+            return BattleForcedMoveMode.GrappleAscent;
+        if (value == ForcedMoveAirbornePull)
+            return BattleForcedMoveMode.AirbornePull;
         return BattleForcedMoveMode.Unknown;
     }
 
@@ -740,6 +751,8 @@ internal static class BattleTypedNames
             BattleForcedMoveMode.Retreat => ForcedMoveRetreat,
             BattleForcedMoveMode.Knockback => ForcedMoveKnockback,
             BattleForcedMoveMode.Reposition => ForcedMoveReposition,
+            BattleForcedMoveMode.GrappleAscent => ForcedMoveGrappleAscent,
+            BattleForcedMoveMode.AirbornePull => ForcedMoveAirbornePull,
             _ => Empty,
         };
     }
@@ -916,6 +929,8 @@ internal static class BattleTypedNames
             return CombatSkillMasteryTriggerMode.SecondaryHit;
         if (value == MasteryTriggerSourceBoundWeaponBonusDamage)
             return CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage;
+        if (value == MasteryTriggerTerrainEffectiveTrigger)
+            return CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger;
         return CombatSkillMasteryTriggerMode.Unknown;
     }
 
@@ -935,6 +950,8 @@ internal static class BattleTypedNames
             CombatSkillMasteryTriggerMode.SecondaryHit => MasteryTriggerSecondaryHit,
             CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage =>
                 MasteryTriggerSourceBoundWeaponBonusDamage,
+            CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger =>
+                MasteryTriggerTerrainEffectiveTrigger,
             _ => Empty,
         };
     }
@@ -991,6 +1008,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.GradedSaveExecute
                 or BattleEffectKind.Charge
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PositionSwap
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.PathStepAoe
                 or BattleEffectKind.RepeatAttackUntilFail
@@ -1006,8 +1024,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.TerrainReplaceTo
                 or BattleEffectKind.Height
                 or BattleEffectKind.HeightDelta
-                or BattleEffectKind.TerrainEffect
-                or BattleEffectKind.EdgeClear;
+                or BattleEffectKind.TerrainEffect;
     }
 
     internal static bool IsUnitPayloadEffect(BattleEffectKind kind)
@@ -1026,6 +1043,7 @@ internal static class BattleTypedNames
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.BodySizeCategoryOverride
                 or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PositionSwap
                 or BattleEffectKind.SourceRetreat
                 or BattleEffectKind.VaultBehindTarget
                 or BattleEffectKind.Execute

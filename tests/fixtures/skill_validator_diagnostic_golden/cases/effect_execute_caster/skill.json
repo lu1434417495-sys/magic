@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_execute_caster",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_execute_caster",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_execute_caster",
+        "effect_defs": [
+          {
+            "effect_type": "execute",
+            "payload": {},
+            "damage_tag": "fire",
+            "effect_target_team_filter": "enemy",
+            "save_dc": 10,
+            "save_dc_mode": "caster_spell",
+            "save_ability": "strength",
+            "save_tag": "execute"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_execute_caster",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

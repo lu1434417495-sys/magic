@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "main_border_patrol",
+      "display_name": "边境巡逻",
+      "description": "边境巡逻队报告称，狼骑兵的活动频率异常升高。它们似乎在躲避什么东西——或者，被什么东西驱赶。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "main_story",
+        "contract"
+      ],
+      "accept_requirements": [
+        {
+          "kind": "quest_completed",
+          "payload": {
+            "quest_id": "tutorial_wolf_alpha"
+          }
+        }
+      ],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "defeat_raiders",
+          "kind": "defeat_enemy",
+          "payload": {
+            "target_id": "wolf_raider",
+            "target_value": 5
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 200
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "iron_ore",
+            "quantity": 3
+          }
+        }
+      ]
+    }
+  ]
+}

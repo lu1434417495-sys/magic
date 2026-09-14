@@ -27,23 +27,40 @@ public sealed class BattleAiScoreInput
     public StringName random_chain_pool_refresh_policy { get; set; } = "";
     public StringName random_chain_score_estimate_policy { get; set; } = "";
     public int effective_target_count { get; set; } = 0;
+
+    /// <summary>
+    /// Target slots the command occupies that the preview shows landing nothing. Skills that bill
+    /// resources per slot already pay for these through resource_cost_score; on aggregate
+    /// multi-target skills padding is free, so without this the AI cannot tell a lean group from
+    /// one carrying dead targets.
+    /// </summary>
+    public int wasted_target_slot_count { get; set; } = 0;
     public int enemy_target_count { get; set; } = 0;
     public int ally_target_count { get; set; } = 0;
     public int estimated_damage { get; set; } = 0;
     public int estimated_post_save_damage { get; set; } = 0;
     public int estimated_shield_absorbed { get; set; } = 0;
     public int estimated_healing { get; set; } = 0;
+    public int estimated_shield_gain_basis_points { get; set; } = 0;
+    public int estimated_equipment_durability_loss_basis_points { get; set; } = 0;
+    public int estimated_equipment_destruction_probability_basis_points { get; set; } = 0;
     public int estimated_enemy_damage { get; set; } = 0;
     public int estimated_ally_damage { get; set; } = 0;
     public int estimated_enemy_healing { get; set; } = 0;
     public int estimated_ally_healing { get; set; } = 0;
+    public int estimated_enemy_healing_denied { get; set; } = 0;
+    public int estimated_ally_healing_denied { get; set; } = 0;
+    public int estimated_ally_shield_gain_basis_points { get; set; } = 0;
     public int estimated_status_count { get; set; } = 0;
     public int estimated_control_count { get; set; } = 0;
+    public int estimated_control_probability_basis_points { get; set; } = 0;
     public int estimated_taunt_ally_damage_relief { get; set; } = 0;
     public int estimated_terrain_effect_count { get; set; } = 0;
     public int estimated_height_delta { get; set; } = 0;
     public int estimated_ground_control_cell_count { get; set; } = 0;
     public int ground_control_score { get; set; } = 0;
+    public int estimated_terrain_interrupt_threat_count { get; set; } = 0;
+    public int estimated_terrain_interrupt_reachable_count { get; set; } = 0;
     public int estimated_lethal_target_count { get; set; } = 0;
     public int estimated_lethal_threat_target_count { get; set; } = 0;
     public List<StringName> estimated_lethal_target_ids { get; set; } = new();
@@ -73,6 +90,14 @@ public sealed class BattleAiScoreInput
     public string low_value_penalty_reason { get; set; } = "";
     public List<BattleAttackRollModifierSpec> attack_roll_modifier_breakdown { get; set; } = new();
     public int hit_payoff_score { get; set; } = 0;
+    public int forced_move_distance { get; set; } = 0;
+    public int forced_move_engagement_delta { get; set; } = 0;
+    public int forced_move_landing_terrain_effect_delta { get; set; } = 0;
+    public int forced_move_height_delta { get; set; } = 0;
+    public int forced_move_caster_exposure_penalty { get; set; } = 0;
+    public int forced_move_position_score { get; set; } = 0;
+    public int position_swap_utility_score { get; set; } = 0;
+    public int position_swap_success_probability_basis_points { get; set; } = 0;
     public int target_priority_score { get; set; } = 0;
     public int friendly_fire_penalty_score { get; set; } = 0;
     public int path_step_hit_count { get; set; } = 0;
@@ -186,7 +211,11 @@ public sealed class BattleAiScoreInput
         {
             return false;
         }
-        if (estimated_damage != 0 || estimated_control_count != 0)
+        if (
+            estimated_damage != 0
+            || estimated_control_count != 0
+            || estimated_control_probability_basis_points != 0
+        )
         {
             return false;
         }
@@ -252,24 +281,40 @@ public sealed class BattleAiScoreInput
             ["random_chain_pool_refresh_policy"] = random_chain_pool_refresh_policy.ToString(),
             ["random_chain_score_estimate_policy"] = random_chain_score_estimate_policy.ToString(),
             ["effective_target_count"] = effective_target_count,
+            ["wasted_target_slot_count"] = wasted_target_slot_count,
             ["enemy_target_count"] = enemy_target_count,
             ["ally_target_count"] = ally_target_count,
             ["estimated_damage"] = estimated_damage,
             ["estimated_post_save_damage"] = estimated_post_save_damage,
             ["estimated_shield_absorbed"] = estimated_shield_absorbed,
             ["estimated_healing"] = estimated_healing,
+            ["estimated_shield_gain_basis_points"] = estimated_shield_gain_basis_points,
+            ["estimated_equipment_durability_loss_basis_points"] =
+                estimated_equipment_durability_loss_basis_points,
+            ["estimated_equipment_destruction_probability_basis_points"] =
+                estimated_equipment_destruction_probability_basis_points,
             ["estimated_enemy_damage"] = estimated_enemy_damage,
             ["estimated_ally_damage"] = estimated_ally_damage,
             ["estimated_enemy_healing"] = estimated_enemy_healing,
             ["estimated_ally_healing"] = estimated_ally_healing,
+            ["estimated_enemy_healing_denied"] = estimated_enemy_healing_denied,
+            ["estimated_ally_healing_denied"] = estimated_ally_healing_denied,
+            ["estimated_ally_shield_gain_basis_points"] =
+                estimated_ally_shield_gain_basis_points,
             ["estimated_status_count"] = estimated_status_count,
             ["estimated_control_count"] = estimated_control_count,
+            ["estimated_control_probability_basis_points"] =
+                estimated_control_probability_basis_points,
             ["estimated_taunt_ally_damage_relief"] =
                 estimated_taunt_ally_damage_relief,
             ["estimated_terrain_effect_count"] = estimated_terrain_effect_count,
             ["estimated_height_delta"] = estimated_height_delta,
             ["estimated_ground_control_cell_count"] = estimated_ground_control_cell_count,
             ["ground_control_score"] = ground_control_score,
+            ["estimated_terrain_interrupt_threat_count"] =
+                estimated_terrain_interrupt_threat_count,
+            ["estimated_terrain_interrupt_reachable_count"] =
+                estimated_terrain_interrupt_reachable_count,
             ["estimated_lethal_target_count"] = estimated_lethal_target_count,
             ["estimated_lethal_threat_target_count"] = estimated_lethal_threat_target_count,
             ["estimated_lethal_target_ids"] = CloneStringNameList(estimated_lethal_target_ids),
@@ -320,6 +365,17 @@ public sealed class BattleAiScoreInput
                 attack_roll_modifier_breakdown
             ),
             ["hit_payoff_score"] = hit_payoff_score,
+            ["forced_move_distance"] = forced_move_distance,
+            ["forced_move_engagement_delta"] = forced_move_engagement_delta,
+            ["forced_move_landing_terrain_effect_delta"] =
+                forced_move_landing_terrain_effect_delta,
+            ["forced_move_height_delta"] = forced_move_height_delta,
+            ["forced_move_caster_exposure_penalty"] =
+                forced_move_caster_exposure_penalty,
+            ["forced_move_position_score"] = forced_move_position_score,
+            ["position_swap_utility_score"] = position_swap_utility_score,
+            ["position_swap_success_probability_basis_points"] =
+                position_swap_success_probability_basis_points,
             ["target_priority_score"] = target_priority_score,
             ["friendly_fire_penalty_score"] = friendly_fire_penalty_score,
             ["path_step_hit_count"] = path_step_hit_count,
@@ -434,6 +490,11 @@ public sealed class BattleAiScoreInput
             random_chain_score_estimate_policy
         );
         AppendNamedValueFingerprint(builder, "effective_target_count", effective_target_count);
+        AppendNamedValueFingerprint(
+            builder,
+            "wasted_target_slot_count",
+            wasted_target_slot_count
+        );
         AppendNamedValueFingerprint(builder, "enemy_target_count", enemy_target_count);
         AppendNamedValueFingerprint(builder, "ally_target_count", ally_target_count);
         AppendNamedValueFingerprint(builder, "estimated_damage", estimated_damage);
@@ -450,6 +511,21 @@ public sealed class BattleAiScoreInput
         AppendNamedValueFingerprint(builder, "estimated_healing", estimated_healing);
         AppendNamedValueFingerprint(
             builder,
+            "estimated_shield_gain_basis_points",
+            estimated_shield_gain_basis_points
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_equipment_durability_loss_basis_points",
+            estimated_equipment_durability_loss_basis_points
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_equipment_destruction_probability_basis_points",
+            estimated_equipment_destruction_probability_basis_points
+        );
+        AppendNamedValueFingerprint(
+            builder,
             "estimated_enemy_damage",
             estimated_enemy_damage
         );
@@ -462,6 +538,21 @@ public sealed class BattleAiScoreInput
         AppendNamedValueFingerprint(builder, "estimated_ally_healing", estimated_ally_healing);
         AppendNamedValueFingerprint(
             builder,
+            "estimated_enemy_healing_denied",
+            estimated_enemy_healing_denied
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_ally_healing_denied",
+            estimated_ally_healing_denied
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_ally_shield_gain_basis_points",
+            estimated_ally_shield_gain_basis_points
+        );
+        AppendNamedValueFingerprint(
+            builder,
             "estimated_status_count",
             estimated_status_count
         );
@@ -469,6 +560,11 @@ public sealed class BattleAiScoreInput
             builder,
             "estimated_control_count",
             estimated_control_count
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_control_probability_basis_points",
+            estimated_control_probability_basis_points
         );
         AppendNamedValueFingerprint(
             builder,
@@ -491,6 +587,16 @@ public sealed class BattleAiScoreInput
             estimated_ground_control_cell_count
         );
         AppendNamedValueFingerprint(builder, "ground_control_score", ground_control_score);
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_terrain_interrupt_threat_count",
+            estimated_terrain_interrupt_threat_count
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "estimated_terrain_interrupt_reachable_count",
+            estimated_terrain_interrupt_reachable_count
+        );
         AppendNamedValueFingerprint(
             builder,
             "estimated_lethal_target_count",
@@ -624,6 +730,42 @@ public sealed class BattleAiScoreInput
             attack_roll_modifier_breakdown
         );
         AppendNamedValueFingerprint(builder, "hit_payoff_score", hit_payoff_score);
+        AppendNamedValueFingerprint(builder, "forced_move_distance", forced_move_distance);
+        AppendNamedValueFingerprint(
+            builder,
+            "forced_move_engagement_delta",
+            forced_move_engagement_delta
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "forced_move_landing_terrain_effect_delta",
+            forced_move_landing_terrain_effect_delta
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "forced_move_height_delta",
+            forced_move_height_delta
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "forced_move_caster_exposure_penalty",
+            forced_move_caster_exposure_penalty
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "forced_move_position_score",
+            forced_move_position_score
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "position_swap_utility_score",
+            position_swap_utility_score
+        );
+        AppendNamedValueFingerprint(
+            builder,
+            "position_swap_success_probability_basis_points",
+            position_swap_success_probability_basis_points
+        );
         AppendNamedValueFingerprint(builder, "target_priority_score", target_priority_score);
         AppendNamedValueFingerprint(
             builder,

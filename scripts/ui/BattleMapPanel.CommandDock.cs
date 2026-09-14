@@ -68,6 +68,7 @@ public partial class BattleMapPanel
         {
             Name = "LogLabel",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            Visible = false,
         };
         log_label.AddThemeFontSizeOverride("font_size", 11);
         log_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
@@ -339,12 +340,23 @@ public partial class BattleMapPanel
 
     private Control _create_ap_dot(bool is_filled)
     {
-        return new ColorRect
+        var dot = new Panel
         {
             CustomMinimumSize = AP_DOT_SIZE,
-            Color = is_filled ? BattleUiTheme.AP_DOT_FILL() : BattleUiTheme.AP_DOT_EMPTY(),
+            MouseFilter = MouseFilterEnum.Ignore,
+            SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
         };
+        dot.AddThemeStyleboxOverride(
+            "panel",
+            _build_panel_style(
+                is_filled ? BattleUiTheme.AP_DOT_FILL() : BattleUiTheme.AP_DOT_EMPTY(),
+                Colors.Transparent,
+                (int)(AP_DOT_SIZE.X / 2),
+                0
+            )
+        );
+        return dot;
     }
 
     private void _apply_button_skin(Button button, bool is_compact, bool is_primary = false)

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -49,7 +50,7 @@ public static class BattleStatusModifierRules
             }
             result = Mathf.Min(
                 result,
-                ClampMultiplierPercent(
+                RequireMultiplierPercent(
                     entry.StatusId,
                     entry.HealMultiplierPercent.Value,
                     HealMultiplierPercentLabel
@@ -75,7 +76,7 @@ public static class BattleStatusModifierRules
             }
             result = Mathf.Min(
                 result,
-                ClampMultiplierPercent(
+                RequireMultiplierPercent(
                     entry.StatusId,
                     entry.ShieldGainMultiplierPercent.Value,
                     ShieldGainMultiplierPercentLabel
@@ -128,22 +129,24 @@ public static class BattleStatusModifierRules
         return statusEntry.TryGetShieldGainMultiplierPercentTyped(out int value) ? value : null;
     }
 
-    private static int ClampMultiplierPercent(
+    /// 两个授权源（SkillExecuteEffectValidator 与 EquipmentAbilityPayloadValidators）都已在
+    /// 内容校验期把这两个百分比限死在 0..100。原先的"警告一句然后 clamp"意味着 JSON 写的数
+    /// 和战斗里跑的数不一致却照常打完，所以这里改成越界即报缺陷。
+    private static int RequireMultiplierPercent(
         StringName statusId,
         int rawInt,
         string fieldLabel
     )
     {
-        if (rawInt > DefaultMultiplierPercent)
+        if (rawInt < 0 || rawInt > DefaultMultiplierPercent)
         {
             string statusLabel = IsEmpty(statusId) ? "<unknown>" : statusId.ToString();
-            GameLog.Warning(
-                $"BattleStatusModifierRules: status {statusLabel} declares {fieldLabel}={rawInt} (> {DefaultMultiplierPercent}); clamped — these multipliers only express debuffs.",
-                "battle.status.multiplier_clamped",
-                "battle"
+            throw new InvalidOperationException(
+                $"Status {statusLabel} carries {fieldLabel}={rawInt}, outside the validated "
+                    + $"0..{DefaultMultiplierPercent} range."
             );
         }
-        return Mathf.Clamp(rawInt, 0, DefaultMultiplierPercent);
+        return rawInt;
     }
 
     private static int ApplyMultiplier(int amount, int multiplierPercent)

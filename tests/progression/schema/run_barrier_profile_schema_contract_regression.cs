@@ -1,27 +1,13 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public partial class run_barrier_profile_schema_contract_regression : LifecycleTestSceneTree
 {
-    private const string ProfilePath = "res://data/configs/barriers/prismatic_sphere.tres";
-
-    private static readonly string[] RequiredScriptPaths =
-    {
-        "res://scripts/player/progression/BarrierProfileDef.cs",
-        "res://scripts/player/progression/BarrierLayerDef.cs",
-        "res://scripts/player/progression/BarrierOutcomeDef.cs",
-        "res://scripts/player/progression/BarrierContentRegistry.cs",
-    };
-
     private static readonly StringName[] ExpectedLayerIds =
     {
-        "red",
-        "orange",
-        "yellow",
-        "green",
-        "blue",
-        "indigo",
-        "violet",
+        "red", "orange", "yellow", "green", "blue", "indigo", "violet",
     };
 
     private static readonly StringName[] ExpectedBreakers =
@@ -48,13 +34,7 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
 
     private static readonly StringName[] ExpectedOutcomes =
     {
-        "damage",
-        "damage",
-        "damage",
-        "poison_death",
-        "status",
-        "status",
-        "banish",
+        "damage", "damage", "damage", "poison_death", "status", "status", "banish",
     };
 
     private static readonly Dictionary<StringName, StringName> ExpectedStatuses = new()
@@ -65,259 +45,93 @@ public partial class run_barrier_profile_schema_contract_regression : LifecycleT
 
     private readonly TestHarness _test = new();
 
-    public override void _Initialize()
-    {
-        RunAfterProcessStartup(Run);
-    }
+    public override void _Initialize() => RunAfterProcessStartup(Run);
 
     private void Run()
     {
-        TestBarrierProfileScriptsExist();
-        TestPrismaticSphereProfileIsDataOwned();
-        TestPrismaticSphereProfileDeclares2eContract();
-        TestSingleLayerProfilesReuseCanonicalLayers();
+        using var registry = new BarrierContentRegistry();
+        IReadOnlyList<string> errors = registry.ValidateTyped();
+        _test.Eq(errors.Count, 0, $"Barrier JSON registry must validate: {string.Join(" | ", errors)}");
 
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> profiles =
+            registry.GetProfileDefsTyped();
+        IReadOnlyDictionary<StringName, BarrierLayerDefinition> layers =
+            registry.GetLayerDefsTyped();
+        _test.Eq(profiles.Count, 8, "Barrier JSON must publish one sphere and seven wards.");
+        _test.Eq(layers.Count, 7, "Barrier layer JSON must publish seven canonical colors.");
+
+        AssertSphere(profiles, layers);
+        AssertSingleLayerProfiles(profiles, layers);
         RequestTestExit(_test.Finish("Barrier profile schema contract regression"));
     }
 
-    private void TestSingleLayerProfilesReuseCanonicalLayers()
+    private void AssertSphere(
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> profiles,
+        IReadOnlyDictionary<StringName, BarrierLayerDefinition> layers
+    )
     {
-        BarrierProfileDef sphere = LoadPrismaticSphereProfile(reportMissing: false);
-        if (sphere == null || sphere.layers.Count != ExpectedLayerIds.Length)
+        _test.True(profiles.TryGetValue("prismatic_sphere", out BarrierProfileDefinition sphere),
+            "Prismatic sphere must be projected from JSON.");
+        if (sphere == null)
             return;
+
+        _test.Eq(sphere.ProfileId, new StringName("prismatic_sphere"), "Profile id must be stable.");
+        _test.Eq(sphere.Layers.Count, 7, "Prismatic sphere must reference seven layer IDs.");
+        _test.False(sphere.CatchAllProjectedEffects,
+            "Prismatic sphere blocks only categories matched by remaining layers.");
 
         for (int index = 0; index < ExpectedLayerIds.Length; index++)
         {
             StringName layerId = ExpectedLayerIds[index];
-            string profilePath =
-                $"res://data/configs/barriers/{SingleLayerProfileIds[index]}.tres";
-            BarrierProfileDef profile = GD.Load<BarrierProfileDef>(profilePath);
-            if (profile == null)
-            {
-                _test.Fail($"Single-layer barrier profile must load: {profilePath}.");
-                continue;
-            }
-
-            _test.Eq(
-                profile.profile_id,
-                SingleLayerProfileIds[index],
-                "Single-layer barrier profile id must match its file contract."
-            );
-            _test.Eq(profile.radius_cells, 1, $"{profile.profile_id} must use radius 1.");
-            _test.Eq(profile.duration_tu, 40, $"{profile.profile_id} base duration must be 40 TU.");
-            _test.False(
-                profile.catch_all_projected_effects,
-                $"{profile.profile_id} must not enable catch-all projected blocking."
-            );
-            _test.Eq(
-                profile.layers.Count,
-                1,
-                $"{profile.profile_id} must contain exactly one canonical layer."
-            );
-            if (profile.layers.Count != 1 || profile.layers[0] == null)
+            _test.True(layers.TryGetValue(layerId, out BarrierLayerDefinition canonical),
+                $"Canonical layer must exist: {layerId}.");
+            if (canonical == null || index >= sphere.Layers.Count)
                 continue;
 
-            BarrierLayerDef singleLayer = profile.layers[0];
-            BarrierLayerDef sphereLayer = sphere.layers[index];
-            string expectedLayerPath =
-                $"res://data/configs/barrier_layers/prismatic/{layerId}.tres";
-            _test.Eq(
-                singleLayer.ResourcePath,
-                expectedLayerPath,
-                $"{profile.profile_id} must reference the shared {layerId} layer resource."
-            );
-            _test.Eq(
-                sphereLayer.ResourcePath,
-                expectedLayerPath,
-                $"Full prismatic sphere must reference the same shared {layerId} layer resource."
-            );
-            _test.Eq(
-                singleLayer.layer_id,
-                layerId,
-                $"{profile.profile_id} must expose only the {layerId} layer."
-            );
+            BarrierLayerDefinition projected = sphere.Layers[index];
+            _test.True(ReferenceEquals(projected, canonical),
+                $"Profile layer {layerId} must resolve the canonical layer definition by ID.");
+            _test.Eq(projected.LayerId, layerId, "Layer order must preserve 2E color order.");
+            _test.Eq(projected.Order, index + 1, "Layer order must be one-based and stable.");
+            _test.True(projected.BreakerSkillIds.Contains(ExpectedBreakers[index]),
+                $"Layer {layerId} must preserve its breaker skill.");
+            _test.True(projected.PassageOutcomes.Count > 0,
+                $"Layer {layerId} must preserve at least one passage outcome.");
+            if (projected.PassageOutcomes.Count == 0)
+                continue;
+
+            BarrierOutcomeDefinition outcome = projected.PassageOutcomes[0];
+            _test.Eq(outcome.OutcomeType, ExpectedOutcomes[index],
+                $"Layer {layerId} must preserve its typed passage outcome.");
+            if (ExpectedStatuses.TryGetValue(layerId, out StringName expectedStatus))
+                _test.Eq(outcome.StatusId, expectedStatus,
+                    $"Layer {layerId} must preserve its status effect.");
         }
     }
 
-    private void TestBarrierProfileScriptsExist()
+    private void AssertSingleLayerProfiles(
+        IReadOnlyDictionary<StringName, BarrierProfileDefinition> profiles,
+        IReadOnlyDictionary<StringName, BarrierLayerDefinition> layers
+    )
     {
-        foreach (string scriptPath in RequiredScriptPaths)
-        {
-            AssertResourceScript(scriptPath);
-        }
-    }
-
-    private void TestPrismaticSphereProfileIsDataOwned()
-    {
-        BarrierProfileDef profile = LoadPrismaticSphereProfile(reportMissing: true);
-        if (profile == null)
-        {
-            return;
-        }
-
-        AssertHasProperty(profile, "profile_id", "BarrierProfileDef must expose profile_id.");
-        AssertHasProperty(profile, "layers", "BarrierProfileDef must expose ordered layers.");
-        AssertHasProperty(profile, "anchor_mode", "BarrierProfileDef must expose anchor_mode.");
-        AssertHasProperty(profile, "area_pattern", "BarrierProfileDef must expose area_pattern.");
-        AssertHasProperty(profile, "radius_cells", "BarrierProfileDef must expose radius_cells.");
-        AssertHasProperty(
-            profile,
-            "catch_all_projected_effects",
-            "BarrierProfileDef must explicitly declare catch-all projected blocking policy."
-        );
-        _test.Eq(
-            profile.profile_id,
-            (StringName)"prismatic_sphere",
-            "Prismatic sphere profile id must be stable."
-        );
-        _test.False(
-            profile.catch_all_projected_effects,
-            "Prismatic sphere must only block projected effects matched by a remaining layer."
-        );
-    }
-
-    private void TestPrismaticSphereProfileDeclares2eContract()
-    {
-        BarrierProfileDef profile = LoadPrismaticSphereProfile(reportMissing: false);
-        if (profile == null)
-        {
-            return;
-        }
-
-        _test.Eq(profile.layers.Count, 7, "Prismatic sphere profile must declare exactly seven layers.");
-
         for (int index = 0; index < ExpectedLayerIds.Length; index++)
         {
-            if (index >= profile.layers.Count)
-            {
-                return;
-            }
-
-            BarrierLayerDef layer = profile.layers[index];
-            if (layer == null)
-            {
-                _test.Fail($"Prismatic sphere layer {index} must be a BarrierLayerDef resource.");
+            StringName profileId = SingleLayerProfileIds[index];
+            StringName layerId = ExpectedLayerIds[index];
+            _test.True(profiles.TryGetValue(profileId, out BarrierProfileDefinition profile),
+                $"Single-layer profile must exist: {profileId}.");
+            if (profile == null)
                 continue;
-            }
 
-            AssertHasProperty(layer, "layer_id", "BarrierLayerDef must expose layer_id.");
-            AssertHasProperty(layer, "order", "BarrierLayerDef must expose order.");
-            AssertHasProperty(
-                layer,
-                "blocked_categories",
-                "BarrierLayerDef must expose blocked_categories."
-            );
-            AssertHasProperty(
-                layer,
-                "breaker_skill_ids",
-                "BarrierLayerDef must expose breaker_skill_ids."
-            );
-            AssertHasProperty(
-                layer,
-                "passage_outcomes",
-                "BarrierLayerDef must expose passage_outcomes."
-            );
-            _test.Eq(
-                layer.layer_id,
-                ExpectedLayerIds[index],
-                "Prismatic sphere layer order must match 2E color order."
-            );
-            _test.Eq(
-                layer.order,
-                index + 1,
-                "Prismatic sphere layer order field must be one-based and stable."
-            );
-            _test.True(
-                layer.breaker_skill_ids.Contains(ExpectedBreakers[index]),
-                $"Layer {layer.layer_id} must declare its breaker skill in data."
-            );
-            _test.True(
-                layer.passage_outcomes.Count > 0,
-                $"Layer {layer.layer_id} must declare at least one passage outcome."
-            );
-            if (layer.passage_outcomes.Count == 0)
-            {
-                continue;
-            }
-
-            BarrierOutcomeDef outcome = layer.passage_outcomes[0];
-            AssertHasProperty(outcome, "outcome_type", "BarrierOutcomeDef must expose outcome_type.");
-            AssertHasProperty(outcome, "save_ability", "BarrierOutcomeDef must expose save_ability.");
-            AssertHasProperty(outcome, "save_tag", "BarrierOutcomeDef must expose save_tag.");
-            _test.Eq(
-                outcome.outcome_type,
-                ExpectedOutcomes[index],
-                $"Layer {layer.layer_id} must declare the expected passage outcome type."
-            );
-            if (ExpectedStatuses.TryGetValue(layer.layer_id, out StringName expectedStatus))
-            {
-                AssertHasProperty(outcome, "status_id", "Status outcomes must expose status_id.");
-                _test.Eq(
-                    outcome.status_id,
-                    expectedStatus,
-                    $"Layer {layer.layer_id} must declare its status effect in data."
-                );
-            }
+            _test.Eq(profile.RadiusCells, 1, $"{profileId} must use radius 1.");
+            _test.Eq(profile.DurationTu, 40, $"{profileId} base duration must be 40 TU.");
+            _test.False(profile.CatchAllProjectedEffects,
+                $"{profileId} must not enable catch-all projected blocking.");
+            _test.Eq(profile.Layers.Count, 1,
+                $"{profileId} must reference exactly one layer ID.");
+            if (profile.Layers.Count == 1 && layers.TryGetValue(layerId, out BarrierLayerDefinition canonical))
+                _test.True(ReferenceEquals(profile.Layers[0], canonical),
+                    $"{profileId} must reuse canonical layer {layerId} by ID.");
         }
-    }
-
-    private BarrierProfileDef LoadPrismaticSphereProfile(bool reportMissing)
-    {
-        if (!FileAccess.FileExists(ProfilePath))
-        {
-            if (reportMissing)
-            {
-                _test.Fail($"Prismatic sphere barrier profile must live at {ProfilePath}.");
-            }
-            return null;
-        }
-
-        Resource resource = GD.Load<Resource>(ProfilePath);
-        BarrierProfileDef profile = resource as BarrierProfileDef;
-        if (profile == null && reportMissing)
-        {
-            _test.Fail("Prismatic sphere barrier profile must load as a Resource.");
-        }
-        return profile;
-    }
-
-    private void AssertResourceScript(string path)
-    {
-        if (!FileAccess.FileExists(path))
-        {
-            _test.Fail($"Required barrier content script is missing: {path}.");
-            return;
-        }
-
-        Script script = GD.Load<Script>(path);
-        if (script == null)
-        {
-            _test.Fail($"Required barrier content script must load: {path}.");
-        }
-    }
-
-    private void AssertHasProperty(GodotObject instance, string propertyName, string message)
-    {
-        if (!HasProperty(instance, propertyName))
-        {
-            _test.Fail(message);
-        }
-    }
-
-    private static bool HasProperty(GodotObject instance, string propertyName)
-    {
-        if (instance == null)
-        {
-            return false;
-        }
-
-        foreach (Godot.Collections.Dictionary property in instance.GetPropertyList())
-        {
-            if (property.TryGetValue("name", out Variant name) && name.AsString() == propertyName)
-            {
-                return true;
-            }
-        }
-        return false;
     }
 }

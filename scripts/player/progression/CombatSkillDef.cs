@@ -43,11 +43,12 @@ internal enum CombatAreaDirectionMode
 {
     Unknown = 0,
     TargetVector,
+    TargetVectorPerpendicular,
     CasterFacing,
 }
 
 [GlobalClass]
-public partial class CombatSkillDef : Resource
+public partial class CombatSkillDef : RefCounted
 {
     private static readonly StringName SpellFateControlRoll = "control_roll";
     private static readonly StringName SpellCriticalMpRefund = "mp_refund";
@@ -60,6 +61,8 @@ public partial class CombatSkillDef : Resource
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
     private static readonly StringName AreaDirectionTargetVector = "target_vector";
+    private static readonly StringName AreaDirectionTargetVectorPerpendicular =
+        "target_vector_perpendicular";
     private static readonly StringName AreaDirectionCasterFacing = "caster_facing";
 
     [Export]
@@ -82,13 +85,24 @@ public partial class CombatSkillDef : Resource
     }
 
     [Export]
+    public Godot.Collections.Array<StringName> excluded_target_creature_type_tags { get; set; } = new();
+
+    [Export]
     public StringName range_pattern { get; set; } = "single";
 
     [Export]
     public int range_value { get; set; } = 1;
 
     [Export]
+    public int range_move_point_capacity_multiplier { get; set; }
+
+    [Export]
     public StringName weapon_range_policy { get; set; } = "";
+    internal CombatWeaponRangePolicy WeaponRangePolicyKind
+    {
+        get => CombatWeaponRangePolicyRules.ToPolicy(weapon_range_policy);
+        set => weapon_range_policy = CombatWeaponRangePolicyRules.ToStringName(value);
+    }
 
     [Export]
     public StringName area_pattern { get; set; } = "single";
@@ -101,6 +115,15 @@ public partial class CombatSkillDef : Resource
     public bool requires_los { get; set; }
 
     [Export]
+    public bool ground_effect_require_full_area { get; set; }
+
+    [Export]
+    public bool ground_effect_require_empty { get; set; }
+
+    [Export]
+    public bool ground_effect_require_traversable { get; set; }
+
+    [Export]
     public int ap_cost { get; set; } = 1;
 
     [Export]
@@ -108,6 +131,12 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public int stamina_cost { get; set; }
+
+    [Export]
+    public int mp_cost_per_target_slot { get; set; }
+
+    [Export]
+    public int stamina_cost_per_target_slot { get; set; }
 
     [Export]
     public int cooldown_tu { get; set; }
@@ -123,6 +152,24 @@ public partial class CombatSkillDef : Resource
 
     [Export]
     public CombatWindupDef windup_profile { get; set; }
+
+    [Export]
+    public CombatDirectionalPiercingDef directional_piercing_profile { get; set; }
+
+    [Export]
+    public CombatApproachAttackDef approach_attack_profile { get; set; }
+
+    [Export]
+    public CombatLineThroughAttackDef line_through_attack_profile { get; set; }
+
+    [Export]
+    public CombatSequentialLineHitDef sequential_line_hit_profile { get; set; }
+
+    [Export]
+    public CombatSpellReactionDef spell_reaction_profile { get; set; }
+
+    [Export]
+    public CombatRangedWeaponReactionDef ranged_weapon_reaction_profile { get; set; }
 
     [Export]
     public StringName pending_cast_binding_mode { get; set; } = "soft_anchor";
@@ -142,6 +189,14 @@ public partial class CombatSkillDef : Resource
     {
         get => ToAttackResolutionMode(attack_resolution_mode);
         set => attack_resolution_mode = ToStringName(value);
+    }
+
+    [Export]
+    public StringName attack_defense_mode { get; set; } = "normal";
+    internal CombatSkillAttackDefenseMode AttackDefenseModeKind
+    {
+        get => CombatSkillContentRules.ToAttackDefenseMode(attack_defense_mode);
+        set => attack_defense_mode = CombatSkillContentRules.ToStringName(value);
     }
 
     [Export]
@@ -179,6 +234,9 @@ public partial class CombatSkillDef : Resource
         get => BattleTypedNames.ToCombatSkillMasteryAmountMode(mastery_amount_mode);
         set => mastery_amount_mode = BattleTypedNames.ToStringName(value);
     }
+
+    [Export(PropertyHint.Range, "1,1000,1")]
+    public int mastery_base_amount { get; set; } = 1;
 
     [Export]
     public StringName spell_fate_mode { get; set; } = "";
@@ -289,6 +347,17 @@ public partial class CombatSkillDef : Resource
     public bool allow_repeat_target { get; set; }
 
     [Export]
+    public StringName unit_target_resolution_mode { get; set; } = "aggregate";
+
+    internal CombatUnitTargetResolutionMode UnitTargetResolutionModeKind
+    {
+        get => CombatUnitTargetResolutionContentRules.ToMode(unit_target_resolution_mode);
+        set =>
+            unit_target_resolution_mode =
+                CombatUnitTargetResolutionContentRules.ToStringName(value);
+    }
+
+    [Export]
     public int max_hits_per_target { get; set; }
 
     [Export]
@@ -361,8 +430,7 @@ public partial class CombatSkillDef : Resource
         {
             if (cv != null && skillLevel >= cv.min_skill_level)
             {
-                CombatCastVariantDef variant = (CombatCastVariantDef)cv.Duplicate(true);
-                r.Add(variant);
+                r.Add(cv);
             }
         }
         return r;
@@ -389,6 +457,26 @@ public partial class CombatSkillDef : Resource
                 ? effectiveCooldownTu
                 : cooldown_tu
         );
+    }
+
+    public int GetEffectiveMpCostPerTargetSlot(int skillLevel)
+    {
+        var ov = GetCachedLevelOverride(skillLevel);
+        return TryReadResourceCostOverride(ov, "mp_cost_per_target_slot", out int value)
+            ? value
+            : mp_cost_per_target_slot;
+    }
+
+    public int GetEffectiveStaminaCostPerTargetSlot(int skillLevel)
+    {
+        var ov = GetCachedLevelOverride(skillLevel);
+        return TryReadResourceCostOverride(
+            ov,
+            "stamina_cost_per_target_slot",
+            out int value
+        )
+            ? value
+            : stamina_cost_per_target_slot;
     }
 
     public Godot.Collections.Dictionary GetLevelOverride(int skillLevel)
@@ -500,6 +588,16 @@ public partial class CombatSkillDef : Resource
                 ProgressionDataUtils.to_string_name(o["attack_resolution_mode"])
             )
             : AttackResolutionModeKind;
+    }
+
+    internal CombatSkillAttackDefenseMode GetEffectiveAttackDefenseMode(int sl)
+    {
+        var o = GetCachedLevelOverride(sl);
+        return o.ContainsKey("attack_defense_mode")
+            ? CombatSkillContentRules.ToAttackDefenseMode(
+                ProgressionDataUtils.to_string_name(o["attack_defense_mode"])
+            )
+            : AttackDefenseModeKind;
     }
 
     public int GetEffectiveCastingTimeTu(int sl)
@@ -642,6 +740,8 @@ public partial class CombatSkillDef : Resource
     {
         if (value == AreaDirectionTargetVector)
             return CombatAreaDirectionMode.TargetVector;
+        if (value == AreaDirectionTargetVectorPerpendicular)
+            return CombatAreaDirectionMode.TargetVectorPerpendicular;
         if (value == AreaDirectionCasterFacing)
             return CombatAreaDirectionMode.CasterFacing;
         return CombatAreaDirectionMode.Unknown;
@@ -705,6 +805,8 @@ public partial class CombatSkillDef : Resource
         return mode switch
         {
             CombatAreaDirectionMode.TargetVector => AreaDirectionTargetVector,
+            CombatAreaDirectionMode.TargetVectorPerpendicular =>
+                AreaDirectionTargetVectorPerpendicular,
             CombatAreaDirectionMode.CasterFacing => AreaDirectionCasterFacing,
             _ => "",
         };

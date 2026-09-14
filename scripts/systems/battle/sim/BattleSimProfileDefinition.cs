@@ -24,4 +24,5 @@ internal sealed record BattleSimProfileDefinition
     internal string Description { get; }
     internal BattleAiScoreProfileDefinition AiScoreProfile { get; }
     internal IReadOnlyList<BattleSimOverridePatchDefinition> OverridePatches { get; }
+
 }

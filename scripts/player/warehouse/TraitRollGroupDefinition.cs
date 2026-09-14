@@ -20,37 +20,6 @@ public sealed class TraitRollGroupDefinition
     public int RollCount { get; }
     public IReadOnlyList<TraitRollGroupEntryDefinition> Entries { get; }
 
-    internal static TraitRollGroupDefinition FromResource(TraitRollGroupDef source) =>
-        FromResource(
-            source,
-            $"trait_roll_group.{WarehouseDefinitionProjection.PathId(source?.group_id ?? "")}"
-        );
-
-    internal static TraitRollGroupDefinition FromResource(
-        TraitRollGroupDef source,
-        string path
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        var entries = new List<TraitRollGroupEntryDefinition>();
-        int index = 0;
-        foreach (
-            TraitRollGroupEntryDef entry in WarehouseDefinitionProjection.RequireCollection(
-                source.EntriesProjectionBorrowed,
-                path + ".entries"
-            )
-        )
-        {
-            string entryPath = $"{path}.entries[{index}]";
-            if (entry == null)
-                throw WarehouseDefinitionProjection.Invalid(entryPath, "resource is null");
-            entries.Add(TraitRollGroupEntryDefinition.FromResource(entry, entryPath));
-            index++;
-        }
-
-        return new TraitRollGroupDefinition(source.group_id, source.roll_count, entries);
-    }
-
     internal static TraitRollGroupDefinition CopyOf(TraitRollGroupDefinition source)
     {
         if (source == null)

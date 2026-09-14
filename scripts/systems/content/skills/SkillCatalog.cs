@@ -91,7 +91,10 @@ public sealed class SkillCatalog : ISkillCatalog
         int skillLevel
     )
     {
-        return GetEffectiveCombatDefinition(skillId, skillLevel).ResourceCosts;
+        return GetEffectiveCombatDefinition(
+            skillId,
+            skillLevel
+        ).GetResourceCostsForTargetSlots(1);
     }
 
     public int GetEffectiveAttackRollBonus(StringName skillId, int skillLevel)

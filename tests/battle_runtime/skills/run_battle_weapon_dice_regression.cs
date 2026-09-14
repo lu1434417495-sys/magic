@@ -27,7 +27,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
     private TestResult Run()
     {
         RunCase("TestAddWeaponDiceExplicitFormula", TestAddWeaponDiceExplicitFormula);
-        RunCase("TestLegacySkillDiceAliasesAreNotUsed", TestLegacySkillDiceAliasesAreNotUsed);
+        RunCase("TestAbsentSkillDiceRemainZero", TestAbsentSkillDiceRemainZero);
         RunCase("TestPhysicalDamageDoesNotAddWeaponDiceByDefault", TestPhysicalDamageDoesNotAddWeaponDiceByDefault);
         RunCase("TestCriticalHitRollsExtraWeaponAndSkillDiceOnce", TestCriticalHitRollsExtraWeaponAndSkillDiceOnce);
         RunCase("TestEachDamageEffectReadsAddWeaponDiceIndependently", TestEachDamageEffectReadsAddWeaponDiceIndependently);
@@ -35,7 +35,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         RunCase("TestVersatileCurrentGripSelectsActiveDice", TestVersatileCurrentGripSelectsActiveDice);
         RunCase("TestUnarmedAndNaturalWeaponDiceFeedAddWeaponDice", TestUnarmedAndNaturalWeaponDiceFeedAddWeaponDice);
         RunCase("TestRequiresWeaponGateAcceptsEquippedOnly", TestRequiresWeaponGateAcceptsEquippedOnly);
-        RunCase("TestNaturalWeaponDiceDoNotTriggerSkillMastery", TestNaturalWeaponDiceDoNotTriggerSkillMastery);
+        RunCase("TestNaturalWeaponDiceCanTriggerHighDamageMastery", TestNaturalWeaponDiceCanTriggerHighDamageMastery);
         RunCase("TestDiceEventFieldsSplitByDiceGroup", TestDiceEventFieldsSplitByDiceGroup);
         RunCase("TestDiceEventFieldsStayFalseWithoutDiceGroups", TestDiceEventFieldsStayFalseWithoutDiceGroups);
         RunCase("TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate", TestWarriorHeavyStrikeUsesWeaponPlusSkillDiceTemplate);
@@ -100,21 +100,12 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         );
     }
 
-    private void TestLegacySkillDiceAliasesAreNotUsed()
+    private void TestAbsentSkillDiceRemainZero()
     {
         var resolver = BuildFixedRollDamageResolver(new[] { 6, 6, 6 });
-        BattleUnitState source = BuildUnit("legacy_dice_alias_user");
-        BattleUnitState target = BuildUnit("legacy_dice_alias_target");
-        CombatEffectDefinition effect = BuildDamageEffect(
-            5,
-            false,
-            parameters: new Dictionary<string, object>
-            {
-                ["damage_dice_count"] = 3,
-                ["damage_dice_sides"] = 6,
-                ["damage_dice_bonus"] = 9,
-            }
-        );
+        BattleUnitState source = BuildUnit("no_skill_dice_user");
+        BattleUnitState target = BuildUnit("no_skill_dice_target");
+        CombatEffectDefinition effect = BuildDamageEffect(5, false);
 
         using GodotProjectionLease<GDictionary> resultLease =
             AttackEffectResolutionResultReader.BuildGodotPayloadLease(
@@ -130,22 +121,22 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         _test.Eq(
             DictInt(damageEvent, "base_damage", 0),
             5,
-            "旧技能骰 alias 不应加入真实伤害。"
+            "未配置技能骰时不应加入额外伤害。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_count", -1),
             0,
-            "旧 damage_dice_count alias 不应再被读取。"
+            "未配置技能骰时数量应为 0。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_sides", -1),
             0,
-            "旧 damage_dice_sides alias 不应再被读取。"
+            "未配置技能骰时骰面应为 0。"
         );
         _test.Eq(
             DictInt(damageEvent, "damage_dice_bonus", -1),
             0,
-            "旧 damage_dice_bonus alias 不应再被读取。"
+            "未配置技能骰时加值应为 0。"
         );
     }
 
@@ -610,7 +601,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         _test.True(target.GetCurrentHp() < targetHpBefore, "装备武器满足 requires_weapon 后应造成伤害。");
     }
 
-    private void TestNaturalWeaponDiceDoNotTriggerSkillMastery()
+    private void TestNaturalWeaponDiceCanTriggerHighDamageMastery()
     {
         var gateway = new MasteryGatewayStub();
         SkillDefinition skill = BuildRuntimeDamageSkill("natural_weapon_only_mastery_contract", 0, false, true);
@@ -619,13 +610,16 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             gateway,
             new Dictionary<StringName, SkillDefinition> { [skill.SkillId] = skill }
         );
-        runtime.ConfigureDamageResolverForTests(
-            BuildFixedRollDamageResolver(new[] { 1 }, new[] { 10 })
+        var damageResolver = new CapturingFixedRollDamageResolver(
+            ToArray(new[] { 8 }),
+            ToArray(new[] { 10 })
         );
+        runtime.ConfigureDamageResolverForTests(damageResolver);
         runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
 
         RuntimeDuelFixture fixture = BuildRuntimeDuelFixture(runtime, skill.SkillId);
         BattleUnitState attacker = fixture.Attacker;
+        BattleUnitState target = fixture.Target;
         BattleCommand command = fixture.Command;
         attacker.source_member_id = "hero";
         ApplyNaturalWeapon(
@@ -636,7 +630,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             new WeaponDice
             {
                 dice_count = 1,
-                dice_sides = 1,
+                dice_sides = 10,
                 flat_bonus = 0,
             },
             ""
@@ -648,7 +642,19 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             $"天生武器骰技能应正常完成一次主动技能结算。 log={FormatLogs(batch?.log_lines)}"
         );
         _test.Eq(gateway.SkillUsedEvents, 1, "天生武器骰技能成功后仍应记录技能使用事件。");
-        _test.Eq(gateway.Grants.Count, 0, "天生武器骰满值不应触发主动技能熟练度 / 精通入账。");
+        _test.True(
+            target.GetCurrentHp() < 30,
+            $"天生武器骰事件必须先造成实际 HP 伤害，才具备熟练度资格。 hp={target.GetCurrentHp()}"
+        );
+        _test.True(
+            damageResolver.SawDamageDiceHighTotalRoll,
+            "天生武器骰达到理论最大值80%时，正式伤害结果必须携带 high-total 事件。"
+        );
+        _test.Eq(
+            gateway.Grants.Count,
+            1,
+            "天生武器骰达到理论最大值80%时，也应触发主动技能熟练度入账。"
+        );
     }
 
     private void TestDiceEventFieldsSplitByDiceGroup()
@@ -888,6 +894,11 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             return;
         }
 
+        _test.True(
+            skillDefinition.CombatProfile.AllowsNaturalWeapon,
+            "重击应允许近战型天生武器通过正式武器门禁。"
+        );
+
         var armorBreakEffects = new List<CombatEffectDefinition>();
         foreach (CombatEffectDefinition effect in skillDefinition.CombatProfile.EffectDefinitions)
         {
@@ -909,6 +920,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 [skillDefinition.SkillId] = skillDefinition,
             }
         );
+        runtime.ConfigureDamageResolverForTests(new FixedHitMaxDamageResolver());
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         BattleUnitState attacker = BuildUnit("heavy_strike_weapon_gate_user");
         attacker.SetCurrentStamina(100);
 
@@ -931,6 +944,133 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             runtime.GetSkillCastBlockReason(attacker, skillDefinition),
             BattleSkillCastBlockReasonKind.None,
             "装备近战剑时重击应保持可用。"
+        );
+
+        ApplyUnarmedWeapon(
+            attacker,
+            "physical_blunt",
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 4,
+                flat_bonus = 0,
+            },
+            1
+        );
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            "空手不应借 allows_natural_weapon 绕过重击的武器门禁。"
+        );
+
+        ApplyNaturalWeapon(
+            attacker,
+            "natural_weapon",
+            "physical_pierce",
+            1,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 6,
+                flat_bonus = 0,
+            },
+            "bite"
+        );
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.None,
+            "1格近战型天生武器应能施放重击。"
+        );
+
+        ApplyNaturalWeapon(
+            attacker,
+            "natural_weapon",
+            "physical_pierce",
+            2,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 8,
+                flat_bonus = 0,
+            },
+            "bite"
+        );
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.None,
+            "2格触及型天生武器仍应视为近战并能施放重击。"
+        );
+
+        ApplyNaturalWeapon(
+            attacker,
+            "natural_weapon",
+            "physical_pierce",
+            3,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 8,
+                flat_bonus = 0,
+            },
+            "spit"
+        );
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.None,
+            "明确标记为 melee 的3格触及型天生武器仍应能施放重击。"
+        );
+
+        ApplyNaturalWeapon(
+            attacker,
+            "natural_weapon",
+            "physical_pierce",
+            5,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 8,
+                flat_bonus = 0,
+            },
+            "spit",
+            "ranged"
+        );
+        _test.Eq(
+            runtime.GetSkillCastBlockReason(attacker, skillDefinition),
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            "明确标记为 ranged 的天生武器不应施放 melee 重击。"
+        );
+
+        RuntimeDuelFixture naturalFixture = BuildRuntimeDuelFixture(
+            runtime,
+            skillDefinition.SkillId
+        );
+        naturalFixture.Attacker.SetCurrentStamina(100);
+        ApplyNaturalWeapon(
+            naturalFixture.Attacker,
+            "natural_weapon",
+            "physical_pierce",
+            1,
+            new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 6,
+                flat_bonus = 0,
+            },
+            "bite"
+        );
+        int naturalTargetHpBefore = naturalFixture.Target.GetCurrentHp();
+        BattleEventBatch naturalHeavyStrikeBatch = runtime.IssueCommand(
+            naturalFixture.Command
+        );
+        _test.True(
+            naturalHeavyStrikeBatch?.changed_unit_ids.Contains(
+                naturalFixture.Attacker.unit_id
+            ) == true,
+            $"近战型天生武器重击应完成正式执行并结算施法者。 log={FormatLogs(naturalHeavyStrikeBatch?.log_lines)}"
+        );
+        _test.True(
+            naturalFixture.Target.GetCurrentHp() < naturalTargetHpBefore,
+            "近战型天生武器重击应读取天生武器骰并对目标造成伤害。"
         );
 
         skillDefinitions.TryGetValue("archer_aimed_shot", out SkillDefinition aimedShotDefinition);
@@ -977,8 +1117,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         int diceCount = 0,
         int diceSides = 0,
         int diceBonus = 0,
-        StringName damageTag = default,
-        IReadOnlyDictionary<string, object> parameters = null
+        StringName damageTag = default
     )
     {
         if (damageTag == default || damageTag == (StringName)"")
@@ -993,8 +1132,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
             addWeaponDice: addWeaponDice,
             diceCount: diceCount,
             diceSides: diceSides,
-            diceBonus: diceBonus,
-            parameters: parameters
+            diceBonus: diceBonus
         );
     }
 
@@ -1029,7 +1167,9 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 targetMode: "unit",
                 targetTeamFilter: "enemy",
                 rangeValue: 1,
-                apCost: 1
+                apCost: 1,
+                masteryTriggerMode: "skill_damage_dice_max",
+                masteryAmountMode: "per_target_rank"
             )
         );
     }
@@ -1204,7 +1344,8 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         StringName damageTag,
         int attackRange,
         WeaponDice dice,
-        StringName family
+        StringName family,
+        StringName rangeType = default
     )
     {
         unit.ApplyWeaponProjectionTyped(
@@ -1213,7 +1354,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
                 weapon_profile_kind = "natural",
                 weapon_item_id = "",
                 weapon_profile_type_id = profileTypeId,
-                weapon_range_type = "melee",
+                weapon_range_type = rangeType == default ? "melee" : rangeType,
                 weapon_family = family,
                 weapon_current_grip = "one_handed",
                 weapon_attack_range = attackRange,
@@ -1353,6 +1494,58 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         public int DiceSides { get; }
     }
 
+    private sealed class CapturingFixedRollDamageResolver : FixedRollDamageResolver
+    {
+        public CapturingFixedRollDamageResolver(GArray damageRolls, GArray attackRolls)
+            : base(damageRolls, attackRolls) { }
+
+        public AttackEffectResolutionResult LastResult { get; private set; }
+        public bool SawDamageDiceHighTotalRoll { get; private set; }
+
+        internal override AttackEffectResolutionResult ResolveEffects(
+            BattleUnitState sourceUnit,
+            BattleUnitState targetUnit,
+            IEnumerable<CombatEffectDefinition> effectDefinitions,
+            DamageResolutionContext damageContext
+        )
+        {
+            return Capture(
+                base.ResolveEffects(
+                    sourceUnit,
+                    targetUnit,
+                    effectDefinitions,
+                    damageContext
+                )
+            );
+        }
+
+        internal override AttackEffectResolutionResult ResolveAttackEffects(
+            BattleUnitState sourceUnit,
+            BattleUnitState targetUnit,
+            IEnumerable<CombatEffectDefinition> effectDefinitions,
+            AttackCheckInput attackCheck,
+            AttackContext attackContext
+        )
+        {
+            return Capture(
+                base.ResolveAttackEffects(
+                    sourceUnit,
+                    targetUnit,
+                    effectDefinitions,
+                    attackCheck,
+                    attackContext
+                )
+            );
+        }
+
+        private AttackEffectResolutionResult Capture(AttackEffectResolutionResult result)
+        {
+            LastResult = result;
+            SawDamageDiceHighTotalRoll |= LastResult.DamageDiceHighTotalRoll;
+            return LastResult;
+        }
+    }
+
     private sealed class RuntimeDuelFixture
     {
         public RuntimeDuelFixture(
@@ -1413,7 +1606,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult CommitBattleResources(

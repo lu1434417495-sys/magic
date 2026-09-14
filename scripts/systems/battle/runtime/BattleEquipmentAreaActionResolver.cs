@@ -230,8 +230,7 @@ internal sealed class BattleEquipmentAreaActionResolver
             renderOverlayId: payload?.RenderOverlayId ?? "",
             overlayPriority: payload?.OverlayPriority ?? 0,
             displayName: payload?.DisplayName ?? "",
-            stackBehavior: stackBehavior,
-            parameters: new Dictionary<string, object>(StringComparer.Ordinal)
+            stackBehavior: stackBehavior
         );
     }
 

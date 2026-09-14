@@ -114,6 +114,7 @@ internal readonly struct BattleUnitReadView
     internal int CurrentAura => CombatResources.Aura;
     internal int CurrentAp => CombatResources.Ap;
     internal int CurrentMovePoints => CombatResources.MovePoints;
+    internal int MovePointCapacity => _unit?.GetMovePointCapacity() ?? 0;
     internal bool HasTakenActionThisTurn =>
         _unit?.HasTakenActionThisTurnTyped() ?? false;
     internal bool HasMovedThisTurn =>
@@ -409,9 +410,12 @@ internal readonly struct BattleStatusReadView
         _status?.main_skill_lock_other_debuff_count ?? 0;
     internal bool LockCounterattack => _status?.lock_counterattack ?? false;
     internal bool LockGuard => _status?.lock_guard ?? false;
+    internal bool ForcedMoveImmune => _status?.forced_move_immune ?? false;
     internal int Power => _status?.power ?? 0;
     internal int RangeBonus => _status?.range_bonus ?? 0;
     internal int AttackRollBonus => _status?.attack_roll_bonus ?? 0;
+    internal int ArmorClassBonusPerStack =>
+        _status?.armor_class_bonus_per_stack ?? 0;
     internal StringName ComboAttackBonusStatusId =>
         _status?.combo_attack_bonus_status_id ?? "";
     internal int ComboAttackBonusStackDivisor =>
@@ -443,4 +447,21 @@ internal readonly struct BattleCellReadView
     internal int MoveCost => _cell?.move_cost ?? 0;
     internal StringName BaseTerrain => _cell?.base_terrain ?? "";
     internal StringName OccupantUnitId => _cell?.occupant_unit_id ?? "";
+
+    internal bool HasTerrainEffect(StringName effectId)
+    {
+        if (_cell == null || effectId == "")
+            return false;
+        if (_cell.terrain_effect_ids?.Contains(effectId) == true)
+            return true;
+        foreach (
+            BattleTerrainEffectState effectState in _cell.timed_terrain_effects
+                ?? new List<BattleTerrainEffectState>()
+        )
+        {
+            if (effectState?.effect_id == effectId)
+                return true;
+        }
+        return false;
+    }
 }

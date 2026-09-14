@@ -7,17 +7,6 @@ public sealed class WorldMapSpawnSystem
 {
     private const string EncounterKindSingle = "single";
     private const string EncounterKindSettlement = "settlement";
-    private const string DefaultMainWorldSettlementNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_settlement_name_pool.tres";
-    private const string DefaultMainWorldTownNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_town_name_pool.tres";
-    private const string DefaultMainWorldCityNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_city_name_pool.tres";
-    private const string DefaultMainWorldCapitalNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_capital_name_pool.tres";
-    private const string DefaultMainWorldMetropolisNamePoolPath =
-        "res://data/configs/world_map/shared/main_world_metropolis_name_pool.tres";
-
     private static readonly Dictionary<string, string> ServiceActionIdByInteraction = new(
         StringComparer.Ordinal
     )
@@ -70,11 +59,8 @@ public sealed class WorldMapSpawnSystem
     private readonly List<FacilityDefinition> _resolvedFacilityLibrary = new();
     private readonly List<SettlementDefinition> _resolvedSettlementLibrary = new();
     private readonly List<WildSpawnRuleDefinition> _resolvedWildSpawnRules = new();
-    private List<string> _remainingDefaultMainWorldSettlementDisplayNames = new();
-    private List<string> _remainingDefaultMainWorldTownDisplayNames = new();
-    private List<string> _remainingDefaultMainWorldCityDisplayNames = new();
-    private List<string> _remainingDefaultMainWorldCapitalDisplayNames = new();
-    private List<string> _remainingDefaultMainWorldMetropolisDisplayNames = new();
+    private readonly Dictionary<SettlementTierKind, List<string>>
+        _remainingSettlementDisplayNamesByTier = new();
 
     internal sealed class WorldBuildData
     {
@@ -185,7 +171,7 @@ public sealed class WorldMapSpawnSystem
     {
         public string SubmapId { get; init; } = "";
         public string DisplayName { get; init; } = "";
-        public string GenerationConfigPath { get; init; } = "";
+        public StringName WorldGenerationId { get; init; } = "";
         public string ReturnHintText { get; init; } = "";
         public bool IsGenerated { get; init; }
         public Vector2I PlayerCoord { get; init; } = new(-1, -1);
@@ -382,13 +368,7 @@ public sealed class WorldMapSpawnSystem
     {
         _facilityLibraryById.Clear();
         _settlementLibraryById.Clear();
-        _remainingDefaultMainWorldSettlementDisplayNames =
-            BuildDefaultMainWorldSettlementDisplayNames();
-        _remainingDefaultMainWorldTownDisplayNames = BuildDefaultMainWorldTownDisplayNames();
-        _remainingDefaultMainWorldCityDisplayNames = BuildDefaultMainWorldCityDisplayNames();
-        _remainingDefaultMainWorldCapitalDisplayNames = BuildDefaultMainWorldCapitalDisplayNames();
-        _remainingDefaultMainWorldMetropolisDisplayNames =
-            BuildDefaultMainWorldMetropolisDisplayNames();
+        BuildSettlementDisplayNamePools();
 
         _resolvedFacilityLibrary.Clear();
         _resolvedFacilityLibrary.AddRange(_generationDefinition.EffectiveFacilityLibrary);
@@ -587,7 +567,6 @@ public sealed class WorldMapSpawnSystem
         string settlementId = BuildSettlementInstanceId(templateId, instanceIndex);
         string displayName = ResolveSettlementDisplayName(
             settlementDefinition,
-            templateId,
             instanceIndex
         );
         string entityId = $"settlement_{settlementId}";
@@ -1558,7 +1537,7 @@ public sealed class WorldMapSpawnSystem
             for (int chunkX = 0; chunkX < worldChunks.X; chunkX++)
             {
                 var chunkCoord = new Vector2I(chunkX, chunkY);
-                WildSpawnRuleDefinition rule = ResolveProceduralWildSpawnRuleForChunkY(chunkY);
+                WildSpawnRuleDefinition rule = ResolveWildSpawnRuleForChunkY(chunkY);
                 if (rule == null)
                     continue;
                 int chunkSeed = (int)TrueRandomSeedService.GenerateSeed();
@@ -1604,12 +1583,8 @@ public sealed class WorldMapSpawnSystem
             return;
         if (_resolvedWildSpawnRules.Count == 0)
             return;
-        WildSpawnRuleDefinition rule = _resolvedWildSpawnRules[0];
-        if (_generationDefinition.ProceduralGenerationEnabled)
-        {
-            Vector2I playerChunkCoord = _gridSystem.GetChunkCoord(playerStartCoord);
-            rule = ResolveProceduralWildSpawnRuleForChunkY(playerChunkCoord.Y);
-        }
+        Vector2I playerChunkCoord = _gridSystem.GetChunkCoord(playerStartCoord);
+        WildSpawnRuleDefinition rule = ResolveWildSpawnRuleForChunkY(playerChunkCoord.Y);
         if (rule == null)
             return;
         int minDistance = Math.Max(
@@ -1776,91 +1751,46 @@ public sealed class WorldMapSpawnSystem
         return candidateChunks;
     }
 
-    private List<string> BuildDefaultMainWorldSettlementDisplayNames()
+    private void BuildSettlementDisplayNamePools()
     {
-        return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldSettlementNamePoolPath,
-            "default main-world settlement"
-        );
-    }
-
-    private List<string> BuildDefaultMainWorldTownDisplayNames()
-    {
-        return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldTownNamePoolPath,
-            "default main-world town"
-        );
-    }
-
-    private List<string> BuildDefaultMainWorldCityDisplayNames()
-    {
-        return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldCityNamePoolPath,
-            "default main-world city"
-        );
-    }
-
-    private List<string> BuildDefaultMainWorldCapitalDisplayNames()
-    {
-        return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldCapitalNamePoolPath,
-            "default main-world capital"
-        );
-    }
-
-    private List<string> BuildDefaultMainWorldMetropolisDisplayNames()
-    {
-        return BuildShuffledDisplayNamesFromPool(
-            DefaultMainWorldMetropolisNamePoolPath,
-            "default main-world metropolis"
-        );
-    }
-
-    private List<string> BuildShuffledDisplayNamesFromPool(string resourcePath, string warningLabel)
-    {
+        _remainingSettlementDisplayNamesByTier.Clear();
         if (
             _generationDefinition == null
             || !_generationDefinition.InjectDefaultMainWorldContent
         )
-            return new List<string>();
-        if (
-            !_generationDefinition.SettlementNamePools.TryGetValue(
-                ContentPathCanonicalizer.Canonicalize(resourcePath),
-                out WorldMapSettlementNamePoolDefinition namePool
-            )
-            || namePool == null
-        )
+            return;
+        foreach ((SettlementTierKind tier, WorldMapSettlementNamePoolDefinition namePool) in
+            _generationDefinition.SettlementNamePools)
         {
-            GameLog.Warning(
-                $"Unable to resolve {warningLabel} name pool from projected content {resourcePath}.",
-                "world.spawn.name_pool_missing",
-                "world"
-            );
-            return new List<string>();
+            if (namePool == null || tier == SettlementTierKind.Unknown)
+                continue;
+            var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
+            var nameRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
+            for (int index = uniqueNames.Count - 1; index > 0; index--)
+            {
+                int swapIndex = nameRng.RandiRange(0, index);
+                (uniqueNames[index], uniqueNames[swapIndex]) = (
+                    uniqueNames[swapIndex],
+                    uniqueNames[index]
+                );
+            }
+            _remainingSettlementDisplayNamesByTier.TryAdd(tier, uniqueNames);
         }
-        var uniqueNames = new List<string>(namePool.BuildUniqueDisplayNames());
-        if (uniqueNames.Count == 0)
-            return uniqueNames;
-        var nameRng = new RuntimeRandom(TrueRandomSeedService.GenerateSeed());
-        for (int index = uniqueNames.Count - 1; index > 0; index--)
-        {
-            int swapIndex = nameRng.RandiRange(0, index);
-            (uniqueNames[index], uniqueNames[swapIndex]) = (
-                uniqueNames[swapIndex],
-                uniqueNames[index]
-            );
-        }
-        return uniqueNames;
     }
 
-    private WildSpawnRuleDefinition ResolveProceduralWildSpawnRuleForChunkY(int chunkY)
+    private WildSpawnRuleDefinition ResolveWildSpawnRuleForChunkY(int chunkY)
     {
-        WildSpawnRuleDefinition northRule = FindWildSpawnRuleByRegionTag("north_wilds");
-        WildSpawnRuleDefinition southRule = FindWildSpawnRuleByRegionTag("south_wilds");
-        if (northRule == null && _resolvedWildSpawnRules.Count > 0)
-            northRule = _resolvedWildSpawnRules[0];
-        if (southRule == null)
-            southRule = _resolvedWildSpawnRules.Count > 1 ? _resolvedWildSpawnRules[1] : northRule;
+        WildSpawnRuleDefinition northRule = FindWildSpawnRuleByVerticalBand(
+            WorldVerticalBandKind.North
+        );
+        WildSpawnRuleDefinition southRule = FindWildSpawnRuleByVerticalBand(
+            WorldVerticalBandKind.South
+        );
+        WildSpawnRuleDefinition allRule = FindWildSpawnRuleByVerticalBand(
+            WorldVerticalBandKind.All
+        );
+        northRule ??= allRule;
+        southRule ??= allRule;
         if (northRule == null)
             return southRule;
         if (southRule == null)
@@ -1869,13 +1799,15 @@ public sealed class WorldMapSpawnSystem
         return chunkY < midpointChunkY ? northRule : southRule;
     }
 
-    private WildSpawnRuleDefinition FindWildSpawnRuleByRegionTag(StringName regionTag)
+    private WildSpawnRuleDefinition FindWildSpawnRuleByVerticalBand(
+        WorldVerticalBandKind verticalBand
+    )
     {
         foreach (WildSpawnRuleDefinition rule in _resolvedWildSpawnRules)
         {
             if (rule == null)
                 continue;
-            if (rule.RegionTag == regionTag)
+            if (rule.VerticalBand == verticalBand)
                 return rule;
         }
         return null;
@@ -1883,25 +1815,11 @@ public sealed class WorldMapSpawnSystem
 
     private string ResolveSettlementDisplayName(
         SettlementDefinition settlementDefinition,
-        string templateId,
         int instanceIndex
     )
     {
-        if (templateId == "template_town" && _remainingDefaultMainWorldTownDisplayNames.Count > 0)
-            return PopBack(_remainingDefaultMainWorldTownDisplayNames);
-        if (templateId == "template_city" && _remainingDefaultMainWorldCityDisplayNames.Count > 0)
-            return PopBack(_remainingDefaultMainWorldCityDisplayNames);
-        if (
-            templateId == "template_capital"
-            && _remainingDefaultMainWorldCapitalDisplayNames.Count > 0
-        )
-            return PopBack(_remainingDefaultMainWorldCapitalDisplayNames);
-        if (
-            templateId == "template_metropolis"
-            && _remainingDefaultMainWorldMetropolisDisplayNames.Count > 0
-        )
-            return PopBack(_remainingDefaultMainWorldMetropolisDisplayNames);
-        if (templateId == "template_world_stronghold")
+        SettlementTierKind tier = settlementDefinition.TierKind;
+        if (tier == SettlementTierKind.WorldStronghold)
         {
             string strongholdDisplayName = settlementDefinition.DisplayName;
             if (instanceIndex > 1)
@@ -1909,10 +1827,13 @@ public sealed class WorldMapSpawnSystem
             return strongholdDisplayName;
         }
         if (
-            templateId.StartsWith("template_", StringComparison.Ordinal)
-            && _remainingDefaultMainWorldSettlementDisplayNames.Count > 0
+            _remainingSettlementDisplayNamesByTier.TryGetValue(
+                tier,
+                out List<string> remainingNames
+            )
+            && remainingNames.Count > 0
         )
-            return PopBack(_remainingDefaultMainWorldSettlementDisplayNames);
+            return PopBack(remainingNames);
         string displayName = settlementDefinition.DisplayName;
         if (instanceIndex > 1)
             displayName = $"{displayName} {instanceIndex:00}";
@@ -1984,7 +1905,7 @@ public sealed class WorldMapSpawnSystem
                 {
                     SubmapId = submapDefinition.SubmapId.ToString(),
                     DisplayName = submapDefinition.DisplayName,
-                    GenerationConfigPath = submapDefinition.GenerationConfigPath,
+                    WorldGenerationId = submapDefinition.WorldGenerationId,
                     ReturnHintText = submapDefinition.ReturnHintText,
                     IsGenerated = false,
                     PlayerCoord = new Vector2I(-1, -1),

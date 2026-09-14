@@ -1,19 +1,8 @@
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_identity_sub_registry_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempRoot = "user://identity_save_tag_schema_regression";
-    private const string TempRaceDirectory =
-        "user://identity_save_tag_schema_regression/races";
-    private const string TempRacePath =
-        "user://identity_save_tag_schema_regression/races/invalid_save_tags_race.tres";
-    private const string TempSubraceDirectory =
-        "user://identity_save_tag_schema_regression/subraces";
-    private const string TempSubracePath =
-        "user://identity_save_tag_schema_regression/subraces/invalid_save_tags_subrace.tres";
-
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -30,109 +19,124 @@ public partial class run_identity_sub_registry_schema_regression : LifecycleTest
 
     private void TestIdentityCatalogLoadsTypedContent()
     {
-        using var registry = new ProgressionContentRegistry(new TestContentResourceLoader());
+        using var registry = new ProgressionContentRegistry();
         ProgressionIdentityCatalogData catalog = registry.GetIdentityCatalogTyped();
 
         _test.True(
-            catalog.RaceDefs.Count > 0,
-            "identity catalog 应从正式配置加载 race definitions。"
+            catalog.RaceDefs.TryGetValue("human", out RaceDefinition humanRace),
+            "identity catalog 应从正式配置加载 human race definition。"
         );
+        if (humanRace != null)
+        {
+            _test.Eq(
+                humanRace.DefaultSubraceId,
+                new StringName("common_human"),
+                "human definition 应保留 canonical default subrace 关系。"
+            );
+            _test.Eq(
+                humanRace.AgeProfileId,
+                new StringName("human_age_profile"),
+                "human definition 应保留 canonical age profile 关系。"
+            );
+        }
+
         _test.True(
-            catalog.SubraceDefs.Count > 0,
-            "identity catalog 应从正式配置加载 subrace definitions。"
+            catalog.SubraceDefs.TryGetValue(
+                "common_human",
+                out SubraceDefinition commonHuman
+            ),
+            "identity catalog 应从正式配置加载 common_human subrace definition。"
         );
+        if (commonHuman != null)
+        {
+            _test.Eq(
+                commonHuman.ParentRaceId,
+                new StringName("human"),
+                "common_human definition 应保留 canonical parent race 关系。"
+            );
+        }
+
         _test.True(
-            catalog.AgeProfileDefs.Count > 0,
-            "identity catalog 应从正式配置加载 age profile definitions。"
+            catalog.AgeProfileDefs.TryGetValue(
+                "human_age_profile",
+                out AgeProfileDefinition humanAgeProfile
+            ),
+            "identity catalog 应从正式配置加载 human_age_profile definition。"
         );
+        if (humanAgeProfile != null)
+        {
+            _test.Eq(
+                humanAgeProfile.RaceId,
+                new StringName("human"),
+                "human_age_profile definition 应保留 canonical race 关系。"
+            );
+        }
+
         _test.True(
-            catalog.StageAdvancementDefs.Count > 0,
-            "identity catalog 应从正式配置加载 stage advancement definitions。"
+            catalog.StageAdvancementDefs.TryGetValue(
+                "empty_stage_advancement",
+                out StageAdvancementDefinition emptyStageAdvancement
+            ),
+            "identity catalog 应从正式配置加载 empty_stage_advancement sentinel。"
         );
+        if (emptyStageAdvancement != null)
+        {
+            _test.Eq(
+                emptyStageAdvancement.ModifierId,
+                new StringName("empty_stage_advancement"),
+                "stage advancement sentinel 应保留 canonical modifier id。"
+            );
+            _test.Eq(
+                emptyStageAdvancement.TargetAxis,
+                new StringName("full"),
+                "stage advancement sentinel 应保留 typed target axis。"
+            );
+        }
     }
 
     private void TestRaceAndSubraceRegistriesRejectInvalidSaveTagLists()
     {
-        CleanupTempContent();
-        try
+        RaceJsonDto race = new()
         {
-            _test.Eq(
-                DirAccess.MakeDirRecursiveAbsolute(
-                    ProjectSettings.GlobalizePath(TempRaceDirectory)
-                ),
-                Error.Ok,
-                "应能创建 race save-tag schema 临时目录。"
-            );
-            _test.Eq(
-                DirAccess.MakeDirRecursiveAbsolute(
-                    ProjectSettings.GlobalizePath(TempSubraceDirectory)
-                ),
-                Error.Ok,
-                "应能创建 subrace save-tag schema 临时目录。"
-            );
+            RaceId = "invalid_save_tags_race",
+            DisplayName = "Invalid Save Tags Race",
+            Description = "Save tag schema fixture.",
+            AgeProfileId = "human_age_profile",
+            DefaultSubraceId = "common_human",
+            SubraceIds = new[] { "common_human" },
+            BodySizeCategory = "medium",
+            BaseSpeed = 6,
+            SaveAdvantageTags = new[] { "poison", "poison" },
+            SaveDisadvantageTags = new[] { "not_a_save_tag" },
+            SaveImmunityTags = new[] { "sleep_immunity" },
+        };
+        using RaceContentRegistry raceRegistry = new(
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.RaceDomain,
+                IdentityJsonTestDocuments.Entry(race, ProfessionIdentityJsonSerializerContext.Default.RaceJsonDto)
+            ), false
+        );
+        raceRegistry.LoadFromDirectory("memory://races");
+        AssertInvalidSaveTagListErrors(raceRegistry.Validate(), "Race invalid_save_tags_race");
 
-            using RaceDef raceDef = new()
-            {
-                race_id = "invalid_save_tags_race",
-                display_name = "Invalid Save Tags Race",
-                description = "Save tag schema fixture.",
-                age_profile_id = "human_age_profile",
-                default_subrace_id = "common_human",
-                subrace_ids = new GStringNameArray { "common_human" },
-                body_size_category = "medium",
-                base_speed = 6,
-                save_advantage_tags = new GStringNameArray { "poison", "poison" },
-                save_disadvantage_tags = new GStringNameArray { "not_a_save_tag" },
-                save_immunity_tags = new GStringNameArray { "sleep_immunity" },
-            };
-            _test.Eq(
-                ResourceSaver.Save(raceDef, TempRacePath),
-                Error.Ok,
-                "应能写入 race save-tag schema fixture。"
-            );
-
-            using SubraceDef subraceDef = new()
-            {
-                subrace_id = "invalid_save_tags_subrace",
-                parent_race_id = "human",
-                display_name = "Invalid Save Tags Subrace",
-                description = "Save tag schema fixture.",
-                save_advantage_tags = new GStringNameArray { "magic", "magic" },
-                save_disadvantage_tags = new GStringNameArray { "unknown_save_tag" },
-                save_immunity_tags = new GStringNameArray { "poison_advantage" },
-            };
-            _test.Eq(
-                ResourceSaver.Save(subraceDef, TempSubracePath),
-                Error.Ok,
-                "应能写入 subrace save-tag schema fixture。"
-            );
-
-            using TestContentResourceLoader raceLoader = new();
-            using RaceContentRegistry raceRegistry = new(
-                raceLoader,
-                loadDefaultContent: false
-            );
-            raceRegistry.LoadFromDirectory(TempRaceDirectory);
-            AssertInvalidSaveTagListErrors(
-                raceRegistry.Validate(),
-                "Race invalid_save_tags_race"
-            );
-
-            using TestContentResourceLoader subraceLoader = new();
-            using SubraceContentRegistry subraceRegistry = new(
-                subraceLoader,
-                loadDefaultContent: false
-            );
-            subraceRegistry.LoadFromDirectory(TempSubraceDirectory);
-            AssertInvalidSaveTagListErrors(
-                subraceRegistry.Validate(),
-                "Subrace invalid_save_tags_subrace"
-            );
-        }
-        finally
+        SubraceJsonDto subrace = new()
         {
-            CleanupTempContent();
-        }
+            SubraceId = "invalid_save_tags_subrace",
+            ParentRaceId = "human",
+            DisplayName = "Invalid Save Tags Subrace",
+            Description = "Save tag schema fixture.",
+            SaveAdvantageTags = new[] { "magic", "magic" },
+            SaveDisadvantageTags = new[] { "unknown_save_tag" },
+            SaveImmunityTags = new[] { "poison_advantage" },
+        };
+        using SubraceContentRegistry subraceRegistry = new(
+            new IdentityJsonTestSourceReader(
+                ProfessionIdentityJsonDomains.SubraceDomain,
+                IdentityJsonTestDocuments.Entry(subrace, ProfessionIdentityJsonSerializerContext.Default.SubraceJsonDto)
+            ), false
+        );
+        subraceRegistry.LoadFromDirectory("memory://subraces");
+        AssertInvalidSaveTagListErrors(subraceRegistry.Validate(), "Subrace invalid_save_tags_subrace");
     }
 
     private void AssertInvalidSaveTagListErrors(GStringArray errors, string ownerLabel)
@@ -155,26 +159,4 @@ public partial class run_identity_sub_registry_schema_regression : LifecycleTest
         );
     }
 
-    private static void CleanupTempContent()
-    {
-        RemoveFile(TempRacePath);
-        RemoveFile(TempSubracePath);
-        RemoveDirectory(TempRaceDirectory);
-        RemoveDirectory(TempSubraceDirectory);
-        RemoveDirectory(TempRoot);
-    }
-
-    private static void RemoveFile(string path)
-    {
-        string absolutePath = ProjectSettings.GlobalizePath(path);
-        if (FileAccess.FileExists(absolutePath))
-            DirAccess.RemoveAbsolute(absolutePath);
-    }
-
-    private static void RemoveDirectory(string path)
-    {
-        string absolutePath = ProjectSettings.GlobalizePath(path);
-        if (DirAccess.DirExistsAbsolute(absolutePath))
-            DirAccess.RemoveAbsolute(absolutePath);
-    }
 }

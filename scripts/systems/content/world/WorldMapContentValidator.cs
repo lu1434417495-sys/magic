@@ -24,7 +24,7 @@ public class WorldMapContentValidator
             generationDefinition,
             label,
             SnapshotIds(battleEncounterIds),
-            new HashSet<string>(StringComparer.Ordinal)
+            new HashSet<StringName>()
         );
     }
 
@@ -41,12 +41,13 @@ public class WorldMapContentValidator
         WorldGenerationDefinition definition,
         string label,
         IReadOnlyCollection<StringName> battleEncounterIds,
-        HashSet<string> validatedPaths
+        HashSet<StringName> validatedGenerationIds
     )
     {
         var errors = new List<string>();
-        string canonicalPath = definition.CanonicalPath ?? "";
-        if (canonicalPath.Length > 0 && !validatedPaths.Add(canonicalPath))
+        if (definition.GenerationId == "")
+            errors.Add($"World generation definition {label} is missing generation_id.");
+        else if (!validatedGenerationIds.Add(definition.GenerationId))
             return errors;
 
         Vector2I worldSizeInChunks = definition.WorldSizeInChunks;
@@ -94,7 +95,7 @@ public class WorldMapContentValidator
             definition.MountedSubmaps,
             label,
             battleEncounterIds,
-            validatedPaths,
+            validatedGenerationIds,
             errors
         );
         ValidateWorldEventDefinitions(
@@ -362,6 +363,10 @@ public class WorldMapContentValidator
     )
     {
         Vector2I worldSizeInChunks = generationDefinition.WorldSizeInChunks;
+        bool requireUniqueVerticalBands =
+            generationDefinition.ProceduralGenerationEnabled
+            || generationDefinition.GuaranteeStartingWildEncounter;
+        var verticalBands = new HashSet<WorldVerticalBandKind>();
         foreach (WildSpawnRuleDefinition rule in rules)
         {
             string regionTag = (rule.RegionTag ?? string.Empty).Trim();
@@ -372,6 +377,22 @@ public class WorldMapContentValidator
             {
                 errors.Add(
                     $"World generation config {label} has wild spawn rule missing region_tag."
+                );
+            }
+            if (
+                rule.VerticalBand != WorldVerticalBandKind.All
+                && rule.VerticalBand != WorldVerticalBandKind.North
+                && rule.VerticalBand != WorldVerticalBandKind.South
+            )
+            {
+                errors.Add(
+                    $"World generation config {label} wild spawn rule {regionTag} has invalid vertical_band {rule.VerticalBand}."
+                );
+            }
+            else if (requireUniqueVerticalBands && !verticalBands.Add(rule.VerticalBand))
+            {
+                errors.Add(
+                    $"World generation config {label} has duplicate wild spawn vertical_band {rule.VerticalBand}."
                 );
             }
             if (encounterProfileId.Length == 0)
@@ -453,7 +474,7 @@ public class WorldMapContentValidator
         IReadOnlyList<MountedSubmapDefinition> submaps,
         string label,
         IReadOnlyCollection<StringName> battleEncounterIds,
-        HashSet<string> validatedPaths,
+        HashSet<StringName> validatedGenerationIds,
         List<string> errors
     )
     {
@@ -475,17 +496,24 @@ public class WorldMapContentValidator
                     $"World generation config {label} has duplicate mounted submap_id {submapId}."
                 );
             }
-            if (string.IsNullOrWhiteSpace(submap.GenerationConfigPath))
+            if (submap.WorldGenerationId == "")
             {
                 errors.Add(
-                    $"World mounted submap {submapId} in {label} is missing generation_config_path."
+                    $"World mounted submap {submapId} in {label} is missing world_generation_id."
                 );
                 continue;
             }
             if (submap.Generation == null)
             {
                 errors.Add(
-                    $"World mounted submap {submapId} in {label} failed to project generation_config_path {submap.GenerationConfigPath}."
+                    $"World mounted submap {submapId} in {label} failed to resolve world_generation_id {submap.WorldGenerationId}."
+                );
+                continue;
+            }
+            if (submap.Generation.GenerationId != submap.WorldGenerationId)
+            {
+                errors.Add(
+                    $"World mounted submap {submapId} in {label} resolved generation_id {submap.Generation.GenerationId} instead of {submap.WorldGenerationId}."
                 );
                 continue;
             }
@@ -493,9 +521,9 @@ public class WorldMapContentValidator
                 errors,
                 ValidateGenerationDefinitionInternal(
                     submap.Generation,
-                    submap.Generation.CanonicalPath,
+                    submap.WorldGenerationId.ToString(),
                     battleEncounterIds,
-                    validatedPaths
+                    validatedGenerationIds
                 )
             );
         }
@@ -564,30 +592,61 @@ public class WorldMapContentValidator
         List<string> errors
     )
     {
+        var settlementTiers = new HashSet<SettlementTierKind>();
+        foreach ((SettlementTierKind tier, WorldMapSettlementNamePoolDefinition namePool) in
+            definition.SettlementNamePools)
+        {
+            if (tier == SettlementTierKind.Unknown)
+            {
+                errors.Add(
+                    $"World generation config {label} has settlement name pool with invalid tier key {tier}."
+                );
+            }
+            if (namePool == null)
+            {
+                errors.Add(
+                    $"World generation config {label} has null settlement name pool for tier {tier}."
+                );
+                continue;
+            }
+            if (namePool.SettlementTier != tier)
+            {
+                errors.Add(
+                    $"World generation config {label} settlement name pool key {tier} does not match definition tier {namePool.SettlementTier}."
+                );
+            }
+            if (!settlementTiers.Add(namePool.SettlementTier))
+            {
+                errors.Add(
+                    $"World generation config {label} has duplicate settlement name pool tier {namePool.SettlementTier}."
+                );
+            }
+        }
         if (!definition.InjectDefaultMainWorldContent)
             return;
-        string[] requiredPaths =
+        SettlementTierKind[] requiredTiers =
         {
-            WorldGenerationDefinition.DefaultMainWorldSettlementNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldTownNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldCityNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldCapitalNamePoolPath,
-            WorldGenerationDefinition.DefaultMainWorldMetropolisNamePoolPath,
+            SettlementTierKind.Village,
+            SettlementTierKind.Town,
+            SettlementTierKind.City,
+            SettlementTierKind.Capital,
+            SettlementTierKind.Metropolis,
         };
-        foreach (string resourcePath in requiredPaths)
+        foreach (SettlementTierKind requiredTier in requiredTiers)
         {
-            string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
+            bool hasNames = definition.SettlementNamePools.TryGetValue(
+                requiredTier,
+                out WorldMapSettlementNamePoolDefinition namePool
+            );
             if (
-                !definition.SettlementNamePools.TryGetValue(
-                    canonicalPath,
-                    out WorldMapSettlementNamePoolDefinition namePool
-                )
+                !hasNames
                 || namePool == null
+                || namePool.SettlementTier != requiredTier
                 || namePool.DisplayNames.Count == 0
             )
             {
                 errors.Add(
-                    $"World generation config {label} has empty settlement name pool {canonicalPath}."
+                    $"World generation config {label} has no non-empty settlement name pool for tier {requiredTier}."
                 );
             }
         }

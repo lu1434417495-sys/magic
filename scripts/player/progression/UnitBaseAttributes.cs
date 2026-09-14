@@ -198,8 +198,13 @@ public class UnitBaseAttributes
         };
     }
 
-    public static UnitBaseAttributes FromDictionary(GDictionary data)
+    public static UnitBaseAttributes FromDictionary(GDictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪个字段让解码失败（成功时为空）。
+    public static UnitBaseAttributes FromDictionary(GDictionary data, out string failureReason)
     {
+        failureReason = "";
         if (
             !HasExactFields(
                 data,
@@ -216,12 +221,15 @@ public class UnitBaseAttributes
             )
         )
         {
+            failureReason = "base_attributes: field set does not match the current schema";
             return null;
         }
 
         var customStatsValue = data["custom_stats"];
         if (customStatsValue.VariantType != Variant.Type.Dictionary)
         {
+            failureReason =
+                "custom_stats: expected Dictionary, got " + customStatsValue.VariantType;
             return null;
         }
 
@@ -229,6 +237,8 @@ public class UnitBaseAttributes
         {
             if (data[attributeId.ToString()].VariantType != Variant.Type.Int)
             {
+                failureReason =
+                    $"{attributeId}: expected Int, got {data[attributeId.ToString()].VariantType}";
                 return null;
             }
         }
@@ -240,8 +250,9 @@ public class UnitBaseAttributes
                 customStatsValue.AsGodotDictionary()
             );
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
+            failureReason = $"custom_stats: {exception.Message}";
             return null;
         }
 

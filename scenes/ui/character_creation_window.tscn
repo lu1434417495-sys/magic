@@ -1,9 +1,17 @@
-[gd_scene load_steps=3 format=3]
-; Scene purpose: Character creation modal with atmospheric styling — name entry, dice tumble animation, threshold-met row glow, scan-line indicator, and birth-luck tier readout.
+[gd_scene load_steps=7 format=3]
+; Scene purpose: Fullscreen illustrated character creation; only the current choice is revealed.
 ; Review focus: verify unique node names match @onready bindings, per-row PanelContainer wraps badge/name/value/threshold cells, and ScanContainer clip_contents stays enabled.
 
 [ext_resource type="Script" path="res://scripts/ui/CharacterCreationWindow.cs" id="1_ccw"]
-[ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_warm.tres" id="2_panel_warm"]
+[ext_resource type="Theme" path="res://scenes/ui/styles/character_creation_theme.tres" id="2_creation_theme"]
+[ext_resource type="Texture2D" path="res://assets/ui/character_creation/fate_observatory.png" id="3_observatory"]
+[ext_resource type="Texture2D" path="res://assets/ui/character_creation/astral_rule.svg" id="4_rule"]
+[ext_resource type="Shader" path="res://assets/ui/character_creation/reading_veil.gdshader" id="5_veil"]
+
+[sub_resource type="ShaderMaterial" id="ReadingVeil"]
+resource_local_to_scene = true
+shader = ExtResource("5_veil")
+shader_parameter/ui_start = 0.47
 
 [node name="CharacterCreationWindow" type="Control"]
 visible = false
@@ -14,17 +22,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ccw")
+theme = ExtResource("2_creation_theme")
 
-[node name="Shade" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.015, 0.02, 0.04, 0.78)
-
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="CreationBackdrop" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -32,11 +32,56 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("3_observatory")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Shade" type="ColorRect" parent="."]
+material = SubResource("ReadingVeil")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.008, 0.012, 0.02, 0.08)
+
+[node name="BookSignature" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchor_left = 0.055
+anchor_top = 0.875
+anchor_right = 0.34
+anchor_bottom = 0.975
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Realm" type="Label" parent="BookSignature"]
+layout_mode = 2
+mouse_filter = 2
+text = "D R A G O N   R E A L M"
+theme_override_colors/font_color = Color(0.78, 0.64, 0.42, 1)
+theme_override_font_sizes/font_size = 16
+
+[node name="BookTitle" type="Label" parent="BookSignature"]
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CreationBookTitle"
+text = "命运之书"
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchor_left = 0.47
+anchor_top = 0.06
+anchor_right = 0.95
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(660, 600)
+custom_minimum_size = Vector2(600, 600)
 layout_mode = 2
-theme_override_styles/panel = ExtResource("2_panel_warm")
+theme_type_variation = &"CreationPanel"
 
 [node name="Margin" type="MarginContainer" parent="CenterContainer/Panel"]
 layout_mode = 2
@@ -48,6 +93,12 @@ theme_override_constants/margin_bottom = 26
 [node name="Content" type="VBoxContainer" parent="CenterContainer/Panel/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 14
+
+[node name="ChapterLabel" type="Label" parent="CenterContainer/Panel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.64, 0.42, 1)
+theme_override_font_sizes/font_size = 13
+text = "命 运 之 书"
 
 [node name="TitleRow" type="HBoxContainer" parent="CenterContainer/Panel/Margin/Content"]
 layout_mode = 2
@@ -71,6 +122,21 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.98, 0.86, 0.46, 1)
 theme_override_font_sizes/font_size = 30
 text = "建卡"
+
+[node name="ChapterSubtitle" type="Label" parent="CenterContainer/Panel/Margin/Content"]
+layout_mode = 2
+autowrap_mode = 3
+theme_override_colors/font_color = Color(0.7, 0.67, 0.59, 1)
+theme_override_font_sizes/font_size = 15
+text = ""
+
+[node name="ChapterRule" type="TextureRect" parent="CenterContainer/Panel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 24)
+mouse_filter = 2
+texture = ExtResource("4_rule")
+expand_mode = 1
+stretch_mode = 0
 
 [node name="TitleSigilRight" type="Label" parent="CenterContainer/Panel/Margin/Content/TitleRow"]
 layout_mode = 2
@@ -151,7 +217,7 @@ text = "取消"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 40)
 layout_mode = 2
-text = "下一步"
+text = "铭刻姓名"
 
 [node name="AttributePhase" type="VBoxContainer" parent="CenterContainer/Panel/Margin/Content"]
 unique_name_in_owner = true

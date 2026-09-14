@@ -5,7 +5,7 @@ using GArray = Godot.Collections.Array;
 public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTree
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
 
     private readonly TestHarness _test = new();
 
@@ -75,15 +75,20 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 killerMember.member_id,
                 "Low Luck Killer"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, killerUnit);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, killerUnit);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, killerUnit);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
             resolutionResult.SetLootEntries(battleRuntime._active_loot_entries);
-            int equipmentEntries = CountDropType(
+            int randomEquipmentEntries = CountDropType(
                 resolutionResult.loot_entries,
-                BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance)
+                BattleLootIds.ToStringName(BattleLootDropKind.RandomEquipment)
+            );
+            _test.Eq(
+                dropService.Calls.Count,
+                0,
+                "战斗层只应冻结 random_equipment request 与击杀者 luck，不应提前生成实例。"
             );
             GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
@@ -92,7 +97,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             _test.Eq(
                 dropService.Calls.Count,
                 1,
-                "fixed item 掉落不应重复调用 equipment_drop_service。"
+                "world commit 应且仅应调用一次 equipment_drop_service。"
             );
             if (dropService.Calls.Count > 0)
             {
@@ -114,9 +119,9 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 );
             }
             _test.Eq(
-                equipmentEntries,
+                randomEquipmentEntries,
                 1,
-                "BattleResolutionResult 应保存击杀时已解析完成的 equipment_instance 条目。"
+                "BattleResolutionResult 应保存带击杀者 luck 的 random_equipment request。"
             );
             _test.True(commitResult.Ok, "per-kill 掉落应能成功提交到共享仓库。");
             _test.Eq(
@@ -146,7 +151,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 _test.Eq(
                     equipmentInstance.rarity,
                     (int)EquipmentInstanceState.RarityTier.COMMON,
-                    "低 luck 击杀者应保留击杀时 roll 出的低稀有度。"
+                    "低 luck 击杀者应在 world commit 时 roll 出低稀有度。"
                 );
             }
             _test.Eq(
@@ -203,7 +208,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "neutral_loot_wolf",
                 "中立掉落荒狼"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
@@ -282,7 +287,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "overflow_loot_wolf",
                 "满包掉落荒狼"
             );
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             BattleResolutionResult resolutionResult =
                 BattleObjectiveTestFactory.CreateEliminationResolution("player");
@@ -357,7 +362,7 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
                 "持钉锤敌人"
             );
             BattleRuntimeModule battleRuntime = facade.GetBattleRuntime();
-            battleRuntime._collect_defeated_unit_loot(defeatedEnemy, null);
+            battleRuntime._loot_resolver.CollectDefeatedUnitLoot(defeatedEnemy, null);
 
             _test.True(
                 battleRuntime._active_loot_entries.Count == 0,
@@ -401,6 +406,8 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
     {
         if (facade == null)
             return;
+        facade._equipment_drop_service = dropService;
+        facade.SetUniqueEquipmentDropRollRangeForTesting((_, _) => 100);
         GameContentCatalog catalog = facade.GetContentCatalogTyped();
         facade.GetBattleRuntime()
             ?.setup(
@@ -418,17 +425,19 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
             );
     }
 
-    private static void InjectEnemyTemplate(GameRuntimeFacade facade, EnemyTemplateDef enemyTemplate)
+    private static void InjectEnemyTemplate(
+        GameRuntimeFacade facade,
+        TestEnemyTemplateDefinitionBuilder enemyTemplate
+    )
     {
         BattleRuntimeModule battleRuntime = facade?.GetBattleRuntime();
-        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.template_id == "")
+        if (battleRuntime == null || enemyTemplate == null || enemyTemplate.TemplateId == "")
             return;
+        EnemyTemplateDefinition definition = enemyTemplate.Build(facade.GetItemDefsTyped());
         battleRuntime.ReplaceEnemyTemplatesTyped(
             new Dictionary<StringName, EnemyTemplateDefinition>
             {
-                [enemyTemplate.template_id] = enemyTemplate.ToDefinition(
-                    facade.GetItemDefsTyped()
-                ),
+                [definition.TemplateId] = definition,
             }
         );
     }
@@ -510,57 +519,49 @@ public partial class run_battle_loot_drop_luck_regression : LifecycleTestSceneTr
         return memberState;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithMixedLoot(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithMixedLoot(
+        StringName templateId
+    )
     {
-        EnemyTemplateDef template = new()
+        var template = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "战利品荒狼",
-            cognition_kind = "instinctive",
+            TemplateId = templateId,
+            DisplayName = "战利品荒狼",
+            CognitionKind = "instinctive",
         };
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "weapon_roll",
-            drop_type = "random_equipment",
-            item_id = "bronze_sword",
-            quantity = 1,
-        });
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "hide_bundle",
-            drop_type = "item",
-            item_id = "beast_hide",
-            quantity = 2,
-        });
+        template.DropEntries.Add(
+            new DropEntryDefinition("weapon_roll", "random_equipment", "bronze_sword", 1)
+        );
+        template.DropEntries.Add(new DropEntryDefinition("hide_bundle", "item", "beast_hide", 2));
         return template;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithRandomEquipmentOnly(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithRandomEquipmentOnly(
+        StringName templateId
+    )
     {
-        EnemyTemplateDef template = new()
+        var template = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "中立掉落荒狼",
-            cognition_kind = "instinctive",
+            TemplateId = templateId,
+            DisplayName = "中立掉落荒狼",
+            CognitionKind = "instinctive",
         };
-        template.drop_entries.Add(new DropEntryDef
-        {
-            drop_entry_id = "weapon_roll",
-            drop_type = "random_equipment",
-            item_id = "bronze_sword",
-            quantity = 1,
-        });
+        template.DropEntries.Add(
+            new DropEntryDefinition("weapon_roll", "random_equipment", "bronze_sword", 1)
+        );
         return template;
     }
 
-    private static EnemyTemplateDef BuildEnemyTemplateWithAttackEquipmentOnly(StringName templateId)
+    private static TestEnemyTemplateDefinitionBuilder BuildEnemyTemplateWithAttackEquipmentOnly(
+        StringName templateId
+    )
     {
-        return new EnemyTemplateDef
+        return new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = templateId,
-            display_name = "持钉锤敌人",
-            cognition_kind = "sapient",
-            attack_equipment_item_id = "watchman_mace",
+            TemplateId = templateId,
+            DisplayName = "持钉锤敌人",
+            CognitionKind = "sapient",
+            AttackEquipmentItemId = "watchman_mace",
         };
     }
 

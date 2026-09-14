@@ -8,8 +8,8 @@ internal sealed record ContentSnapshotBuildArtifact(ContentSnapshot Snapshot);
 
 /// <summary>
 /// Pure publication state used by the process host. Keeping projection commit
-/// separate from Resource loading makes failed-build rollback independently
-/// verifiable without creating a second raw host in the same Godot process.
+/// separate from JSON projection makes failed-build rollback independently
+/// verifiable without creating a second process host in the same Godot process.
 /// </summary>
 internal sealed class ContentSnapshotPublication
 {
@@ -77,97 +77,87 @@ internal sealed class ContentSnapshotPublication
 }
 
 /// <summary>
-/// The only managed process-level anchor for path-backed authored content.
-/// Godot retains native RefCounted ownership; this host keeps one uncached canonical
-/// managed root wrapper reachable until the shutdown content-release phase.
+/// Process-level owner for immutable content snapshot publication and the typed
+/// engine-asset catalog. Gameplay authoring is loaded directly from JSON by registries.
 /// </summary>
-internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
+internal sealed class ProcessContentHost : IDisposable
 {
     private static readonly object ProcessHostSync = new();
     private static bool _processHostCreated;
     private static long _lastPublishedEpoch;
 
-    private readonly Dictionary<string, Resource> _roots = new(StringComparer.Ordinal);
     private readonly Dictionary<string, WeakReference<object>> _snapshotBorrowers =
         new(StringComparer.Ordinal);
-    private readonly Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> _build;
+    private readonly Func<long, ContentSnapshotBuildArtifact> _build;
     private readonly ContentSnapshotPublication _publication = new();
-    private bool _acceptingLoads = true;
+    private readonly bool _ownsEngineAssets;
+    private readonly bool _publishesProcessEpoch;
+    private bool _acceptingBuilds = true;
     private bool _disposed;
 
     internal ProcessContentHost(
-        Func<IContentResourceLoader, long, ContentSnapshotBuildArtifact> build = null
+        Func<long, ContentSnapshotBuildArtifact> build = null
+    )
+        : this(
+            build,
+            engineAssets: null,
+            claimProcessHost: true,
+            ownsEngineAssets: true,
+            publishesProcessEpoch: true
+        )
+    {
+    }
+
+    private ProcessContentHost(
+        Func<long, ContentSnapshotBuildArtifact> build,
+        EngineAssetResolver engineAssets,
+        bool claimProcessHost,
+        bool ownsEngineAssets,
+        bool publishesProcessEpoch
     )
     {
-        lock (ProcessHostSync)
+        if (claimProcessHost)
         {
-            if (_processHostCreated)
+            lock (ProcessHostSync)
             {
-                throw new InvalidOperationException(
-                    "Only one raw ProcessContentHost may be created in a Godot process. "
-                        + "Use a pure managed synthetic ContentSnapshot for isolated tests."
-                );
+                if (_processHostCreated)
+                {
+                    throw new InvalidOperationException(
+                        "Only one ProcessContentHost may be created in a Godot process. "
+                            + "Use a pure managed synthetic ContentSnapshot for isolated tests."
+                    );
+                }
+                _processHostCreated = true;
             }
-            _processHostCreated = true;
         }
 
         _build = build ?? BuildDefaultSnapshot;
-        EngineAssets = new EngineAssetResolver();
+        EngineAssets = engineAssets ?? new EngineAssetResolver();
+        _ownsEngineAssets = ownsEngineAssets;
+        _publishesProcessEpoch = publishesProcessEpoch;
+    }
+
+    internal static ProcessContentHost CreateSyntheticPublicationProbeForTest(
+        Func<long, ContentSnapshotBuildArtifact> build,
+        EngineAssetResolver borrowedEngineAssets
+    )
+    {
+        ArgumentNullException.ThrowIfNull(build);
+        ArgumentNullException.ThrowIfNull(borrowedEngineAssets);
+        return new ProcessContentHost(
+            build,
+            borrowedEngineAssets,
+            claimProcessHost: false,
+            ownsEngineAssets: false,
+            publishesProcessEpoch: false
+        );
     }
 
     internal long Epoch => _publication.Epoch;
     internal bool IsSealed => _publication.IsSealed;
-    internal int CanonicalRootCount => _roots.Count;
+    internal bool HasSnapshot => _publication.HasSnapshot;
+    internal int RollbackAttemptCountForTest { get; private set; }
     internal EngineAssetResolver EngineAssets { get; }
-    public T LoadCanonical<T>(string resourcePath)
-        where T : Resource
-    {
-        ThrowIfDisposed();
-        if (!_acceptingLoads || IsSealed)
-        {
-            throw new InvalidOperationException(
-                "Authored content cannot be loaded after the process content host is sealed or quiescing."
-            );
-        }
-
-        string canonicalPath = ContentPathCanonicalizer.Canonicalize(resourcePath);
-        if (_roots.TryGetValue(canonicalPath, out Resource existing))
-        {
-            return existing is T typed
-                ? typed
-                : throw new InvalidOperationException(
-                    $"Canonical content root {canonicalPath} was loaded as "
-                        + $"{existing.GetType().Name}, not {typeof(T).Name}."
-                );
-        }
-
-        // The host root map is the managed process anchor. Ignore the engine's
-        // deep cache so authored C# Resource graphs can drain before GDMono teardown.
-        T loaded = ResourceLoader.Load<T>(
-            canonicalPath,
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
-        );
-        if (loaded == null)
-        {
-            throw new InvalidOperationException(
-                $"Failed to load canonical content root {canonicalPath} as {typeof(T).Name}."
-            );
-        }
-
-        _roots.Add(canonicalPath, loaded);
-        GodotWrapperOwnershipRegistry.Register(
-            loaded,
-            GodotWrapperOwnershipKind.BorrowedStaticContent,
-            this,
-            canonicalPath
-        );
-        LifecycleAuditRegistry.Shared.RegisterProcessContentRoot(
-            canonicalPath,
-            loaded.GetType(),
-            loaded
-        );
-        return loaded;
-    }
 
     internal ContentSnapshot BuildAndSeal()
     {
@@ -176,39 +166,46 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
             return _publication.GetSnapshot();
         if (IsSealed)
             throw new InvalidOperationException("A sealed content host has no published snapshot.");
-        if (!_acceptingLoads)
+        if (!_acceptingBuilds)
             throw new InvalidOperationException("Process content cannot build after quiescing begins.");
 
-        var baselinePaths = new HashSet<string>(_roots.Keys, StringComparer.Ordinal);
+        EngineAssetCatalogBootstrap.LoadAndPublish(EngineAssets);
         long candidateEpoch = Interlocked.Read(ref _lastPublishedEpoch) + 1;
         return _publication.BuildAndSeal(
             candidateEpoch,
-            () => _build(this, candidateEpoch),
-            () => RollBackAttemptRoots(baselinePaths),
-            epoch => Interlocked.Exchange(ref _lastPublishedEpoch, epoch),
-            epoch => LifecycleAuditRegistry.Shared.SetActiveContentSnapshotEpoch(epoch)
+            () => ValidateIconAssetsForPublication(
+                _build(candidateEpoch),
+                EngineAssets
+            ),
+            () => RollbackAttemptCountForTest++,
+            PublishProcessEpochIfOwned,
+            SetActiveProcessEpochIfOwned
         );
+    }
+
+    internal static ContentSnapshotBuildArtifact ValidateIconAssetsForPublication(
+        ContentSnapshotBuildArtifact artifact,
+        EngineAssetResolver engineAssets
+    )
+    {
+        if (artifact?.Snapshot == null)
+            return artifact;
+        ContentIconAssetCatalogValidator.ThrowIfInvalid(
+            artifact.Snapshot.Skills,
+            artifact.Snapshot.Items,
+            engineAssets
+        );
+        EnemySpriteAssetCatalogValidator.ThrowIfInvalid(
+            artifact.Snapshot.EnemyTemplates,
+            engineAssets
+        );
+        return artifact;
     }
 
     internal ContentSnapshot GetSnapshot()
     {
         ThrowIfDisposed();
         return _publication.GetSnapshot();
-    }
-
-    internal IReadOnlyList<ContentRootDiagnostic> GetCanonicalRootDiagnostics()
-    {
-        ThrowIfDisposed();
-        return _roots
-            .OrderBy(entry => entry.Key, StringComparer.Ordinal)
-            .Select(entry =>
-                new ContentRootDiagnostic(
-                    entry.Key,
-                    entry.Value.GetType().FullName ?? entry.Value.GetType().Name,
-                    ReferenceRole.Borrowed
-                )
-            )
-            .ToArray();
     }
 
     internal void RegisterSnapshotBorrower(string borrowerId, object borrower)
@@ -245,8 +242,9 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
     {
         if (_disposed)
             return;
-        _acceptingLoads = false;
-        EngineAssets.Quiesce();
+        _acceptingBuilds = false;
+        if (_ownsEngineAssets)
+            EngineAssets.Quiesce();
     }
 
     internal void ReleaseSnapshot()
@@ -263,7 +261,8 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         }
 
         _publication.Release();
-        LifecycleAuditRegistry.Shared.ClearActiveContentSnapshotEpoch();
+        if (_publishesProcessEpoch)
+            LifecycleAuditRegistry.Shared.ClearActiveContentSnapshotEpoch();
     }
 
     public void Dispose()
@@ -273,11 +272,9 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
 
         ReleaseSnapshot();
         _disposed = true;
-        _acceptingLoads = false;
-        EngineAssets.Dispose();
-        foreach (string canonicalPath in _roots.Keys)
-            LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
-        _roots.Clear();
+        _acceptingBuilds = false;
+        if (_ownsEngineAssets)
+            EngineAssets.Dispose();
     }
 
     internal IReadOnlyList<string> GetSnapshotBorrowerDiagnostics()
@@ -286,26 +283,23 @@ internal sealed class ProcessContentHost : IContentResourceLoader, IDisposable
         return _snapshotBorrowers.Keys.OrderBy(id => id, StringComparer.Ordinal).ToArray();
     }
 
-    private static ContentSnapshotBuildArtifact BuildDefaultSnapshot(
-        IContentResourceLoader loader,
-        long epoch
-    )
+    private static ContentSnapshotBuildArtifact BuildDefaultSnapshot(long epoch)
     {
-        var builder = new ContentSnapshotBuilder(loader);
+        var builder = new ContentSnapshotBuilder();
         ContentSnapshot snapshot = builder.Build(epoch);
         return new ContentSnapshotBuildArtifact(snapshot);
     }
 
-    private void RollBackAttemptRoots(HashSet<string> baselinePaths)
+    private void PublishProcessEpochIfOwned(long epoch)
     {
-        string[] createdPaths = _roots.Keys
-            .Where(path => !baselinePaths.Contains(path))
-            .ToArray();
-        foreach (string canonicalPath in createdPaths)
-        {
-            _roots.Remove(canonicalPath);
-            LifecycleAuditRegistry.Shared.ReleaseProcessContentRoot(canonicalPath);
-        }
+        if (_publishesProcessEpoch)
+            Interlocked.Exchange(ref _lastPublishedEpoch, epoch);
+    }
+
+    private void SetActiveProcessEpochIfOwned(long epoch)
+    {
+        if (_publishesProcessEpoch)
+            LifecycleAuditRegistry.Shared.SetActiveContentSnapshotEpoch(epoch);
     }
 
     private void ThrowIfDisposed()

@@ -13,6 +13,8 @@
   <ItemGroup>
     <!-- Architecture analyzer projects are independent tooling, not game/runtime sources. -->
     <Compile Remove="tools/architecture/**/*.cs" />
+    <!-- Standalone content authoring CLI links shared pure-CLR sources into its own executable. -->
+    <Compile Remove="tools/content_json_validation/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference

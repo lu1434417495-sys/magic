@@ -46,6 +46,13 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<StringName> statusEffectIds
     ) => MarkAppliedStatusesForTurnTiming(targetUnit, statusEffectIds);
 
+    void IBattleTerrainEffectRuntime.GrantTerrainEffectiveTriggerMastery(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName skillId,
+        BattleEventBatch batch
+    ) => GrantTerrainEffectiveTriggerMastery(sourceUnit, targetUnit, skillId, batch);
+
     IReadOnlyDictionary<StringName, int>
         IMisfortuneGuidanceBattleQuery.GetCalamityByMemberIdSnapshot() =>
             GetCalamityByMemberIdSnapshot();

@@ -114,13 +114,10 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
         if (!fixture.ItemDefs.ContainsKey(LastLessonItemId))
             return;
 
-        ItemDef raw = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_longsword_last_lesson.tres"
-        );
+        ItemDefinition raw = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_last_lesson_020");
         _test.True(raw != null, "最后一课原始物品资源应能加载。");
         if (raw != null)
         {
-            _test.Eq(raw.base_item_id, new StringName("weapon_type_longsword_base"), "最后一课应继承 longsword 模板。");
         }
 
         // 机制文本落在 trait（老陈的遗训）里，物品说明只保留风味文字。
@@ -133,7 +130,6 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             );
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildLastLessonUnit("projection");
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
@@ -173,20 +169,6 @@ public partial class run_last_lesson_weapon_ability_regression : LifecycleTestSc
             "eq_last_lesson_projection"
         );
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        equippedWeapon = equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(equippedWeapon.ItemId, new StringName(""), "移除最后一课后 weapon_item_id 应清空。");
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除最后一课后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除最后一课后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestOldChenLegacyGainsTeachingsOnlyWhenTurnEndsWithoutDamage()

@@ -23,16 +23,16 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
     private void TestEnemyTemplateTypedOverridesProjectIntoEncounterRosterBuilder()
     {
         using GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
-        using EnemyTemplateDef template = BuildTemplate();
+        EnemyTemplateDefinition template = BuildTemplate(gameSession.GetItemDefsTyped());
         using EncounterRosterBuilder builder = new();
 
         var enemyTemplates = new Dictionary<StringName, EnemyTemplateDefinition>(
             gameSession.GetEnemyTemplateDefinitions()
         )
         {
-            [template.template_id] = template.ToDefinition(gameSession.GetItemDefsTyped())
+            [template.TemplateId] = template
         };
-        WildEncounterRosterDefinition roster = BuildRosterDefinition(template.template_id);
+        WildEncounterRosterDefinition roster = BuildRosterDefinition(template.TemplateId);
         BattleEncounterDefinition encounter = BuildEncounterDefinition();
         builder.Setup(
             new Dictionary<StringName, BattleEncounterDefinition>
@@ -47,9 +47,9 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         );
 
         IReadOnlyDictionary<StringName, int> typedBaseAttributes =
-            template.GetBaseAttributeOverridesResolvedTyped();
+            template.BaseAttributeOverrides;
         IReadOnlyDictionary<StringName, int> typedAttributeOverrides =
-            template.GetAttributeOverridesTyped();
+            template.AttributeOverrides;
 
         _test.Eq(typedBaseAttributes.Count, 6, "typed base attribute override map 应完整包含六维基础属性。");
         _test.Eq(
@@ -68,7 +68,7 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
             "typed attribute override 应保留 hp_max。"
         );
         _test.Eq(
-            template.GetSkillLevelTyped("basic_attack", 1),
+            template.GetSkillLevel("basic_attack", 1),
             3,
             "typed skill level 读取应支持正式 StringName key basic_attack。"
         );
@@ -211,32 +211,34 @@ public partial class run_enemy_template_attribute_projection_regression : Lifecy
         };
     }
 
-    private static EnemyTemplateDef BuildTemplate()
+    private static EnemyTemplateDefinition BuildTemplate(
+        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
+    )
     {
-        EnemyTemplateDef template = new()
+        var template = new TestEnemyTemplateDefinitionBuilder
         {
-            template_id = "typed_attribute_enemy",
-            display_name = "Typed Attribute Enemy",
-            brain_id = "melee_aggressor",
-            initial_state_id = "engage",
-            cognition_kind = "sapient",
-            enemy_count = 1,
-            target_rank = "elite",
+            TemplateId = "typed_attribute_enemy",
+            DisplayName = "Typed Attribute Enemy",
+            BrainId = "melee_aggressor",
+            InitialStateId = "engage",
+            CognitionKind = "sapient",
+            EnemyCount = 1,
+            TargetRank = "elite",
         };
-        template.base_attribute_overrides[new StringName("strength")] = 14;
-        template.base_attribute_overrides[new StringName("agility")] = 11;
-        template.base_attribute_overrides[new StringName("constitution")] = 12;
-        template.base_attribute_overrides[new StringName("perception")] = 9;
-        template.base_attribute_overrides[new StringName("intelligence")] = 8;
-        template.base_attribute_overrides[new StringName("willpower")] = 10;
-        template.attribute_overrides[AttributeService.ToStringName(AttributeIdKind.HpMax)] = 37;
-        template.attribute_overrides[AttributeService.ToStringName(AttributeIdKind.StaminaMax)] = 13;
-        template.attribute_overrides[AttributeService.ToStringName(AttributeIdKind.ActionPoints)] = 2;
-        template.attribute_overrides[AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)] = 4;
-        template.attribute_overrides[AttributeService.ToStringName(AttributeIdKind.DodgeBonus)] = 1;
-        template.skill_ids.Add("basic_attack");
-        template.skill_level_map[new StringName("basic_attack")] = 3;
-        return template;
+        template.BaseAttributeOverrides["strength"] = 14;
+        template.BaseAttributeOverrides["agility"] = 11;
+        template.BaseAttributeOverrides["constitution"] = 12;
+        template.BaseAttributeOverrides["perception"] = 9;
+        template.BaseAttributeOverrides["intelligence"] = 8;
+        template.BaseAttributeOverrides["willpower"] = 10;
+        template.AttributeOverrides[AttributeService.ToStringName(AttributeIdKind.HpMax)] = 37;
+        template.AttributeOverrides[AttributeService.ToStringName(AttributeIdKind.StaminaMax)] = 13;
+        template.AttributeOverrides[AttributeService.ToStringName(AttributeIdKind.ActionPoints)] = 2;
+        template.AttributeOverrides[AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus)] = 4;
+        template.AttributeOverrides[AttributeService.ToStringName(AttributeIdKind.DodgeBonus)] = 1;
+        template.SkillIds.Add("basic_attack");
+        template.SkillLevels["basic_attack"] = 3;
+        return template.Build(itemDefinitions);
     }
 
     private static int DictInt(GDictionary dictionary, StringName key, int fallback)

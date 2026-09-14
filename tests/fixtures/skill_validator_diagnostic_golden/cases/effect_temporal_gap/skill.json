@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_temporal_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_temporal_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_temporal_gap",
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "payload": {},
+            "status_id": "time_reverberation"
+          },
+          {
+            "effect_type": "status",
+            "payload": {},
+            "status_id": "time_stasis"
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "status_id": "other",
+            "effect_tags": [
+              "temporal"
+            ]
+          },
+          {
+            "effect_type": "erase_status",
+            "payload": {},
+            "status_id": "time_slow"
+          },
+          {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "fire"
+          }
+        ]
+      },
+      "icon_id": "diagnostic_temporal_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_burned_seal",
+      "display_name": "烧融圣徽",
+      "description": "在大教堂的废墟中，有人看到被烧融的圣徽碎片。收集它们——也许能拼凑出灰烬王朝信仰的真相。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "ashen_intersection",
+        "cathedral",
+        "faith"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "collect_seal_fragments",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "bandit_insignia",
+            "target_value": 3
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 400
+          }
+        },
+        {
+          "kind": "pending_character_reward",
+          "payload": {
+            "member_id": "hero",
+            "entries": [
+              {
+                "kind": "knowledge_unlock",
+                "payload": {
+                  "target_id": "ashen_faith",
+                  "amount": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

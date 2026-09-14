@@ -144,15 +144,13 @@ internal sealed class RuntimeTransactionRollbackState
         if (captureWorld)
         {
             runtime.MaterializeActiveWorldStateToRoot();
-            worldSnapshot =
-                runtime._world_map_data_context?.RootRuntimeData?.DuplicateState()
-                ?? WorldRuntimeData.Empty();
+            worldSnapshot = runtime.CaptureRootWorldSnapshot();
         }
         return new RuntimeTransactionRollbackState(
             captureParty ? runtime.GetPartyState() : null,
             worldSnapshot,
             runtime.GetPlayerCoord(),
-            runtime._game_session,
+            runtime.ActiveGameSession,
             captureParty,
             captureWorld
         );
@@ -184,15 +182,15 @@ internal sealed class RuntimeTransactionRollbackState
             restoreWorld = false;
         }
 
-        GameSession session = runtime._game_session;
+        GameSession session = runtime.ActiveGameSession;
         if (session != null)
         {
-            if (restoreParty)
-                session._party_state = _partyState?.DuplicateState() ?? new PartyState();
+            session.RestoreRuntimeStateForRollback(
+                restoreParty ? _partyState?.DuplicateState() ?? new PartyState() : null,
+                transaction.PersistPlayerCoord ? _playerCoord : null
+            );
             if (restoreWorld)
                 session.SetWorldData(_worldData);
-            if (transaction.PersistPlayerCoord)
-                session._player_coord = _playerCoord;
             _sessionSnapshot?.Restore(session);
         }
 

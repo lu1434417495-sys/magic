@@ -21,24 +21,38 @@ public partial class run_misfortune_service_regression : LifecycleTestSceneTree
     private void TestSkillGatesUseTypedRules()
     {
         _test.True(
-            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillSidecarMissingMessage("black_star_brand")),
-            "black_star_brand sidecar 缺失时应提供非空反馈。"
+            !string.IsNullOrWhiteSpace(
+                MisfortuneService.GetSkillSidecarMissingMessage(
+                    SkillRuntimeBehaviorKind.BlackStarBrand
+                )
+            ),
+            "BlackStarBrand 行为的 sidecar 缺失时应提供非空反馈。"
         );
         _test.True(
-            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillDefaultBlockMessage("doom_sentence")),
-            "doom_sentence 默认阻断时应提供非空反馈。"
+            !string.IsNullOrWhiteSpace(
+                MisfortuneService.GetSkillDefaultBlockMessage(
+                    SkillRuntimeBehaviorKind.DoomSentence
+                )
+            ),
+            "DoomSentence 行为默认阻断时应提供非空反馈。"
         );
         _test.True(
-            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillDefaultBlockMessage("unknown_gate_skill")),
-            "未知 gating skill 默认阻断时应提供非空反馈。"
+            !string.IsNullOrWhiteSpace(
+                MisfortuneService.GetSkillDefaultBlockMessage(
+                    SkillRuntimeBehaviorKind.Unknown
+                )
+            ),
+            "未知 gating 行为默认阻断时应提供非空反馈。"
         );
         _test.True(
-            MisfortuneService.IsMisfortuneGatedSkill("black_crown_seal"),
-            "正式 misfortune gated skill 应继续能被 typed rule 表识别。"
+            MisfortuneService.IsMisfortuneGatedBehavior(
+                SkillRuntimeBehaviorKind.BlackCrownSeal
+            ),
+            "正式 misfortune gated 行为应继续能被 typed rule 表识别。"
         );
         _test.False(
-            MisfortuneService.IsMisfortuneGatedSkill("not_a_misfortune_skill"),
-            "非 misfortune gated skill 不应被误判。"
+            MisfortuneService.IsMisfortuneGatedBehavior(SkillRuntimeBehaviorKind.None),
+            "非 misfortune gated 行为不应被误判。"
         );
     }
 

@@ -39,7 +39,11 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         RunCommand(runner, $"warehouse add {RestrictedTestHelmId} 1");
         RunCommand(runner, "battle start settlement");
         RunCommand(runner, "battle confirm");
+        GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacade();
+        Dictionary<StringName, (int CurrentHp, int MaxHp)> manualUnitHp =
+            PrimeManualUnitSurvival(runtime);
         AdvanceToManualBattleTurn(runner);
+        RestoreManualUnitHp(runtime, manualUnitHp);
         BattleUnitState activeUnitState = GetActiveUnitState(runner);
         string activeMemberId = activeUnitState?.source_member_id.ToString() ?? "";
         _test.True(!string.IsNullOrEmpty(activeMemberId), "战斗换装回归前置：手动单位应关联队伍成员。");
@@ -186,6 +190,40 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         _test.Fail("战斗换装文本回归未能进入手动单位回合。");
     }
 
+    private static Dictionary<StringName, (int CurrentHp, int MaxHp)> PrimeManualUnitSurvival(
+        GameRuntimeFacade runtime
+    )
+    {
+        var snapshots = new Dictionary<StringName, (int CurrentHp, int MaxHp)>();
+        foreach (BattleUnitState unit in runtime?.GetBattleState()?.GetUnitsTyped() ?? new List<BattleUnitState>())
+        {
+            if (unit?.control_mode != "manual" || unit.attribute_snapshot == null)
+                continue;
+            snapshots[unit.unit_id] = (
+                unit.GetCurrentHp(),
+                unit.attribute_snapshot.GetValue("hp_max")
+            );
+            unit.attribute_snapshot.SetValue("hp_max", 100);
+            unit.SetCurrentHp(100);
+        }
+        return snapshots;
+    }
+
+    private static void RestoreManualUnitHp(
+        GameRuntimeFacade runtime,
+        IReadOnlyDictionary<StringName, (int CurrentHp, int MaxHp)> snapshots
+    )
+    {
+        foreach ((StringName unitId, (int currentHp, int maxHp)) in snapshots)
+        {
+            BattleUnitState unit = runtime?.GetBattleState()?.GetUnit(unitId);
+            if (unit?.attribute_snapshot == null)
+                continue;
+            unit.attribute_snapshot.SetValue("hp_max", maxHp);
+            unit.SetCurrentHp(currentHp);
+        }
+    }
+
     private void PrimeActiveUnitAp(GameTextCommandRunner runner, int currentAp)
     {
         BattleUnitState activeUnit = GetActiveUnitState(runner);
@@ -248,13 +286,11 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         return runner;
     }
 
-    private static ItemDefinition OwnItemDefinition(ItemDef resource, string fixtureId) =>
-        TestResourceOwnership
-            .Own(
-                resource,
-                $"run_battle_equipment_text_command_regression.{fixtureId}"
-            )
-            .ToDefinition();
+    private static ItemDefinition OwnItemDefinition(TestItemDefinitionBuilder resource, string fixtureId)
+    {
+        _ = fixtureId;
+        return resource.ToDefinition();
+    }
 
     private void InstallStringKeyOnlyBattleItemInstance(GameTextCommandRunner runner)
     {
@@ -299,9 +335,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         backpack.AddEquipmentInstance(rareInstance);
     }
 
-    private static ItemDef BuildVersatileTestWeaponDef()
+    private static TestItemDefinitionBuilder BuildVersatileTestWeaponDef()
     {
-        var itemDef = new ItemDef
+        var itemDef = new TestItemDefinitionBuilder
         {
             item_id = VersatileTestWeaponId,
             display_name = "WPNDICE Versatile Longsword",
@@ -312,23 +348,22 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             tags = new GStringNameArray { "weapon", "melee", "versatile", "test" },
         };
 
-        var profile = new WeaponProfileDef
+        var profile = new TestWeaponProfileDefinitionBuilder
         {
             weapon_type_id = "wpndice_longsword",
             damage_tag = "physical_slash",
             attack_range = 1,
             one_handed_dice = BuildWeaponDice(1, 8, 0),
             two_handed_dice = BuildWeaponDice(1, 10, 0),
-            properties_mode = (int)WeaponProfileDef.PropertyMergeMode.REPLACE,
             properties = new GStringNameArray { "versatile" },
         };
         itemDef.weapon_profile = profile;
         return itemDef;
     }
 
-    private static ItemDef BuildOffhandTestItemDef()
+    private static TestItemDefinitionBuilder BuildOffhandTestItemDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = OffhandTestItemId,
             display_name = "WPNDICE Offhand Focus",
@@ -340,9 +375,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         };
     }
 
-    private static ItemDef BuildDuplicateTestCharmDef()
+    private static TestItemDefinitionBuilder BuildDuplicateTestCharmDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = DuplicateTestCharmId,
             display_name = "WPNDICE Duplicate Charm",
@@ -354,9 +389,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         };
     }
 
-    private static ItemDef BuildRestrictedTestHelmDef()
+    private static TestItemDefinitionBuilder BuildRestrictedTestHelmDef()
     {
-        return new ItemDef
+        return new TestItemDefinitionBuilder
         {
             item_id = RestrictedTestHelmId,
             display_name = "WPNDICE Restricted Helm",
@@ -365,13 +400,18 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             equipment_type_id = "armor",
             equipment_slot_ids = new GStringArray { "head" },
             tags = new GStringNameArray { "head", "armor", "test" },
-            equip_requirement = new EquipmentRequirement { min_body_size = 99 },
+            equip_requirement = new EquipmentRequirementDefinition(
+                System.Array.Empty<string>(),
+                99,
+                0,
+                System.Array.Empty<EquipmentAttributeRequirementDefinition>()
+            ),
         };
     }
 
-    private static WeaponDamageDiceDef BuildWeaponDice(int diceCount, int diceSides, int flatBonus)
+    private static TestWeaponDamageDiceDefinitionBuilder BuildWeaponDice(int diceCount, int diceSides, int flatBonus)
     {
-        return new WeaponDamageDiceDef
+        return new TestWeaponDamageDiceDefinitionBuilder
         {
             dice_count = diceCount,
             dice_sides = diceSides,
@@ -885,12 +925,10 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return result;
-        if (!result.ok)
+        if (result.skipped || !result.ok)
         {
             ConsoleProcessOutput.WriteStandard(result.Render());
-            _test.Fail($"命令失败：{commandText} | {result.message}");
+            _test.Fail($"命令未实际执行或失败：{commandText} | {result.message}");
         }
         return result;
     }
@@ -898,6 +936,7 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
     private GameTextCommandResult RunCommandExpectFail(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
+        ConsoleProcessOutput.WriteStandard(result.Render());
         if (result.skipped)
         {
             _test.Fail($"命令被跳过，无法验证失败：{commandText}");
@@ -905,7 +944,6 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
         }
         if (result.ok)
         {
-            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令应失败但成功：{commandText}");
         }
         return result;

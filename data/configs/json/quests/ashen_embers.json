@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "domain": "quests",
+  "family": "production",
+  "templates": {},
+  "entries": [
+    {
+      "quest_id": "ashen_embers",
+      "display_name": "收集余烬",
+      "description": "祭所的锻火需要燃料。在废墟中搜集 forge_coal，灰烬铁匠会帮你打造能在迷雾中保持锋利的武器。",
+      "provider_kind": "service_contract_board",
+      "provider_interaction_id": "service_contract_board",
+      "listing_channels": [
+        "contract_board"
+      ],
+      "listing_settlement_ids": [],
+      "tags": [
+        "ashen_intersection",
+        "main_story"
+      ],
+      "accept_requirements": [],
+      "is_repeatable": false,
+      "failure_policy": "terminal",
+      "danger_tier_override": 0,
+      "accept_dialogue_text": "",
+      "accept_feedback_success": "",
+      "accept_feedback_failure": "",
+      "accept_confirmation_text": "",
+      "objectives": [
+        {
+          "objective_id": "gather_coal",
+          "kind": "submit_item",
+          "payload": {
+            "target_id": "forge_coal",
+            "target_value": 5
+          }
+        }
+      ],
+      "rewards": [
+        {
+          "kind": "gold",
+          "payload": {
+            "amount": 150
+          }
+        },
+        {
+          "kind": "item",
+          "payload": {
+            "item_id": "dead_road_lantern",
+            "quantity": 1
+          }
+        }
+      ]
+    }
+  ]
+}

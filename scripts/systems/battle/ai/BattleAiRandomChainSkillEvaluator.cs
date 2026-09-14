@@ -97,7 +97,8 @@ internal sealed class BattleAiRandomChainSkillEvaluator
                 BattlePreview preview = _helper.ResolveBarrierAwareUnitSkillPreview(
                     context,
                     command,
-                    fastPreview
+                    fastPreview,
+                    skillEntry
                 );
                 if (preview?.allowed != true)
                 {

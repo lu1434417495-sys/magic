@@ -49,22 +49,40 @@ public class UnitReputationState
             },
         };
 
-    public static UnitReputationState FromDictionary(Godot.Collections.Dictionary data)
+    public static UnitReputationState FromDictionary(Godot.Collections.Dictionary data) =>
+        FromDictionary(data, out _);
+
+    /// <paramref name="failureReason"/> 说明是哪个字段让解码失败（成功时为空）。
+    public static UnitReputationState FromDictionary(
+        Godot.Collections.Dictionary data,
+        out string failureReason
+    )
     {
+        failureReason = "";
         if (!_hfs(data, new[] { "morality", "custom_states" }))
+        {
+            failureReason = "reputation: field set does not match the current schema";
             return null;
+        }
         var csv = data["custom_states"];
         if (csv.VariantType != Variant.Type.Dictionary)
+        {
+            failureReason = "custom_states: expected Dictionary, got " + csv.VariantType;
             return null;
+        }
         if (data["morality"].VariantType != Variant.Type.Int)
+        {
+            failureReason = "morality: expected Int, got " + data["morality"].VariantType;
             return null;
+        }
         UnitReputationMap pcs;
         try
         {
             pcs = UnitReputationMap.FromDictionary(csv.AsGodotDictionary());
         }
-        catch (ArgumentException)
+        catch (ArgumentException exception)
         {
+            failureReason = $"custom_states: {exception.Message}";
             return null;
         }
         return new UnitReputationState

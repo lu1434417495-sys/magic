@@ -24,6 +24,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeBattleSelectionPort
     BattleGridService IGameRuntimeBattleSelectionPort.GetBattleGridService() =>
         _battle_grid_service;
 
+    BattleLayeredBarrierService IGameRuntimeBattleSelectionPort.GetBattleLayeredBarrierService() =>
+        _battle_runtime?._layered_barrier_service;
+
     ISkillCatalog IGameRuntimeBattleSelectionPort.GetSkillCatalog() =>
         GetSkillCatalogTyped();
 

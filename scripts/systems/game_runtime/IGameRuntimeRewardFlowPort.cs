@@ -15,6 +15,7 @@ internal interface IGameRuntimeRewardFlowPort
     GameRuntimePromotionPromptContext GetPendingWorldPromotionPrompt();
     void SetPendingWorldPromotionPrompt(GameRuntimePromotionPromptContext prompt);
     void ClearPendingBattlePromotionPrompt();
+    void DeferBattlePromotionChoice();
     void ClearPendingWorldPromotionPrompt();
     GameRuntimePromotionPromptContext BuildPromotionPrompt(
         CharacterProgressionDelta delta,
@@ -24,13 +25,13 @@ internal interface IGameRuntimeRewardFlowPort
     BattleEventBatch SubmitBattlePromotionChoice(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     );
     void ApplyBattleBatch(BattleEventBatch batch);
     CharacterProgressionDelta PromoteProfession(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     );
     void SyncPartyStateFromCharacterManagement();
     Error PersistPartyState();

@@ -1,50 +1,41 @@
+#nullable enable
+
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using Godot;
 
-internal class BattleSpecialProfileRegistry : IValidatableRegistry, System.IDisposable
+internal sealed class BattleSpecialProfileRegistry : IValidatableRegistry, IDisposable
 {
-    private const string ManifestDirectory = "res://data/configs/skill_special_profiles/manifests";
-    private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
-
-    private readonly IContentResourceLoader _loader;
-    private string _manifestDirectory = ManifestDirectory;
-    private readonly Dictionary<StringName, BattleSpecialProfileManifest> _manifestsByProfileId = new();
+    private readonly IContentJsonSourceReader _sourceReader;
+    private string _manifestDirectory = BattleSpecialProfileJsonDomains.ManifestDirectory;
+    private string _profileDirectory = BattleSpecialProfileJsonDomains.ProfileDirectory;
+    private readonly Dictionary<StringName, BattleSpecialProfileManifestDefinition> _manifests = new();
+    private readonly Dictionary<StringName, MeteorSwarmProfileData> _meteorProfiles = new();
     private readonly Dictionary<StringName, StringName> _profileIdBySkillId = new();
     private readonly List<string> _validationErrors = new();
-    private readonly BattleSpecialProfileManifestValidator _validator = new();
     private bool _disposed;
 
-    internal BattleSpecialProfileRegistry(IContentResourceLoader loader)
-    {
-        _loader = loader ?? throw new System.ArgumentNullException(nameof(loader));
-    }
+    internal BattleSpecialProfileRegistry()
+        : this(new GodotContentJsonSourceReader()) { }
 
-    public void Dispose()
+    internal BattleSpecialProfileRegistry(IContentJsonSourceReader sourceReader)
     {
-        if (_disposed)
-        {
-            return;
-        }
-        System.GC.SuppressFinalize(this);
-        DisposeManagedRegistry();
-    }
-
-    private void DisposeManagedRegistry()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-        _disposed = true;
-        _manifestsByProfileId.Clear();
-        _profileIdBySkillId.Clear();
-        _validationErrors.Clear();
+        _sourceReader = sourceReader ?? throw new ArgumentNullException(nameof(sourceReader));
     }
 
     public void SetManifestDirectory(string directoryPath)
     {
-        _manifestDirectory = string.IsNullOrEmpty(directoryPath)
-            ? ManifestDirectory
+        _manifestDirectory = string.IsNullOrWhiteSpace(directoryPath)
+            ? BattleSpecialProfileJsonDomains.ManifestDirectory
+            : directoryPath;
+    }
+
+    internal void SetProfileDirectory(string directoryPath)
+    {
+        _profileDirectory = string.IsNullOrWhiteSpace(directoryPath)
+            ? BattleSpecialProfileJsonDomains.ProfileDirectory
             : directoryPath;
     }
 
@@ -53,237 +44,211 @@ internal class BattleSpecialProfileRegistry : IValidatableRegistry, System.IDisp
         string asOfDate = ""
     )
     {
-        _manifestsByProfileId.Clear();
+        ThrowIfDisposed();
+        _manifests.Clear();
+        _meteorProfiles.Clear();
         _profileIdBySkillId.Clear();
         _validationErrors.Clear();
+        skillDefinitions ??= EmptySkills;
 
-        skillDefinitions ??= new Dictionary<StringName, SkillDefinition>();
-        Dictionary<StringName, StringName> specialProfileIdBySkillId = CollectSpecialProfileIds(
-            skillDefinitions
-        );
-        bool hasSpecialSkills = specialProfileIdBySkillId.Count > 0;
+        ContentImportBatch<BattleSpecialProfileImportModel> profileBatch =
+            BattleSpecialProfileJsonAuthoringDomains
+                .CreateProfileDescriptor(_profileDirectory, _sourceReader)
+                .Import();
+        ContentImportBatch<BattleSpecialProfileManifestImportModel> manifestBatch =
+            BattleSpecialProfileJsonAuthoringDomains
+                .CreateManifestDescriptor(_manifestDirectory, _sourceReader)
+                .Import();
+        AppendDiagnostics(profileBatch.Diagnostics);
+        AppendDiagnostics(manifestBatch.Diagnostics);
 
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(_manifestDirectory)))
+        foreach (ContentImportEntry<BattleSpecialProfileImportModel> entry in profileBatch.Entries)
         {
-            if (hasSpecialSkills)
+            try
+            {
+                MeteorSwarmProfileData definition =
+                    BattleSpecialProfileDefinitionProjector.ProjectMeteorSwarm(entry.Import);
+                if (!_meteorProfiles.TryAdd(definition.profile_id, definition))
+                {
+                    _validationErrors.Add(
+                        $"Duplicate battle special profile_id registered: {definition.profile_id}."
+                    );
+                }
+            }
+            catch (Exception exception)
             {
                 _validationErrors.Add(
-                    $"BattleSpecialProfileRegistry could not find {_manifestDirectory}."
-                );
-                AppendMissingManifestErrors(specialProfileIdBySkillId);
-            }
-            return;
-        }
-
-        DirAccess directory = DirAccess.Open(_manifestDirectory);
-        if (directory == null)
-        {
-            _validationErrors.Add(
-                $"BattleSpecialProfileRegistry could not open {_manifestDirectory}."
-            );
-            return;
-        }
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
-            {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == ".." || directory.CurrentIsDir())
-                    continue;
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-                RegisterManifestResource(
-                    $"{_manifestDirectory}/{entryName}",
-                    skillDefinitions,
-                    specialProfileIdBySkillId,
-                    asOfDate
+                    $"Battle special profile projection failed at {entry.Context.SourceLabel}: {exception.Message}"
                 );
             }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
         }
 
-        AppendMissingManifestErrors(specialProfileIdBySkillId);
-    }
-
-    public Godot.Collections.Array<string> Validate()
-    {
-        var result = new Godot.Collections.Array<string>();
-        foreach (string error in _validationErrors)
-            result.Add(error);
-        return result;
-    }
-
-    private BattleSpecialProfileManifest GetManifest(StringName profileId)
-    {
-        return _manifestsByProfileId.TryGetValue(profileId, out BattleSpecialProfileManifest manifest)
-            ? manifest
-            : null;
-    }
-
-    internal IBattleSpecialProfileView BuildRuntimeProfileView()
-    {
-        if (_validationErrors.Count != 0)
+        foreach (
+            ContentImportEntry<BattleSpecialProfileManifestImportModel> entry in manifestBatch.Entries
+        )
         {
-            return BattleSpecialProfileRuntimeView.Empty;
-        }
-        var meteorProfiles = new Dictionary<StringName, MeteorSwarmProfileData>();
-        foreach (var profileIdValue in _manifestsByProfileId.Keys)
-        {
-            var profileId = ProgressionDataUtils.to_string_name(profileIdValue);
-            var manifest = GetManifest(profileId);
-            if (manifest == null || profileId != MeteorSwarmProfileId)
+            try
             {
-                continue;
+                BattleSpecialProfileManifestDefinition definition =
+                    BattleSpecialProfileDefinitionProjector.ProjectManifest(entry.Import);
+                if (!_manifests.TryAdd(definition.ProfileId, definition))
+                {
+                    _validationErrors.Add(
+                        $"Duplicate battle special profile manifest id registered: {definition.ProfileId}."
+                    );
+                    continue;
+                }
+                if (!_meteorProfiles.ContainsKey(definition.ProfileId))
+                {
+                    _validationErrors.Add(
+                        $"Battle special profile manifest {definition.ProfileId} references missing profile ID {definition.ProfileId}."
+                    );
+                }
+                ValidateManifestSkillReferences(definition, skillDefinitions);
             }
-            MeteorSwarmProfile meteorProfile =
-                manifest.RequireMeteorSwarmProfileForProjection();
-            MeteorSwarmProfileData data =
-                MeteorSwarmProfileData.FromResource(profileId, meteorProfile);
-            meteorProfiles[profileId] = data;
+            catch (Exception exception)
+            {
+                _validationErrors.Add(
+                    $"Battle special profile manifest projection failed at {entry.Context.SourceLabel}: {exception.Message}"
+                );
+            }
         }
-        return new BattleSpecialProfileRuntimeView(meteorProfiles);
+
+        foreach (StringName profileId in _meteorProfiles.Keys)
+        {
+            if (!_manifests.ContainsKey(profileId))
+                _validationErrors.Add($"Battle special profile {profileId} is missing its manifest.");
+        }
+        AppendMissingManifestErrors(skillDefinitions);
     }
 
-    internal IReadOnlyDictionary<StringName, BattleSpecialProfileManifest> GetManifestsTyped() =>
-        _manifestsByProfileId;
-
-    internal IReadOnlyDictionary<StringName, StringName> GetProfileIdBySkillIdTyped() =>
-        _profileIdBySkillId;
-
+    public Godot.Collections.Array<string> Validate() => new(_validationErrors);
     public IReadOnlyList<string> ValidateTyped() => _validationErrors;
 
-    private void RegisterManifestResource(
-        string resourcePath,
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions,
-        IReadOnlyDictionary<StringName, StringName> specialProfileIdBySkillId,
-        string asOfDate
+    internal IBattleSpecialProfileView BuildRuntimeProfileView() =>
+        _validationErrors.Count == 0
+            ? new BattleSpecialProfileRuntimeView(_meteorProfiles)
+            : BattleSpecialProfileRuntimeView.Empty;
+
+    internal IReadOnlyDictionary<StringName, BattleSpecialProfileManifestDefinition>
+        GetManifestsTyped() =>
+        new ReadOnlyDictionary<StringName, BattleSpecialProfileManifestDefinition>(
+            new Dictionary<StringName, BattleSpecialProfileManifestDefinition>(_manifests)
+        );
+
+    internal IReadOnlyDictionary<StringName, StringName> GetProfileIdBySkillIdTyped() =>
+        new ReadOnlyDictionary<StringName, StringName>(
+            new Dictionary<StringName, StringName>(_profileIdBySkillId)
+        );
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _manifests.Clear();
+        _meteorProfiles.Clear();
+        _profileIdBySkillId.Clear();
+        _validationErrors.Clear();
+        GC.SuppressFinalize(this);
+    }
+
+    private void ValidateManifestSkillReferences(
+        BattleSpecialProfileManifestDefinition manifest,
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        var resource = _loader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
+        foreach (StringName skillId in manifest.OwningSkillIds)
         {
-            _validationErrors.Add($"BattleSpecialProfileRegistry failed to load {resourcePath}.");
-            return;
-        }
-        var manifest = resource as BattleSpecialProfileManifest;
-        if (manifest == null)
-        {
-            _validationErrors.Add(
-                $"BattleSpecialProfileRegistry {resourcePath} is not a BattleSpecialProfileManifest."
-            );
-            return;
-        }
-        if (manifest.profile_id == "")
-        {
-            _validationErrors.Add(
-                $"BattleSpecialProfileRegistry {resourcePath} is missing profile_id."
-            );
-            return;
-        }
-        if (_manifestsByProfileId.ContainsKey(manifest.profile_id))
-        {
-            _validationErrors.Add(
-                $"Duplicate battle special profile_id registered: {manifest.profile_id}"
-            );
-            return;
-        }
-
-        _manifestsByProfileId[manifest.profile_id] = manifest;
-        AppendProfileResourcePathErrors(manifest);
-        foreach (var error in _validator.ValidateManifest(manifest, skillDefinitions, asOfDate))
-            _validationErrors.Add(error);
-
-        foreach (var skillId in manifest.owning_skill_ids)
-        {
-            if (skillId == "")
-                continue;
-            if (
-                specialProfileIdBySkillId == null
-                || !specialProfileIdBySkillId.TryGetValue(skillId, out StringName configuredProfileId)
-                || configuredProfileId != manifest.profile_id
-            )
-            {
-                continue;
-            }
-            if (_profileIdBySkillId.ContainsKey(skillId))
+            if (!skillDefinitions.TryGetValue(skillId, out SkillDefinition? skill) || skill is null)
             {
                 _validationErrors.Add(
-                    $"Duplicate battle special profile owning_skill_id registered: {skillId}"
+                    $"Battle special profile {manifest.ProfileId} references missing owning skill {skillId}."
                 );
                 continue;
             }
-            _profileIdBySkillId[skillId] = manifest.profile_id;
+            CombatSkillDefinition? combatProfile = skill.CombatProfile;
+            if (combatProfile is null)
+            {
+                _validationErrors.Add(
+                    $"Battle special profile {manifest.ProfileId} owning skill {skillId} is missing combat_profile."
+                );
+                continue;
+            }
+            if (combatProfile.SpecialResolutionProfileId != manifest.ProfileId)
+            {
+                _validationErrors.Add(
+                    $"Battle special profile {manifest.ProfileId} owning skill {skillId} must set matching special_resolution_profile_id."
+                );
+                continue;
+            }
+            if (!_profileIdBySkillId.TryAdd(skillId, manifest.ProfileId))
+            {
+                _validationErrors.Add(
+                    $"Duplicate battle special profile owning_skill_id registered: {skillId}."
+                );
+            }
+            if (combatProfile.EffectDefinitions.Count > 0)
+            {
+                _validationErrors.Add(
+                    $"Battle special profile owning skill {skillId} must not declare executable combat_profile.effect_defs."
+                );
+            }
+            for (int index = 0; index < combatProfile.CastVariants.Count; index += 1)
+            {
+                CombatCastVariantDefinition variant = combatProfile.CastVariants[index];
+                if (variant is not null && variant.EffectDefinitions.Count > 0)
+                {
+                    _validationErrors.Add(
+                        $"Battle special profile owning skill {skillId} must not declare executable cast_variants[{index}].effect_defs."
+                    );
+                }
+            }
         }
-    }
-
-    private void AppendProfileResourcePathErrors(BattleSpecialProfileManifest manifest)
-    {
-        if (manifest.profile_resource == null)
-            return;
-        string profilePath = manifest.profile_resource.ResourcePath;
-        if (string.IsNullOrEmpty(profilePath))
-        {
-            _validationErrors.Add(
-                $"Battle special profile {manifest.profile_id} profile_resource must be saved under the sibling profiles directory."
-            );
-            return;
-        }
-        string expectedPrefix = $"{_manifestDirectory.GetBaseDir()}/profiles/";
-        if (!profilePath.StartsWith(expectedPrefix))
-            _validationErrors.Add(
-                $"Battle special profile {manifest.profile_id} profile_resource must be under {expectedPrefix}."
-            );
     }
 
     private void AppendMissingManifestErrors(
-        IReadOnlyDictionary<StringName, StringName> specialProfileIdBySkillId
+        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {
-        foreach (StringName skillId in specialProfileIdBySkillId.Keys)
+        foreach ((StringName skillId, SkillDefinition skill) in skillDefinitions)
         {
-            StringName profileId = specialProfileIdBySkillId[skillId];
+            StringName profileId = skill?.CombatProfile?.SpecialResolutionProfileId ?? "";
             if (profileId == "")
                 continue;
-            if (!_manifestsByProfileId.ContainsKey(profileId))
+            if (!_manifests.ContainsKey(profileId))
             {
                 _validationErrors.Add(
                     $"Battle special profile {profileId} is missing manifest for skill {skillId}."
                 );
-                continue;
             }
-            if (
-                !_profileIdBySkillId.ContainsKey(skillId)
-                || _profileIdBySkillId[skillId] != profileId
+            else if (
+                !_profileIdBySkillId.TryGetValue(skillId, out StringName? owner)
+                || owner is null
+                || owner != profileId
             )
+            {
                 _validationErrors.Add(
                     $"Battle special profile {profileId} manifest does not own skill {skillId}."
                 );
+            }
         }
     }
 
-    private static Dictionary<StringName, StringName> CollectSpecialProfileIds(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
-    )
+    private void AppendDiagnostics(IReadOnlyList<ContentJsonDiagnostic> diagnostics)
     {
-        var result = new Dictionary<StringName, StringName>();
-        if (skillDefinitions == null)
-            return result;
-        foreach (StringName skillId in skillDefinitions.Keys)
+        foreach (ContentJsonDiagnostic diagnostic in diagnostics)
         {
-            SkillDefinition skillDefinition = skillDefinitions[skillId];
-            CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-            if (combatProfile == null || combatProfile.SpecialResolutionProfileId == "")
-                continue;
-            result[skillId] = combatProfile.SpecialResolutionProfileId;
+            _validationErrors.Add(
+                $"[{diagnostic.RuleId}] {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
         }
-        return result;
     }
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private static IReadOnlyDictionary<StringName, SkillDefinition> EmptySkills { get; } =
+        new ReadOnlyDictionary<StringName, SkillDefinition>(
+            new Dictionary<StringName, SkillDefinition>()
+        );
 }

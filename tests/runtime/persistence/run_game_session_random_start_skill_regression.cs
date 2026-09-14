@@ -3,7 +3,7 @@ using Godot;
 
 public partial class run_game_session_random_start_skill_regression : LifecycleTestSceneTree
 {
-    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private const string TestWorldConfig = "test";
 
     private readonly TestHarness _test = new();
 
@@ -14,17 +14,21 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
 
     private void Run()
     {
-        TestStartingEquipmentMatchesRandomSkillWithTypedLookup();
+        TestStartingEquipmentMatchesSelectedRandomSkillThroughCreateNewSave();
         TestMpStartingSkillGrantsBasicMeditationAndRandomManaPool();
+        TestFrostBoltRandomStartTierAndAffordableLevelCost();
+        TestBoneChillRandomStartTierAndAffordableLevelCost();
+        TestRandomStartCandidatesAreAffordableAndBoneChillGetsManaFloor();
 
         RequestTestExit(_test.Finish("GameSession random start skill regression"));
     }
 
-    private void TestStartingEquipmentMatchesRandomSkillWithTypedLookup()
+    private void TestStartingEquipmentMatchesSelectedRandomSkillThroughCreateNewSave()
     {
         GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
         try
         {
+            gameSession.SetRandomStartingSkillSelectorForTests(_ => "mage_arcane_missile");
             Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
             _test.Eq(createError, Error.Ok, "随机起始装备回归前置：应能创建测试存档。");
             if (createError != Error.Ok)
@@ -62,30 +66,86 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
                 );
             }
 
-            SkillDefinition randomSkillDefinition = FindRandomStartingSkillDefinition(gameSession, memberState);
-            _test.True(randomSkillDefinition != null, "新建主角应记录一条 player 来源的随机起始技能。");
-            if (randomSkillDefinition == null)
+            const string SelectedSkillId = "mage_arcane_missile";
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions = gameSession
+                .GetContentCatalogTyped()
+                .GetSkillDefinitionsTyped();
+            SkillDefinition randomSkillDefinition = skillDefinitions[SelectedSkillId];
+            UnitSkillProgress randomSkillProgress =
+                memberState.progression.GetSkillProgress(SelectedSkillId);
+            _test.True(
+                randomSkillProgress != null && randomSkillProgress.is_learned,
+                "随机起始技能应写入主角成长数据。"
+            );
+            if (randomSkillDefinition == null || randomSkillProgress == null)
                 return;
 
-            StringName expectedItemId = ResolveExpectedStartingWeaponItemId(gameSession, randomSkillDefinition);
+            var learnedBookSkillIds = new List<StringName>();
+            foreach (StringName skillId in memberState.progression.GetSortedSkillIdsTyped())
+            {
+                UnitSkillProgress progress = memberState.progression.GetSkillProgress(skillId);
+                if (progress == null || !progress.is_learned)
+                    continue;
+                if (
+                    skillDefinitions.TryGetValue(skillId, out SkillDefinition definition)
+                    && definition?.LearnSourceKind == SkillLearnSourceKind.Book
+                    && progress.granted_source_type
+                        == UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Player)
+                    && progress.granted_source_id == ""
+                )
+                {
+                    learnedBookSkillIds.Add(skillId);
+                }
+            }
+            _test.Eq(
+                learnedBookSkillIds.Count,
+                1,
+                "CreateNewSave 应只授予 selector 选中的一个书籍来源技能。"
+            );
+            if (learnedBookSkillIds.Count == 1)
+            {
+                _test.Eq(
+                    learnedBookSkillIds[0],
+                    new StringName(SelectedSkillId),
+                    "唯一授予的书籍来源技能应是 selector 指定的奥术飞弹。"
+                );
+            }
+
+            int expectedInitialLevel = gameSession.ResolveRandomStartSkillInitialLevel(
+                randomSkillDefinition
+            );
+            _test.Eq(
+                randomSkillProgress.skill_level,
+                expectedInitialLevel,
+                "CreateNewSave 应把随机起始技能写入规则计算出的初始等级。"
+            );
+            _test.Eq(randomSkillProgress.current_mastery, 0, "随机起始技能不应预置当前熟练度。");
+            _test.Eq(
+                randomSkillProgress.total_mastery_earned,
+                0,
+                "随机起始技能不应伪造历史熟练度。"
+            );
+
+            _test.Eq(
+                randomSkillProgress.granted_source_type,
+                UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Player),
+                "随机起始技能来源类型应为 player。"
+            );
+            _test.Eq(
+                randomSkillProgress.granted_source_id,
+                new StringName(),
+                "随机起始技能来源 id 应为空。"
+            );
             StringName equippedItemId = memberState.equipment_state.GetEquippedItemId("main_hand");
             _test.Eq(
                 equippedItemId,
-                expectedItemId,
-                $"随机起始技能类型应匹配主手基础装备。 skill_id={randomSkillDefinition.SkillId}"
+                new StringName("oak_quarterstaff"),
+                "法师标签的奥术飞弹应通过真实 CreateNewSave 流程装备橡木长棍。"
             );
             _test.True(
                 memberState.equipment_state.GetEquippedInstanceId("main_hand") != "",
                 "随机起始装备应写入持久装备实例 ID。"
             );
-            if (equippedItemId == "ash_shortbow" || equippedItemId == "militia_light_crossbow")
-            {
-                _test.Eq(
-                    memberState.equipment_state.GetEquippedItemId("off_hand"),
-                    equippedItemId,
-                    "双手远程起始武器应同步占用副手。"
-                );
-            }
         }
         finally
         {
@@ -110,12 +170,140 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
             if (arcaneMissile == null)
                 return;
 
-            CombatSkillResourceCosts startingCosts = arcaneMissile
-                .CombatProfile.GetEffectiveResourceCostValues(0);
-            _test.Eq(startingCosts.StaminaCost, 15, "奥术飞弹应保留 15 点体力消耗。");
+            CombatSkillResourceCosts startingCosts = BattleTargetSlotCostRules.Resolve(
+                arcaneMissile.CombatProfile,
+                0,
+                1
+            );
+            _test.True(startingCosts.MpCost > 0, "法力伴随授予前置必须是真正消耗 MP 的技能。");
 
             AssertManaPoolRoll(skillDefinitions, arcaneMissile, 0);
             AssertManaPoolRoll(skillDefinitions, arcaneMissile, 40);
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestFrostBoltRandomStartTierAndAffordableLevelCost()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            _test.True(
+                skillDefinitions.TryGetValue(
+                    "mage_frost_bolt",
+                    out SkillDefinition frostBolt
+                ),
+                "随机起始等级回归前置：应加载霜击术定义。"
+            );
+            if (frostBolt == null)
+                return;
+
+            _test.Eq(
+                frostBolt.LearnSourceKind,
+                SkillLearnSourceKind.Book,
+                "霜击术应继续作为书籍来源技能参与随机起始候选。"
+            );
+            int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(frostBolt);
+            _test.Eq(initialLevel, 3, "advanced 成长档的霜击术随机起始等级应为3级。" );
+            CombatSkillResourceCosts initialCosts = BattleTargetSlotCostRules.Resolve(
+                frostBolt.CombatProfile,
+                initialLevel,
+                1
+            );
+            _test.Eq(initialCosts.ApCost, 1, "随机起始霜击术应保持1 AP消耗。" );
+            _test.Eq(initialCosts.MpCost, 20, "随机起始3级霜击术应采用已解锁的20 MP消耗。" );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestBoneChillRandomStartTierAndAffordableLevelCost()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            _test.True(
+                skillDefinitions.TryGetValue("mage_bone_chill", out SkillDefinition boneChill),
+                "随机起始等级回归前置：应加载骨寒术定义。"
+            );
+            if (boneChill == null)
+                return;
+
+            int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(boneChill);
+            _test.Eq(initialLevel, 0, "骨寒术在当前随机起始分档规则下应从0级开始。" );
+            CombatSkillResourceCosts initialCosts = BattleTargetSlotCostRules.Resolve(
+                boneChill.CombatProfile,
+                initialLevel,
+                1
+            );
+            _test.Eq(initialCosts.MpCost, 20, "随机起始0级骨寒术应采用20 MP消耗。" );
+            _test.True(
+                initialCosts.MpCost <= TrueRandomStartingManaPoolRoller.MaximumManaPool,
+                "随机起始骨寒术必须可由允许的起始法力池支付。"
+            );
+        }
+        finally
+        {
+            CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestRandomStartCandidatesAreAffordableAndBoneChillGetsManaFloor()
+    {
+        GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+        try
+        {
+            IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
+                gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
+            bool inspectedCandidates = false;
+            gameSession.SetRandomStartingSkillSelectorForTests(
+                candidateIds =>
+                {
+                    inspectedCandidates = true;
+                    foreach (StringName candidateId in candidateIds)
+                    {
+                        SkillDefinition candidate = skillDefinitions[candidateId];
+                        int initialLevel = gameSession.ResolveRandomStartSkillInitialLevel(
+                            candidate
+                        );
+                        int mpCost = BattleTargetSlotCostRules.Resolve(
+                            candidate.CombatProfile,
+                            initialLevel,
+                            1
+                        ).MpCost;
+                        _test.True(
+                            mpCost <= TrueRandomStartingManaPoolRoller.MaximumManaPool,
+                            $"随机起始候选{candidateId}的起始等级MP消耗不得超过40。"
+                        );
+                    }
+                    return new StringName("mage_bone_chill");
+                }
+            );
+
+            Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+            _test.Eq(createError, Error.Ok, "选择骨寒术时应能创建测试存档。" );
+            _test.True(inspectedCandidates, "随机起始选择器应收到已过滤的候选集合。" );
+            if (createError != Error.Ok)
+                return;
+            PartyState partyState = gameSession.GetPartyState();
+            PartyMemberState memberState = partyState?.GetMemberState(
+                partyState.GetResolvedMainCharacterMemberId()
+            );
+            _test.True(
+                memberState?.progression?.GetSkillProgress("mage_bone_chill")?.is_learned == true,
+                "测试选择器指定的骨寒术应被授予。"
+            );
+            _test.True(memberState?.GetCurrentMp() >= 20, "骨寒术随机开局法力不得低于0级20 MP消耗。" );
+            _test.True(memberState?.GetCurrentMp() <= 40, "随机开局法力池仍不得超过40。" );
         }
         finally
         {
@@ -161,6 +349,11 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
             memberState,
             arcaneMissile
         );
+        int startingMpCost = BattleTargetSlotCostRules.Resolve(
+            arcaneMissile.CombatProfile,
+            0,
+            1
+        ).MpCost;
 
         UnitSkillProgress meditationProgress = progression.GetSkillProgress(
             RandomStartingSkillResourceSupportService.BasicMeditationSkillId
@@ -177,132 +370,24 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
                 "基础冥想法应记录触发伴随授予的随机法术。"
             );
         }
-        _test.Eq(resultingManaPool, rolledManaPool, "初始法力值应采用 0–40 闭区间随机结果。");
+        int expectedManaPool = Mathf.Max(rolledManaPool, startingMpCost);
+        _test.Eq(resultingManaPool, expectedManaPool, "初始法力值不得低于所抽技能的实际消耗。");
         _test.Eq(
             progression.unit_base_attributes.GetAttributeValue("mp_max"),
-            rolledManaPool,
-            "随机法力值应写入角色法力池上限。"
+            expectedManaPool,
+            "受技能消耗下限约束的法力值应写入角色法力池上限。"
         );
         _test.Eq(
             memberState.GetCurrentMp(),
-            rolledManaPool,
+            expectedManaPool,
             "新角色当前法力应与随机法力池上限一致。"
         );
         _test.True(
             progression.HasCombatResourceUnlocked(
                 CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)
             ),
-            "即使随机法力值为 0，耗蓝法术仍应解锁 MP 资源。"
+            "即使原始随机法力值为0，耗蓝法术仍应解锁MP资源并获得可支付下限。"
         );
-    }
-
-    private static SkillDefinition FindRandomStartingSkillDefinition(
-        GameSession gameSession,
-        PartyMemberState memberState
-    )
-    {
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions =
-            gameSession.GetContentCatalogTyped().GetSkillDefinitionsTyped();
-        foreach (StringName skillId in GetSortedSkillIds(skillDefinitions))
-        {
-            UnitSkillProgress skillProgress = memberState.progression?.GetSkillProgress(skillId);
-            if (skillProgress == null || !skillProgress.is_learned)
-                continue;
-            if (
-                skillProgress.granted_source_type
-                != UnitSkillProgress.ToStringName(UnitSkillGrantSourceType.Player)
-            )
-                continue;
-            if (skillProgress.granted_source_id != "")
-                continue;
-            if (
-                !skillDefinitions.TryGetValue(skillId, out SkillDefinition skillDefinition)
-                || skillDefinition == null
-            )
-                continue;
-            return skillDefinition;
-        }
-        return null;
-    }
-
-    private static StringName ResolveExpectedStartingWeaponItemId(
-        GameSession gameSession,
-        SkillDefinition skillDefinition
-    )
-    {
-        var candidates = new List<StringName>();
-        if (SkillMatches(skillDefinition, "crossbow", "crossbow"))
-            candidates.Add("militia_light_crossbow");
-        if (SkillMatches(skillDefinition, new[] { "archer", "bow" }, "archer_"))
-            candidates.Add("ash_shortbow");
-        if (SkillMatches(skillDefinition, new[] { "mage", "magic", "spell" }, "mage_"))
-            candidates.Add("oak_quarterstaff");
-        if (SkillMatches(skillDefinition, new[] { "priest", "faith", "heal" }, "priest_", "saint_"))
-            candidates.Add("watchman_mace");
-        if (SkillMatches(skillDefinition, new[] { "warrior", "melee", "shield" }, "warrior_"))
-            candidates.Add("steel_longsword");
-        candidates.Add("steel_longsword");
-        return FirstValidWeaponItemId(gameSession, candidates);
-    }
-
-    private static bool SkillMatches(
-        SkillDefinition skillDefinition,
-        string tagId,
-        params string[] skillIdPrefixes
-    ) => SkillMatches(skillDefinition, new[] { tagId }, skillIdPrefixes);
-
-    private static bool SkillMatches(
-        SkillDefinition skillDefinition,
-        IEnumerable<string> tagIds,
-        params string[] skillIdPrefixes
-    )
-    {
-        if (skillDefinition == null)
-            return false;
-        foreach (string tagId in tagIds)
-        {
-            if (skillDefinition.HasTag(tagId))
-                return true;
-        }
-
-        string skillIdText = skillDefinition.SkillId.ToString();
-        foreach (string prefix in skillIdPrefixes)
-        {
-            if (skillIdText.StartsWith(prefix))
-                return true;
-        }
-        return false;
-    }
-
-    private static StringName FirstValidWeaponItemId(
-        GameSession gameSession,
-        IEnumerable<StringName> candidates
-    )
-    {
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions =
-            gameSession.GetItemDefsTyped();
-        foreach (StringName itemId in candidates)
-        {
-            if (itemId == "")
-                continue;
-            if (
-                !itemDefinitions.TryGetValue(itemId, out ItemDefinition itemDefinition)
-                || itemDefinition == null
-            )
-                continue;
-            if (itemDefinition.IsWeapon())
-                return itemId;
-        }
-        return new StringName();
-    }
-
-    private static List<StringName> GetSortedSkillIds(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
-    )
-    {
-        var sortedSkillIds = new List<StringName>(skillDefinitions.Keys);
-        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
-        return sortedSkillIds;
     }
 
     private static void CleanupTestSession(GameSession gameSession)

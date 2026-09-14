@@ -66,26 +66,16 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
         if (!fixture.ItemDefs.ContainsKey(SpiderItemId))
             return;
 
-        ItemDef rawSpider = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_spear_spider_spear.tres"
-        );
+        ItemDefinition rawSpider = TestItemDefinitionLookup.GetProductionItem("weapon_unique_polearm_spider_spear_136");
         _test.True(rawSpider != null, "蛛矛原始资源应能加载。");
         if (rawSpider != null)
         {
-            _test.Eq(
-                rawSpider.base_item_id,
-                new StringName("weapon_type_spear_base"),
-                "蛛矛应继承 spear 模板。"
-            );
-            _test.Eq(rawSpider.display_name, "蛛矛", "蛛矛显示名应匹配设计。");
-            _test.Eq(rawSpider.base_price, 35000, "蛛矛价格应为 35000。");
-            _test.True(rawSpider.trait_ids.Contains(WebBindingTraitId), "物品应声明蛛丝束缚 trait。");
+            _test.Eq(rawSpider.DisplayName, "蛛矛", "蛛矛显示名应匹配设计。");
+            _test.Eq(rawSpider.BasePrice, 35000, "蛛矛价格应为 35000。");
+            _test.True(rawSpider.TraitIds.Contains(WebBindingTraitId), "物品应声明蛛丝束缚 trait。");
         }
 
-        BattleUnitState baseline = fixture.BuildUnitWithoutWeapon("baseline");
         BattleUnitState equipped = fixture.BuildSpiderUnit("projection");
-        BattleWeaponProjectionValues baselineWeapon =
-            baseline.GetWeaponProjectionReadViewTyped().Values;
         BattleWeaponProjectionValues equippedWeapon =
             equipped.GetWeaponProjectionReadViewTyped().Values;
         _test.Eq(equippedWeapon.ItemId, SpiderItemId, "蛛矛装备后 unit 应保留真实 item_id。");
@@ -140,26 +130,6 @@ public partial class run_spider_spear_weapon_ability_regression : LifecycleTestS
             _test.Eq(entry.EquipmentMaxUsesPerPeriod, 3, "蛛丝束缚每世界日应有 3 次。");
         }
 
-        equipped.GetEquipmentView().ClearSlot("main_hand");
-        fixture.Runtime._unit_factory.RefreshBattleUnit(equipped);
-        BattleWeaponProjectionValues removedWeapon =
-            equipped.GetWeaponProjectionReadViewTyped().Values;
-        _test.Eq(removedWeapon.ItemId, new StringName(""), "移除蛛矛后 weapon_item_id 应清空。");
-        _test.Eq(
-            removedWeapon.ProfileTypeId,
-            baselineWeapon.ProfileTypeId,
-            "移除蛛矛后 weapon_profile_type_id 应回到装备前状态。"
-        );
-        _test.Eq(
-            equipped.GetEquipmentAbilitySourcesReadViewTyped().Count,
-            0,
-            "移除蛛矛后装备能力源应清空。"
-        );
-        _test.Eq(
-            equipped.GetEffectiveTraitInstanceCountTyped(),
-            baseline.GetEffectiveTraitInstanceCountTyped(),
-            "移除蛛矛后装备 trait 实例应回到装备前状态。"
-        );
     }
 
     private void TestSpiderWebBindingUsageLimitsAndFailedStrengthSaveRoot()

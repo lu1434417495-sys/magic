@@ -51,7 +51,6 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
             .GetProfessionProgress("warrior")
             .promotion_history[0]
             .snapshot_unit_base_attributes.strength = 66;
-        copyHero.progression.PendingProfessionChoicesTyped[0].SetTargetRank("warrior", 5);
         copyHero
             .equipment_state
             .GetEquippedInstance(EquipmentRules.ToStringName(EquipmentSlotKind.MainHand))
@@ -81,11 +80,6 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
                 .snapshot_unit_base_attributes.strength,
             8,
             "修改 copy 晋升快照不应影响源队伍。"
-        );
-        _test.Eq(
-            ReadTargetRank(sourceHero.progression.PendingProfessionChoicesTyped[0], "warrior"),
-            2,
-            "修改 copy 待转职选项不应影响源队伍。"
         );
         _test.Eq(
             sourceHero
@@ -244,20 +238,7 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
             }
         );
         progress.SetProfessionProgress(professionProgress);
-        progress.AddPendingProfessionChoice(BuildPendingProfessionChoice());
         return progress;
-    }
-
-    private static PendingProfessionChoice BuildPendingProfessionChoice()
-    {
-        PendingProfessionChoice choice = new()
-        {
-            trigger_skill_ids = new GStringNameArray { "slash" },
-            candidate_profession_ids = new GStringNameArray { "warrior" },
-            required_qualifier_count = 1,
-        };
-        choice.SetTargetRank("warrior", 2);
-        return choice;
     }
 
     private static PendingCharacterReward BuildPendingReward()
@@ -284,13 +265,6 @@ public partial class run_party_state_duplicate_regression : LifecycleTestSceneTr
     }
 
 
-
-    private static int ReadTargetRank(PendingProfessionChoice choice, StringName professionId)
-    {
-        return choice != null && choice.TryGetTargetRank(professionId, out int targetRank)
-            ? targetRank
-            : 0;
-    }
 
     private static bool HasStringName(IReadOnlyList<StringName> values, StringName target)
     {

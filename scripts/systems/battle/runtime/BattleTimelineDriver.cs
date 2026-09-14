@@ -6,14 +6,15 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 internal sealed class BattleTimelineDriver
 {
-    private const int TuGranularity = 5;
     private static readonly StringName CalamityReasonLowHpEndTurn = "low_hp_end_turn";
 
-    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    // 只依赖窄端口，不再回指 BattleRuntimeModule —— 依赖面即 IBattleTimelineRuntimePort。
+    private WeakReference<IBattleTimelineRuntimePort> _runtimeRef;
 
-    internal void Setup(BattleRuntimeModule runtime)
+    internal void Setup(IBattleTimelineRuntimePort runtime)
     {
-        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
+        _runtimeRef =
+            runtime != null ? new WeakReference<IBattleTimelineRuntimePort>(runtime) : null;
     }
 
     internal void Dispose()
@@ -25,8 +26,15 @@ internal sealed class BattleTimelineDriver
     {
         var runtime = _ResolveRuntime();
         var state = _ResolveState();
-        if (state == null || state.timeline == null || tickCount <= 0)
+        if (
+            runtime == null
+            || state == null
+            || state.timeline == null
+            || tickCount <= 0
+        )
             return;
+        if (batch == null)
+            throw new ArgumentNullException(nameof(batch));
         var resolvedTickCount = Mathf.Max(tickCount, 0);
         for (int i = 0; i < resolvedTickCount; i++)
         {
@@ -34,7 +42,36 @@ internal sealed class BattleTimelineDriver
             bool mutationCompleted = false;
             try
             {
-                ApplyTimelineStep(batch, state.timeline.tu_per_tick);
+                using BattleReactionBoundaryScope boundary =
+                    runtime.BeginReactionBoundary(batch);
+                using IDisposable originScope =
+                    runtime.PushEffectOrigin(
+                        BattleEffectOrigin.Timeline(
+                            "timeline_tick"
+                        )
+                    );
+                try
+                {
+                    ApplyTimelineStep(
+                        batch,
+                        state.timeline.tu_per_tick
+                    );
+                    int logCountBeforeDrain =
+                        batch.LogLinesTyped.Count;
+                    int reportCountBeforeDrain =
+                        batch.ReportEntriesTyped.Count;
+                    boundary.Complete();
+                    runtime.AppendBatchLogsToStateFrom(
+                        batch,
+                        logCountBeforeDrain,
+                        reportCountBeforeDrain
+                    );
+                }
+                catch
+                {
+                    runtime.AbortActiveReactionBoundary();
+                    throw;
+                }
                 mutationCompleted = true;
             }
             finally
@@ -51,7 +88,7 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._record_turn_started(unitState, batch);
+        runtime.RecordTurnStarted(unitState, batch);
     }
 
     private int _GetUnitStaminaMax(BattleUnitState unitState)
@@ -59,7 +96,7 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return 0;
-        return runtime._get_unit_stamina_max(unitState);
+        return runtime.GetUnitStaminaMax(unitState);
     }
 
     private void _AppendChangedUnitId(BattleEventBatch batch, StringName unitId)
@@ -67,7 +104,7 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._append_changed_unit_id(batch, unitId);
+        runtime.AppendChangedUnitId(batch, unitId);
     }
 
     private void _CollectDefeatedUnitLoot(
@@ -79,12 +116,12 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._collect_defeated_unit_loot(unitState, killerUnit, batch);
+        runtime.CollectDefeatedUnitLoot(unitState, killerUnit, batch);
     }
 
     private void _AdvanceUnitTurnTimers(BattleUnitState unitState, BattleEventBatch batch)
     {
-        _ResolveRuntime()?._skill_turn_resolver?.AdvanceUnitTurnTimers(unitState, batch);
+        _ResolveRuntime()?.AdvanceUnitTurnTimers(unitState, batch);
     }
 
     private BattleStatusTickResult _ApplyTurnStartStatuses(
@@ -93,8 +130,7 @@ internal sealed class BattleTimelineDriver
     )
     {
         return _ResolveRuntime()
-                ?._skill_turn_resolver
-                ?.ApplyTurnStartStatusesResult(unitState, batch)
+                ?.ApplyTurnStartStatuses(unitState, batch)
             ?? BattleStatusTickResult.Empty();
     }
 
@@ -105,8 +141,7 @@ internal sealed class BattleTimelineDriver
     )
     {
         return _ResolveRuntime()
-                ?._skill_turn_resolver
-                ?.ApplyUnitStatusPeriodicTicksResult(unitState, elapsedTu, batch)
+                ?.ApplyUnitStatusPeriodicTicks(unitState, elapsedTu, batch)
             ?? BattleStatusTickResult.Empty();
     }
 
@@ -117,7 +152,6 @@ internal sealed class BattleTimelineDriver
     )
     {
         return _ResolveRuntime()
-                ?._skill_turn_resolver
                 ?.AdvanceUnitStatusDurations(unitState, elapsedTu, batch)
             == true;
     }
@@ -127,7 +161,7 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._prepare_ai_turn(unitState);
+        runtime.PrepareAiTurn(unitState);
     }
 
     private void _CleanupAiTurn(BattleUnitState unitState)
@@ -135,13 +169,13 @@ internal sealed class BattleTimelineDriver
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime._cleanup_ai_turn(unitState);
+        runtime.CleanupAiTurn(unitState);
     }
 
     private void _ReconcilePendingCasts(BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
-        runtime?._casting_time_service?.ReconcilePendingCasts(batch);
+        runtime?.ReconcilePendingCasts(batch);
     }
 
     private void _AdvancePendingCasts(
@@ -151,13 +185,13 @@ internal sealed class BattleTimelineDriver
     )
     {
         var runtime = _ResolveRuntime();
-        runtime?._casting_time_service?.AdvancePendingCasts(tuDelta, batch, stasisFrozenUnitIds);
+        runtime?.AdvancePendingCasts(tuDelta, batch, stasisFrozenUnitIds);
     }
 
     private void _CompleteReadyPendingCasts(BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
-        runtime?._casting_time_service?.CompleteReadyPendingCasts(batch);
+        runtime?.CompleteReadyPendingCasts(batch);
     }
 
     internal bool UseDiscreteTimelineTicks()
@@ -172,10 +206,10 @@ internal sealed class BattleTimelineDriver
         var state = _ResolveState();
         if (state == null || state.timeline == null)
             return;
-        if (tuDelta > 0 && tuDelta % TuGranularity != 0)
+        if (tuDelta > 0 && tuDelta % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle timeline can only advance in {TuGranularity} TU steps, got {tuDelta}.",
+                $"Battle timeline can only advance in {BattleTimeRules.TuGranularity} TU steps, got {tuDelta}.",
                 "battle.timeline.invalid_tu_delta",
                 "battle"
             );
@@ -196,9 +230,9 @@ internal sealed class BattleTimelineDriver
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
         state.RemoveExpiredTemporaryEdgeFeatures();
-        runtime?._delayed_area_effect_system?.ProcessDueEffects(batch);
-        runtime?._terrain_effect_system?.ProcessTimedTerrainEffects(batch);
-        runtime?._layered_barrier_service?.AdvanceBarrierDurations(tuDelta, batch);
+        runtime?.ProcessDueDelayedAreaEffects(batch);
+        runtime?.ProcessTimedTerrainEffects(batch);
+        runtime?.AdvanceBarrierDurations(tuDelta, batch);
         if (tuDelta > 0)
         {
             _ReconcilePendingCasts(batch);
@@ -278,7 +312,7 @@ internal sealed class BattleTimelineDriver
                 // 只有 time_stasis 自身按战场时间减少，冷却 anchor 跟随时间前移。
                 var stasisRuntime = _ResolveRuntime();
                 if (
-                    stasisRuntime?._skill_turn_resolver?.AdvanceTimeStasisFrozenTimers(
+                    stasisRuntime?.AdvanceTimeStasisFrozenTimers(
                         unitState,
                         tuDelta,
                         batch
@@ -308,6 +342,15 @@ internal sealed class BattleTimelineDriver
             }
             if (_AdvanceUnitStatusDurations(unitState, tuDelta, batch))
                 _AppendChangedUnitId(batch, unitState.unit_id);
+            if (
+                unitState.IsAlive()
+                && unitState.AdvanceReactionBudgetTyped(
+                    state.timeline.current_tu
+                )
+            )
+            {
+                _AppendChangedUnitId(batch, unitState.unit_id);
+            }
         }
     }
 
@@ -401,10 +444,10 @@ internal sealed class BattleTimelineDriver
             GameLog.Error($"Battle unit action_threshold must be positive, got {actionThreshold}.", "battle.timeline.invalid_threshold", "battle");
             return BattleUnitState.DefaultActionThreshold;
         }
-        if (actionThreshold % TuGranularity != 0)
+        if (actionThreshold % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"Battle unit action_threshold must be a multiple of {TuGranularity}, got {actionThreshold}.",
+                $"Battle unit action_threshold must be a multiple of {BattleTimeRules.TuGranularity}, got {actionThreshold}.",
                 "battle.timeline.invalid_threshold_multiple",
                 "battle"
             );
@@ -426,15 +469,14 @@ internal sealed class BattleTimelineDriver
     {
         var runtime = _ResolveRuntime();
         var state = _ResolveState();
-        var traitTriggerHooks = runtime?._trait_trigger_hooks;
-        if (state == null || traitTriggerHooks == null)
+        if (state == null || runtime == null)
             return;
         foreach (BattleState.BattleUnitEntry unitEntry in state.UnitEntries(sorted: true))
         {
             var unitState = unitEntry.Unit;
             if (unitState == null)
                 continue;
-            traitTriggerHooks.OnBattleStartResult(unitState);
+            runtime.DispatchTraitBattleStart(unitState);
         }
     }
 
@@ -459,17 +501,17 @@ internal sealed class BattleTimelineDriver
         var tuPerTick =
             context != null && context.ContainsKey("tu_per_tick")
                 ? context["tu_per_tick"].AsInt32()
-                : TuGranularity;
+                : BattleTimeRules.TuGranularity;
         if (tuPerTick <= 0)
-            return TuGranularity;
-        if (tuPerTick % TuGranularity != 0)
+            return BattleTimeRules.TuGranularity;
+        if (tuPerTick % BattleTimeRules.TuGranularity != 0)
         {
             GameLog.Error(
-                $"timeline.tu_per_tick must be a multiple of {TuGranularity}, got {tuPerTick}.",
+                $"timeline.tu_per_tick must be a multiple of {BattleTimeRules.TuGranularity}, got {tuPerTick}.",
                 "battle.timeline.invalid_tu_per_tick",
                 "battle"
             );
-            return TuGranularity;
+            return BattleTimeRules.TuGranularity;
         }
         return tuPerTick;
     }
@@ -492,14 +534,11 @@ internal sealed class BattleTimelineDriver
         }
         if (activeUnit != null && runtime != null)
         {
-            runtime.GetFateRuntime()
-                ?.HandleMisfortuneTrigger(
-                    MisfortuneTriggerRequest.LowHpTurnEnd(activeUnit)
-                );
+            runtime.HandleLowHpTurnEndMisfortune(activeUnit);
         }
         if (
             activeUnit != null
-            && runtime?.GetEquipmentAbilityRuntimeService()?.ResolveTurnEnd(
+            && runtime?.ResolveEquipmentAbilityTurnEnd(
                 new BattleEquipmentAbilityTurnEndContext
                 {
                     SourceUnit = activeUnit,
@@ -515,9 +554,16 @@ internal sealed class BattleTimelineDriver
         else if (activeUnit != null)
         {
             var isAiOverride =
-                runtime?._skill_turn_resolver?.IsTurnAiOverrideActive(activeUnit) == true;
+                runtime?.IsTurnAiOverrideActive(activeUnit) == true;
             if (isAiOverride)
                 _CleanupAiTurn(activeUnit);
+        }
+        if (
+            activeUnit != null
+            && activeUnit.ConsumeStatusEffectsAfterNormalTurnTyped().Count > 0
+        )
+        {
+            _AppendChangedUnitId(batch, activeUnit.unit_id);
         }
         activeUnit?.ClearCastingTurnFlags();
         state.PhaseKind = BattlePhaseKind.TimelineRunning;
@@ -544,10 +590,8 @@ internal sealed class BattleTimelineDriver
             state.active_unit_id = nextUnitId;
             unitState.ResetTurnStateForTurnStartTyped();
             unitState.ResetPerTurnCharges();
-            var traitTriggerHooks = runtime?._trait_trigger_hooks;
-            TraitDispatchResult traitTurnStartResult = default;
-            if (traitTriggerHooks != null)
-                traitTurnStartResult = traitTriggerHooks.OnTurnStartResult(unitState);
+            TraitDispatchResult traitTurnStartResult =
+                runtime?.DispatchTraitTurnStart(unitState) ?? default;
             if (traitTurnStartResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
             _AdvanceUnitTurnTimers(unitState, batch);
@@ -580,14 +624,9 @@ internal sealed class BattleTimelineDriver
                 state.AppendLogEntry(batch.LogLinesTyped[batch.LogLinesTyped.Count - 1]);
                 continue;
             }
-            var skillTurnResolver = runtime?._skill_turn_resolver;
             BattleTurnControlStatusResult controlStatusResult =
-                BattleTurnControlStatusResult.Empty();
-            if (skillTurnResolver != null)
-                controlStatusResult = skillTurnResolver.ResolveTurnControlStatusResult(
-                    unitState,
-                    batch
-                );
+                runtime?.ResolveTurnControlStatus(unitState, batch)
+                ?? BattleTurnControlStatusResult.Empty();
             if (controlStatusResult.SkipTurn)
             {
                 state.PhaseKind = BattlePhaseKind.TimelineRunning;
@@ -699,22 +738,16 @@ internal sealed class BattleTimelineDriver
         return orderedIds;
     }
 
-    private BattleRuntimeModule _ResolveRuntime()
+    private IBattleTimelineRuntimePort _ResolveRuntime()
     {
         if (
             _runtimeRef == null
-            || !_runtimeRef.TryGetTarget(out BattleRuntimeModule target)
+            || !_runtimeRef.TryGetTarget(out IBattleTimelineRuntimePort target)
         )
             return null;
         return target;
     }
 
-    private BattleState _ResolveState()
-    {
-        var runtime = _ResolveRuntime();
-        if (runtime == null)
-            return null;
-        return runtime._state;
-    }
+    private BattleState _ResolveState() => _ResolveRuntime()?.GetBattleState();
 
 }

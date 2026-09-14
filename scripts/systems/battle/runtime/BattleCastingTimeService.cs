@@ -153,6 +153,31 @@ internal sealed class BattleCastingTimeService
             return true;
         }
 
+        if (
+            runtime._skill_orchestrator.ResolveSpellReactionsAfterCost(
+                activeUnit,
+                skillDefinition,
+                batch
+            ).Interrupted
+        )
+        {
+            activeUnit.CommitActionTakenThisTurnTyped();
+            activeUnit.SetCurrentAp(0);
+            runtime._skill_turn_resolver.StartSkillCooldownFromTransaction(
+                activeUnit,
+                transaction,
+                batch
+            );
+            runtime._record_skill_attempt(activeUnit, skillDefinition.SkillId);
+            runtime._record_action_issued(
+                activeUnit,
+                BattleTypedNames.ToStringName(BattleCommandKind.Skill),
+                transaction.ApCost
+            );
+            runtime._append_changed_unit_id(batch, activeUnit.unit_id);
+            return true;
+        }
+
         BattlePendingCastState pendingCast = new()
         {
             SourceUnitId = activeUnit.unit_id,

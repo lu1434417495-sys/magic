@@ -1,0 +1,540 @@
+{
+  "domain": "enemy_ai_brains",
+  "entries": [
+    {
+      "brain_id": "frontline_bulwark",
+      "default_state_id": "engage",
+      "score_profile": null,
+      "states": [
+        {
+          "actions": [
+            {
+              "kind": "use_charge",
+              "payload": {
+                "action_id": "vanguard_charge_open",
+                "action_intent": "positioning",
+                "minimum_charge_move_distance": 3,
+                "score_bucket_id": "charge_open",
+                "skill_id": "charge",
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "vanguard_taunt_open",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 1,
+                "score_bucket_id": "frontline_guard",
+                "skill_ids": [
+                  "warrior_taunt"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "vanguard_close_in",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "vanguard_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_charge_path_aoe"
+              ],
+              "allowed_affordances": [
+                "charge_path_aoe"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 10,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_charge_path",
+              "slot_role": "engage",
+              "style_template_action_id": "vanguard_charge_open",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "use_charge"
+              ],
+              "allowed_affordances": [
+                "charge_engage"
+              ],
+              "desired_max_distance": -1,
+              "desired_min_distance": -1,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_charge",
+              "slot_role": "engage",
+              "style_template_action_id": "vanguard_charge_open",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 30,
+              "score_bucket_id": "frontline_guard",
+              "slot_id": "engage_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "vanguard_taunt_open",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 40,
+              "score_bucket_id": "charge_open",
+              "slot_id": "engage_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "vanguard_close_in",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "engage"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "vanguard_shield_bash",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_unit",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "",
+                "skill_ids": [
+                  "warrior_shield_bash",
+                  "warrior_heavy_strike",
+                  "basic_attack"
+                ],
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "use_ground_skill",
+              "payload": {
+                "action_id": "vanguard_taunt_pressure",
+                "action_intent": "positioning",
+                "allow_empty_ground_control": false,
+                "allow_friendly_lethal": false,
+                "allow_ground_control_supplement_partial_hits": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "target_coord",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_ally_threat_hit_count": 0,
+                "minimum_ground_control_score": 1,
+                "minimum_hit_count": 1,
+                "score_bucket_id": "frontline_guard",
+                "skill_ids": [
+                  "warrior_taunt"
+                ],
+                "threat_minimum_safe_distance": 0,
+                "threat_safe_distance_margin": 0
+              }
+            },
+            {
+              "kind": "move_to_range",
+              "payload": {
+                "action_id": "vanguard_hold_line",
+                "action_intent": "positioning",
+                "ai_evaluation_mode": "inline_decide",
+                "aoe_setup_friendly_fire_penalty": 1000,
+                "aoe_setup_improvement_weight": 220,
+                "aoe_setup_min_target_count": 2,
+                "aoe_setup_target_count_weight": 140,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "enable_aoe_setup_positioning": true,
+                "range_skill_ids": [],
+                "score_bucket_id": "",
+                "screening_ally_min_attack_range": 4,
+                "screening_enemy_max_contact_range": 2,
+                "screening_min_hp_basis_points": 4000,
+                "screening_mode": "none",
+                "screening_path_bonus": 45,
+                "screening_threat_distance_buffer": 2,
+                "target_selector": "nearest_enemy"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "vanguard_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "unit_hostile.damage",
+                "unit_hostile.control",
+                "displacement_control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "target_unit",
+              "order": 10,
+              "score_bucket_id": "frontline_guard",
+              "slot_id": "pressure_unit",
+              "slot_role": "offense",
+              "style_template_action_id": "vanguard_shield_bash",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            },
+            {
+              "action_families": [
+                "move_to_range"
+              ],
+              "allowed_affordances": [
+                "random_chain",
+                "unit_hostile.damage",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "",
+              "order": 20,
+              "score_bucket_id": "frontline_guard",
+              "slot_id": "pressure_move",
+              "slot_role": "positioning",
+              "style_template_action_id": "vanguard_hold_line",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "nearest_enemy"
+            }
+          ],
+          "state_id": "pressure"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "vanguard_guard_self",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 1,
+                "desired_min_distance": 1,
+                "distance_reference": "enemy_frontline",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "frontline_guard",
+                "skill_ids": [
+                  "warrior_guard"
+                ],
+                "target_selector": "self"
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "vanguard_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "self_or_ally_buff",
+                "ally_heal"
+              ],
+              "desired_max_distance": 1,
+              "desired_min_distance": 1,
+              "distance_reference": "enemy_frontline",
+              "order": 10,
+              "score_bucket_id": "frontline_guard",
+              "slot_id": "support_guard",
+              "slot_role": "support",
+              "style_template_action_id": "vanguard_guard_self",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "self"
+            }
+          ],
+          "state_id": "support"
+        },
+        {
+          "actions": [
+            {
+              "kind": "use_unit_skill",
+              "payload": {
+                "action_id": "vanguard_guard_retreat",
+                "action_intent": "positioning",
+                "allow_friendly_lethal": false,
+                "desired_max_distance": 2,
+                "desired_min_distance": 2,
+                "distance_reference": "enemy_frontline",
+                "maximum_friendly_fire_target_count": 0,
+                "minimum_effective_target_count": 1,
+                "score_bucket_id": "frontline_guard",
+                "skill_ids": [
+                  "warrior_guard"
+                ],
+                "target_selector": "self"
+              }
+            },
+            {
+              "kind": "retreat",
+              "payload": {
+                "action_id": "vanguard_retreat",
+                "action_intent": "positioning",
+                "minimum_safe_distance": 2,
+                "safe_distance_margin": 1,
+                "score_bucket_id": "",
+                "target_selector": "nearest_enemy",
+                "use_dynamic_threat_safe_distance": false
+              }
+            },
+            {
+              "kind": "wait",
+              "payload": {
+                "action_id": "vanguard_wait",
+                "action_intent": "positioning",
+                "active_rest_action_base_score": 10,
+                "active_rest_min_stamina_residue": 1,
+                "score_bucket_id": ""
+              }
+            }
+          ],
+          "generation_slots": [
+            {
+              "action_families": [
+                "use_unit_skill"
+              ],
+              "allowed_affordances": [
+                "self_or_ally_buff",
+                "ally_heal",
+                "unit_hostile.control"
+              ],
+              "desired_max_distance": 2,
+              "desired_min_distance": 2,
+              "distance_reference": "enemy_frontline",
+              "order": 10,
+              "score_bucket_id": "frontline_guard",
+              "slot_id": "retreat_guard",
+              "slot_role": "survival",
+              "style_template_action_id": "vanguard_guard_retreat",
+              "suppression_policy": "suppress_matching_family",
+              "target_selector": "self"
+            }
+          ],
+          "state_id": "retreat"
+        }
+      ],
+      "transition_rules": [
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 2500,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 10,
+          "rule_id": "retreat_low_hp",
+          "target_state_id": "retreat"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 5500,
+              "max_distance": -1,
+              "predicate": "self_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 20,
+          "rule_id": "support_self_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": 5500,
+              "max_distance": -1,
+              "predicate": "ally_hp_at_or_below_basis_points",
+              "state_ids": []
+            },
+            {
+              "affordances": [
+                "ally_heal",
+                "self_or_ally_buff"
+              ],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "has_skill_affordance",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 21,
+          "rule_id": "support_ally_low_hp",
+          "target_state_id": "support"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "current_state_is",
+              "state_ids": [
+                "pressure"
+              ]
+            },
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 2,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [
+            "pressure"
+          ],
+          "order": 30,
+          "rule_id": "pressure_sticky",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": 1,
+              "predicate": "nearest_enemy_distance_at_or_below",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 40,
+          "rule_id": "pressure_enter",
+          "target_state_id": "pressure"
+        },
+        {
+          "conditions": [
+            {
+              "affordances": [],
+              "basis_points": -1,
+              "max_distance": -1,
+              "predicate": "always",
+              "state_ids": []
+            }
+          ],
+          "designer_note": "",
+          "from_state_ids": [],
+          "order": 90,
+          "rule_id": "engage_default",
+          "target_state_id": "engage"
+        }
+      ]
+    }
+  ],
+  "family": "frontline_bulwark",
+  "schema": 1,
+  "templates": {}
+}

@@ -6,6 +6,8 @@ internal sealed class EnemyTemplateDefinition
 {
     internal sealed record EnemyWeaponDiceDefinition(int DiceCount, int DiceSides, int FlatBonus)
     {
+        internal bool IsEmpty() => DiceCount <= 0 || DiceSides <= 0;
+
         internal WeaponDice ToRuntimeDice() => new()
         {
             dice_count = DiceCount,
@@ -17,22 +19,54 @@ internal sealed class EnemyTemplateDefinition
     internal sealed class EnemyWeaponProjectionDefinition
     {
         internal EnemyWeaponProjectionDefinition(WeaponProjection source)
+            : this(
+                source?.weapon_profile_kind ?? "",
+                source?.weapon_item_id ?? "",
+                source?.weapon_instance_id ?? "",
+                source?.weapon_profile_type_id ?? "",
+                source?.weapon_range_type ?? "",
+                source?.weapon_family ?? "",
+                source?.weapon_current_grip ?? "",
+                source?.weapon_attack_range ?? 0,
+                CopyDice(source?.weapon_one_handed_dice),
+                CopyDice(source?.weapon_two_handed_dice),
+                source?.weapon_is_versatile ?? false,
+                source?.weapon_uses_two_hands ?? false,
+                source?.weapon_is_heavy ?? false,
+                source?.weapon_physical_damage_tag ?? ""
+            ) { }
+
+        internal EnemyWeaponProjectionDefinition(
+            StringName weaponProfileKind,
+            StringName weaponItemId,
+            StringName weaponInstanceId,
+            StringName weaponProfileTypeId,
+            StringName weaponRangeType,
+            StringName weaponFamily,
+            StringName weaponCurrentGrip,
+            int weaponAttackRange,
+            EnemyWeaponDiceDefinition weaponOneHandedDice,
+            EnemyWeaponDiceDefinition weaponTwoHandedDice,
+            bool weaponIsVersatile,
+            bool weaponUsesTwoHands,
+            bool weaponIsHeavy,
+            StringName weaponPhysicalDamageTag
+        )
         {
-            source ??= new WeaponProjection();
-            WeaponProfileKind = source.weapon_profile_kind;
-            WeaponItemId = source.weapon_item_id;
-            WeaponInstanceId = source.weapon_instance_id;
-            WeaponProfileTypeId = source.weapon_profile_type_id;
-            WeaponRangeType = source.weapon_range_type;
-            WeaponFamily = source.weapon_family;
-            WeaponCurrentGrip = source.weapon_current_grip;
-            WeaponAttackRange = source.weapon_attack_range;
-            WeaponOneHandedDice = CopyDice(source.weapon_one_handed_dice);
-            WeaponTwoHandedDice = CopyDice(source.weapon_two_handed_dice);
-            WeaponIsVersatile = source.weapon_is_versatile;
-            WeaponUsesTwoHands = source.weapon_uses_two_hands;
-            WeaponIsHeavy = source.weapon_is_heavy;
-            WeaponPhysicalDamageTag = source.weapon_physical_damage_tag;
+            WeaponProfileKind = weaponProfileKind ?? "";
+            WeaponItemId = weaponItemId ?? "";
+            WeaponInstanceId = weaponInstanceId ?? "";
+            WeaponProfileTypeId = weaponProfileTypeId ?? "";
+            WeaponRangeType = weaponRangeType ?? "";
+            WeaponFamily = weaponFamily ?? "";
+            WeaponCurrentGrip = weaponCurrentGrip ?? "";
+            WeaponAttackRange = weaponAttackRange;
+            WeaponOneHandedDice = weaponOneHandedDice ?? new EnemyWeaponDiceDefinition(0, 0, 0);
+            WeaponTwoHandedDice = weaponTwoHandedDice ?? new EnemyWeaponDiceDefinition(0, 0, 0);
+            WeaponIsVersatile = weaponIsVersatile;
+            WeaponUsesTwoHands = weaponUsesTwoHands;
+            WeaponIsHeavy = weaponIsHeavy;
+            WeaponPhysicalDamageTag = weaponPhysicalDamageTag ?? "";
         }
 
         internal StringName WeaponProfileKind { get; }
@@ -80,18 +114,16 @@ internal sealed class EnemyTemplateDefinition
                 );
     }
 
-    private EnemyTemplateDefinition(
+    internal EnemyTemplateDefinition(
         StringName templateId,
         string displayName,
-        string battleSpriteTexturePath,
-        long battleSpriteTextureUid,
+        StringName battleSpriteAssetId,
         StringName brainId,
         StringName initialStateId,
         int enemyCount,
         int bodySize,
         int creatureLevel,
         int hitDieSides,
-        int actionThreshold,
         BattleCognitionKind cognitionKind,
         IReadOnlyList<StringName> tags,
         IReadOnlyList<StringName> saveAdvantageTags,
@@ -99,6 +131,7 @@ internal sealed class EnemyTemplateDefinition
         IReadOnlyList<StringName> saveImmunityTags,
         IReadOnlyDictionary<StringName, StringName> damageResistances,
         StringName attackEquipmentItemId,
+        IReadOnlyList<EnemyBattleEquipmentDefinition> battleEquipmentEntries,
         StringName naturalWeaponDamageTag,
         int naturalWeaponAttackRange,
         IReadOnlyDictionary<StringName, int> baseAttributeOverrides,
@@ -115,15 +148,13 @@ internal sealed class EnemyTemplateDefinition
     {
         TemplateId = templateId;
         DisplayName = displayName ?? "";
-        BattleSpriteTexturePath = battleSpriteTexturePath ?? "";
-        BattleSpriteTextureUid = battleSpriteTextureUid;
+        BattleSpriteAssetId = battleSpriteAssetId;
         BrainId = brainId;
         InitialStateId = initialStateId;
         EnemyCount = enemyCount;
         BodySize = bodySize;
         CreatureLevel = creatureLevel;
         HitDieSides = hitDieSides;
-        ActionThreshold = actionThreshold;
         CognitionKind = cognitionKind;
         Tags = EnemyDefinitionCollections.FreezeList(tags);
         SaveAdvantageTags = EnemyDefinitionCollections.FreezeList(saveAdvantageTags);
@@ -131,6 +162,7 @@ internal sealed class EnemyTemplateDefinition
         SaveImmunityTags = EnemyDefinitionCollections.FreezeList(saveImmunityTags);
         DamageResistances = EnemyDefinitionCollections.FreezeDictionary(damageResistances);
         AttackEquipmentItemId = attackEquipmentItemId;
+        BattleEquipmentEntries = EnemyDefinitionCollections.FreezeList(battleEquipmentEntries);
         NaturalWeaponDamageTag = naturalWeaponDamageTag;
         NaturalWeaponAttackRange = naturalWeaponAttackRange;
         BaseAttributeOverrides = EnemyDefinitionCollections.FreezeDictionary(baseAttributeOverrides);
@@ -147,15 +179,13 @@ internal sealed class EnemyTemplateDefinition
 
     internal StringName TemplateId { get; }
     internal string DisplayName { get; }
-    internal string BattleSpriteTexturePath { get; }
-    internal long BattleSpriteTextureUid { get; }
+    internal StringName BattleSpriteAssetId { get; }
     internal StringName BrainId { get; }
     internal StringName InitialStateId { get; }
     internal int EnemyCount { get; }
     internal int BodySize { get; }
     internal int CreatureLevel { get; }
     internal int HitDieSides { get; }
-    internal int ActionThreshold { get; }
     internal BattleCognitionKind CognitionKind { get; }
     internal IReadOnlyList<StringName> Tags { get; }
     internal IReadOnlyList<StringName> SaveAdvantageTags { get; }
@@ -163,6 +193,7 @@ internal sealed class EnemyTemplateDefinition
     internal IReadOnlyList<StringName> SaveImmunityTags { get; }
     internal IReadOnlyDictionary<StringName, StringName> DamageResistances { get; }
     internal StringName AttackEquipmentItemId { get; }
+    internal IReadOnlyList<EnemyBattleEquipmentDefinition> BattleEquipmentEntries { get; }
     internal StringName NaturalWeaponDamageTag { get; }
     internal int NaturalWeaponAttackRange { get; }
     internal IReadOnlyDictionary<StringName, int> BaseAttributeOverrides { get; }
@@ -205,67 +236,4 @@ internal sealed class EnemyTemplateDefinition
     internal int GetSkillLevelTyped(StringName skillId, int fallback = 1) =>
         GetSkillLevel(skillId, fallback);
 
-    internal static EnemyTemplateDefinition FromResource(
-        EnemyTemplateDef source,
-        IReadOnlyDictionary<StringName, ItemDefinition> itemDefinitions
-    )
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        string texturePath = source.battle_sprite_texture?.ResourcePath ?? "";
-        if (!string.IsNullOrWhiteSpace(texturePath))
-            texturePath = ContentPathCanonicalizer.Canonicalize(texturePath);
-        var skillLevels = new Dictionary<StringName, int>();
-        if (source.skill_level_map != null)
-        {
-            foreach (Variant rawKey in source.skill_level_map.Keys)
-            {
-                if (rawKey.VariantType != Variant.Type.StringName)
-                    continue;
-                Variant rawValue = source.skill_level_map[rawKey];
-                if (rawValue.VariantType == Variant.Type.Int)
-                    skillLevels[rawKey.AsStringName()] = rawValue.AsInt32();
-            }
-        }
-        var drops = new List<DropEntryDefinition>();
-        foreach (DropEntryDef drop in source.drop_entries)
-        {
-            if (drop != null)
-                drops.Add(drop.ToDefinition());
-        }
-        WeaponProjection weapon = source.GetWeaponProjectionTyped(itemDefinitions);
-        return new EnemyTemplateDefinition(
-            source.template_id,
-            source.display_name,
-            texturePath,
-            EnemyDefinitionCollections.ResolveResourceUid(texturePath),
-            source.brain_id,
-            source.initial_state_id,
-            source.enemy_count,
-            source.body_size,
-            source.creature_level,
-            source.hit_die_sides,
-            source.action_threshold,
-            BattleCognitionContentRules.ToKind(
-                source.cognition_kind
-            ),
-            source.tags,
-            source.save_advantage_tags,
-            source.save_disadvantage_tags,
-            source.save_immunity_tags,
-            source.GetDamageResistancesTyped(),
-            source.attack_equipment_item_id,
-            source.natural_weapon_damage_tag,
-            source.natural_weapon_attack_range,
-            source.GetBaseAttributeOverridesResolvedTyped(),
-            source.skill_ids,
-            skillLevels,
-            source.generated_core_skill_count,
-            source.GetAttributeOverridesTyped(),
-            source.target_rank,
-            drops,
-            new EnemyWeaponProjectionDefinition(weapon),
-            source.GetDerivedHpMaxTyped(),
-            source.GetDerivedAttackBonusTyped(itemDefinitions)
-        );
-    }
 }

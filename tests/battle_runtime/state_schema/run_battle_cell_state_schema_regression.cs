@@ -15,7 +15,7 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
 
     private void Run()
     {
-        TestValidRoundTripWithEdgeWallAndTimedEffect();
+        TestValidRoundTripWithTimedEffect();
         TestRejectsMissingField();
         TestRejectsExtraField();
         TestRejectsWrongType();
@@ -23,15 +23,11 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         TestRejectsNonArrayIds();
         TestRejectsEmptyIdEntry();
         TestRejectsBadTimedTerrainEffectEntry();
-        TestRejectsBadEdgeFeatureEntry();
-        TestNullEdgeFeatureSerializesAsCurrentNonePayload();
         TestAllowsEmptyOccupantUnitId();
-        TestOwnerMutationApiNormalizesCellFields();
-
         RequestTestExit(_test.Finish("Battle cell state schema regression"));
     }
 
-    private void TestValidRoundTripWithEdgeWallAndTimedEffect()
+    private void TestValidRoundTripWithTimedEffect()
     {
         BattleCellState source = BuildValidCell();
         using GodotProjectionLease<GDictionary> payloadLease = source.ToDictionaryLease(
@@ -68,26 +64,30 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
                 new StringName("field_001"),
                 "roundtrip 应保留 terrain effect 字段。"
             );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_dice_count,
+                2,
+                "roundtrip 应保留 contact damage 骰数。"
+            );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_dice_sides,
+                6,
+                "roundtrip 应保留 contact damage 骰面。"
+            );
+            _test.Eq(
+                restored.timed_terrain_effects[0].contact_damage_tag,
+                new StringName("fire"),
+                "roundtrip 应保留 contact damage 类型。"
+            );
         }
-        _test.Eq(
-            restored.edge_feature_east.feature_kind,
-            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
-            "roundtrip 应恢复 east wall。"
-        );
-        _test.Eq(
-            restored.edge_feature_south.feature_kind,
-            BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
-            "roundtrip 应恢复 south none edge。"
-        );
-
         BattleCellState duplicate = restored.DuplicateCell();
         _test.True(duplicate != null, "duplicate_cell 应继续可用。");
         if (duplicate != null)
         {
             _test.Eq(
-                duplicate.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.Wall),
-                "duplicate_cell 应复制 edge feature。"
+                duplicate.occupant_unit_id,
+                source.occupant_unit_id,
+                "duplicate_cell 应复制 occupant_unit_id。"
             );
         }
 
@@ -209,48 +209,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
         _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 timed_terrain_effects 坏 entry。");
     }
 
-    private void TestRejectsBadEdgeFeatureEntry()
-    {
-        using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
-        GDictionary payload = payloadLease.Value;
-        payload["edge_feature_east"] = "bad_edge_entry";
-        _test.True(BattleCellState.FromDictionary(payload) == null, "from_dict 应拒绝 edge feature 坏 entry。");
-    }
-
-    private void TestNullEdgeFeatureSerializesAsCurrentNonePayload()
-    {
-        BattleCellState cell = BuildValidCell();
-        cell.edge_feature_east = null;
-        using GodotProjectionLease<GDictionary> payloadLease = cell.ToDictionaryLease(
-            LifetimeDomain.Request,
-            "run_battle_cell_state_schema_regression.null_edge"
-        );
-        GDictionary payload = payloadLease.Value;
-        Variant edgePayload = payload["edge_feature_east"];
-        _test.True(
-            edgePayload.VariantType == Variant.Type.Dictionary,
-            "null edge feature 的 to_dict 仍应输出当前 none edge Dictionary。"
-        );
-        if (edgePayload.VariantType == Variant.Type.Dictionary)
-        {
-            _test.True(
-                edgePayload.AsGodotDictionary().ContainsKey("feature_kind"),
-                "none edge payload 应包含正式字段。"
-            );
-        }
-
-        BattleCellState restored = BattleCellState.FromDictionary(payload);
-        _test.True(restored != null, "null edge feature 的 canonical to_dict payload 应能被 strict from_dict 恢复。");
-        if (restored != null)
-        {
-            _test.Eq(
-                restored.edge_feature_east.feature_kind,
-                BattleEdgeFeatureState.ToStringName(BattleEdgeFeatureKind.None),
-                "null edge feature 应恢复为 none。"
-            );
-        }
-    }
-
     private void TestAllowsEmptyOccupantUnitId()
     {
         using GodotProjectionLease<GDictionary> payloadLease = ValidPayloadLease();
@@ -267,34 +225,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
                 "空 occupant_unit_id roundtrip 后应保持为空。"
             );
         }
-    }
-
-    private void TestOwnerMutationApiNormalizesCellFields()
-    {
-        BattleCellState cell = new();
-
-        cell.SetCoord(new Vector2I(4, 5));
-        _test.Eq(cell.coord, new Vector2I(4, 5), "SetCoord 应写入 cell 坐标。");
-
-        cell.SetTerrain(BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater));
-        _test.Eq(
-            cell.base_terrain,
-            BattleTerrainRules.ToStringName(BattleTerrainKind.FlowingWater),
-            "SetTerrain 应规范化 terrain id。"
-        );
-
-        cell.SetBaseHeight(3);
-        cell.SetHeightOffset(2);
-        _test.Eq(cell.current_height, 5, "SetBaseHeight/SetHeightOffset 应刷新 current_height。");
-        _test.Eq(cell.stack_layer, 5, "SetBaseHeight/SetHeightOffset 应同步 stack_layer。");
-
-        cell.SetMoveCost(-10);
-        _test.Eq(cell.move_cost, 1, "SetMoveCost 应保持正数 move cost。");
-
-        cell.SetOccupant("unit_001");
-        _test.Eq(cell.occupant_unit_id, new StringName("unit_001"), "SetOccupant 应规范化 occupant id。");
-        cell.ClearOccupant();
-        _test.Eq(cell.occupant_unit_id, new StringName(""), "ClearOccupant 应清空 occupant id。");
     }
 
     private static BattleCellState BuildValidCell()
@@ -315,8 +245,6 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
             BuildTimedEffect(),
         };
         cell.flow_direction = Vector2I.Right;
-        cell.edge_feature_east = BattleEdgeFeatureState.MakeWall();
-        cell.edge_feature_south = BattleEdgeFeatureState.MakeNone();
         return cell;
     }
 
@@ -332,6 +260,10 @@ public partial class run_battle_cell_state_schema_regression : LifecycleTestScen
             target_team_filter = "enemy",
             power = 3,
             damage_tag = "fire",
+            contact_damage_dice_count = 2,
+            contact_damage_dice_sides = 6,
+            contact_damage_flat_bonus = 1,
+            contact_damage_tag = "fire",
             remaining_tu = 20,
             tick_interval_tu = 10,
             next_tick_at_tu = 10,

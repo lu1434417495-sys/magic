@@ -31,6 +31,7 @@ internal sealed class BattleEquipmentStatusActionResolver
     }
 
     internal void ResolveApplyStatusAction(
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityActionDefinition action,
         ApplyStatusActionPayloadDefinition payload,
@@ -48,6 +49,7 @@ internal sealed class BattleEquipmentStatusActionResolver
         )
         {
             ResolveApplyStatusAction(
+                source,
                 binding,
                 action,
                 payload,
@@ -60,6 +62,7 @@ internal sealed class BattleEquipmentStatusActionResolver
     }
 
     internal void ResolveApplyStatusAction(
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityActionDefinition action,
         ApplyStatusActionPayloadDefinition payload,
@@ -77,6 +80,7 @@ internal sealed class BattleEquipmentStatusActionResolver
         )
         {
             ResolveApplyStatusAction(
+                source,
                 binding,
                 action,
                 payload,
@@ -242,6 +246,7 @@ internal sealed class BattleEquipmentStatusActionResolver
     }
 
     internal void ResolveApplyStatusAction(
+        BattleEquipmentAbilitySourceReadView source,
         EquipmentAbilityBindingDefinition binding,
         EquipmentAbilityActionDefinition action,
         ApplyStatusActionPayloadDefinition payload,
@@ -314,7 +319,11 @@ internal sealed class BattleEquipmentStatusActionResolver
             statusEffect,
             sourceUnit.unit_id,
             targetUnit.GetStatusEffect(payload.StatusId),
-            payload.StatusId
+            payload.StatusId,
+            BattleStatusSourceIdentity.EquipmentAbility(
+                sourceUnit.unit_id,
+                binding.BindingId
+            )
         );
         if (statusEntry == null)
             return;
@@ -323,9 +332,24 @@ internal sealed class BattleEquipmentStatusActionResolver
             statusEntry.heal_multiplier_percent = Math.Clamp(payload.HealMultiplierPercent, 0, 100);
         else
             statusEntry.heal_multiplier_percent = null;
+        statusEntry.armor_class_bonus_per_stack =
+            Math.Max(payload.ArmorClassBonusPerStack, 0);
         if (payload.MovePointCapacityDelta != 0)
             statusEntry.move_point_capacity_delta = payload.MovePointCapacityDelta;
         statusEntry.forced_move_immune = payload.ForcedMoveImmune;
+        statusEntry.damage_tag = payload.DamageTag;
+        statusEntry.damage_tags = new List<StringName>(
+            payload.DamageTags ?? Array.Empty<StringName>()
+        );
+        statusEntry.mitigation_tier = payload.MitigationTier;
+        BattleStatusSemanticTable.SynchronizeSourceContributionTimelinePayload(
+            statusEntry,
+            BattleStatusSourceIdentity.EquipmentAbility(
+                sourceUnit.unit_id,
+                binding.BindingId
+            )
+        );
+        RecordSourceBoundProvenance(statusEntry, payload, source, binding, action, sourceUnit);
         targetUnit.SetStatusEffect(statusEntry);
         if (payload.MovePointCapacityDelta != 0)
             targetUnit.ClampCurrentMovePointsToCapacity();
@@ -370,5 +394,176 @@ internal sealed class BattleEquipmentStatusActionResolver
         if (payload.DurationTu > 0)
             return payload.DurationTu;
         return Math.Max(payload.DurationTurns, 0);
+    }
+
+    // §8.7：status 投影时记录 typed provenance（source kind + effective source key +
+    // binding/action id），remove_on_source_deactivated 是 authoring opt-in 标记。
+    // 最近一次 apply 覆盖旧 provenance，与本方法覆盖其他 status 字段的语义一致。
+    private static void RecordSourceBoundProvenance(
+        BattleStatusEffectState statusEntry,
+        ApplyStatusActionPayloadDefinition payload,
+        BattleEquipmentAbilitySourceReadView source,
+        EquipmentAbilityBindingDefinition binding,
+        EquipmentAbilityActionDefinition action,
+        BattleUnitState sourceUnit
+    )
+    {
+        if (statusEntry == null)
+            return;
+        statusEntry.remove_on_source_deactivated =
+            payload?.RemoveOnSourceDeactivated == true;
+        if (
+            source != null
+            && source.SourceKind != EquipmentAbilitySourceKind.Unknown
+            && binding != null
+        )
+        {
+            statusEntry.source_provenance_unit_id = sourceUnit?.unit_id ?? "";
+            statusEntry.source_provenance_source_kind =
+                BattleEquipmentAbilitySourceState.ToStringName(source.SourceKind);
+            statusEntry.source_provenance_effective_key =
+                source.EffectiveInstanceKey ?? "";
+            statusEntry.source_provenance_binding_id = binding.BindingId;
+            statusEntry.source_provenance_action_id = action?.ActionId ?? "";
+            return;
+        }
+        statusEntry.source_provenance_unit_id = "";
+        statusEntry.source_provenance_source_kind = "";
+        statusEntry.source_provenance_effective_key = "";
+        statusEntry.source_provenance_binding_id = "";
+        statusEntry.source_provenance_action_id = "";
+    }
+
+    // §8.7 opt-in source-bound buff 清除：只移除声明了 remove_on_source_deactivated
+    // 且 provenance 精确匹配该单位已失效 source 的 status；不按 status id 全局删除。
+    // 挂接在换装/摧毁后的 source 重投影之后（与 target-mark 清理对称），失败换装
+    // 不会走到这里，因此不会留下半清状态。
+    internal IReadOnlyList<StringName> ClearSourceBoundStatusesForRemovedEquipmentSources(
+        BattleState state,
+        BattleUnitState sourceUnit
+    )
+    {
+        var changedUnitIds = new List<StringName>();
+        if (state == null || sourceUnit == null || sourceUnit.unit_id == "")
+            return changedUnitIds;
+
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
+        {
+            if (unit == null)
+                continue;
+            var removals = new List<BattleStatusEffectState>();
+            foreach (BattleStatusEffectState status in unit.GetStatusEffectsTyped())
+            {
+                if (
+                    status == null
+                    || !status.remove_on_source_deactivated
+                    || status.source_provenance_unit_id != sourceUnit.unit_id
+                )
+                {
+                    continue;
+                }
+                EquipmentAbilitySourceKind provenanceKind =
+                    BattleEquipmentAbilitySourceState.ToSourceKind(
+                        status.source_provenance_source_kind
+                    );
+                if (
+                    provenanceKind == EquipmentAbilitySourceKind.Unknown
+                    || status.source_provenance_binding_id == ""
+                    || HasActiveProvenanceSource(
+                        sourceUnit,
+                        provenanceKind,
+                        status.source_provenance_effective_key,
+                        status.source_provenance_binding_id
+                    )
+                )
+                {
+                    continue;
+                }
+                removals.Add(status);
+            }
+            foreach (BattleStatusEffectState status in removals)
+            {
+                RemoveSourceBoundStatus(unit, status);
+                if (!changedUnitIds.Contains(unit.unit_id))
+                    changedUnitIds.Add(unit.unit_id);
+            }
+        }
+        return changedUnitIds;
+    }
+
+    private bool HasActiveProvenanceSource(
+        BattleUnitState sourceUnit,
+        EquipmentAbilitySourceKind provenanceKind,
+        StringName effectiveKey,
+        StringName bindingId
+    )
+    {
+        foreach (
+            BattleEquipmentAbilitySourceReadView source
+            in sourceUnit.GetEquipmentAbilitySourcesReadViewTyped()
+        )
+        {
+            if (
+                source != null
+                && source.SourceKind == provenanceKind
+                && source.EffectiveInstanceKey == effectiveKey
+                && source.AbilityIds?.Contains(bindingId) == true
+            )
+            {
+                return true;
+            }
+        }
+        // BattleStatusDerived source 不进入投影来源列表；它与 CollectActiveBindings
+        // 的合成规则保持一致：activation status 仍在单位身上即视为存活。
+        if (provenanceKind == EquipmentAbilitySourceKind.BattleStatusDerived)
+        {
+            IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindingIndex =
+                _runtime?.GetEquipmentAbilityBindingIndexTyped();
+            if (
+                bindingIndex != null
+                && bindingIndex.TryGetValue(bindingId, out EquipmentAbilityBindingDefinition binding)
+                && binding?.ActivationStatusId != ""
+                && sourceUnit.HasStatusEffect(binding.ActivationStatusId)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void RemoveSourceBoundStatus(
+        BattleUnitState unit,
+        BattleStatusEffectState status
+    )
+    {
+        if (status.HasSourceContributionsTyped())
+        {
+            // source-definition 叠加状态：只摘除失效 source 的 contribution，
+            // 其他来源（技能、其他 binding）的份额保留，不清除整个 status。
+            status.RemoveSourceContributionTyped(
+                BattleStatusSourceIdentity.EquipmentAbility(
+                    status.source_provenance_unit_id,
+                    status.source_provenance_binding_id
+                )
+            );
+            if (status.GetSourceContributionsTyped().Count > 0)
+            {
+                status.RebuildSourceContributionAggregateTyped();
+                ClearSourceBoundProvenance(status);
+                return;
+            }
+        }
+        unit.EraseStatusEffect(status.status_id);
+    }
+
+    private static void ClearSourceBoundProvenance(BattleStatusEffectState status)
+    {
+        status.remove_on_source_deactivated = false;
+        status.source_provenance_unit_id = "";
+        status.source_provenance_source_kind = "";
+        status.source_provenance_effective_key = "";
+        status.source_provenance_binding_id = "";
+        status.source_provenance_action_id = "";
     }
 }

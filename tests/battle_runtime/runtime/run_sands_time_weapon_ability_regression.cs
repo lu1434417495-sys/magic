@@ -76,18 +76,15 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         if (!fixture.ItemDefs.ContainsKey(SandsTimeItemId))
             return;
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_dagger_sands_time.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sands_time_480");
         _test.True(rawItem != null, "时间之沙原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.display_name, "时间之沙", "时间之沙显示名应匹配设计。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_dagger_base"), "时间之沙应继承 dagger 模板。");
-            _test.Eq(rawItem.base_price, 85000, "时间之沙价格应为 85000。");
-            _test.True(rawItem.trait_ids.Contains(AccelerationTraitId), "时间之沙物品应声明时间加速 trait。");
-            _test.True(rawItem.trait_ids.Contains(DecelerationTraitId), "时间之沙物品应声明时间减速 trait。");
-            _test.True(rawItem.trait_ids.Contains(DislocationTraitId), "时间之沙物品应声明时间错乱 trait。");
+            _test.Eq(rawItem.DisplayName, "时间之沙", "时间之沙显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 85000, "时间之沙价格应为 85000。");
+            _test.True(rawItem.TraitIds.Contains(AccelerationTraitId), "时间之沙物品应声明时间加速 trait。");
+            _test.True(rawItem.TraitIds.Contains(DecelerationTraitId), "时间之沙物品应声明时间减速 trait。");
+            _test.True(rawItem.TraitIds.Contains(DislocationTraitId), "时间之沙物品应声明时间错乱 trait。");
         }
 
         BattleUnitState equipped = fixture.BuildSandsTimeUnit("projection");
@@ -215,7 +212,17 @@ public partial class run_sands_time_weapon_ability_regression : LifecycleTestSce
         state.PhaseKind = BattlePhaseKind.TimelineRunning;
         state.timeline.ready_unit_ids.Clear();
         state.timeline.ready_unit_ids.Add(target.unit_id);
-        fixture.Runtime._timeline_driver.ActivateNextReadyUnit(new BattleEventBatch());
+        using (var activationBatch = new BattleEventBatch())
+        {
+            BattleReactionRootTestHelper.ExecuteInReactionRoot(
+                fixture.Runtime,
+                activationBatch,
+                BattleEffectOrigin.Timeline("ready_unit_activation"),
+                () => fixture.Runtime._timeline_driver.ActivateNextReadyUnit(
+                    activationBatch
+                )
+            );
+        }
 
         _test.Eq(state.active_unit_id, target.unit_id, "目标应从 ready 队列进入行动回合。");
         _test.Eq(target.GetCurrentAp(), 0, "时间减速应让目标下一行动回合 AP 归零。");

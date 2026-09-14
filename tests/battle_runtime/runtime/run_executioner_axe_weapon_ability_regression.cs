@@ -102,20 +102,16 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     private void TestContentProjectionAndInternalSkillVisibility()
     {
         using ExecutionerFixture fixture = ExecutionerFixture.Build();
-        using TestContentResourceLoader contentLoader = new();
-        ItemDef rawItem = contentLoader.LoadCanonical<ItemDef>(
-            "res://data/configs/items/weapon_unique_greataxe_executioner.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_greataxe_executioner_384");
         _test.True(rawItem != null, "处刑者之斧物品资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.item_id, ItemId, "物品 id 应保留源设计编号。");
-            _test.Eq(rawItem.display_name, "处刑者之斧", "物品显示名应匹配设计。");
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_greataxe_base"), "应继承巨斧模板。");
-            _test.Eq(rawItem.base_price, 55000, "基础价格应为 55000。");
-            _test.True(rawItem.trait_ids.Contains(ExecutionTraitId), "物品应声明处刑特性。");
-            _test.True(rawItem.trait_ids.Contains(DeathSentenceTraitId), "物品应声明死亡判决特性。");
-            _test.True(rawItem.trait_ids.Contains(SelfExecutionTraitId), "物品应声明自我处刑特性。");
+            _test.Eq(rawItem.ItemId, ItemId, "物品 id 应保留源设计编号。");
+            _test.Eq(rawItem.DisplayName, "处刑者之斧", "物品显示名应匹配设计。");
+            _test.Eq(rawItem.BasePrice, 55000, "基础价格应为 55000。");
+            _test.True(rawItem.TraitIds.Contains(ExecutionTraitId), "物品应声明处刑特性。");
+            _test.True(rawItem.TraitIds.Contains(DeathSentenceTraitId), "物品应声明死亡判决特性。");
+            _test.True(rawItem.TraitIds.Contains(SelfExecutionTraitId), "物品应声明自我处刑特性。");
         }
 
         SkillDefinition deathSentence = fixture.SkillDefs[DeathSentenceSkillId];
@@ -462,6 +458,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance provenance = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             result,
+            BattleWeaponAttackOutcomeKind.StandardWeaponSkillAttack,
             "basic_attack"
         );
 
@@ -490,7 +487,8 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         StringName executionerInstanceId = holder
             .GetEquipmentView()
             ?.GetEquippedInstanceId("main_hand") ?? new StringName("");
-        BattleKillProvenance outerAttack = BattleKillProvenance.ForEquipmentAttack(
+        BattleKillProvenance outerAttack = BattleKillProvenance.ForWeaponAttack(
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             executionerInstanceId,
             "binding.weapon.test.outer_immediate_attack",
             "action.weapon.test.outer_immediate_attack"
@@ -510,6 +508,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance judgmentKill = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             forcedCriticalResult,
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             outerAttack
         );
         _test.Eq(
@@ -527,6 +526,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
         BattleKillProvenance ordinaryOuterKill = BattleKillProvenance.FromWeaponAttackResult(
             holder,
             forcedCriticalResult,
+            BattleWeaponAttackOutcomeKind.EquipmentReaction,
             outerAttack
         );
         _test.Eq(
@@ -1224,7 +1224,7 @@ public partial class run_executioner_axe_weapon_ability_regression : LifecycleTe
     }
 
     private static CombatEffectDefinition BuildEquipmentDurabilityEffect(int power) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",

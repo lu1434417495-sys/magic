@@ -91,7 +91,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
 
         TestHeadlessBattleContingencySnapshot();
-        TestHeadlessBattleContingencyReportEntries();
+        TestHeadlessBattleContingencyTimelineReportBatch();
         RequestTestExit(_test.Finish("Contingency text commands regression"));
     }
 
@@ -100,12 +100,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandRunner CreateRunnerWithGemContent()
     {
         var runner = new GameTextCommandRunner();
-        ItemDefinition gemDefinition = TestResourceOwnership
-            .Own(
-                BuildGemItemDef(),
-                "run_contingency_text_commands_regression.gem_item"
-            )
-            .ToDefinition();
+        ItemDefinition gemDefinition = BuildGemItemDef().ToDefinition();
         GameSession gameSession = GameSessionTestFactory.CreateSynthetic(
             runner.GetSession(),
             seed =>
@@ -229,7 +224,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictString(setup, "display_name"), "濒死镜影", "save should write stable display name.");
         _test.False(DictBool(setup, "charged", true), "saved setup should be uncharged.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 0, "saved setup should reserve no MP.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 0, "saved setup should show zero material receipt.");
+        _test.Eq(ArrayValue(setup, "material_costs").Count, 0, "saved setup should show no material receipt.");
         _test.Eq(DictString(Dict(setup, "trigger"), "type"), "hp_below_percent", "saved setup should expose trigger type.");
         _test.Eq(DictInt(Dict(setup, "trigger"), "percent", -1), 30, "saved setup should expose trigger percent.");
         _test.Eq(DictString(setup, "release_mode"), "burst_release", "saved setup should expose release mode.");
@@ -256,11 +251,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.True(DictBool(setup, "charged", false), "charged status should report charged=true.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 6, "charged status should reserve matrix_load * 2 MP.");
         _test.Eq(DictInt(setup, "effective_mp_max", -1), 24, "charged status should expose effective MP max after reservation.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 1, "charged status should show one gem receipt.");
+        IReadOnlyDictionary<string, object> materialCost = FirstDictionary(ArrayValue(setup, "material_costs"));
+        _test.Eq(DictString(materialCost, "item_id"), GemId.ToString(), "charged status material id mismatch.");
+        _test.Eq(DictInt(materialCost, "quantity", -1), 1, "charged status should show one gem receipt.");
         _test.True(textSnapshot.Contains("charged=yes"), "text snapshot should render charged state.");
         _test.True(textSnapshot.Contains("reserved_mp_max=6"), "text snapshot should render reserved MP.");
         _test.True(textSnapshot.Contains("effective_mp_max=24"), "text snapshot should render effective MP max.");
-        _test.True(textSnapshot.Contains("material=special_contingency_gem:1"), "text snapshot should render material receipt.");
+        _test.True(textSnapshot.Contains("materials=special_contingency_gem:1"), "text snapshot should render material receipt.");
     }
 
     private void TestHeadlessBattleContingencySnapshot()
@@ -315,7 +312,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
     }
 
-    private void TestHeadlessBattleContingencyReportEntries()
+    private void TestHeadlessBattleContingencyTimelineReportBatch()
     {
         GameTextCommandRunner runner = CreateRunnerWithGemContent();
         try
@@ -323,8 +320,8 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             RunCommand(runner, "game new test");
             string memberId = PrepareContingencyMemberFixture(runner, "player_sword_01");
             InstallOwnerTurnContingencySetup(runner, memberId);
-            using BattleEventBatch ownerTurnBatch = new();
-            BattleRuntimeModule battleRuntime = runner.GetSession().GetRuntimeFacadeTyped().GetBattleRuntime();
+            GameRuntimeFacade runtime = runner.GetSession().GetRuntimeFacadeTyped();
+            BattleRuntimeModule battleRuntime = runtime.GetBattleRuntime();
             IReadOnlyDictionary<string, object> battle = Dict(
                 runner.GetSession().BuildSnapshotPlain(),
                 "battle"
@@ -334,13 +331,36 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
             );
             BattleUnitState ownerBattleUnit = battleRuntime?.GetState()?.GetUnit(DictString(ownerInstance, "owner_unit_id"));
             _test.True(ownerBattleUnit != null, "headless contingency report fixture should resolve owner battle unit.");
-            battleRuntime?._record_turn_started(ownerBattleUnit, ownerTurnBatch);
-            battleRuntime?._append_batch_logs_to_state(ownerTurnBatch);
+            BattleState battleState = battleRuntime?.GetState();
+            _test.True(
+                battleState?.timeline != null,
+                "headless contingency report fixture should expose a live battle timeline."
+            );
+            if (ownerBattleUnit == null || battleState?.timeline == null)
+                return;
 
-            IReadOnlyDictionary<string, object> reportSnapshot =
+            battleState.PhaseKind = BattlePhaseKind.TimelineRunning;
+            battleState.ModalStateKind = BattleModalStateKind.None;
+            battleState.active_unit_id = "";
+            battleState.timeline.frozen = false;
+            battleState.timeline.ready_unit_ids.Clear();
+            battleState.timeline.ready_unit_ids.Add(ownerBattleUnit.unit_id);
+            using BattleEventBatch ownerTurnBatch = battleRuntime.advance(0);
+            runtime.ApplyBattleBatch(ownerTurnBatch);
+
+            IReadOnlyDictionary<string, object> publishedSnapshot =
                 runner.GetSession().BuildSnapshotPlain();
+            IReadOnlyDictionary<string, object> publishedBattle = Dict(
+                publishedSnapshot,
+                "battle"
+            );
+            _test.Eq(
+                DictString(publishedBattle, "active_unit_id"),
+                ownerBattleUnit.unit_id.ToString(),
+                "facade batch application should publish the owner activated by the public timeline advance."
+            );
             IReadOnlyDictionary<string, object> reportEntry = FindReportEntry(
-                ArrayValue(Dict(reportSnapshot, "battle"), "report_entries"),
+                ownerTurnBatch.ReportEntriesTyped,
                 "contingency_triggered"
             );
             AssertStructuredContingencyReportEntry(
@@ -367,9 +387,9 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         IReadOnlyDictionary<string, object> setup = FirstSetup(MemberStatus(snapshot, memberId));
         _test.False(DictBool(setup, "charged", true), "clear status should report charged=false.");
         _test.Eq(DictInt(setup, "reserved_mp_max", -1), 0, "clear status should remove MP reservation.");
-        _test.Eq(DictInt(setup, "material_quantity", -1), 0, "clear status should remove material receipt.");
+        _test.Eq(ArrayValue(setup, "material_costs").Count, 0, "clear status should remove material receipt.");
         _test.True(textSnapshot.Contains("charged=no"), "text snapshot should render cleared uncharged state.");
-        _test.True(textSnapshot.Contains("material=special_contingency_gem:0"), "text snapshot should render cleared material receipt.");
+        _test.True(textSnapshot.Contains("materials="), "text snapshot should render cleared material receipt.");
     }
 
     private void AssertNoSavedSetup(
@@ -403,8 +423,14 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         _test.Eq(DictString(result, "setup_id"), setupId, "last contingency result setup mismatch.");
         _test.Eq(DictBool(result, "charged", !charged), charged, "last contingency result charged mismatch.");
         _test.Eq(DictInt(result, "reserved_mp_max", -1), reservedMpMax, "last contingency result reserved MP mismatch.");
-        _test.Eq(DictString(result, "material_item_id"), GemId.ToString(), "last contingency result material id mismatch.");
-        _test.Eq(DictInt(result, "material_quantity", -1), materialQuantity, "last contingency result material quantity mismatch.");
+        IReadOnlyList<object> materialCosts = ArrayValue(result, "material_costs");
+        _test.Eq(materialCosts.Count, materialQuantity > 0 ? 1 : 0, "last contingency result material cost count mismatch.");
+        if (materialQuantity > 0)
+        {
+            IReadOnlyDictionary<string, object> materialCost = FirstDictionary(materialCosts);
+            _test.Eq(DictString(materialCost, "item_id"), GemId.ToString(), "last contingency result material id mismatch.");
+            _test.Eq(DictInt(materialCost, "quantity", -1), materialQuantity, "last contingency result material quantity mismatch.");
+        }
     }
 
     private void AssertWarehouseQuantity(
@@ -500,7 +526,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         string triggerType
     )
     {
-        _test.True(entry.Count > 0, "headless battle.report_entries should contain a structured contingency entry.");
+        _test.True(
+            entry.Count > 0,
+            "public timeline advance batch should contain a structured contingency entry."
+        );
         if (entry.Count == 0)
             return;
         _test.Eq(DictString(entry, "entry_type"), "contingency_triggered", "report entry type mismatch.");
@@ -517,13 +546,13 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     }
 
     private static IReadOnlyDictionary<string, object> FindReportEntry(
-        IReadOnlyList<object> entries,
+        IReadOnlyList<IReadOnlyDictionary<string, object>> entries,
         string entryType
     )
     {
-        foreach (object value in entries)
+        foreach (IReadOnlyDictionary<string, object> entry in entries)
         {
-            if (value is not IReadOnlyDictionary<string, object> entry)
+            if (entry == null)
                 continue;
             if (DictString(entry, "entry_type") == entryType)
                 return entry;
@@ -534,12 +563,10 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandResult RunCommand(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
-        if (result.skipped)
-            return result;
-        if (!result.ok)
+        if (result.skipped || !result.ok)
         {
             ConsoleProcessOutput.WriteStandard(result.Render());
-            _test.Fail($"命令失败：{commandText} | {result.message}");
+            _test.Fail($"命令未实际执行或失败：{commandText} | {result.message}");
         }
         return result;
     }
@@ -547,6 +574,7 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
     private GameTextCommandResult RunCommandExpectFail(GameTextCommandRunner runner, string commandText)
     {
         GameTextCommandResult result = runner.ExecuteLine(commandText);
+        ConsoleProcessOutput.WriteStandard(result.Render());
         if (result.skipped)
         {
             _test.Fail($"命令被跳过，无法验证失败：{commandText}");
@@ -554,13 +582,12 @@ public partial class run_contingency_text_commands_regression : LifecycleTestSce
         }
         if (result.ok)
         {
-            ConsoleProcessOutput.WriteStandard(result.Render());
             _test.Fail($"命令应失败但成功：{commandText}");
         }
         return result;
     }
 
-    private static ItemDef BuildGemItemDef() =>
+    private static TestItemDefinitionBuilder BuildGemItemDef() =>
         new()
         {
             item_id = GemId,

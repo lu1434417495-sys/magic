@@ -3,14 +3,13 @@ using Godot;
 
 internal static class BattleStaminaRecoveryRules
 {
-    internal const int TuGranularity = 5;
     internal const int ProgressDenominator = 10;
 
     private const int ProgressBase = 11;
     private const int RestingRecoveryMultiplier = 2;
 
     internal static int ResolveTickCount(int tuDelta) =>
-        Math.Max(tuDelta, 0) / TuGranularity;
+        Math.Max(tuDelta, 0) / BattleTimeRules.TuGranularity;
 
     internal static int ResolveProgressGainPerTick(
         BattleUnitState unitState,

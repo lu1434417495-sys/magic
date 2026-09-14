@@ -39,6 +39,7 @@ internal enum BattleSaveTagKind
     Perception,
     Intelligence,
     Willpower,
+    DragonFrightfulPresence,
 }
 
 internal enum BattleSaveAbilityKind
@@ -75,6 +76,8 @@ internal static class BattleSaveContentRules
     private static readonly StringName SaveTagIllusion = "illusion";
 
     private static readonly StringName SaveTagFrightened = "frightened";
+
+    private static readonly StringName SaveTagDragonFrightfulPresence = "dragon_frightful_presence";
 
     private static readonly StringName SaveTagExecute = "execute";
 
@@ -119,6 +122,7 @@ internal static class BattleSaveContentRules
             or BattleSaveTagKind.Charm
             or BattleSaveTagKind.Illusion
             or BattleSaveTagKind.Frightened
+            or BattleSaveTagKind.DragonFrightfulPresence
             or BattleSaveTagKind.Temporal;
 
     internal static bool IsValidSaveDcMode(StringName value) =>
@@ -157,6 +161,8 @@ internal static class BattleSaveContentRules
             return BattleSaveTagKind.Illusion;
         if (value == SaveTagFrightened)
             return BattleSaveTagKind.Frightened;
+        if (value == SaveTagDragonFrightfulPresence)
+            return BattleSaveTagKind.DragonFrightfulPresence;
         if (value == SaveTagExecute)
             return BattleSaveTagKind.Execute;
         if (value == SaveTagTemporal)
@@ -233,6 +239,7 @@ internal static class BattleSaveContentRules
             BattleSaveTagKind.Magic => SaveTagMagic,
             BattleSaveTagKind.Illusion => SaveTagIllusion,
             BattleSaveTagKind.Frightened => SaveTagFrightened,
+            BattleSaveTagKind.DragonFrightfulPresence => SaveTagDragonFrightfulPresence,
             BattleSaveTagKind.Execute => SaveTagExecute,
             BattleSaveTagKind.Temporal => SaveTagTemporal,
             BattleSaveTagKind.Petrification => SaveTagPetrification,

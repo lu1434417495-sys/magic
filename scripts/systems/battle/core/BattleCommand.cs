@@ -11,6 +11,7 @@ public class BattleCommand
     public int windup_tier;
     public StringName target_unit_id = "";
     public Vector2I source_retreat_direction = Vector2I.Zero;
+    public Vector2I forced_move_destination_coord = new(-1, -1);
     private readonly List<StringName> _targetUnitIds = new();
     public Vector2I target_coord = new(-1, -1);
     private readonly List<Vector2I> _targetCoords = new();

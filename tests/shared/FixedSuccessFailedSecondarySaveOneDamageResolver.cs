@@ -6,18 +6,23 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class FixedSuccessFailedSecondarySaveOneDamageResolver
     : FixedSuccessOneDamageResolver
 {
+    public FixedSuccessFailedSecondarySaveOneDamageResolver()
+    {
+        SetHitResolver(new FixedHitFailedSecondaryRollResolver());
+    }
+
     internal new BattleFateEventBus GetFateEventBus() => base.GetFateEventBus();
 
-    public new int _roll_true_random_attack_range(
-        int min_value,
-        int max_value,
-        BattleState battle_state
-    )
+    private sealed class FixedHitFailedSecondaryRollResolver : FixedHitResolver
     {
-        if (battle_state != null)
+        public override int RollAttackDie(
+            int dieSize,
+            bool isDisadvantage,
+            AttackContext attackContext
+        )
         {
-            battle_state.NextAttackRollNonce();
+            attackContext?.BattleState?.NextAttackRollNonce();
+            return Math.Clamp(1, 1, Math.Max(dieSize, 1));
         }
-        return Math.Min(min_value, max_value);
     }
 }

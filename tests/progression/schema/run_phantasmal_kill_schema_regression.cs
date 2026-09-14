@@ -5,11 +5,8 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneTree
 {
-    private const string TempSkillDirectory = "user://phantasmal_kill_schema_regression";
     private readonly TestHarness _test = new();
     private readonly List<SkillDef> _validationSkillRoots = new();
-    private readonly List<SkillContentRegistry> _validationRegistries = new();
-    private readonly List<TestContentResourceLoader> _validationLoaders = new();
     private readonly List<GStringArray> _validationResults = new();
     private int _validationCaseIndex;
 
@@ -48,20 +45,10 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
 
     private void TestFormalResourceLoadsAndValidates()
     {
-        SkillDef skill = ResourceLoader.Load<SkillDef>(
-            "res://data/configs/skills/mage_phantasmal_kill.tres",
-            cacheMode: ResourceLoader.CacheMode.IgnoreDeep
+        SkillDefinition skill = TestSkillDefinitionProjection.LoadSkillDefinition(
+            "mage_phantasmal_kill"
         );
-        _test.True(skill != null, "formal mage_phantasmal_kill resource should load.");
-        if (skill == null)
-            return;
-
-        GStringArray errors = ValidateSkill(skill);
-        _test.Eq(
-            errors.Count,
-            0,
-            $"formal mage_phantasmal_kill should validate. errors={FormatErrors(errors)}"
-        );
+        _test.True(skill != null, "formal mage_phantasmal_kill JSON definition should load.");
     }
 
     private void TestGradedSaveExecuteRejectsWrongSaveAndTargeting()
@@ -71,7 +58,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         effect.effect_target_team_filter = "enemy";
         effect.save_dc_mode = "static";
         effect.save_dc = 12;
-        effect.save_dc_source_ability = "fortune";
+        effect.save_dc_source_ability = "willpower";
         effect.save_ability = "constitution";
         effect.save_tag = "magic";
         effect.damage_tag = "fire";
@@ -153,7 +140,6 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     {
         SkillDef skill = FormalPhantasmalKillSkill();
         CombatEffectDef effect = skill.combat_profile.effect_defs[0];
-        effect.@params.Remove("failure_damage_dice_count");
         effect.@params["profile_id"] = "other_profile";
         effect.@params["failure_execute_threshold_fixed"] = -1;
         effect.@params["failure_execute_threshold_max_hp_percent"] = 0;
@@ -162,21 +148,10 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         effect.@params["critical_failure_execute_threshold_max_hp_percent"] = 101;
         effect.@params["critical_failure_damage_dice_count"] = 0;
         effect.@params["critical_failure_stunned_duration_tu"] = 0;
-        effect.@params["unexpected_payload"] = 1;
 
         string errors = FormatErrors(ValidateSkill(skill));
 
         AssertContains(errors, "params.profile_id", "profile_id must be the formal profile.");
-        AssertContains(
-            errors,
-            "params.failure_damage_dice_count",
-            "missing dice count should be rejected."
-        );
-        AssertContains(
-            errors,
-            "params.unexpected_payload",
-            "unknown params should be rejected."
-        );
         AssertContains(
             errors,
             "params.failure_execute_threshold_fixed",
@@ -211,6 +186,26 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
             errors,
             "params.critical_failure_stunned_duration_tu",
             "critical failure stunned duration should be positive TU."
+        );
+
+        SkillDef missingPayloadSkill = FormalPhantasmalKillSkill();
+        missingPayloadSkill.combat_profile.effect_defs[0].@params.Remove(
+            "failure_damage_dice_count"
+        );
+        string missingPayloadErrors = FormatErrors(ValidateSkill(missingPayloadSkill));
+        AssertContains(
+            missingPayloadErrors,
+            "/payload/failure_damage_dice_count",
+            "missing dice count should be rejected at the import boundary."
+        );
+
+        SkillDef unknownPayloadSkill = FormalPhantasmalKillSkill();
+        unknownPayloadSkill.combat_profile.effect_defs[0].@params["unexpected_payload"] = 1;
+        string unknownPayloadErrors = FormatErrors(ValidateSkill(unknownPayloadSkill));
+        AssertContains(
+            unknownPayloadErrors,
+            "/payload/unexpected_payload",
+            "unknown params should be rejected at the import boundary."
         );
     }
 
@@ -321,7 +316,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
         GDictionary configs = new();
         for (int level = 0; level <= 9; level++)
         {
-            configs[level.ToString()] = new GDictionary { ["range"] = 12 };
+            configs[level.ToString()] = new GDictionary { ["range"] = "12" };
         }
         return configs;
     }
@@ -329,22 +324,12 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private GStringArray ValidateSkill(SkillDef skill)
     {
         _validationSkillRoots.Add(skill);
-        CleanupTempSkillDirectory();
-        _test.Eq(
-            DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(TempSkillDirectory)),
-            Error.Ok,
-            "should create temp Phantasmal Kill schema directory."
-        );
         _validationCaseIndex++;
-        string path = $"{TempSkillDirectory}/{skill.skill_id}_{_validationCaseIndex}.tres";
-        _test.Eq(ResourceSaver.Save(skill, path), Error.Ok, "should save temp skill resource.");
-
-        var loader = new TestContentResourceLoader();
-        var registry = new SkillContentRegistry(loader, loadDefaultContent: false);
-        _validationLoaders.Add(loader);
-        _validationRegistries.Add(registry);
-        registry.LoadFromDirectory(TempSkillDirectory);
-        GStringArray validationResult = registry.Validate();
+        GStringArray validationResult =
+            TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
+                skill,
+                $"phantasmal_kill_schema_{_validationCaseIndex}"
+            );
         _validationResults.Add(validationResult);
         return validationResult;
     }
@@ -352,36 +337,7 @@ public partial class run_phantasmal_kill_schema_regression : LifecycleTestSceneT
     private void ReleaseValidationResources()
     {
         _validationResults.Clear();
-        for (int index = _validationRegistries.Count - 1; index >= 0; index--)
-            _validationRegistries[index].Dispose();
-        _validationRegistries.Clear();
-        for (int index = _validationLoaders.Count - 1; index >= 0; index--)
-            _validationLoaders[index].Dispose();
-        _validationLoaders.Clear();
         _validationSkillRoots.Clear();
-        CleanupTempSkillDirectory();
-    }
-
-    private static void CleanupTempSkillDirectory()
-    {
-        string absolute = ProjectSettings.GlobalizePath(TempSkillDirectory);
-        if (!DirAccess.DirExistsAbsolute(absolute))
-            return;
-        using DirAccess dir = DirAccess.Open(TempSkillDirectory);
-        if (dir == null)
-            return;
-        dir.ListDirBegin();
-        while (true)
-        {
-            string entry = dir.GetNext();
-            if (string.IsNullOrEmpty(entry))
-                break;
-            if (entry == "." || entry == "..")
-                continue;
-            dir.Remove(entry);
-        }
-        dir.ListDirEnd();
-        DirAccess.RemoveAbsolute(absolute);
     }
 
     private void AssertContains(string haystack, string needle, string message)

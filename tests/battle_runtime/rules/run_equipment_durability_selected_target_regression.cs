@@ -19,7 +19,7 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         TestSelectedCommitSaveSuccessReturnsResolvedResultWithoutMutation();
         TestConfiguredWeightMapDoesNotDefaultUnweightedSlot();
         TestOccupiedSlotSelectionReportsMatchedSlot();
-        TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams();
+        TestTypedCombatEffectSlotWeightsBuildSelectorQuery();
 
         RequestTestExit(_test.Finish("Equipment durability selected target regression"));
     }
@@ -249,17 +249,16 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
         );
     }
 
-    private void TestTypedCombatEffectSlotWeightsBuildSelectorQueryDespiteLegacyParams()
+    private void TestTypedCombatEffectSlotWeightsBuildSelectorQuery()
     {
         using BattleDamageResolver resolver = new();
         BattleUnitState target = BuildUnit("legacy_weight_target", "enemy");
         EquipInstance(target, "main_hand", "bronze_sword", "eq_legacy_weight", 20);
 
-        CombatEffectDefinition effect = DisjunctionEffectFromResource(
+        CombatEffectDefinition effect = DisjunctionEffectFromDiagnosticFixture(
             7,
             targetSlots: Names("main_hand"),
-            typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1)),
-            slotWeightMap: WeightMap(("off_hand", 5))
+            typedSlotWeights: CombatEffectSlotWeights(("main_hand", 1))
         );
         _test.Eq(
             effect.EquipmentDurabilitySlotWeights.Count,
@@ -267,7 +266,8 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             "test effect should carry typed durability slot weights."
         );
         _test.Eq(
-            effect.GetStringNameListParamTyped("target_slots").Count,
+            (effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                ?.TargetSlots.Count ?? 0,
             1,
             "test effect should carry target_slots."
         );
@@ -277,7 +277,9 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
                 new BattleDamageResolver.EquipmentDurabilitySelectionQuery
                 {
                     TargetUnit = target,
-                    TargetSlots = effect.GetStringNameListParamTyped("target_slots"),
+                    TargetSlots =
+                        (effect.Payload as EquipmentDurabilityDamageEffectPayloadDefinition)
+                            ?.TargetSlots ?? System.Array.Empty<StringName>(),
                     SlotWeights = effect.EquipmentDurabilitySlotWeights,
                     ConsumeRandom = false,
                 }
@@ -385,20 +387,18 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
             saveDcSourceAbility: "intelligence",
             saveTag: "equipment_disjunction",
             requireDamageApplied: true,
-            parameters: new System.Collections.Generic.Dictionary<string, object>
-            {
-                ["max_damaged_items"] = 1,
-                ["target_slots"] = targetSlots ?? Names("main_hand"),
-            }
+            payload: new EquipmentDurabilityDamageEffectPayloadDefinition(
+                maxDamagedItems: 1,
+                targetSlots: targetSlots ?? Names("main_hand")
+            )
         );
 
-    private static CombatEffectDefinition DisjunctionEffectFromResource(
+    private static CombatEffectDefinition DisjunctionEffectFromDiagnosticFixture(
         int power,
         GStringNameArray targetSlots = null,
-        Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null,
-        GDictionary slotWeightMap = null
+        Godot.Collections.Array<CombatEffectSlotWeightDef> typedSlotWeights = null
     ) =>
-        CombatEffectDefinition.FromResource(
+        CombatEffectDefinition.FromDiagnosticFixture(
             new CombatEffectDef
             {
                 effect_type = "equipment_durability_damage",
@@ -414,7 +414,6 @@ public partial class run_equipment_durability_selected_target_regression : Lifec
                 @params = new GDictionary
                 {
                     ["max_damaged_items"] = 1,
-                    ["slot_weight_map"] = slotWeightMap ?? WeightMap(("main_hand", 1)),
                     ["target_slots"] = targetSlots ?? Names("main_hand"),
                 },
             },

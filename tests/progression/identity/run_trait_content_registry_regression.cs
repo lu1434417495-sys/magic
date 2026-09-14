@@ -3,6 +3,9 @@ using Godot;
 
 public partial class run_trait_content_registry_regression : LifecycleTestSceneTree
 {
+    private const string InvalidJsonFixtureDirectory =
+        "res://tests/progression/fixtures/trait_validator_diagnostic_golden";
+
     private readonly TestHarness _test = new();
 
     public override void _Initialize()
@@ -21,7 +24,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestOfficialTraitRegistryValidatesWithoutErrors()
     {
-        using TraitContentRegistry registry = new(new TestContentResourceLoader());
+        using TraitContentRegistry registry = new();
         List<string> errors = ToList(registry.Validate());
         _test.Eq(
             errors.Count,
@@ -32,7 +35,7 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestOfficialTraitRegistryUsesGenericIdentityDefs()
     {
-        using TraitContentRegistry registry = new(new TestContentResourceLoader());
+        using TraitContentRegistry registry = new();
         IReadOnlyDictionary<StringName, TraitDefinition> traitDefs =
             registry.GetTraitDefsTyped();
 
@@ -81,12 +84,10 @@ public partial class run_trait_content_registry_regression : LifecycleTestSceneT
 
     private void TestInvalidTraitFixturesAreRejected()
     {
-        using TraitContentRegistry registry = new(new TestContentResourceLoader());
-        registry.LoadFromDirectories(
-            new Godot.Collections.Array<string>
-            {
-                "res://tests/progression/fixtures/trait_registry_invalid",
-            }
+        using TraitContentRegistry registry = new();
+        registry.LoadFromJsonDirectory(
+            InvalidJsonFixtureDirectory,
+            new GodotContentJsonSourceReader()
         );
         List<string> errors = ToList(registry.Validate());
         _test.True(errors.Count >= 3, $"invalid fixtures should produce errors: {Format(errors)}");

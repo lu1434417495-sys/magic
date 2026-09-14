@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using Godot;
@@ -24,10 +25,13 @@ public partial class PartyManagementWindow : ModalWindowShell
     public delegate void contingency_setup_requestedEventHandler(StringName member_id);
 
     [Signal]
+    public delegate void promotion_requestedEventHandler(StringName member_id);
+
+    [Signal]
     public delegate void closedEventHandler();
 
     private const int MaxActiveMemberCount = 4;
-    private const float PanelViewportRatio = 0.5f;
+    private const float PanelViewportRatio = 0.82f;
     private static readonly Vector2 MinPanelSize = new(860.0f, 540.0f);
     private static readonly Vector2 ViewportSafeMargin = new(48.0f, 30.0f);
     private const int ContentMargin = 24;
@@ -40,6 +44,7 @@ public partial class PartyManagementWindow : ModalWindowShell
     public Label meta_label;
     public ItemList active_list;
     public ItemList reserve_list;
+    private Label _reserve_empty_label;
     public Control lists_column;
     public Button set_leader_button;
     public Control controls_column;
@@ -47,6 +52,7 @@ public partial class PartyManagementWindow : ModalWindowShell
     public Button move_to_reserve_button;
     public Button warehouse_button;
     public Button contingency_setup_button;
+    public Button promotion_button;
     public RichTextLabel overview_label;
     public RichTextLabel attributes_label;
     public RichTextLabel equipment_label;
@@ -66,6 +72,9 @@ public partial class PartyManagementWindow : ModalWindowShell
         new Dictionary<StringName, ProfessionDefinition>();
     private IReadOnlyDictionary<StringName, TraitDefinition> _trait_defs =
         new Dictionary<StringName, TraitDefinition>();
+    private IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> _equipment_ability_bindings =
+        new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+    private Func<int> _world_step_provider;
     public CharacterManagementModule _character_management;
     public StringName _leader_member_id = "";
     public StringName _main_character_member_id = "";
@@ -86,6 +95,8 @@ public partial class PartyManagementWindow : ModalWindowShell
         meta_label = GetNode<Label>("%MetaLabel");
         active_list = GetNode<ItemList>("%ActiveList");
         reserve_list = GetNode<ItemList>("%ReserveList");
+        _reserve_empty_label = new Label { Text = "暂无替补成员", Name = "ReserveEmptyLabel" };
+        reserve_list.GetParent().AddChild(_reserve_empty_label);
         UiListTheme.Apply(active_list);
         UiListTheme.Apply(reserve_list);
         lists_column = GetNode<Control>("%Lists");
@@ -95,6 +106,9 @@ public partial class PartyManagementWindow : ModalWindowShell
         move_to_reserve_button = GetNode<Button>("%MoveToReserveButton");
         warehouse_button = GetNode<Button>("%WarehouseButton");
         contingency_setup_button = GetNode<Button>("%ContingencySetupButton");
+        promotion_button = new Button { Name = "PromotionButton", Text = "职业晋升（G）" };
+        controls_column.AddChild(promotion_button);
+        promotion_button.Pressed += () => EmitSignal(SignalName.promotion_requested, _selected_member_id);
         overview_label = GetNode<RichTextLabel>("%OverviewLabel");
         attributes_label = GetNode<RichTextLabel>("%AttributesLabel");
         equipment_label = GetNode<RichTextLabel>("%EquipmentLabel");
@@ -172,6 +186,23 @@ public partial class PartyManagementWindow : ModalWindowShell
     public void SetTraitDefs(IReadOnlyDictionary<StringName, TraitDefinition> trait_defs)
     {
         _trait_defs = trait_defs ?? new Dictionary<StringName, TraitDefinition>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetEquipmentAbilityBindings(
+        IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> bindings
+    )
+    {
+        _equipment_ability_bindings =
+            bindings ?? new Dictionary<StringName, EquipmentAbilityBindingDefinition>();
+        if (Visible)
+            RefreshView();
+    }
+
+    public void SetWorldStepProvider(Func<int> worldStepProvider)
+    {
+        _world_step_provider = worldStepProvider;
         if (Visible)
             RefreshView();
     }
@@ -254,7 +285,7 @@ public partial class PartyManagementWindow : ModalWindowShell
             Mathf.Max(viewportSize.X - ViewportSafeMargin.X * 2.0f, 320.0f),
             Mathf.Max(viewportSize.Y - ViewportSafeMargin.Y * 2.0f, 320.0f)
         );
-        Vector2 preferredSize = viewportSize * PanelViewportRatio;
+        Vector2 preferredSize = (viewportSize * PanelViewportRatio).Min(new Vector2(1360, 850));
         Vector2 panelSize = new(
             Mathf.Clamp(
                 preferredSize.X,
@@ -275,7 +306,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         content_margin.AddThemeConstantOverride("margin_bottom", ContentMarginVertical);
 
         float contentWidth = Mathf.Max(panelSize.X - ContentMargin * 2.0f, 320.0f);
-        float listWidth = Mathf.Clamp(contentWidth * 0.26f, 200.0f, 260.0f);
+        float listWidth = Mathf.Clamp(contentWidth * 0.24f, 200.0f, 300.0f);
         float controlsWidth = Mathf.Clamp(contentWidth * 0.14f, 112.0f, 136.0f);
         if (contentWidth < 760.0f)
         {
@@ -394,6 +425,10 @@ public partial class PartyManagementWindow : ModalWindowShell
             reserve_list.AddItem(_build_member_list_label(memberState));
             _reserveListMemberIds.Add(memberId);
         }
+        bool hasReserve = _reserveListMemberIds.Count > 0;
+        reserve_list.Visible = hasReserve;
+        _reserve_empty_label.Visible = !hasReserve;
+        reserve_list.GetParent<Control>().SizeFlagsVertical = hasReserve ? SizeFlags.ExpandFill : SizeFlags.Fill;
     }
 
     private static string _build_member_list_label(PartyMemberState memberState)
@@ -437,6 +472,10 @@ public partial class PartyManagementWindow : ModalWindowShell
         move_to_reserve_button.Disabled = !canMoveToReserve;
         warehouse_button.Disabled = _party_state == null;
         contingency_setup_button.Disabled = !hasSelection;
+        int promotionCount = hasSelection ? _character_management?.GetPromotionOffers(_selected_member_id).Count ?? 0 : 0;
+        promotion_button.Disabled = promotionCount == 0;
+        promotion_button.Text = promotionCount > 0 ? $"职业晋升（{promotionCount} 个方案）" : "职业晋升（未就绪）";
+        promotion_button.TooltipText = "将未用于成长的技能练到基础上限，即可用它提升人物等级；还需满足职业条件。";
     }
 
     private void _refresh_details()
@@ -475,7 +514,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         skills_label.Text = string.Join("\n", _build_skill_detail_lines(progression, snapshot));
         professions_label.Text = string.Join("\n", _build_profession_detail_lines(progression));
         status_label.Text =
-            $"当前队长：{_leader_member_id}  |  上阵 {_activeMemberIds.Count} / {MaxActiveMemberCount}  |  替补 {_reserveMemberIds.Count}";
+            $"当前队长：{_resolve_member_state(_leader_member_id)?.display_name ?? "未指定"}  |  上阵 {_activeMemberIds.Count} / {MaxActiveMemberCount}  |  替补 {_reserveMemberIds.Count}";
     }
 
     private AttributeSnapshot _build_attribute_snapshot(PartyMemberState memberState)
@@ -509,12 +548,11 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string>
         {
             $"姓名：{memberState.display_name}",
-            $"成员 ID：{memberState.member_id}",
             $"编成：{(_activeMemberIds.Contains(memberState.member_id) ? "上阵" : "替补")}",
             $"主角：{(memberState.member_id == _main_character_member_id ? "是" : "否")}",
             $"队长：{(memberState.member_id == _leader_member_id ? "是" : "否")}",
             $"身份：{(memberState.member_id == _main_character_member_id ? "主角 " : "")}{(memberState.member_id == _leader_member_id ? "队长" : "")}",
-            $"控制：{memberState.control_mode}",
+            $"控制：{UiDisplayLabels.ControlMode(memberState.control_mode.ToString())}",
             $"等级：{(progression != null ? progression.character_level : 0)}",
         };
         lines.AddRange(_build_identity_overview_lines(memberState));
@@ -523,7 +561,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         lines.Add("核心属性：");
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("成就摘要：");
@@ -540,7 +578,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (summary.Count == 0)
         {
             if (memberState != null)
-                lines.Add($"体型：{memberState.body_size_category}（{memberState.body_size}）");
+                lines.Add($"体型：{UiDisplayLabels.BodySize(memberState.body_size_category.ToString())}（{memberState.body_size}）");
             return lines;
         }
         lines.Add($"种族：{DictString(summary, "race_label", "")}");
@@ -548,10 +586,10 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (!string.IsNullOrEmpty(subraceLabel))
             lines.Add($"亚种：{subraceLabel}");
         lines.Add(
-            $"年龄：{DictInt(summary, "age_years", 0)} 岁  |  自然阶段：{DictString(summary, "natural_age_stage_label", "")}  |  有效阶段：{DictString(summary, "effective_age_stage_label", "")}"
+            $"年龄：{DictInt(summary, "age_years", 0)} 岁  |  自然阶段：{UiDisplayLabels.AgeStage(DictString(summary, "natural_age_stage_label", ""))}  |  有效阶段：{UiDisplayLabels.AgeStage(DictString(summary, "effective_age_stage_label", ""))}"
         );
         lines.Add(
-            $"体型：{DictString(summary, "body_size_category", "")}（{DictInt(summary, "body_size", 0)}）"
+            $"体型：{UiDisplayLabels.BodySize(DictString(summary, "body_size_category", ""))}（{DictInt(summary, "body_size", 0)}）"
         );
         string bloodlineLabel = DictString(summary, "bloodline_label", "").StripEdges();
         string bloodlineStageLabel = DictString(summary, "bloodline_stage_label", "").StripEdges();
@@ -629,19 +667,19 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string> { "基础属性：" };
         foreach (StringName attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("资源属性：");
         foreach (StringName attributeId in AttributeService.RESOURCE_ATTRIBUTE_IDS)
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("战斗属性：");
         foreach (StringName attributeId in AttributeService.COMBAT_ATTRIBUTE_IDS)
             lines.Add(
-                $"- {_get_attribute_label(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
+                $"- {CharacterAttributeDisplayText.GetLabel(attributeId)}：{_get_snapshot_value(snapshot, attributeId)}"
             );
         lines.Add("");
         lines.Add("命运：");
@@ -663,6 +701,13 @@ public partial class PartyManagementWindow : ModalWindowShell
         }
 
         EquipmentState equipmentState = memberState.equipment_state;
+        bool hasGearSetSummary = _append_gear_set_summary(lines, memberState, equipmentState);
+        if (hasGearSetSummary)
+        {
+            lines.Add("");
+            lines.Add("[b][color=#e8c36a]装备明细[/color][/b]");
+            lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+        }
         var occupiedNotes = new List<string>();
         var emptySlotLabels = new List<string>();
         int filledCount = 0;
@@ -697,6 +742,52 @@ public partial class PartyManagementWindow : ModalWindowShell
                 $"[color=#6b7385]空置槽位：{_escape_bbcode(string.Join("、", emptySlotLabels))}[/color]"
             );
         return lines;
+    }
+
+    private bool _append_gear_set_summary(
+        List<string> lines,
+        PartyMemberState memberState,
+        EquipmentState equipmentState
+    )
+    {
+        if (lines == null || memberState == null || _character_management == null)
+            return false;
+
+        GearSetEvaluationSnapshot snapshot = _character_management.EvaluateGearSets(
+            memberState.member_id,
+            equipmentState
+        );
+        IReadOnlyList<GearSetGrantedActionSummary> grantedActions =
+            GearSetGrantedActionProjection.Build(
+                snapshot,
+                equipmentState,
+                _equipment_ability_bindings,
+                _trait_defs,
+                _itemDefinitions,
+                _skill_definitions,
+                _world_step_provider?.Invoke() ?? -1
+            );
+        IReadOnlyList<GameRuntimeCharacterInfoEntry> entries =
+            GameRuntimeCharacterInfoBuilder.BuildGearSetEntries(snapshot, grantedActions);
+        if (entries.Count == 0)
+            return false;
+
+        lines.Add("[b][color=#e8c36a]套装进度[/color][/b]");
+        lines.Add("[color=#4d5468]━━━━━━━━━━━━━━━━━━━━━━━━[/color]");
+        foreach (GameRuntimeCharacterInfoEntry entry in entries)
+        {
+            if (entry == null || entry.Kind != GameRuntimeCharacterInfoEntryKind.Pair)
+                continue;
+            lines.Add(
+                $"[b][color=#f0d78c]{_escape_bbcode(entry.Label)}[/color][/b]  {_escape_bbcode(entry.Value)}"
+            );
+            if (!string.IsNullOrEmpty(entry.Tooltip))
+                lines.Add($"[color=#9fb0c4]{_escape_bbcode(entry.Tooltip)}[/color]");
+            lines.Add("");
+        }
+        if (lines.Count > 0 && lines[^1] == "")
+            lines.RemoveAt(lines.Count - 1);
+        return true;
     }
 
     private void _append_equipment_card(List<string> lines, StringName itemId)
@@ -759,10 +850,8 @@ public partial class PartyManagementWindow : ModalWindowShell
             var tags = new List<string>();
             if (skillProgress.is_core)
                 tags.Add("核心");
-            if (skillProgress.is_level_trigger_active)
-                tags.Add("升级触发");
-            if (skillProgress.is_level_trigger_locked)
-                tags.Add($"锁定：命中/检定/DC +{skillProgress.bonus_to_hit_from_lock}");
+            if (progression.HasUsedGrowthTrigger(skillId))
+                tags.Add($"成长已完成：命中/检定/DC +{PromotionEligibilityRules.CompletedSkillCheckBonus}");
             if (skillProgress.profession_granted_by != (StringName)"")
                 tags.Add(
                     $"职业授予：{_get_profession_display_name(skillProgress.profession_granted_by)}"
@@ -840,7 +929,7 @@ public partial class PartyManagementWindow : ModalWindowShell
         var lines = new List<string>();
         if (skillDefinition?.CombatProfile == null)
             return lines;
-        IReadOnlyDictionary<int, IReadOnlyDictionary<string, object>> overrides =
+        IReadOnlyDictionary<int, CombatSkillLevelOverrideImportModel> overrides =
             skillDefinition.CombatProfile.LevelOverrides;
         if (overrides.Count == 0)
             return lines;
@@ -851,34 +940,16 @@ public partial class PartyManagementWindow : ModalWindowShell
         {
             if (level <= skillLevel)
                 continue;
-            if (!overrides.TryGetValue(level, out IReadOnlyDictionary<string, object> data))
+            if (!overrides.TryGetValue(level, out CombatSkillLevelOverrideImportModel data))
                 continue;
             var parts = new List<string>();
-            foreach (
-                string costKey in new[]
-                {
-                    "ap_cost",
-                    "mp_cost",
-                    "stamina_cost",
-                    "aura_cost",
-                    "cooldown_tu",
-                }
-            )
-            {
-                if (!data.TryGetValue(costKey, out object costValue))
-                    continue;
-                string label = costKey switch
-                {
-                    "ap_cost" => "AP",
-                    "mp_cost" => "MP",
-                    "stamina_cost" => "体力",
-                    "aura_cost" => "斗气",
-                    "cooldown_tu" => "冷却",
-                    _ => "",
-                };
-                if (TryReadPlainInt(costValue, out int resolvedCost))
-                    parts.Add($"{label}→{resolvedCost}");
-            }
+            AddLevelOverridePreviewPart(parts, "AP", data.ApCost);
+            AddLevelOverridePreviewPart(parts, "MP", data.MpCost);
+            AddLevelOverridePreviewPart(parts, "体力", data.StaminaCost);
+            AddLevelOverridePreviewPart(parts, "单槽MP", data.MpCostPerTargetSlot);
+            AddLevelOverridePreviewPart(parts, "单槽体力", data.StaminaCostPerTargetSlot);
+            AddLevelOverridePreviewPart(parts, "斗气", data.AuraCost);
+            AddLevelOverridePreviewPart(parts, "冷却", data.CooldownTu);
             if (parts.Count > 0)
                 nextLevels.Add($"Lv.{level}：{string.Join("，", parts)}");
         }
@@ -887,32 +958,14 @@ public partial class PartyManagementWindow : ModalWindowShell
         return lines;
     }
 
-    private static bool TryReadPlainInt(object value, out int result)
+    private static void AddLevelOverridePreviewPart(
+        List<string> parts,
+        string label,
+        int? value
+    )
     {
-        switch (value)
-        {
-            case byte byteValue:
-                result = byteValue;
-                return true;
-            case short shortValue:
-                result = shortValue;
-                return true;
-            case int intValue:
-                result = intValue;
-                return true;
-            case long longValue when longValue >= int.MinValue && longValue <= int.MaxValue:
-                result = (int)longValue;
-                return true;
-            case float floatValue when floatValue >= int.MinValue && floatValue <= int.MaxValue:
-                result = (int)floatValue;
-                return true;
-            case double doubleValue when doubleValue >= int.MinValue && doubleValue <= int.MaxValue:
-                result = (int)doubleValue;
-                return true;
-            default:
-                result = 0;
-                return false;
-        }
+        if (value.HasValue)
+            parts.Add($"{label}→{value.Value}");
     }
 
     private List<string> _build_profession_detail_lines(UnitProgress progression)
@@ -1122,7 +1175,7 @@ public partial class PartyManagementWindow : ModalWindowShell
             int value = modifier.GetValueForRank(rank);
             if (attributeId == (StringName)"" || value == 0)
                 continue;
-            lines.Add($"{_get_attribute_label(attributeId)} {value:+0;-0;0}");
+            lines.Add($"{CharacterAttributeDisplayText.GetLabel(attributeId)} {value:+0;-0;0}");
         }
         return lines;
     }
@@ -1147,53 +1200,6 @@ public partial class PartyManagementWindow : ModalWindowShell
         if (skillType == (StringName)"combat")
             return "战斗";
         return skillType != (StringName)"" ? skillType.ToString() : "";
-    }
-
-    private static string _get_attribute_label(StringName attributeId)
-    {
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength))
-            return "力量";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
-            return "敏捷";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution))
-            return "体质";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception))
-            return "感知";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence))
-            return "智力";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower))
-            return "意志";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth))
-            return "出生隐藏幸运";
-        if (attributeId == UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus))
-            return "信仰幸运加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.HpMax))
-            return "生命上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.CharacterHpMaxPercentBonus))
-            return "人物生命加成%";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.MpMax))
-            return "法力上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.StaminaMax))
-            return "体力上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.AuraMax))
-            return "灵气上限";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionPoints))
-            return "行动点";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ActionThreshold))
-            return "行动阈值 TU";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorClass))
-            return "AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorAcBonus))
-            return "护甲 AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ShieldAcBonus))
-            return "盾牌 AC";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DodgeBonus))
-            return "闪避加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.DeflectionBonus))
-            return "偏斜加值";
-        if (attributeId == AttributeService.ToStringName(AttributeIdKind.ArmorMaxDexBonus))
-            return "护甲敏捷上限";
-        return attributeId.ToString();
     }
 
     private List<string> _build_achievement_summary_lines(UnitProgress progression)

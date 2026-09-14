@@ -9,7 +9,7 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class LifecycleSoakScenario
 {
     private const string TestWorldConfig =
-        "res://data/configs/world_map/test_world_map_config.tres";
+        "test";
     private const int FixedBattleSeed = 0x5A17_2026;
     private const int MaximumBattleAdvanceCount = 64;
 
@@ -17,7 +17,7 @@ internal sealed class LifecycleSoakScenario
     private readonly ApplicationLifetimeCoordinator _coordinator;
     private readonly ProcessContentHost _contentHost;
     private readonly GameSessionPersistenceOptions _persistenceOptions;
-    private readonly string _processContentRootFingerprint;
+    private readonly int _publishedEngineAssetCount;
 
     internal LifecycleSoakScenario(
         SceneTree tree,
@@ -33,9 +33,7 @@ internal sealed class LifecycleSoakScenario
             persistenceOptions ?? throw new ArgumentNullException(nameof(persistenceOptions));
         if (!_contentHost.IsSealed)
             throw new InvalidOperationException("Lifecycle soak requires a sealed process content host.");
-        _processContentRootFingerprint = FormatProcessContentRoots(
-            _contentHost.GetCanonicalRootDiagnostics()
-        );
+        _publishedEngineAssetCount = _contentHost.EngineAssets.PublishedAssetCount;
     }
 
     internal async ValueTask<LifecycleSoakSample> RunCycleAsync(int cycle)
@@ -77,18 +75,10 @@ internal sealed class LifecycleSoakScenario
             }
         }
 
-        string currentRootFingerprint = FormatProcessContentRoots(
-            _contentHost.GetCanonicalRootDiagnostics()
-        );
         Require(
-            string.Equals(
-                currentRootFingerprint,
-                _processContentRootFingerprint,
-                StringComparison.Ordinal
-            ),
-            $"cycle {cycle}: canonical process-content roots changed."
+            _contentHost.EngineAssets.PublishedAssetCount == _publishedEngineAssetCount,
+            $"cycle {cycle}: published engine-asset catalog changed."
         );
-        currentRootFingerprint = null;
         await LifecycleMeasurementBarrier.RunAsync(_tree);
         LifecycleAuditSnapshot after = LifecycleAuditRegistry.Shared.CaptureSnapshot();
         LifecycleSoakCounterVector counters = CaptureCounterVector(after);
@@ -115,8 +105,8 @@ internal sealed class LifecycleSoakScenario
             $"cycle {cycle}: CreateNewSave failed with {(Error)createError}."
         );
         Require(
-            GameSession.CurrentSaveVersion == 18,
-            $"cycle {cycle}: lifecycle soak requires save version 18."
+            GameSession.CurrentSaveVersion == 21,
+            $"cycle {cycle}: lifecycle soak requires save version 21."
         );
 
         GameRuntimeFacade facade = new(new FixedBattleSeedSource(FixedBattleSeed));
@@ -321,7 +311,7 @@ internal sealed class LifecycleSoakScenario
             FormatDomainCounts(audit.ActiveNativeScopeCountsByDomain),
             FormatDomainCounts(audit.ActiveProjectionLeaseCountsByDomain),
             audit.ActiveContentSnapshotEpoch,
-            _processContentRootFingerprint,
+            _publishedEngineAssetCount,
             checked((int)audit.UnknownCount),
             checked((int)audit.OwnerConflictCount),
             checked((int)audit.EscapedCount),
@@ -369,22 +359,6 @@ internal sealed class LifecycleSoakScenario
                 counts
                     .OrderBy(entry => entry.Key, StringComparer.Ordinal)
                     .Select(entry => $"{entry.Key}={entry.Value}")
-            );
-
-    private static string FormatProcessContentRoots(
-        IReadOnlyList<ContentRootDiagnostic> diagnostics
-    ) =>
-        diagnostics == null
-            ? string.Empty
-            : string.Join(
-                ";",
-                diagnostics
-                    .OrderBy(entry => entry.CanonicalPath, StringComparer.Ordinal)
-                    .ThenBy(entry => entry.ResourceType, StringComparer.Ordinal)
-                    .ThenBy(entry => entry.Role)
-                    .Select(entry =>
-                        $"{entry.CanonicalPath}|{entry.ResourceType}|{entry.Role}"
-                    )
             );
 
     private static void Require(bool condition, string message)

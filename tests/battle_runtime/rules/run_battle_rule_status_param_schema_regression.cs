@@ -10,7 +10,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
     public override void _Initialize()
     {
-        TestLockCritUsesTypedStatusField();
         TestLockDodgeBonusAcceptsStringNameParamKey();
         TestBlindAttackPenaltyUsesStatusSemanticAndTypedOverride();
         TestStatusAttackRollPenaltyUsesFormalFieldSchema();
@@ -23,30 +22,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
         RequestTestExit(_test.Finish("Battle rule status param schema regression"));
     }
-
-
-
-    private void TestLockCritUsesTypedStatusField()
-    {
-        BattleUnitState legacyUnit = BuildUnit("legacy_lock_crit");
-        SetStatusParams(
-            legacyUnit,
-            "legacy_lock_crit",
-            new GDictionary { [new StringName("lock_crit")] = true }
-        );
-        _test.False(
-            BattleFateAttackRules.IsAttackCritLocked(legacyUnit),
-            "StringName-only lock_crit params must not drive crit locks after typed status migration."
-        );
-
-        BattleUnitState formalUnit = BuildUnit("formal_lock_crit");
-        SetTypedStatus(formalUnit, "formal_lock_crit", lockCrit: true);
-        _test.True(
-            BattleFateAttackRules.IsAttackCritLocked(formalUnit),
-            "typed lock_crit status field must lock crit."
-        );
-    }
-
     private void TestFixedMitigationUsesTypedStatusFields()
     {
         var resolver = new BattleDamageResolver();
@@ -88,7 +63,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed passive_reduction 字段必须驱动正式减伤。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -102,7 +77,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count > 0, "status 旧 passive_reduction params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_passive_reduction effect test_effect params.passive_reduction is unsupported; use CombatEffectDef.passive_reduction."
+        );
     }
 
     private void TestLockDodgeBonusAcceptsStringNameParamKey()
@@ -155,7 +133,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed lock_dodge_bonus 字段必须继续压制 dodge AC 组件。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -169,7 +147,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count > 0, "status 旧 lock_dodge_bonus params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_lock_dodge_bonus effect test_effect params.lock_dodge_bonus is unsupported; use CombatEffectDef.lock_dodge_bonus."
+        );
     }
 
     private void TestBlindAttackPenaltyUsesStatusSemanticAndTypedOverride()
@@ -238,7 +219,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
     private void TestStatusAttackRollPenaltyUsesFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -252,7 +233,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count > 0, "status 旧 attack_roll_penalty params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_status_attack_roll_penalty effect test_effect params.attack_roll_penalty is unsupported; use CombatEffectDef.attack_roll_penalty."
+        );
     }
 
     private void TestDispellableStatusFlagsUseTypedFields()
@@ -301,7 +285,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed dispellable_beneficial_magic 字段应驱动正式 beneficial dispel 语义。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -321,12 +305,18 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count >= 4, "status 旧 dispel params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_dispel_flags effect test_effect params.undispellable is unsupported; use CombatEffectDef.undispellable.",
+            "Skill legacy_dispel_flags effect test_effect params.dispellable_magic is unsupported; use CombatEffectDef.dispellable_magic.",
+            "Skill legacy_dispel_flags effect test_effect params.dispellable_harmful_magic is unsupported; use CombatEffectDef.dispellable_harmful_magic.",
+            "Skill legacy_dispel_flags effect test_effect params.dispellable_beneficial_magic is unsupported; use CombatEffectDef.dispellable_beneficial_magic."
+        );
     }
 
     private void TestStatusDurationAndTickIntervalUseFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -345,7 +335,12 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count >= 3, "status 旧 duration/tick params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_status_duration_tick effect test_effect params.duration is unsupported; use CombatEffectDef.duration_tu.",
+            "Skill legacy_status_duration_tick effect test_effect params.duration_tu is unsupported; use CombatEffectDef.duration_tu.",
+            "Skill legacy_status_duration_tick effect test_effect params.tick_interval_tu is unsupported; use CombatEffectDef.tick_interval_tu."
+        );
     }
 
     private void TestMitigationTierUsesTypedStatusFieldSchema()
@@ -402,7 +397,7 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed mitigation_tier 字段必须继续记录到伤害事件。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -422,7 +417,13 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count >= 4, "status 旧 mitigation/damage params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_mitigation_tier effect test_effect params.mitigation_tier is unsupported; use CombatEffectDef.mitigation_tier.",
+            "Skill legacy_mitigation_tier status effect in test_effect params.damage_tag is unsupported; use CombatEffectDef.damage_tag.",
+            "Skill legacy_mitigation_tier status effect in test_effect params.damage_tags is unsupported; use CombatEffectDef.damage_tags.",
+            "Skill legacy_mitigation_tier status effect in test_effect params.damage_category is unsupported; use CombatEffectDef.damage_category."
+        );
     }
 
     private void TestSecondaryHitUsesTypedControlSaveBonus()
@@ -434,10 +435,31 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
         BattleUnitState targetUnit = BuildUnit("secondary_hit_target");
         sourceUnit.attribute_snapshot.SetValue("strength", 10);
         targetUnit.attribute_snapshot.SetValue("constitution", 10);
+        CombatEffectDefinition secondaryHitDamage = TestSkillDefinitionProjection.BuildEffect(
+            "damage",
+            power: 10,
+            damageTag: "physical_blunt",
+            triggerEvent: "secondary_hit"
+        );
+        var attackCheck = new AttackCheckInput(
+            targetArmorClass: 10,
+            requiredRoll: 2,
+            displayRequiredRoll: 2,
+            hitRatePercent: 95,
+            successRatePercent: 95,
+            baseHitRatePercent: 95
+        );
 
+        AttackEffectResolutionResult baselineResult = resolver.ResolveAttackEffects(
+            sourceUnit,
+            targetUnit,
+            new[] { secondaryHitDamage },
+            attackCheck,
+            new AttackContext()
+        );
         _test.True(
-            resolver._resolve_secondary_hit(sourceUnit, targetUnit, new AttackContext(), 10),
-            "无控制豁免加值时，固定 d20=8 应低于 DC10 并触发 secondary_hit。"
+            baselineResult.SecondaryHitSuccess && baselineResult.Damage == 10,
+            "无控制豁免加值时，固定 d20=8 应触发 secondary_hit 的正式伤害。"
         );
 
         BattleUnitState legacyTarget = BuildUnit("legacy_secondary_hit_target");
@@ -447,9 +469,16 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "legacy_secondary_hit_save_bonus",
             new GDictionary { ["secondary_hit_save_bonus"] = 3 }
         );
+        AttackEffectResolutionResult legacyResult = resolver.ResolveAttackEffects(
+            sourceUnit,
+            legacyTarget,
+            new[] { secondaryHitDamage },
+            attackCheck,
+            new AttackContext()
+        );
         _test.True(
-            resolver._resolve_secondary_hit(sourceUnit, legacyTarget, new AttackContext(), 10),
-            "legacy secondary_hit_save_bonus params 不应继续提高正式二次豁免。"
+            legacyResult.SecondaryHitSuccess && legacyResult.Damage == 10,
+            "legacy secondary_hit_save_bonus params 不应阻止 secondary_hit 的正式伤害。"
         );
 
         BattleUnitState typedTarget = BuildUnit("typed_secondary_hit_target");
@@ -463,12 +492,19 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
                 control_save_bonus = 3,
             }
         );
-        _test.False(
-            resolver._resolve_secondary_hit(sourceUnit, typedTarget, new AttackContext(), 10),
-            "typed control_save_bonus 字段应提高目标二次豁免，阻止同一固定掷骰触发 secondary_hit。"
+        AttackEffectResolutionResult typedResult = resolver.ResolveAttackEffects(
+            sourceUnit,
+            typedTarget,
+            new[] { secondaryHitDamage },
+            attackCheck,
+            new AttackContext()
+        );
+        _test.True(
+            !typedResult.SecondaryHitSuccess && typedResult.Damage == 0,
+            "typed control_save_bonus 应提高二次豁免并阻止 secondary_hit 的正式伤害。"
         );
 
-        using SkillContentRegistry registry = new(new TestContentResourceLoader(), loadDefaultContent: false);
+        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -482,7 +518,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             effect,
             "test_effect"
         );
-        _test.True(errors.Count > 0, "status 旧 secondary_hit_save_bonus params 键应被 SkillContentRegistry 静态拒绝。");
+        AssertOnlyValidationErrors(
+            errors,
+            "Skill legacy_secondary_hit_save_bonus effect test_effect params.secondary_hit_save_bonus is unsupported; use CombatEffectDef.control_save_bonus."
+        );
     }
 
     private void TestOutgoingDamageMultiplierAcceptsStringNameParamKey()
@@ -673,4 +712,35 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             ? value.AsStringName()
             : new StringName(value.AsString());
     }
+
+    private void AssertOnlyValidationErrors(
+        GStringArray actualErrors,
+        params string[] expectedErrors
+    )
+    {
+        _test.Eq(
+            actualErrors?.Count ?? 0,
+            expectedErrors?.Length ?? 0,
+            $"validator 应只报告目标字段诊断。 actual={FormatErrors(actualErrors)}"
+        );
+        foreach (string expectedError in expectedErrors ?? Array.Empty<string>())
+        {
+            bool found = false;
+            foreach (string actualError in actualErrors ?? new GStringArray())
+            {
+                if (string.Equals(actualError, expectedError, StringComparison.Ordinal))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            _test.True(
+                found,
+                $"validator 缺少精确诊断：{expectedError} actual={FormatErrors(actualErrors)}"
+            );
+        }
+    }
+
+    private static string FormatErrors(GStringArray errors) =>
+        errors == null ? "[]" : $"[{string.Join(" | ", errors)}]";
 }

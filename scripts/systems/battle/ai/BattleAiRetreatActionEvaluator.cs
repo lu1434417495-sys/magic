@@ -77,6 +77,14 @@ internal sealed class BattleAiRetreatActionEvaluator
             );
         }
 
+        // Reachability depends only on the actor, so flood-fill once for every focus target.
+        List<KeyValuePair<Vector2I, int>> retreatDestinations =
+            BattleAiActionEvaluatorUtilities.SortReachableAnchorCosts(
+                BattleAiActionEvaluatorUtilities.CollectReachableAnchorCosts(context, actor)
+            );
+        if (retreatDestinations.Count == 0)
+            return Fail(context, trace, "no_reachable_destination");
+
         IEnumerable<BattleUnitState> focusTargets = action.UseDynamicThreatSafeDistance
             ? new[] { dynamicFocusTarget }
             : targets;
@@ -120,32 +128,13 @@ internal sealed class BattleAiRetreatActionEvaluator
                 )
             );
             BattleAiDecision bestDecision = null;
-            BattleGridService grid = context.grid_service;
-            BattleState state = context.state;
-            foreach (
-                Vector2I neighbor in grid.GetNeighbors4(
-                    state,
-                    actor.GetAnchorCoord()
-                )
-            )
+            foreach ((Vector2I destination, int moveCost) in retreatDestinations)
             {
-                if (
-                    !grid.CanTraverse(
-                        state,
-                        actor.GetAnchorCoord(),
-                        neighbor,
-                        actor
-                    )
-                )
-                    continue;
-                int moveCost = Mathf.Max(context.GetMoveCost(actor, neighbor), 1);
-                if (moveCost > moveBudget)
-                    continue;
                 EnemyAiActionHelper.TraceCountIncrement(trace, "evaluation_count");
-                BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(context, neighbor);
+                BattleCommand command = EnemyAiActionHelper.BuildMoveCommand(context, destination);
                 BattlePreview preview = BattleAiActionEvaluatorUtilities.BuildFastMovePreview(
                     context,
-                    neighbor,
+                    destination,
                     moveCost
                 );
                 if (preview?.allowed != true)
@@ -162,7 +151,7 @@ internal sealed class BattleAiRetreatActionEvaluator
                     preview,
                     BuildPositionMetadata(
                         focusTarget,
-                        neighbor,
+                        destination,
                         resolvedSafeDistance,
                         includeMoveCost: false
                     )
@@ -172,7 +161,7 @@ internal sealed class BattleAiRetreatActionEvaluator
                     EnemyAiActionHelper.TraceOfferCandidate(
                         trace,
                         EnemyAiActionHelper.BuildCandidateSummary(
-                            $"retreat_to_{neighbor.X}_{neighbor.Y}",
+                            $"retreat_to_{destination.X}_{destination.Y}",
                             command,
                             scoreInput,
                             new Dictionary<string, object>(StringComparer.Ordinal)

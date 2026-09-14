@@ -1,18 +1,21 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Godot;
 using Godot.Collections;
 using VT = Godot.Variant.Type;
 
 public class SkillContentRegistry : System.IDisposable
 {
-    private const string SkillConfigDirectory = "res://data/configs/skills";
+    private const string SkillConfigDirectory = "res://data/configs/json/skills";
     internal const int TuGranularity = 5;
 
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
 
-    public Dictionary _skill_defs { get; set; } = new();
-    private readonly IContentResourceLoader _resourceLoader;
     private readonly List<string> _validationErrors = new();
+    private readonly System.Collections.Generic.Dictionary<StringName, SkillImportModel>
+        _skillImports = new();
+    private readonly System.Collections.Generic.Dictionary<StringName, SkillDefinition>
+        _skillDefinitions = new();
     public Array<string> _validation_errors
     {
         get => ToGodotStringArray(_validationErrors);
@@ -29,21 +32,17 @@ public class SkillContentRegistry : System.IDisposable
     private readonly SkillDamageEffectValidator _damageEffectValidator = new();
     private readonly SkillExecuteEffectValidator _executeEffectValidator = new();
     private readonly SkillCombatProfileValidator _combatProfileValidator;
+    private readonly SkillImportModelValidator _importModelValidator = new();
 
-    internal SkillContentRegistry(IContentResourceLoader resourceLoader)
-        : this(resourceLoader, loadDefaultContent: true) { }
+    internal SkillContentRegistry()
+        : this(loadDefaultContent: true) { }
 
-    internal SkillContentRegistry(
-        IContentResourceLoader resourceLoader,
-        bool loadDefaultContent
-    )
+    internal SkillContentRegistry(bool loadDefaultContent)
     {
         _combatProfileValidator = new SkillCombatProfileValidator(
             _damageEffectValidator,
             _executeEffectValidator
         );
-        _resourceLoader = resourceLoader
-            ?? throw new System.ArgumentNullException(nameof(resourceLoader));
         if (loadDefaultContent)
             Rebuild();
     }
@@ -65,7 +64,8 @@ public class SkillContentRegistry : System.IDisposable
             return;
         }
         _disposed = true;
-        _skill_defs.Clear();
+        _skillImports.Clear();
+        _skillDefinitions.Clear();
         _validationErrors.Clear();
     }
 
@@ -76,38 +76,29 @@ public class SkillContentRegistry : System.IDisposable
 
     public void LoadFromDirectory(string directoryPath)
     {
-        _skill_defs.Clear();
+        _skillImports.Clear();
+        _skillDefinitions.Clear();
         _validationErrors.Clear();
         ScanDirectory(directoryPath);
         AppendArray(_validationErrors, CollectValidationErrors());
-    }
-
-    internal Dictionary DuplicateSkillResourceBucketForProgressionRegistry()
-    {
-        return _skill_defs.Duplicate();
-    }
-
-    private IReadOnlyDictionary<StringName, SkillDef> BuildSkillDefIndex()
-    {
-        var result = new System.Collections.Generic.Dictionary<StringName, SkillDef>();
-        foreach (Variant key in _skill_defs.Keys)
+        foreach (
+            KeyValuePair<StringName, SkillImportModel> pair in _skillImports
+        )
         {
-            if (key.VariantType != VT.StringName)
-                continue;
-            StringName skillId = key.AsStringName();
-            if (skillId == default || skillId == (StringName)"")
-                continue;
-            SkillDef skillDef = GetTyped<SkillDef>(_skill_defs, skillId);
-            if (skillDef == null)
-                continue;
-            result[skillId] = skillDef;
+            _skillDefinitions.Add(
+                pair.Key,
+                SkillDefinitionProjector.Project(pair.Value)
+            );
         }
-        return result;
     }
 
     internal IReadOnlyDictionary<StringName, SkillDefinition> GetSkillDefinitionsTyped()
     {
-        return SkillDefinition.ProjectIndex(BuildSkillDefIndex());
+        return new ReadOnlyDictionary<StringName, SkillDefinition>(
+            new System.Collections.Generic.Dictionary<StringName, SkillDefinition>(
+                _skillDefinitions
+            )
+        );
     }
 
     public Array<string> Validate()
@@ -138,86 +129,32 @@ public class SkillContentRegistry : System.IDisposable
 
     private void ScanDirectory(string directoryPath)
     {
-        if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
+        ContentImportBatch<SkillImportModel> batch =
+            SkillContentJsonAuthoringDomain.CreateImportDescriptor(
+                directoryPath,
+                new GodotContentJsonSourceReader()
+            ).Import();
+        foreach (ContentJsonDiagnostic diagnostic in batch.Diagnostics)
         {
-            _validationErrors.Add($"SkillContentRegistry could not find {directoryPath}.");
+            _validationErrors.Add(
+                $"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}"
+            );
+        }
+        if (batch.HasErrors)
             return;
-        }
-
-        DirAccess directory = DirAccess.Open(directoryPath);
-        if (directory == null)
+        foreach (ContentImportEntry<SkillImportModel> entry in batch.Entries)
         {
-            _validationErrors.Add($"SkillContentRegistry could not open {directoryPath}.");
-            return;
+            StringName skillId = entry.Import.SkillId.Value;
+            if (!_skillImports.TryAdd(skillId, entry.Import))
+                _validationErrors.Add($"Duplicate skill_id registered: {skillId}");
         }
-
-        try
-        {
-            directory.ListDirBegin();
-            while (true)
-            {
-                string entryName = directory.GetNext();
-                if (string.IsNullOrEmpty(entryName))
-                    break;
-                if (entryName == "." || entryName == "..")
-                    continue;
-
-                string entryPath = $"{directoryPath}/{entryName}";
-                if (directory.CurrentIsDir())
-                {
-                    ScanDirectory(entryPath);
-                    continue;
-                }
-                if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
-                    continue;
-                RegisterSkillResource(entryPath);
-            }
-            directory.ListDirEnd();
-        }
-        finally
-        {
-            GodotObjectLifecycle.DisposeGodotObject(directory);
-        }
-    }
-
-    private void RegisterSkillResource(string resourcePath)
-    {
-        Resource resource = _resourceLoader.LoadCanonical<Resource>(resourcePath);
-        if (resource == null)
-        {
-            _validationErrors.Add($"Failed to load skill config {resourcePath}.");
-            return;
-        }
-        if (resource is not SkillDef skillDef)
-        {
-            _validationErrors.Add($"Skill config {resourcePath} is not a SkillDef.");
-            return;
-        }
-        if (skillDef.skill_id == "")
-        {
-            _validationErrors.Add($"Skill config {resourcePath} is missing skill_id.");
-            return;
-        }
-        if (_skill_defs.ContainsKey(skillDef.skill_id))
-        {
-            _validationErrors.Add($"Duplicate skill_id registered: {skillDef.skill_id}");
-            return;
-        }
-
-        _skill_defs[skillDef.skill_id] = skillDef;
     }
 
     private Array<string> CollectValidationErrors()
     {
         var errors = new Array<string>();
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_skill_defs))
-        {
-            var skillId = new StringName(skillKey);
-            var skillDef = GetTyped<SkillDef>(_skill_defs, skillId);
-            if (skillDef == null)
-                continue;
-            AppendSkillValidationErrors(errors, skillId, skillDef);
-        }
+        foreach (string message in _importModelValidator.ValidateBatchMessages(_skillImports))
+            errors.Add(message);
         return errors;
     }
 
@@ -291,7 +228,9 @@ public class SkillContentRegistry : System.IDisposable
         _combatProfileValidator.AppendPhantasmalKillCombatProfileValidationErrors(errors, skillId, skillDef);
 
         if (skillDef.combat_profile != null)
+        {
             _combatProfileValidator.AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
+        }
     }
 
     private void AppendPracticeSkillValidationErrors(
@@ -839,14 +778,6 @@ public class SkillContentRegistry : System.IDisposable
             Vector2I coord => Variant.From(coord),
             _ => Variant.From(key?.ToString() ?? ""),
         };
-    }
-
-    private static T GetTyped<T>(Dictionary dictionary, StringName key)
-        where T : class
-    {
-        if (dictionary.ContainsKey(key))
-            return dictionary[key].AsGodotObject() as T;
-        return null;
     }
 
     private static void AppendArray(List<string> target, Array<string> source)

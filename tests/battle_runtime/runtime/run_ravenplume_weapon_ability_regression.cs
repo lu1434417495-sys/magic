@@ -76,15 +76,12 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
         _test.True(fixture.Bindings.ContainsKey(CrowClamorBindingId), "真实装备能力内容应包含群鸦喧嚣 binding。");
         _test.True(fixture.SkillDefs.ContainsKey(CrowFeastSkillId), "真实技能内容应包含群鸦之宴装备技能。");
 
-        ItemDef rawItem = ResourceLoader.Load<ItemDef>(
-            "res://data/configs/items/weapon_unique_shortsword_ravenplume.tres"
-        );
+        ItemDefinition rawItem = TestItemDefinitionLookup.GetProductionItem("weapon_unique_sword_ravenplume_017");
         _test.True(rawItem != null, "鸦羽原始资源应能加载。");
         if (rawItem != null)
         {
-            _test.Eq(rawItem.base_item_id, new StringName("weapon_type_shortsword_base"), "鸦羽应继承 shortsword 模板。");
-            _test.Eq(rawItem.base_price, 62000, "鸦羽价格应落成 62000。");
-            _test.True(ContainsStringName(rawItem.tags, "ravenplume"), "鸦羽物品 tag 应包含 ravenplume。");
+            _test.Eq(rawItem.BasePrice, 62000, "鸦羽价格应落成 62000。");
+            _test.True(ContainsStringName(rawItem.Tags, "ravenplume"), "鸦羽物品 tag 应包含 ravenplume。");
         }
 
         BattleUnitState equipped = fixture.BuildRavenplumeUnit("projection");
@@ -265,8 +262,12 @@ public partial class run_ravenplume_weapon_ability_regression : LifecycleTestSce
             "ravenplume_crow_feast"
         );
         _test.True(
-            feastTarget.GetCurrentHp() <= 0 || !feastTarget.IsAlive(),
-            $"群鸦之宴应造成 4D6 necrotic 伤害并击杀 1HP 目标。 logs={JoinLogs(feastBatch)}"
+            feastTarget.GetCurrentHp() <= 0,
+            $"群鸦之宴应把 1HP 目标生命降至零。 logs={JoinLogs(feastBatch)}"
+        );
+        _test.False(
+            feastTarget.IsAlive(),
+            $"群鸦之宴应把 1HP 目标标记为死亡。 logs={JoinLogs(feastBatch)}"
         );
         _test.Eq(
             CountLivingCrows(state, holder),

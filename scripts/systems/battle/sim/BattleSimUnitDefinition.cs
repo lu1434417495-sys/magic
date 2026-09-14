@@ -10,8 +10,7 @@ using Godot;
 internal sealed class BattleSimUnitDefinition
 {
     private readonly IReadOnlyDictionary<string, object> _unitSnapshot;
-    private readonly BattleUnitEquipmentAbilityProjectionSeed
-        _equipmentAbilityProjectionSeed;
+    private readonly BattleUnitEquipmentAbilityProjectionSeed _equipmentAbilityProjectionSeed;
 
     private BattleSimUnitDefinition(
         IReadOnlyDictionary<string, object> unitSnapshot,
@@ -26,15 +25,12 @@ internal sealed class BattleSimUnitDefinition
             string.IsNullOrWhiteSpace(sourceLabel) ? "battle_sim_unit" : sourceLabel
         );
         _equipmentAbilityProjectionSeed =
-            (
-                equipmentAbilityProjectionSeed
-                ?? BattleUnitEquipmentAbilityProjectionSeed.Empty
-            ).DeepClone();
+            (equipmentAbilityProjectionSeed ?? BattleUnitEquipmentAbilityProjectionSeed.Empty)
+            .DeepClone();
         Coord = coord;
     }
 
     internal Vector2I Coord { get; }
-
     internal IReadOnlyDictionary<string, object> UnitSnapshot => _unitSnapshot;
 
     internal static BattleSimUnitDefinition FromProjectedState(
@@ -43,9 +39,7 @@ internal sealed class BattleSimUnitDefinition
     )
     {
         ArgumentNullException.ThrowIfNull(unitState);
-        string label = string.IsNullOrWhiteSpace(sourceLabel)
-            ? "battle_sim_unit"
-            : sourceLabel;
+        string label = string.IsNullOrWhiteSpace(sourceLabel) ? "battle_sim_unit" : sourceLabel;
         return new BattleSimUnitDefinition(
             unitState.BuildSnapshotPlain(),
             unitState.CaptureEquipmentAbilityProjectionSeedTyped(),
@@ -55,12 +49,7 @@ internal sealed class BattleSimUnitDefinition
     }
 
     internal BattleSimUnitDefinition DeepClone(string sourceLabel) =>
-        new(
-            _unitSnapshot,
-            _equipmentAbilityProjectionSeed,
-            Coord,
-            sourceLabel
-        );
+        new(_unitSnapshot, _equipmentAbilityProjectionSeed, Coord, sourceLabel);
 
     internal BattleUnitState CreateRuntimeState()
     {

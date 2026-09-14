@@ -105,7 +105,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertBatchNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "1242:45ece03f9ebc37f0bf9805b429515be1b8788094ef2da18673fa9022c4396d1f",
+                "1413:18f944277777e9de68896417ad2efc40e4a7779b084db67b20853bec9dd79d4f",
                 "event batch fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -159,8 +159,36 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,fate_preview,save_branch_preview,special_profile_gate_result,special_profile_preview_facts",
+                "allowed,log_lines,target_unit_ids,target_coords,source_retreat_path,source_advance_path,random_chain_candidate_unit_ids,resolved_anchor_coord,move_cost,hit_preview,damage_preview,status_contribution_previews,fate_preview,save_branch_preview,equipment_ability_preview,terrain_contact_preview,shield_preview,equipment_durability_preview,forced_move_preview,position_swap_preview,ranged_weapon_reaction_preview,chain_damage_preview,special_profile_gate_result,special_profile_preview_facts",
                 "preview"
+            );
+            using GDictionary shieldPreview =
+                lease.Value["shield_preview"].AsGodotDictionary();
+            _test.Eq(
+                shieldPreview.Count,
+                0,
+                "Non-shield preview fixture must project an empty shield value object."
+            );
+            using GDictionary equipmentDurabilityPreview =
+                lease.Value["equipment_durability_preview"].AsGodotDictionary();
+            _test.Eq(
+                equipmentDurabilityPreview.Count,
+                0,
+                "Non-durability preview fixture must project an empty durability value object."
+            );
+            using GDictionary forcedMovePreview =
+                lease.Value["forced_move_preview"].AsGodotDictionary();
+            _test.Eq(
+                forcedMovePreview.Count,
+                0,
+                "Non-forced-move preview fixture must project an empty typed value object."
+            );
+            using GDictionary rangedWeaponReactionPreview =
+                lease.Value["ranged_weapon_reaction_preview"].AsGodotDictionary();
+            _test.Eq(
+                rangedWeaponReactionPreview.Count,
+                0,
+                "Non-ranged-weapon preview fixture must project an empty typed value object."
             );
             using GDictionary saveBranch =
                 lease.Value["save_branch_preview"].AsGodotDictionary();
@@ -172,7 +200,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             AssertPreviewNestedSchema(lease.Value);
             AssertGolden(
                 lease.Value,
-                "1872:fd2e026030ad7929c5a112cda28efd18e826a4174a02ea0df237b807d8bc5f7a",
+                "2909:a1923069a30f945199214137584bbf550c2c042a255cb7a39cb257e5d7b40443",
                 "preview fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -271,20 +299,24 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             );
             AssertOrder(
                 lease.Value,
-                "applied,pre_save_damage,post_save_damage,damage,hp_damage,healing,incoming_budget_damage,shield_absorbed,shield_broken,shield_hp_before,shield_hp_after,damage_events,equipment_durability_events,dispel_events,damage_dice_high_total_roll,skill_damage_dice_is_max,weapon_damage_dice_is_max,status_effect_ids,removed_status_effect_ids,source_status_effect_ids,terrain_effect_ids,height_delta,diagnostics,save_estimates,stable_lethal,lethal_probability_basis_points,roll_mode,save_mode,save_estimate,source_preview_after,target_preview_after",
+                "applied,pre_save_damage,post_save_damage,damage,hp_damage,healing,incoming_budget_damage,shield_absorbed,shield_broken,shield_hp_before,shield_hp_after,damage_events,equipment_durability_events,dispel_events,damage_dice_high_total_roll,skill_damage_dice_is_max,weapon_damage_dice_is_max,status_effect_ids,removed_status_effect_ids,source_status_effect_ids,terrain_effect_ids,height_delta,diagnostics,save_estimates,stable_lethal,lethal_probability_basis_points,fatal_intercept_probability_basis_points,expected_survival_hp,fatal_intercept_preview,equipment_action_previews,roll_mode,save_mode,save_estimate,source_preview_after,target_preview_after",
                 "damage result"
             );
             using GDictionary sourceAfter =
                 lease.Value["source_preview_after"].AsGodotDictionary();
             AssertOrder(
                 sourceAfter,
-                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_texture_path,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects",
+                "unit_id,source_member_id,enemy_template_id,encounter_actor_id,display_name,battle_sprite_asset_id,faction_id,control_mode,ai_brain_id,ai_state_id,cognition_kind,coord,body_size,body_size_category,footprint_size,occupied_coords,is_alive,attribute_snapshot,equipment_view,current_hp,current_mp,current_stamina,current_aura,aura_max,current_ap,current_move_points,unlocked_combat_resource_ids,stamina_recovery_progress,is_resting,has_taken_action_this_turn,can_use_locked_move_points_this_turn,current_shield_hp,shield_max_hp,shield_duration,shield_family,shield_source_unit_id,shield_source_skill_id,action_progress,action_threshold,known_active_skill_ids,known_skill_level_map,known_skill_lock_hit_bonus_map,movement_tags,vision_tags,proficiency_tags,save_advantage_tags,save_disadvantage_tags,save_immunity_tags,damage_resistances,save_bonus_by_ability,save_bonus_by_tag,effective_trait_instances,effective_trait_ids,equipment_ability_sources,creature_type_tags,versatility_pick,weapon_profile_kind,weapon_item_id,weapon_profile_type_id,weapon_range_type,weapon_family,weapon_current_grip,weapon_attack_range,weapon_one_handed_dice,weapon_two_handed_dice,weapon_is_versatile,weapon_uses_two_hands,weapon_physical_damage_tag,cooldowns,last_turn_tu,status_effects,reaction_state,counterattack_capability_state",
                 "damage source unit snapshot"
             );
             AssertDamageNestedSchema(lease.Value);
+            // 2026-08-15 行动节奏敏捷派生：payload 含两个单位的 action_threshold，
+            // 默认值 120 -> 40，各短 1 字符。
+            // 2026-08-16 单位快照新增 save_bonus_by_tag flat key：payload 含两个单位，
+            // 各多一个空 map key（含分隔逗号各 23 字符）。
             AssertGolden(
                 lease.Value,
-                "5419:eb06bea90f9f169f2befa5498d578bb9429015cbee371d5e39d4ea6609310e19",
+                "6055:58ee1ffcc1aee3d2b77bd3a6c69da2a9370428257853b81976c7f9ebd1ec7cd3",
                 "damage result fixed JSON golden"
             );
             fingerprint = Json.Stringify(lease.Value);
@@ -487,7 +519,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary choice = choices[0].AsGodotDictionary();
         AssertOrder(
             choice,
-            "trigger_skill_ids,candidate_profession_ids,target_rank_map,qualifier_skill_pool_ids,assignable_skill_candidate_ids,required_qualifier_count,required_assigned_core_count",
+            "trigger_skill_ids,candidate_profession_ids,target_rank_map,qualifier_skill_pool_ids,assignable_skill_candidate_ids,required_qualifier_count,required_assigned_core_count,selection",
             "event batch pending profession choice"
         );
         using GArray mastery = delta["mastery_changes"].AsGodotArray();
@@ -518,7 +550,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary hit = root["hit_preview"].AsGodotDictionary();
         AssertOrder(
             hit,
-            "summary_text,source,hit_rate_percent,success_rate_percent,base_hit_rate_percent,force_hit_no_crit,force_critical_on_hit,crit_locked,stage_hit_rates,stage_success_rates,stage_base_hit_rates,stage_required_rolls,stage_preview_texts,attack_roll_modifier_breakdown",
+            "summary_text,source,hit_rate_percent,success_rate_percent,base_hit_rate_percent,force_hit_no_crit,force_critical_on_hit,crit_locked,stage_hit_rates,stage_success_rates,stage_base_hit_rates,stage_required_rolls,stage_preview_texts,stage_reach_probability_basis_points,stage_damage_multiplier_percent,repeat_attack_expected_damage_basis_points,repeat_attack_potential_damage_basis_points,attack_roll_modifier_breakdown",
             "preview hit facts"
         );
         using GDictionary damage = root["damage_preview"].AsGodotDictionary();
@@ -547,6 +579,34 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             "kind,branch,save_tag,save_ability,save_dc,save_advantage_state,save_success_chance_basis_points,hit_chance_basis_points,threshold,current_hp,max_hp,failure_branch_text,success_branch_text,summary_text,variant_id,details",
             "preview save branch with residual"
         );
+        using GDictionary chain = root["chain_damage_preview"].AsGodotDictionary();
+        AssertOrder(
+            chain,
+            "primary_target_unit_id,normal_reached_target_count,summary_text,normal_hops,backlash_hops",
+            "preview chain damage facts"
+        );
+        _test.Eq(
+            chain["primary_target_unit_id"].VariantType,
+            Variant.Type.StringName,
+            "Chain preview unit ids must keep their StringName type."
+        );
+        _test.Eq(
+            chain["normal_reached_target_count"].AsInt32(),
+            2,
+            "Chain preview reached count must include the primary and unblocked normal hop."
+        );
+        using GArray normalHops = chain["normal_hops"].AsGodotArray();
+        using GArray backlashHops = chain["backlash_hops"].AsGodotArray();
+        _test.Eq(normalHops.Count, 1, "Chain preview golden must include a normal hop.");
+        _test.Eq(backlashHops.Count, 1, "Chain preview golden must include a backlash hop.");
+        using GDictionary normalHop = normalHops[0].AsGodotDictionary();
+        using GDictionary backlashHop = backlashHops[0].AsGodotDictionary();
+        const string hopOrder =
+            "hop_index,origin_unit_id,origin_coord,target_unit_id,target_coord,distance,outgoing_range,origin_was_conductive,blocked";
+        AssertOrder(normalHop, hopOrder, "preview normal chain hop");
+        AssertOrder(backlashHop, hopOrder, "preview backlash chain hop");
+        _test.False(normalHop["blocked"].AsBool(), "Normal chain golden hop must be reachable.");
+        _test.True(backlashHop["blocked"].AsBool(), "Backlash chain golden must exercise a blocked hop.");
     }
 
     private void AssertDamageNestedSchema(GDictionary root)
@@ -554,7 +614,7 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         using GDictionary estimate = root["save_estimate"].AsGodotDictionary();
         AssertOrder(
             estimate,
-            "has_save,damage_before_save,damage_after_save,damage_after_save_estimate,damage_after_save_worst,damage_on_save_failure,damage_on_save_success,save_partial_on_success,save_success_probability_basis_points,save_success_rate_percent,save_failure_probability_basis_points,dc,ability,save_tag,advantage_state,ability_value,ability_modifier,bonus,immune,sources",
+            "has_save,damage_before_save,damage_after_save,damage_after_save_estimate,damage_after_save_worst,damage_on_save_failure,damage_on_save_success,save_partial_on_success,save_success_probability_basis_points,save_success_rate_percent,save_failure_probability_basis_points,dc,ability,save_tag,advantage_state,ability_value,ability_modifier,bonus,immune,sources,save_failure_status_outcomes",
             "damage save estimate"
         );
         _test.True(estimate["has_save"].AsBool(), "Damage golden must exercise HasSave.");
@@ -562,6 +622,12 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         _test.Eq(sources.Count, 1, "Damage golden must exercise save sources.");
         using GDictionary source = sources[0].AsGodotDictionary();
         AssertOrder(source, "source_id,type,tag,mode", "damage save source");
+        using GArray weightedOutcomes = estimate["save_failure_status_outcomes"].AsGodotArray();
+        _test.Eq(
+            weightedOutcomes.Count,
+            0,
+            "Damage golden without weighted failure content must project an empty outcome list."
+        );
         using GArray estimates = root["save_estimates"].AsGodotArray();
         _test.Eq(estimates.Count, 1, "Damage golden save estimate list drifted.");
     }
@@ -663,6 +729,8 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         {
             required_qualifier_count = 1,
             required_assigned_core_count = 1,
+            DefaultSelection = new PromotionCommitRequest("skill_a", 2,
+                new StringName[] { "skill_b" }, new StringName[] { "skill_a" }),
         };
         choice.AddTriggerSkillId("skill_a");
         choice.AddCandidateProfessionId("mage");
@@ -774,6 +842,40 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
                     },
                 },
             }
+        );
+        preview.SetChainDamagePreview(
+            new BattleChainDamagePreviewData(
+                "unit_a",
+                new BattleChainDamagePreviewHopData[]
+                {
+                    new(
+                        1,
+                        "unit_a",
+                        new Vector2I(2, 3),
+                        "unit_b",
+                        new Vector2I(3, 3),
+                        1,
+                        1,
+                        false,
+                        false
+                    ),
+                },
+                new BattleChainDamagePreviewHopData[]
+                {
+                    new(
+                        1,
+                        "unit_a",
+                        new Vector2I(2, 3),
+                        "unit_c",
+                        new Vector2I(4, 3),
+                        2,
+                        2,
+                        true,
+                        true
+                    ),
+                },
+                "unit_a → unit_b"
+            )
         );
         preview.special_profile_gate_result.DebugDetails["labels"] =
             new List<string> { "fixture" };

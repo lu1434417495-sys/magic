@@ -70,18 +70,8 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
         if (durabilityPayload == null)
             return;
 
-        System.Reflection.PropertyInfo maxTargetRarityProperty =
-            typeof(EquipmentDurabilityDamageActionPayloadDefinition).GetProperty(
-                "MaxTargetRarity"
-            );
-        _test.True(
-            maxTargetRarityProperty != null,
-            "装备耐久 damage payload 必须提供 MaxTargetRarity 类型化字段表达非魔法盾限制。"
-        );
-        if (maxTargetRarityProperty == null)
-            return;
         _test.Eq(
-            (int)maxTargetRarityProperty.GetValue(durabilityPayload),
+            durabilityPayload.MaxTargetRarity,
             (int)EquipmentInstanceState.RarityTier.COMMON,
             "破盾者应通过配置限制只粉碎 common 盾牌。"
         );
@@ -552,20 +542,17 @@ public partial class run_shieldbreaker_guard_breaker_regression : LifecycleTestS
 
         private static ItemDefinition BuildShieldItem(StringName itemId)
         {
-            ItemDef itemResource = TestResourceOwnership.Own(
-                new ItemDef
-                {
-                    item_id = itemId,
-                    display_name = itemId.ToString(),
-                    item_category = "equipment",
-                    equipment_type_id = "armor",
-                    equipment_slot_ids = new Godot.Collections.Array<string> { "off_hand" },
-                    is_stackable = false,
-                    max_stack = 1,
-                    tags = new GStringNameArray { "shield" },
-                },
-                $"ShieldbreakerGuardBreaker.BuildShieldItem.{itemId}"
-            );
+            TestItemDefinitionBuilder itemResource = new()
+            {
+                item_id = itemId,
+                display_name = itemId.ToString(),
+                item_category = "equipment",
+                equipment_type_id = "armor",
+                equipment_slot_ids = new Godot.Collections.Array<string> { "off_hand" },
+                is_stackable = false,
+                max_stack = 1,
+                tags = new GStringNameArray { "shield" },
+            };
             return itemResource.ToDefinition();
         }
     }

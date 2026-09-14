@@ -14,15 +14,15 @@ public partial class run_warrior_repeat_skill_tier_regression : LifecycleTestSce
         {
             SkillDefinition doubleStrike = LoadSkill(
                 "warrior_double_strike",
-                "res://data/configs/skills/warrior_double_strike.tres"
+                "warrior_double_strike"
             );
             SkillDefinition comboStrike = LoadSkill(
                 "warrior_combo_strike",
-                "res://data/configs/skills/warrior_combo_strike.tres"
+                "warrior_combo_strike"
             );
             SkillDefinition saintBladeCombo = LoadSkill(
                 "saint_blade_combo",
-                "res://data/configs/skills/saint_blade_combo.tres"
+                "saint_blade_combo"
             );
             TestDoubleStrikeTier(doubleStrike);
             TestComboStrikeTier(comboStrike);

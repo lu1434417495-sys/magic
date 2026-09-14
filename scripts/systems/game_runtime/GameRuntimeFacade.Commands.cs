@@ -373,6 +373,45 @@ public sealed partial class GameRuntimeFacade
                 )
         );
 
+    internal RuntimeCommandResult CommandExecuteContractBoardActionTyped(
+        SettlementContractBoardActionRequest request
+    ) =>
+        ExecuteLoggedCommandTyped(
+            "settlement.execute_action",
+            "settlement",
+            new GDictionary
+            {
+                ["settlement_id"] = SettlementActionRequest.ToText(request.Action.SettlementId),
+                ["service_id"] = SettlementActionRequest.ToText(request.Action.ServiceId),
+                ["action_id"] = SettlementActionRequest.ToText(request.Action.ActionId),
+                ["quest_id"] = SettlementActionRequest.ToText(request.QuestId),
+                ["confirm_accept"] = request.ConfirmAccept,
+                ["submission_source"] = SettlementSubmissionSources.ToPayloadValue(
+                    SettlementSubmissionSource.ContractBoard
+                ),
+            },
+            () =>
+                _settlement_command_handler.CommandExecuteContractBoardActionRuntimeTyped(
+                    request
+                )
+        );
+
+    internal RuntimeCommandResult CommandExecuteShopActionTyped(
+        SettlementShopActionRequest request
+    ) =>
+        ExecuteLoggedCommandTyped(
+            request.ActionKind == SettlementShopActionKind.Sell ? "shop.sell" : "shop.buy",
+            "shop",
+            new GDictionary
+            {
+                ["item_id"] = SettlementActionRequest.ToText(request.ItemId),
+                ["instance_id"] = SettlementActionRequest.ToText(request.InstanceId),
+                ["quantity"] = request.Quantity,
+            },
+            () =>
+                _settlement_command_handler.CommandExecuteShopActionRuntimeTyped(request)
+        );
+
     internal RuntimeCommandResult CommandExecuteSettlementActionTyped(
         string action_id,
         GDictionary payload
@@ -513,14 +552,14 @@ public sealed partial class GameRuntimeFacade
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    internal RuntimeCommandResult CommandChoosePromotionTyped(StringName profession_id) =>
+    internal RuntimeCommandResult CommandChoosePromotionTyped(StringName profession_id, StringName triggerSkillId = default) =>
         ExecuteLoggedCommandTyped(
             "promotion.choose",
             "promotion",
-            new GDictionary { ["profession_id"] = profession_id },
+            new GDictionary { ["profession_id"] = profession_id, ["growth_trigger_skill_id"] = triggerSkillId },
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.CommandChoosePromotionTyped(profession_id)
+                    ? _reward_flow_handler.CommandChoosePromotionTyped(profession_id, triggerSkillId)
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
@@ -652,7 +691,7 @@ public sealed partial class GameRuntimeFacade
     internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         Dictionary<string, object> context = new(StringComparer.Ordinal)
@@ -831,6 +870,7 @@ public sealed partial class GameRuntimeFacade
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
+        RefreshPromotionNotifications(invalidate: true);
         _log_active_command_scope_result(RuntimeCommandResultProjection.Project(result));
         return result;
     }
@@ -844,6 +884,7 @@ public sealed partial class GameRuntimeFacade
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         var result = action?.Invoke() ?? new GDictionary();
+        RefreshPromotionNotifications(invalidate: true);
         return _command_logger.FinishLoggedCommand(result);
     }
 
@@ -852,7 +893,7 @@ public sealed partial class GameRuntimeFacade
 
     private GDictionary _build_runtime_log_state() => _command_logger.BuildRuntimeLogState();
 
-    internal void _log_runtime_event(
+    private void _log_runtime_event(
         GameLogLevel level,
         string domain,
         string event_id,
@@ -860,7 +901,7 @@ public sealed partial class GameRuntimeFacade
     ) =>
         _command_logger.LogRuntimeEvent(level, domain, event_id, message, "");
 
-    internal void _log_runtime_event(
+    private void _log_runtime_event(
         GameLogLevel level,
         string domain,
         string event_id,

@@ -125,10 +125,15 @@ internal static class CombatSkillContentRules
     private static readonly StringName AttackResolutionModeDirectEffect = "direct_effect";
     private static readonly StringName AttackResolutionModeFateAttack = "fate_attack";
     private static readonly StringName AttackResolutionModeForceHitNoCrit = "force_hit_no_crit";
+    private static readonly StringName AttackDefenseModeNormal = "normal";
+    private static readonly StringName AttackDefenseModeTouch = "touch";
+    private static readonly StringName AttackDefenseModeFlatFooted = "flat_footed";
     private static readonly StringName AreaOriginTarget = "target";
     private static readonly StringName AreaOriginCaster = "caster";
     private static readonly StringName AreaOriginAnchorCoord = "anchor_coord";
     private static readonly StringName AreaDirectionTargetVector = "target_vector";
+    private static readonly StringName AreaDirectionTargetVectorPerpendicular =
+        "target_vector_perpendicular";
     private static readonly StringName AreaDirectionCasterFacing = "caster_facing";
 
     internal static CombatSpellFateMode ToSpellFateMode(StringName value)
@@ -162,6 +167,28 @@ internal static class CombatSkillContentRules
         return CombatSkillAttackResolutionMode.Unknown;
     }
 
+    internal static CombatSkillAttackDefenseMode ToAttackDefenseMode(StringName value)
+    {
+        if (value == "" || value == AttackDefenseModeNormal)
+            return CombatSkillAttackDefenseMode.Normal;
+        if (value == AttackDefenseModeTouch)
+            return CombatSkillAttackDefenseMode.Touch;
+        if (value == AttackDefenseModeFlatFooted)
+            return CombatSkillAttackDefenseMode.FlatFooted;
+        return CombatSkillAttackDefenseMode.Unknown;
+    }
+
+    internal static StringName ToStringName(CombatSkillAttackDefenseMode mode)
+    {
+        return mode switch
+        {
+            CombatSkillAttackDefenseMode.Normal => AttackDefenseModeNormal,
+            CombatSkillAttackDefenseMode.Touch => AttackDefenseModeTouch,
+            CombatSkillAttackDefenseMode.FlatFooted => AttackDefenseModeFlatFooted,
+            _ => "",
+        };
+    }
+
     internal static CombatAreaOriginMode ToAreaOriginMode(StringName value)
     {
         if (value == AreaOriginTarget)
@@ -177,6 +204,8 @@ internal static class CombatSkillContentRules
     {
         if (value == AreaDirectionTargetVector)
             return CombatAreaDirectionMode.TargetVector;
+        if (value == AreaDirectionTargetVectorPerpendicular)
+            return CombatAreaDirectionMode.TargetVectorPerpendicular;
         if (value == AreaDirectionCasterFacing)
             return CombatAreaDirectionMode.CasterFacing;
         return CombatAreaDirectionMode.Unknown;

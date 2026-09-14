@@ -408,6 +408,7 @@ public partial class run_wolf_alpha_runtime_behavior_regression : LifecycleTestS
             {
                 weapon_profile_kind = "natural",
                 weapon_profile_type_id = "wolf_alpha_bite",
+                weapon_range_type = "melee",
                 weapon_current_grip = "one_handed",
                 weapon_attack_range = 1,
                 weapon_one_handed_dice = new WeaponDice

@@ -5,9 +5,9 @@ using Godot;
 
 public partial class BattleMapPanel
 {
-    private const string BATTLE_EQUIPMENT_EMPTY_TEXT = "战中队伍共享背包暂无可装备实例。";
+    private const string BATTLE_EQUIPMENT_EMPTY_TEXT = "随身背包中没有可更换的装备。";
     private const string BATTLE_EQUIPMENT_SOURCE_HINT =
-        "来源：战斗局部队伍共享背包（不是据点共享仓库）。";
+        "战斗中可使用队伍随身携带的装备；仓库物品需在据点取出。";
     private const string BATTLE_EQUIPMENT_COMMAND_UNAVAILABLE_TEXT = "战斗换装入口尚未连接运行时。";
 
     private void _ensure_battle_equipment_ui()
@@ -22,7 +22,7 @@ public partial class BattleMapPanel
         if (_battle_equipment_button != null)
         {
             _battle_equipment_button.TooltipText =
-                "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。";
+                "打开队伍随身背包，更换当前成员的装备。";
             _battle_equipment_button.MouseDefaultCursorShape = CursorShape.PointingHand;
             _apply_button_skin(_battle_equipment_button, true, true);
             _battle_equipment_button.Pressed += _open_battle_equipment_panel;
@@ -35,18 +35,26 @@ public partial class BattleMapPanel
             Visible = false,
             MouseFilter = MouseFilterEnum.Stop,
             ZIndex = 1024,
+            Theme = GD.Load<Theme>("res://scenes/ui/styles/chronicle_theme.tres"),
         };
         _set_control_full_rect(_battle_equipment_overlay);
         hudRoot.AddChild(_battle_equipment_overlay);
 
+        // ZIndex affects drawing only; a later sibling such as the log dock can still
+        // consume clicks. Put this modal's visual and input surface on the same canvas.
+        var modalCanvas = new CanvasLayer { Name = "ModalCanvas", Layer = 20, Visible = false };
+        _battle_equipment_overlay.AddChild(modalCanvas);
+        Control modalRoot = _battle_equipment_overlay;
+        modalRoot.VisibilityChanged += () => modalCanvas.Visible = modalRoot.IsVisibleInTree();
+
         var shade = new ColorRect
         {
             Name = "BattleEquipmentShade",
-            Color = new Color(0.03f, 0.015f, 0.01f, 0.76f),
+            Color = new Color(0.018f, 0.023f, 0.03f, 0.48f),
             MouseFilter = MouseFilterEnum.Stop,
         };
         _set_control_full_rect(shade);
-        _battle_equipment_overlay.AddChild(shade);
+        modalCanvas.AddChild(shade);
 
         var center = new CenterContainer
         {
@@ -54,33 +62,28 @@ public partial class BattleMapPanel
             MouseFilter = MouseFilterEnum.Ignore,
         };
         _set_control_full_rect(center);
-        _battle_equipment_overlay.AddChild(center);
+        modalCanvas.AddChild(center);
 
         var panel = new PanelContainer
         {
             Name = "BattleEquipmentPanel",
-            CustomMinimumSize = new Vector2(820, 520),
+            CustomMinimumSize = new Vector2(1000, 600),
             SizeFlagsHorizontal = SizeFlags.ShrinkCenter,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
+            Theme = _battle_equipment_overlay.Theme,
         };
-        panel.AddThemeStyleboxOverride(
-            "panel",
-            _build_panel_style(
-                BattleUiTheme.PANEL_BG_ALT(),
-                BattleUiTheme.PANEL_EDGE(),
-                18,
-                2,
-                new Color(0.0f, 0.0f, 0.0f, 0.48f),
-                14
-            )
-        );
+        var panelStyle = (StyleBox)GD.Load<StyleBox>("res://scenes/ui/styles/chronicle_panel.tres").Duplicate();
+        panelStyle.ContentMarginLeft = panelStyle.ContentMarginRight = 26;
+        panelStyle.ContentMarginTop = panelStyle.ContentMarginBottom = 24;
+        panel.AddThemeStyleboxOverride("panel", panelStyle);
         center.AddChild(panel);
+        ChronicleWindowDecoration.Attach(panel, GD.Load<Texture2D>("res://assets/ui/windows/travel_kit_vignette.png"));
 
         var content = new VBoxContainer { Name = "BattleEquipmentContent" };
         content.AddThemeConstantOverride("separation", 10);
         panel.AddChild(content);
 
-        var header = new HBoxContainer { Name = "BattleEquipmentHeader" };
+        var header = new HBoxContainer { Name = "BattleEquipmentHeader", CustomMinimumSize = new Vector2(0, 72) };
         header.AddThemeConstantOverride("separation", 12);
         content.AddChild(header);
 
@@ -89,7 +92,7 @@ public partial class BattleMapPanel
         header.AddChild(titleStack);
 
         _battle_equipment_title_label = new Label { Name = "BattleEquipmentTitleLabel" };
-        _style_header_label(_battle_equipment_title_label, 22, BattleUiTheme.TEXT_PRIMARY());
+        _battle_equipment_title_label.ThemeTypeVariation = "ChronicleTitle";
         titleStack.AddChild(_battle_equipment_title_label);
 
         _battle_equipment_meta_label = new Label
@@ -105,8 +108,9 @@ public partial class BattleMapPanel
             Name = "BattleEquipmentCloseButton",
             Text = "关闭",
             CustomMinimumSize = new Vector2(82, 30),
+            SizeFlagsVertical = SizeFlags.ShrinkBegin,
         };
-        _apply_button_skin(_battle_equipment_close_button, true);
+        _battle_equipment_close_button.ThemeTypeVariation = "ChronicleQuiet";
         _battle_equipment_close_button.Pressed += _close_battle_equipment_panel;
         header.AddChild(_battle_equipment_close_button);
 
@@ -150,7 +154,7 @@ public partial class BattleMapPanel
         backpackPanel.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         body.AddChild(backpackPanel);
         VBoxContainer backpackLayout = _create_equipment_section_layout(backpackPanel);
-        backpackLayout.AddChild(_create_equipment_section_title("队伍共享背包（战斗局部）"));
+        backpackLayout.AddChild(_create_equipment_section_title("队伍随身背包"));
 
         _battle_equipment_backpack_list = new ItemList
         {
@@ -199,7 +203,7 @@ public partial class BattleMapPanel
             Text = "装备",
             CustomMinimumSize = new Vector2(92, 30),
         };
-        _apply_button_skin(_battle_equipment_equip_button, true, true);
+        _battle_equipment_equip_button.ThemeTypeVariation = "ChroniclePrimary";
         _battle_equipment_equip_button.Pressed += _on_battle_equipment_equip_pressed;
         commandRow.AddChild(_battle_equipment_equip_button);
 
@@ -231,17 +235,14 @@ public partial class BattleMapPanel
             Name = section_name,
             SizeFlagsVertical = SizeFlags.ExpandFill,
         };
-        panel.AddThemeStyleboxOverride(
-            "panel",
-            _build_panel_style(
-                new Color(0.1f, 0.04f, 0.025f, 0.9f),
-                BattleUiTheme.PANEL_EDGE_SOFT(),
-                10,
-                1,
-                new Color(0.0f, 0.0f, 0.0f, 0.22f),
-                10
-            )
-        );
+        panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0.024f, 0.03f, 0.037f, 0.35f),
+            BorderWidthTop = 1,
+            BorderColor = new Color(0.56f, 0.46f, 0.31f, 0.3f),
+            ContentMarginLeft = 12, ContentMarginRight = 12,
+            ContentMarginTop = 14, ContentMarginBottom = 10,
+        });
         return panel;
     }
 
@@ -261,8 +262,7 @@ public partial class BattleMapPanel
     private Label _create_equipment_section_title(string title)
     {
         var label = new Label { Text = title };
-        label.AddThemeFontSizeOverride("font_size", 14);
-        label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
+        label.ThemeTypeVariation = "ChronicleSection";
         return label;
     }
 
@@ -291,7 +291,7 @@ public partial class BattleMapPanel
             bool hasSnapshot = _battleEquipmentSnapshot != null;
             _battle_equipment_button.Disabled = !hasSnapshot;
             _battle_equipment_button.TooltipText = hasSnapshot
-                ? "打开队伍共享背包（战斗局部）；战中不访问据点共享仓库。"
+                ? "打开队伍随身背包，更换当前成员的装备。"
                 : "等待战斗数据。";
         }
         if (_battle_equipment_overlay == null || !_battle_equipment_overlay.Visible)
@@ -302,7 +302,7 @@ public partial class BattleMapPanel
         _battle_equipment_title_label.Text =
             !string.IsNullOrEmpty(battleEquipmentSnapshot?.Title)
                 ? battleEquipmentSnapshot.Title
-                : "队伍共享背包（战斗局部）";
+                : "队伍随身背包";
         _battle_equipment_meta_label.Text =
             !string.IsNullOrEmpty(battleEquipmentSnapshot?.Meta)
                 ? battleEquipmentSnapshot.Meta
@@ -314,7 +314,7 @@ public partial class BattleMapPanel
             _battle_equipment_status_label.Text = disabledReason;
         else
             _battle_equipment_status_label.Text =
-                "选择队伍共享背包中的装备实例，装备到当前行动单位。";
+                "选择队伍随身背包中的装备，装备到当前行动单位。";
         _rebuild_battle_equipment_slot_rows();
         _rebuild_battle_equipment_backpack_list();
         _refresh_battle_equipment_backpack_details();
@@ -362,15 +362,12 @@ public partial class BattleMapPanel
             Name = "BattleEquipmentSlotRow",
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
-        row.AddThemeStyleboxOverride(
-            "panel",
-            _build_panel_style(
-                new Color(0.14f, 0.06f, 0.035f, 0.92f),
-                new Color(0.34f, 0.22f, 0.13f, 0.82f),
-                8,
-                1
-            )
-        );
+        row.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0, 0, 0, 0),
+            BorderWidthBottom = 1,
+            BorderColor = new Color(0.56f, 0.46f, 0.31f, 0.22f),
+        });
 
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 8);
@@ -403,7 +400,7 @@ public partial class BattleMapPanel
         if (string.IsNullOrEmpty(instanceId))
             detailLines.Add("未装备");
         else
-            detailLines.Add($"实例 {instanceId}");
+            detailLines.Add("已装备");
         IReadOnlyList<string> occupiedLabels =
             slot?.OccupiedSlotLabels ?? Array.Empty<string>();
         if (occupiedLabels.Count > 0)
@@ -417,7 +414,7 @@ public partial class BattleMapPanel
         textStack.AddChild(detail);
 
         var button = new Button { Text = "卸下", CustomMinimumSize = new Vector2(62, 28) };
-        _apply_button_skin(button, true);
+        button.ThemeTypeVariation = "ChronicleQuiet";
         string panelDisabledReason = _get_battle_equipment_panel_disabled_reason();
         bool canUnequip =
             string.IsNullOrEmpty(panelDisabledReason)
@@ -503,7 +500,6 @@ public partial class BattleMapPanel
         var lines = new List<string>
         {
             entry?.DisplayName ?? "",
-            $"实例：{entry?.InstanceId ?? ""}",
             BATTLE_EQUIPMENT_SOURCE_HINT,
         };
         IReadOnlyList<string> allowedLabels =
@@ -561,7 +557,7 @@ public partial class BattleMapPanel
                 BATTLE_EQUIPMENT_EMPTY_TEXT + "\n" + BATTLE_EQUIPMENT_SOURCE_HINT;
             _battle_equipment_slot_selector.Disabled = true;
             _battle_equipment_equip_button.Disabled = true;
-            _battle_equipment_equip_button.TooltipText = "请选择战斗局部队伍共享背包中的装备实例。";
+            _battle_equipment_equip_button.TooltipText = "请选择队伍随身背包中的装备。";
             return;
         }
 
@@ -584,7 +580,7 @@ public partial class BattleMapPanel
 
         var detailLines = new List<string>
         {
-            $"{entry.DisplayName}  |  物品 {entry.ItemId}  |  实例 {entry.InstanceId}",
+            entry.DisplayName,
             $"可装备槽位：{(allowedSlotLabels.Count > 0 ? string.Join("、", allowedSlotLabels) : "无")}",
             !string.IsNullOrEmpty(entry.Description) ? entry.Description : "暂无说明。",
             BATTLE_EQUIPMENT_SOURCE_HINT,
@@ -626,7 +622,7 @@ public partial class BattleMapPanel
         if (!string.IsNullOrEmpty(entryDisabledReason))
             return entryDisabledReason;
         if (entry?.CanEquip != true)
-            return "该实例当前不能装备。";
+            return "这件装备当前无法使用。";
         if (StringNameIsEmpty(_selected_backpack_slot_id))
             return "请选择装备槽位。";
         return "";
@@ -659,7 +655,7 @@ public partial class BattleMapPanel
         BattleHudBackpackEntrySnapshot entry = _get_selected_backpack_entry();
         if (entry == null)
         {
-            _set_battle_equipment_feedback("请选择战斗局部队伍共享背包中的装备实例。");
+            _set_battle_equipment_feedback("请选择队伍随身背包中的装备。");
             return;
         }
         string disabledReason = _get_equip_disabled_reason(entry);

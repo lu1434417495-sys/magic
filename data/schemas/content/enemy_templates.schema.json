@@ -1,0 +1,497 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:magic:content-schema:enemy_templates:v1",
+  "title": "Magic enemy template JSON authoring schema",
+  "description": "Strict enemy template contract using content IDs and battle sprite asset IDs.",
+  "$ref": "#/$defs/EnemyTemplateJsonDocumentDto",
+  "$defs": {
+    "EnemyBattleEquipmentJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "current_durability": {
+          "type": "integer"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "rarity": {
+          "type": "integer"
+        },
+        "slot_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "current_durability",
+        "item_id",
+        "rarity",
+        "slot_id"
+      ]
+    },
+    "EnemyDropEntryJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "drop_entry_id": {
+          "type": "string"
+        },
+        "drop_type": {
+          "type": "string"
+        },
+        "item_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "drop_entry_id",
+        "drop_type",
+        "item_id",
+        "quantity"
+      ]
+    },
+    "EnemyTemplateJsonDocumentDto": {
+      "description": "Enemy template document envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "const": "enemy_templates"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyTemplateJsonDto__authoring_template_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        },
+        "family": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "integer",
+          "const": 1
+        },
+        "templates": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/EnemyTemplateJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto"
+          }
+        }
+      },
+      "required": [
+        "domain",
+        "entries",
+        "family",
+        "schema",
+        "templates"
+      ]
+    },
+    "EnemyTemplateJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_equipment_item_id": {
+          "type": "string"
+        },
+        "attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "base_attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "battle_equipment_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyBattleEquipmentJsonDto"
+          }
+        },
+        "battle_sprite_asset_id": {
+          "type": "string"
+        },
+        "body_size": {
+          "type": "integer"
+        },
+        "brain_id": {
+          "type": "string"
+        },
+        "cognition_kind": {
+          "type": "string"
+        },
+        "creature_level": {
+          "type": "integer"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "drop_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyDropEntryJsonDto"
+          }
+        },
+        "enemy_count": {
+          "type": "integer"
+        },
+        "generated_core_skill_count": {
+          "type": "integer"
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "initial_state_id": {
+          "type": "string"
+        },
+        "natural_weapon_attack_range": {
+          "type": "integer"
+        },
+        "natural_weapon_damage_tag": {
+          "type": "string"
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_level_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_rank": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "attack_equipment_item_id",
+        "attribute_overrides",
+        "base_attribute_overrides",
+        "battle_equipment_entries",
+        "battle_sprite_asset_id",
+        "body_size",
+        "brain_id",
+        "cognition_kind",
+        "creature_level",
+        "damage_resistances",
+        "display_name",
+        "drop_entries",
+        "enemy_count",
+        "generated_core_skill_count",
+        "hit_die_sides",
+        "initial_state_id",
+        "natural_weapon_attack_range",
+        "natural_weapon_damage_tag",
+        "save_advantage_tags",
+        "save_disadvantage_tags",
+        "save_immunity_tags",
+        "skill_ids",
+        "skill_level_map",
+        "tags",
+        "target_rank",
+        "template_id"
+      ]
+    },
+    "EnemyTemplateJsonDto__authoring_template_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/EnemyTemplateJsonDto"
+        },
+        {
+          "$ref": "#/$defs/EnemyTemplateJsonDto__templated_template_id_template_with_ContentJsonTemplateReferenceSchemaDto"
+        }
+      ]
+    },
+    "EnemyTemplateJsonDto__partial_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_equipment_item_id": {
+          "type": "string"
+        },
+        "attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "base_attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "battle_equipment_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyBattleEquipmentJsonDto"
+          }
+        },
+        "battle_sprite_asset_id": {
+          "type": "string"
+        },
+        "body_size": {
+          "type": "integer"
+        },
+        "brain_id": {
+          "type": "string"
+        },
+        "cognition_kind": {
+          "type": "string"
+        },
+        "creature_level": {
+          "type": "integer"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "drop_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyDropEntryJsonDto"
+          }
+        },
+        "enemy_count": {
+          "type": "integer"
+        },
+        "generated_core_skill_count": {
+          "type": "integer"
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "initial_state_id": {
+          "type": "string"
+        },
+        "natural_weapon_attack_range": {
+          "type": "integer"
+        },
+        "natural_weapon_damage_tag": {
+          "type": "string"
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_level_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_rank": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      }
+    },
+    "EnemyTemplateJsonDto__templated_template_id_template_with_ContentJsonTemplateReferenceSchemaDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "attack_equipment_item_id": {
+          "type": "string"
+        },
+        "attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "base_attribute_overrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "battle_equipment_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyBattleEquipmentJsonDto"
+          }
+        },
+        "battle_sprite_asset_id": {
+          "type": "string"
+        },
+        "body_size": {
+          "type": "integer"
+        },
+        "brain_id": {
+          "type": "string"
+        },
+        "cognition_kind": {
+          "type": "string"
+        },
+        "creature_level": {
+          "type": "integer"
+        },
+        "damage_resistances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "drop_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnemyDropEntryJsonDto"
+          }
+        },
+        "enemy_count": {
+          "type": "integer"
+        },
+        "generated_core_skill_count": {
+          "type": "integer"
+        },
+        "hit_die_sides": {
+          "type": "integer"
+        },
+        "initial_state_id": {
+          "type": "string"
+        },
+        "natural_weapon_attack_range": {
+          "type": "integer"
+        },
+        "natural_weapon_damage_tag": {
+          "type": "string"
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_level_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_rank": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string",
+          "description": "Optional file-local template identifier consumed and removed by the template merger.",
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "template_id",
+        "template"
+      ]
+    }
+  }
+}

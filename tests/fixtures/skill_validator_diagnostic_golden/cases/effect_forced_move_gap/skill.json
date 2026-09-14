@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "domain": "skills",
+  "family": "effect_forced_move_gap",
+  "templates": {},
+  "entries": [
+    {
+      "skill_id": "diagnostic_forced_move_gap",
+      "display_name": "Diagnostic fixture",
+      "description": "T1a.7 diagnostic fixture.",
+      "tags": [
+        "test"
+      ],
+      "combat_profile": {
+        "skill_id": "diagnostic_forced_move_gap",
+        "effect_defs": [
+          {
+            "effect_type": "forced_move",
+            "payload": {}
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "grapple_ascent"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "airborne_pull",
+            "forced_move_max_target_body_size": 5,
+            "trigger_event": "attack_hit",
+            "save_dc": 10,
+            "save_ability": "strength"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "wind_push",
+            "forced_move_max_target_body_size": 5
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "knockback"
+          },
+          {
+            "effect_type": "forced_move",
+            "payload": {},
+            "forced_move_mode": "jump",
+            "forced_move_distance": -1,
+            "jump_base_budget": -1,
+            "jump_str_scale": -1.0,
+            "jump_arc_ratio": 2.0,
+            "jump_range_multiplier": 0
+          },
+          {
+            "effect_type": "charge",
+            "payload": {},
+            "charge_trap_immunity_min_skill_level": 2
+          }
+        ]
+      },
+      "icon_id": "diagnostic_forced_move_gap",
+      "mastery_curve": [
+        10
+      ]
+    }
+  ]
+}

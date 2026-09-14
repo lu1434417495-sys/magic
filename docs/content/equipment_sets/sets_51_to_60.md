@@ -214,7 +214,7 @@ attribute_modifiers = [
 
 > *"死亡不是结束，它是'准备'——准备下一次更华丽的登场。"*
 
-**套装主题**：凤凰崇拜者教团「不灭之火」的装备。这个教团的成员崇拜凤凰的轮回之力，他们的装备由凤凰羽毛和余烬锻造，赋予了穿戴者火焰力量和不死重生的能力。集齐四件时，穿戴者获得「凤凰之躯」——可以释放火焰、在死亡时重生、治愈盟友。
+**套装主题**：凤凰崇拜者教团「不灭之火」的装备。这个教团的成员崇拜凤凰的轮回之力，他们的装备由凤凰羽毛和余烬锻造，赋予了穿戴者火焰力量和不死重生的能力。完整套装共有十件，正式阈值为 3/5/7/10 件；各阈值效果见 [装备套装系统当前实现](../../design/progression/equipment_sets.md)。
 
 **历史渊源**：不灭之火的最高祭司「凤凰之子」菲尼克斯，是一位据说被凤凰之火烧死后重生的传奇战士。他说："我不是死过一次，我是'死了很多次'——每次死亡都让我更强大。"
 
@@ -225,24 +225,23 @@ attribute_modifiers = [
 ```gdscript
 item_id = "armor_phoenix_rebirth_head"
 display_name = "凤凰涅槃头冠"
-description = "一顶由凤凰羽毛与余烬丝编织而成的辉煌头冠，头冠上镶嵌着一颗「凤凰之心」——一颗能够储存火焰并在死亡时释放的魔法宝石。头冠佩戴时，周围的温度会略微升高，仿佛穿戴者体内有一团火在燃烧。\n\n菲尼克斯在编织这头冠时，从一只真正的凤凰身上取下了三根尾羽。他说："凤凰不是普通的鸟，它是'永恒的火'——它死了，但它总会回来。"\n\n这头冠的特殊效果是：穿戴者免疫 fire damage（凤凰之火不会伤害自己的信徒）。且可以在死亡时触发「涅槃」——HP 降至 0 时，有 25% 概率不死亡，而是恢复至 25% 最大 HP 并释放一次「火焰爆发」（15 尺半径 3D10 fire，每场战斗一次）。菲尼克斯说："死亡不是终点，它只是'中场休息'。"
+description = "一顶由凤凰羽毛与余烬丝编织而成的辉煌头冠，头冠上镶嵌着一颗「凤凰之心」——一颗能够储存火焰并在死亡时释放的魔法宝石。头冠佩戴时，周围的温度会略微升高，仿佛穿戴者体内有一团火在燃烧。\n\n菲尼克斯在编织这头冠时，从一只真正的凤凰身上取下了三根尾羽。他说："凤凰不是普通的鸟，它是'永恒的火'——它死了，但它总会回来。"\n\n这头冠使穿戴者受到的 fire damage 减半。普通致死时每场战斗可进行一次 25% 尝试；成功则恢复至 25% 最大 HP，并对半径 3 格内所有敌人造成 3D10 fire。范围内没有敌人时仍会完成恢复；正式掷骰即消耗本场尝试。穿齐凤凰重生7件后，套装将 fire 防护提升为免疫。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["armor", "head", "cloth", "heavy_armor", "phoenix_rebirth_set"]
+tags = ["armor", "head", "cloth", "heavy_armor", "phoenix_rebirth_set", "world_unique_equipment"]
+trait_ids = ["equipment.phoenix_rebirth.head.fire_resistance", "equipment.phoenix_rebirth.crown.nirvana"]
 equipment_slot_ids = ["head"]
 equipment_type_id = "armor"
 max_dex_bonus = 2
 base_price = 22000
 attribute_modifiers = [
-    { attribute_id = "armor_ac_bonus", mode = "flat", value = 2, source_type = "equipment", source_id = "armor_phoenix_rebirth_head" },
-    { attribute_id = "resistance_fire", mode = "flat", value = 20, source_type = "equipment", source_id = "armor_phoenix_rebirth_head" }
+    { attribute_id = "armor_ac_bonus", mode = "flat", value = 2, source_type = "equipment", source_id = "armor_phoenix_rebirth_head" }
 ]
 ```
 
-**2件套（设计预留）**：免疫 fire damage；`resistance_cold` +10（凤凰之火抵抗寒冷）。
-**4件套（设计预留）**：每日三次「火焰之翼」：30 尺内一个目标受到 3D10 fire；每日一次「治愈之火」：30 尺内一个盟友恢复 3D10 HP（凤凰之火的治愈力量）；HP 降至 0 时「涅槃」概率提升至 50%（恢复 50% 最大 HP）；火焰 aura（10 尺内所有敌人每回合受到 1D6 fire）。
+**正式套装结构**：本套共有十件，不再使用旧 2/4 件预留。当前阈值为 3 件「凤凰血脉」、5 件「不灭心火」、7 件「余烬展翼」和 10 件「太阳涅槃」；头冠单件提供 `fire half`，7件「余烬展翼」将其升级为 `fire immune`。
 
 ---
 
@@ -251,12 +250,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "armor_phoenix_rebirth_body"
 display_name = "凤凰涅槃板甲"
-description = "一副由凤凰羽毛与余烬丝编织而成的辉煌板甲，板甲表面不断有微弱的火焰在流动。在战斗中，火焰会变得更加旺盛——燃烧的越猛烈，板甲的防御力越高。板甲的颜色是火红色，但在涅槃后会变成金色（象征重生）。\n\n菲尼克斯在锻造这副板甲时，将凤凰涅槃时的余烬都收集了起来。他说："这副板甲不只是铠甲，它是'重生的见证'——每一次火焰的燃烧都是一次涅槃。"\n\n这副板甲的特殊效果是：穿戴者受到 fire damage 时，板甲会「燃烧」——AC +1（最多叠加至 +3），持续 1 回合。且可以将板甲的火焰「释放」——每日一次，释放所有火焰形成一个火盾（AC +3，任何 melee 攻击穿戴者的生物受到 2D6 fire，持续 1 分钟）。菲尼克斯说："火焰不是毁灭，它是'转化'——将旧的东西烧掉，为新的东西腾出空间。"
+description = "一副由凤凰羽毛与余烬丝编织而成的辉煌板甲，板甲表面不断有微弱的火焰在流动。在战斗中，火焰会变得更加旺盛——燃烧得越猛烈，板甲的防御力越高。\n\n外部、非自身且非装备能力生成的正 fire 原始伤害会使板甲获得 1 层燃烧并把持续时间刷新至 60 TU；最多 3 层，每层 AC +1。每日一次可消耗 2 AP 释放火盾：清除全部燃烧并获得持续 60 TU 的 AC +3；火盾期间，每次成功近战命中穿戴者后，攻击者受到 2D6 fire，无豁免。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["armor", "body", "cloth", "heavy_armor", "phoenix_rebirth_set"]
+tags = ["armor", "body", "cloth", "heavy_armor", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["body"]
 equipment_type_id = "armor"
 max_dex_bonus = 2
@@ -274,12 +273,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "armor_phoenix_rebirth_hands"
 display_name = "凤凰涅槃护手"
-description = "一对由凤凰羽毛与余烬丝编织而成的辉煌护手，护手表面不断有火焰在跳跃。握紧拳头时，火焰会汇聚在拳峰，形成两颗小型的「火球」。松开拳头时，火球会消散，但火焰会继续跳跃。\n\n菲尼克斯在锻造这对手套时，将自己的双手变成了「火焰导体」。他说："这对手套不只是手套，它们是'凤凰的爪子'——让我可以用手释放火焰。"\n\n这对手套的特殊效果是：穿戴者可以用拳头进行「火焰打击」——徒手攻击造成 1D8 bludgeoning + 1D10 fire。且可以用手掌「治愈之火」——触碰一个盟友，恢复 2D10 HP（每日三次）。菲尼克斯说："凤凰之火不是只能毁灭，它也能治愈——就像太阳，它既能烧伤，也能温暖。"
+description = "一对由凤凰羽毛与余烬丝编织而成的辉煌护手，护手表面不断有火焰在跳跃。\n\n常驻攻击检定 +1。主手为空时可消耗 1 AP 进行「火焰打击」，在正式命中链造成 1D8 physical_blunt + 1D10 fire；critical 时两段骰各追加一组。还可消耗 1 AP 触碰相邻的其他存活友方并恢复 2D10 HP，每个世界日三次，不能选择自己或死者。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["armor", "hands", "cloth", "heavy_armor", "phoenix_rebirth_set"]
+tags = ["armor", "hands", "cloth", "heavy_armor", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["hands"]
 equipment_type_id = "armor"
 base_price = 17000
@@ -296,12 +295,12 @@ attribute_modifiers = [
 ```gdscript
 item_id = "armor_phoenix_rebirth_feet"
 display_name = "凤凰涅槃胫甲"
-description = "一对由凤凰羽毛与余烬丝编织而成的辉煌胫甲，胫甲表面不断有火焰在流动。每一步踏下，火焰会在地面上留下短暂的燃烧足迹——不是弱点，是标记，也是陷阱（任何踩到足迹的生物受到 1D6 fire）。\n\n菲尼克斯在锻造这对胫甲时，将「火焰之步」能力封入了羽毛。他说："这对胫甲不只是鞋子，它们是'火焰的道路'——让我每一步都留下燃烧的痕迹。"\n\n这对胫甲的特殊效果是：穿戴者可以在火焰上正常行走——包括熔岩、燃烧的建筑和火墙（免疫 fire 的前提）。且可以进行「火焰冲锋」——每日一次，以三倍速度直线冲锋，路径上留下火焰轨迹（轨迹持续 1 回合，任何踩到的生物受到 2D6 fire）。菲尼克斯说："凤凰不需要路，它只需要天空——但在地面上，火焰就是它的路。"
+description = "一对由凤凰羽毛与余烬丝编织而成的辉煌胫甲，胫甲表面不断有火焰在流动。普通移动时，每个离开格留下持续 60 TU 的火焰足迹，任何阵营单位进入时受到 1D6 fire。\n\n每日一次可消耗 2 AP 发动「火焰冲锋」，沿正交直线冲锋至最多有效移动点容量的 3 倍距离；每个离开格改为留下持续 60 TU、进入时造成 2D6 fire 的轨迹。同次冲锋只生成 2D6 轨迹，不与普通 1D6 足迹重复计算。"
 icon = ""
 is_stackable = false
 max_stack = 1
 item_category = "equipment"
-tags = ["armor", "feet", "cloth", "heavy_armor", "phoenix_rebirth_set"]
+tags = ["armor", "feet", "cloth", "heavy_armor", "phoenix_rebirth_set", "world_unique_equipment"]
 equipment_slot_ids = ["feet"]
 equipment_type_id = "armor"
 base_price = 17000

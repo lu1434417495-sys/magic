@@ -9,6 +9,7 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
     public override void _Initialize()
     {
         TestDeathReapTypedDefinitionRestoresResourcesOnKill();
+        TestDeathReapDoesNotRestoreResourcesWithoutKill();
         RequestTestExit(_test.Finish("Battle on-kill gain resources regression"));
     }
 
@@ -111,9 +112,109 @@ public partial class run_battle_on_kill_gain_resources_regression : LifecycleTes
         }
     }
 
+    private void TestDeathReapDoesNotRestoreResourcesWithoutKill()
+    {
+        SkillDefinition skillDefinition = LoadDeathReapDefinition();
+        BattleUnitState caster = BuildUnit(
+            "death_reap_nonlethal_caster",
+            "player",
+            new Vector2I(0, 0),
+            currentHp: 80,
+            currentAp: 2,
+            currentMovePoints: 1,
+            currentMp: 150
+        );
+        caster.AddKnownActiveSkill(SkillId);
+        caster.SetKnownSkillLevelTyped(SkillId, 1);
+        caster.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
+
+        const int initialTargetHp = 100;
+        BattleUnitState target = BuildUnit(
+            "death_reap_nonlethal_target",
+            "enemy",
+            new Vector2I(1, 0),
+            currentHp: initialTargetHp,
+            currentAp: 1,
+            currentMovePoints: 1,
+            currentMp: 0
+        );
+
+        BattleCommand command = null;
+        BattleEventBatch batch = null;
+        using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+            "death_reap_nonlethal_definition",
+            new Vector2I(4, 2),
+            new[] { caster },
+            new[] { target }
+        );
+
+        try
+        {
+            fixture.Runtime.setup(
+                skill_definitions: new Dictionary<StringName, SkillDefinition>
+                {
+                    [SkillId] = skillDefinition,
+                }
+            );
+            fixture.Runtime.SetupStateForTests(fixture.State);
+            BattleTestFixture.ConfigureDamageResolverForTests(
+                fixture.Runtime,
+                new FixedHitMaxDamageResolver()
+            );
+            BattleTestFixture.ConfigureHitResolverForTests(fixture.Runtime, new FixedHitResolver(10));
+
+            command = new BattleCommand
+            {
+                command_type = "skill",
+                unit_id = caster.unit_id,
+                skill_entry_id = BattleSkillEntryIds.KnownSkill(SkillId),
+                skill_id = SkillId,
+                target_unit_id = target.unit_id,
+                target_coord = target.GetAnchorCoord(),
+            };
+            command.AddTargetUnitId(target.unit_id);
+
+            BattlePreview preview = fixture.Runtime.PreviewCommand(command);
+            _test.True(
+                preview?.allowed == true,
+                $"非致死死亡收割 preview 应允许执行。logs={JoinLogs(preview?.LogLinesTyped)}"
+            );
+            batch = fixture.Runtime.IssueCommand(command);
+            string issueLogs = JoinLogs(batch?.LogLinesTyped);
+
+            _test.True(
+                target.IsAlive(),
+                $"高生命目标在固定最大伤害后仍应存活。target_hp={target.GetCurrentHp()} logs={issueLogs}"
+            );
+            _test.True(
+                target.GetCurrentHp() < initialTargetHp,
+                $"该反例必须实际造成伤害，而不是因命令未执行而保持资源不变。logs={issueLogs}"
+            );
+            _test.Eq(
+                caster.GetCurrentAp(),
+                0,
+                $"未击杀时只能扣除 2 AP 成本，不得返还 1 AP。ap={caster.GetCurrentAp()} logs={issueLogs}"
+            );
+            _test.Eq(
+                caster.GetCurrentMovePoints(),
+                1,
+                $"未击杀时不得返还免费移动力。move={caster.GetCurrentMovePoints()} logs={issueLogs}"
+            );
+            _test.False(
+                caster.CanUseLockedMovePointsThisTurnTyped(),
+                $"未击杀时不得解锁行动后移动。logs={issueLogs}"
+            );
+        }
+        finally
+        {
+            batch?.Dispose();
+            BattleTestFixture.DisposeBattleCommand(command);
+        }
+    }
+
     private static SkillDefinition LoadDeathReapDefinition()
     {
-        const string resourcePath = "res://data/configs/skills/mage_death_reap.tres";
+        const string resourcePath = "mage_death_reap";
         return TestSkillDefinitionProjection.LoadSkillDefinition(resourcePath, resourcePath);
     }
 

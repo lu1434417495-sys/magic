@@ -33,7 +33,7 @@ public partial class FixedHitOneDamageResolver : BattleDamageResolver
         BattleUnitState target_unit,
         IEnumerable<CombatEffectDefinition> effect_definitions,
         AttackCheckInput attack_check,
-        AttackContext attack_context = null
+        AttackContext attack_context
     )
     {
         return base.ResolveAttackEffects(
@@ -50,16 +50,4 @@ public partial class FixedHitOneDamageResolver : BattleDamageResolver
         return 1;
     }
 
-    public int _roll_true_random_attack_range(
-        int min_value,
-        int max_value,
-        BattleState battle_state
-    )
-    {
-        if (battle_state != null)
-        {
-            battle_state.NextAttackRollNonce();
-        }
-        return Math.Clamp(10, Math.Min(min_value, max_value), Math.Max(min_value, max_value));
-    }
 }

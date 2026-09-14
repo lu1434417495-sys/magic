@@ -96,11 +96,11 @@ public partial class CharacterCreationWindow : Control
     public Label age_preview_label;
     public Label identity_options_label;
     public Label final_attribute_preview_label;
-    public Button race_back_button;
+    public Button race_cancel_button;
     public Button race_next_button;
-    public Button age_back_button;
+    public Button age_cancel_button;
     public Button age_next_button;
-    public Button options_back_button;
+    public Button options_cancel_button;
     public Button final_confirm_button;
 
     private readonly RuntimeRandom _rng = new(TrueRandomSeedService.GenerateSeed());
@@ -124,6 +124,8 @@ public partial class CharacterCreationWindow : Control
         _build_row_styles();
         _cache_attribute_rows();
         _build_identity_phase_nodes();
+        _configure_responsive_phases();
+        _configure_creation_appearance();
         _apply_button_palettes();
 
         name_confirm_button.Pressed += _on_name_confirmed;
@@ -309,86 +311,45 @@ public partial class CharacterCreationWindow : Control
 
     private void _build_row_styles()
     {
-        _rowStyleNormal = new StyleBoxFlat
-        {
-            BgColor = new Color(0.10f, 0.13f, 0.20f, 0.65f),
-            BorderColor = new Color(0.32f, 0.4f, 0.55f, 0.45f),
-            ContentMarginLeft = 12,
-            ContentMarginRight = 12,
-            ContentMarginTop = 6,
-            ContentMarginBottom = 6,
-        };
-        _rowStyleNormal.SetBorderWidthAll(1);
-        _rowStyleNormal.SetCornerRadiusAll(6);
-
-        _rowStyleMet = new StyleBoxFlat
-        {
-            BgColor = new Color(0.18f, 0.14f, 0.07f, 0.92f),
-            BorderColor = new Color(1.0f, 0.78f, 0.32f),
-            ShadowColor = new Color(1.0f, 0.7f, 0.2f, 0.4f),
-            ShadowSize = 8,
-            ContentMarginLeft = 12,
-            ContentMarginRight = 12,
-            ContentMarginTop = 6,
-            ContentMarginBottom = 6,
-        };
-        _rowStyleMet.SetBorderWidthAll(2);
-        _rowStyleMet.SetCornerRadiusAll(6);
+        _rowStyleNormal = (StyleBoxFlat)Theme.GetStylebox("normal", "CreationAttribute");
+        _rowStyleMet = (StyleBoxFlat)Theme.GetStylebox("met", "CreationAttribute");
     }
 
     private void _apply_button_palettes()
     {
-        Color subdued = new(0.22f, 0.24f, 0.32f);
-        Color primary = new(0.27f, 0.32f, 0.5f);
-        Color danger = new(0.55f, 0.18f, 0.18f);
-        Color emphasis = new(0.65f, 0.45f, 0.18f);
-        _apply_button_palette(name_cancel_button, subdued, new Color(0.85f, 0.88f, 0.95f));
-        _apply_button_palette(attribute_cancel_button, subdued, new Color(0.85f, 0.88f, 0.95f));
-        _apply_button_palette(reroll_button, primary, new Color(0.95f, 0.95f, 1.0f));
-        _apply_button_palette(stop_button, danger, new Color(1.0f, 0.92f, 0.85f));
-        _apply_button_palette(confirm_button, emphasis, new Color(1.0f, 0.96f, 0.82f));
-        _apply_button_palette(name_confirm_button, emphasis, new Color(1.0f, 0.96f, 0.82f));
-
-        foreach (Button button in new[] { race_back_button, age_back_button, options_back_button })
-            _apply_button_palette(button, subdued, new Color(0.85f, 0.88f, 0.95f));
-        foreach (Button button in new[] { race_next_button, age_next_button, final_confirm_button })
-            _apply_button_palette(button, emphasis, new Color(1.0f, 0.96f, 0.82f));
-    }
-
-    private void _apply_button_palette(Button button, Color baseColor, Color textColor)
-    {
-        if (button == null)
-            return;
-        StyleBoxFlat normal = _make_button_stylebox(baseColor);
-        normal.BorderColor = baseColor.Lightened(0.18f);
-        StyleBoxFlat hover = _make_button_stylebox(baseColor.Lightened(0.12f));
-        hover.BorderColor = baseColor.Lightened(0.4f);
-        StyleBoxFlat pressed = _make_button_stylebox(baseColor.Darkened(0.18f));
-        pressed.BorderColor = baseColor.Darkened(0.05f);
-        StyleBoxFlat focus = _make_button_stylebox(new Color(0, 0, 0, 0));
-        focus.BorderColor = new Color(1.0f, 0.85f, 0.4f);
-        focus.SetBorderWidthAll(2);
-        StyleBoxFlat disabled = _make_button_stylebox(new Color(0.18f, 0.18f, 0.22f, 0.85f));
-        disabled.BorderColor = new Color(0.3f, 0.3f, 0.35f, 0.5f);
-        button.AddThemeStyleboxOverride("normal", normal);
-        button.AddThemeStyleboxOverride("hover", hover);
-        button.AddThemeStyleboxOverride("pressed", pressed);
-        button.AddThemeStyleboxOverride("focus", focus);
-        button.AddThemeStyleboxOverride("disabled", disabled);
-        button.AddThemeColorOverride("font_color", textColor);
-        button.AddThemeColorOverride("font_hover_color", textColor);
-        button.AddThemeColorOverride("font_pressed_color", textColor);
-        button.AddThemeColorOverride("font_focus_color", textColor);
-        button.AddThemeColorOverride("font_disabled_color", new Color(0.55f, 0.55f, 0.6f));
-    }
-
-    private static StyleBoxFlat _make_button_stylebox(Color bg)
-    {
-        var styleBox = new StyleBoxFlat { BgColor = bg };
-        styleBox.SetCornerRadiusAll(8);
-        styleBox.SetContentMarginAll(10);
-        styleBox.SetBorderWidthAll(1);
-        return styleBox;
+        foreach (Button button in new[] { name_confirm_button, confirm_button,
+            race_next_button, age_next_button, final_confirm_button })
+        {
+            button.ThemeTypeVariation = "CreationPrimaryButton";
+            button.CustomMinimumSize = new Vector2(192, 54);
+        }
+        foreach (Button button in new[] { name_confirm_button, name_cancel_button,
+            attribute_cancel_button, reroll_button, stop_button, confirm_button,
+            race_cancel_button, race_next_button, age_cancel_button, age_next_button,
+            options_cancel_button, final_confirm_button })
+        {
+            if (button.ThemeTypeVariation != "CreationPrimaryButton")
+                button.CustomMinimumSize = new Vector2(90, 44);
+            button.MouseDefaultCursorShape = CursorShape.PointingHand;
+        }
+        foreach (Button button in new[] { name_cancel_button, attribute_cancel_button,
+            race_cancel_button, age_cancel_button, options_cancel_button })
+        {
+            button.Text = "放弃创建";
+            button.ThemeTypeVariation = "CreationQuietButton";
+            var row = (HBoxContainer)button.GetParent();
+            row.Alignment = BoxContainer.AlignmentMode.Begin;
+            var space = new Control { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+            row.AddChild(space);
+            row.MoveChild(space, 1);
+        }
+        reroll_button.Text = "重新掷骰";
+        stop_button.Text = "停止";
+        name_confirm_button.Text = "铭刻姓名";
+        confirm_button.Text = "接受天赋";
+        race_next_button.Text = "确认血脉";
+        age_next_button.Text = "确定年龄";
+        final_confirm_button.Text = "踏入世界";
     }
 
     public void _on_name_text_submitted(string _text)
@@ -416,7 +377,6 @@ public partial class CharacterCreationWindow : Control
         attribute_phase.Visible = true;
         _hide_identity_phases();
         name_preview_label.Text = $"角色名：{_player_name}";
-        confirm_button.Text = "下一步";
         _reroll_count = 0;
         _rowPreviousMet.Clear();
         _roll_once_silent();
@@ -567,7 +527,7 @@ public partial class CharacterCreationWindow : Control
 
     private void _refresh_reroll_count_label()
     {
-        reroll_count_label.Text = $"Reroll 次数：{_reroll_count}";
+        reroll_count_label.Text = $"重掷次数：{_reroll_count}";
     }
 
     private void _refresh_luck_tier_indicator()
@@ -768,8 +728,8 @@ public partial class CharacterCreationWindow : Control
 
     private void _build_identity_phase_nodes()
     {
-        _identityCardStyleNormal = SelectionCardBuilder.MakeStyle(false);
-        _identityCardStyleSelected = SelectionCardBuilder.MakeStyle(true);
+        _identityCardStyleNormal = (StyleBoxFlat)Theme.GetStylebox("normal", "CreationChoice");
+        _identityCardStyleSelected = (StyleBoxFlat)Theme.GetStylebox("selected", "CreationChoice");
 
         race_phase = _make_phase_container("RaceAndSubracePhase");
         race_phase.AddChild(_make_phase_label("种族与亚种", 20));
@@ -780,9 +740,9 @@ public partial class CharacterCreationWindow : Control
         race_preview_label = _make_phase_label("", 14);
         race_phase.AddChild(race_preview_label);
         HBoxContainer raceButtons = _make_button_row();
-        race_back_button = _make_phase_button("上一步");
-        race_next_button = _make_phase_button("下一步");
-        raceButtons.AddChild(race_back_button);
+        race_cancel_button = _make_phase_button("放弃创建");
+        race_next_button = _make_phase_button("确认血脉");
+        raceButtons.AddChild(race_cancel_button);
         raceButtons.AddChild(race_next_button);
         race_phase.AddChild(raceButtons);
         content_root.AddChild(race_phase);
@@ -794,9 +754,9 @@ public partial class CharacterCreationWindow : Control
         age_preview_label = _make_phase_label("", 14);
         age_phase.AddChild(age_preview_label);
         HBoxContainer ageButtons = _make_button_row();
-        age_back_button = _make_phase_button("上一步");
-        age_next_button = _make_phase_button("下一步");
-        ageButtons.AddChild(age_back_button);
+        age_cancel_button = _make_phase_button("放弃创建");
+        age_next_button = _make_phase_button("确定年龄");
+        ageButtons.AddChild(age_cancel_button);
         ageButtons.AddChild(age_next_button);
         age_phase.AddChild(ageButtons);
         content_root.AddChild(age_phase);
@@ -812,9 +772,9 @@ public partial class CharacterCreationWindow : Control
         identity_options_phase.AddChild(identity_options_label);
         identity_options_phase.AddChild(final_attribute_preview_label);
         HBoxContainer optionsButtons = _make_button_row();
-        options_back_button = _make_phase_button("上一步");
+        options_cancel_button = _make_phase_button("放弃创建");
         final_confirm_button = _make_phase_button("确认");
-        optionsButtons.AddChild(options_back_button);
+        optionsButtons.AddChild(options_cancel_button);
         optionsButtons.AddChild(final_confirm_button);
         identity_options_phase.AddChild(optionsButtons);
         content_root.AddChild(identity_options_phase);
@@ -822,11 +782,11 @@ public partial class CharacterCreationWindow : Control
         subrace_variant_button.ItemSelected += index => _on_subrace_variant_selected((int)index);
         versatility_variant_button.ItemSelected += index =>
             _on_versatility_variant_selected((int)index);
-        race_back_button.Pressed += _enter_attribute_phase_from_back;
+        race_cancel_button.Pressed += _cancel;
         race_next_button.Pressed += _enter_age_phase;
-        age_back_button.Pressed += _enter_race_phase;
+        age_cancel_button.Pressed += _cancel;
         age_next_button.Pressed += _enter_identity_options_phase;
-        options_back_button.Pressed += _enter_age_phase;
+        options_cancel_button.Pressed += _cancel;
         final_confirm_button.Pressed += _on_confirm_pressed;
     }
 
@@ -838,7 +798,6 @@ public partial class CharacterCreationWindow : Control
     private static Label _make_phase_label(string text, int fontSize)
     {
         var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart };
-        label.AddThemeColorOverride("font_color", new Color(0.85f, 0.92f, 1.0f));
         label.AddThemeFontSizeOverride("font_size", fontSize);
         return label;
     }
@@ -1063,7 +1022,8 @@ public partial class CharacterCreationWindow : Control
             stageId =>
             {
                 AgeStageRuleDefinition stageRule = _get_age_stage_rule(ageProfile, stageId);
-                return (_identity_label(stageRule, stageId), stageRule?.Description ?? "");
+                return (_identity_label(stageRule, stageId),
+                    $"初始年龄 {_resolve_default_age_for_stage(ageProfile, stageId)} 岁");
             },
             _select_age_stage_card
         );
@@ -1099,8 +1059,7 @@ public partial class CharacterCreationWindow : Control
         return flow;
     }
 
-    // 身份卡片（种族 / 年龄阶段）：复用 SelectionCardBuilder 的卡面与选中态样式，
-    // 点击即选中；选项集合小且离散，卡片比下拉更能承载描述文本。
+    // Creation choices use the local theme and a real button for mouse/keyboard activation.
     private void _rebuild_identity_cards(
         HFlowContainer cardFlow,
         List<PanelContainer> cards,
@@ -1120,31 +1079,14 @@ public partial class CharacterCreationWindow : Control
         foreach (StringName optionId in optionIds)
         {
             (string title, string summary) = buildSpec(optionId);
-            using var spec = new GDictionary
-            {
-                ["title"] = title,
-                ["summary"] = summary,
-            };
-            PanelContainer card = SelectionCardBuilder.BuildCard(spec);
-            card.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
-            card.SizeFlagsVertical = SizeFlags.ShrinkBegin;
-            card.CustomMinimumSize = new Vector2(230, 120);
+            PanelContainer card = _build_creation_choice(title, summary);
             StringName capturedId = optionId;
-            card.GuiInput += @event => _on_identity_card_gui_input(@event, capturedId, onSelected);
+            card.GetNode<Button>("Select").Pressed += () => onSelected(capturedId);
             cardFlow.AddChild(card);
             cards.Add(card);
             cardIds.Add(optionId);
         }
-    }
-
-    private void _on_identity_card_gui_input(
-        InputEvent @event,
-        StringName optionId,
-        System.Action<StringName> onSelected
-    )
-    {
-        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
-            onSelected(optionId);
+        _size_creation_choices(cardFlow);
     }
 
     private void _apply_identity_card_selection(
@@ -1164,6 +1106,10 @@ public partial class CharacterCreationWindow : Control
                         ? _identityCardStyleSelected
                         : _identityCardStyleNormal
                 );
+            bool selected = cardIds[index] == selectedId;
+            var marker = cards[index].GetNode<Label>("Margin/Details/Heading/SelectionMark");
+            marker.Text = selected ? "●" : "○";
+            marker.AddThemeColorOverride("font_color", _creation_color(selected ? "accent" : "muted"));
         }
     }
 
@@ -1177,6 +1123,9 @@ public partial class CharacterCreationWindow : Control
         _refresh_age_stage_selection();
         _refresh_versatility_selection();
         _refresh_identity_variant_controls();
+        int selectedIndex = _raceCardIds.IndexOf(_selected_race_id);
+        if (selectedIndex >= 0)
+            _raceCards[selectedIndex].GetNode<Button>("Select").GrabFocus();
     }
 
     public void _on_subrace_variant_selected(int index)
@@ -1214,16 +1163,6 @@ public partial class CharacterCreationWindow : Control
         if (_rerolling || _rolled_attributes.Count == 0)
             return;
         _enter_race_phase();
-    }
-
-    public void _enter_attribute_phase_from_back()
-    {
-        _hide_identity_phases();
-        name_phase.Visible = false;
-        attribute_phase.Visible = true;
-        confirm_button.Text = "下一步";
-        _update_button_states();
-        reroll_button.GrabFocus();
     }
 
     public void _enter_race_phase()
@@ -1345,7 +1284,7 @@ public partial class CharacterCreationWindow : Control
         {
             $"种族：{_identity_label(raceDef, _selected_race_id)}",
             $"亚种：{_identity_label(subraceDef, _selected_subrace_id)}",
-            $"体型：{DictString(identity_payload, "body_size_category", "")}（{DictInt(identity_payload, "body_size", 0)}）",
+            $"体型：{UiDisplayLabels.BodySize(DictString(identity_payload, "body_size_category", ""))}（{DictInt(identity_payload, "body_size", 0)}）",
         };
         List<string> traitLines = _collect_trait_summary_lines(false);
         if (traitLines.Count > 0)
@@ -1389,7 +1328,7 @@ public partial class CharacterCreationWindow : Control
         {
             $"姓名：{_player_name}",
             $"身份：{_identity_label(raceDef, _selected_race_id)} / {_identity_label(subraceDef, _selected_subrace_id)} / {_identity_label(ageStageRule, _selected_age_stage_id)}",
-            $"体型：{DictString(identity_payload, "body_size_category", "")}（{DictInt(identity_payload, "body_size", 0)}）",
+            $"体型：{UiDisplayLabels.BodySize(DictString(identity_payload, "body_size_category", ""))}（{DictInt(identity_payload, "body_size", 0)}）",
         };
         if (_selected_identity_has_human_versatility())
             lines.Add(
@@ -1666,7 +1605,7 @@ public partial class CharacterCreationWindow : Control
             definition is AgeStageRuleDefinition ageStageRule
             && !string.IsNullOrEmpty(ageStageRule.DisplayName)
         )
-            return ageStageRule.DisplayName;
+            return UiDisplayLabels.AgeStage(ageStageRule.DisplayName);
         return fallbackId.ToString();
     }
 

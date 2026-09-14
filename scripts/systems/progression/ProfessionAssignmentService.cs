@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public sealed class ProfessionAssignmentService
@@ -48,7 +48,7 @@ public sealed class ProfessionAssignmentService
         if (!skillProgress.is_core)
             return false;
         if (
-            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
+            !PromotionEligibilityRules.HasCoreQualification(
                 skillDefinition,
                 skillProgress,
                 _unit_progress
@@ -128,10 +128,10 @@ public sealed class ProfessionAssignmentService
         if (skillProgress.assigned_profession_id != "")
             return false;
         if (
-            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
+            !PromotionEligibilityRules.HasCoreQualification(
                 skillDefinition,
                 skillProgress,
-                _unit_progress
+                _unit_progress, projectedCore: true
             )
         )
             return false;

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -28,10 +27,6 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
         Godot.Collections.Dictionary payload = BattleMovePathResultProjection.Project(result);
         Godot.Collections.Array<Vector2I> pathPayload = payload["path"].AsGodotArray<Vector2I>();
 
-        _test.True(
-            result.Path.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-            "Path 真相源不应是 Godot Array。"
-        );
         _test.True(payload["allowed"].AsBool(), "move path result 应投影 allowed。");
         _test.Eq(payload["cost"].AsInt32(), 3, "move path result 应投影 cost。");
         _test.Eq(payload["message"].AsString(), "ok", "move path result 应投影 message。");
@@ -75,10 +70,6 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
         Godot.Collections.Array<Vector2I> executedPath = payload["executed_path"]
             .AsGodotArray<Vector2I>();
 
-        _test.True(
-            result.ExecutedPath.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-            "ExecutedPath 真相源不应是 Godot Array。"
-        );
         _test.True(payload["executed"].AsBool(), "validated move result 应投影 executed。");
         _test.True(
             !payload["reached_target"].AsBool(),
@@ -110,10 +101,6 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
         runtime.SetupStateForTests(state);
 
         IReadOnlyList<Vector2I> reachable = runtime._movement_service.GetUnitReachableMoveCoords(ally);
-        _test.True(
-            reachable.GetType() != typeof(Godot.Collections.Array<Vector2I>),
-            "BattleMovementService reachable coords 真相源不应是 Godot Array。"
-        );
         _test.True(reachable.Count == 1 && reachable[0] == new Vector2I(1, 0), "reachable coords 应只包含可达落点。");
 
         BattleMovePathResult moveResult = runtime._movement_service.ResolveMovePathResultTyped(
@@ -134,11 +121,6 @@ public partial class run_battle_move_path_result_projection_regression : Lifecyc
 
         runtime.dispose();
     }
-
-    private static bool IsForbiddenGodotBoundaryType(Type type) =>
-        type == typeof(Variant)
-        || type.FullName == "Godot.Collections.Dictionary"
-        || type.FullName == "Godot.Collections.Array";
 
     private static PartyState BuildParty(StringName memberId)
     {

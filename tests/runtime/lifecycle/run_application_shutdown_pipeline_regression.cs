@@ -70,7 +70,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         public bool CanRunFinalizerBarrier(ShutdownReport report, out string failure)
         {
             Calls.Add("barrier-gate");
-            failure = BarrierGatePasses ? string.Empty : "content roots are still active";
+            failure = BarrierGatePasses ? string.Empty : "content owners are still active";
             return BarrierGatePasses;
         }
 
@@ -108,8 +108,8 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
     {
         await TestSuccessfulOrderAndPhases();
         await TestPreContentHookFailuresSkipUnsafeRelease();
-        await TestFalseReleaseGateKeepsContentRoots();
-        await TestActiveAuditOwnerKeepsContentRoots();
+        await TestFalseReleaseGateKeepsContentOwners();
+        await TestActiveAuditOwnerKeepsContentOwners();
         await TestContentReleaseFailureSkipsBarrier();
         await TestFalseFinalizerGateSkipsBarrier();
         await TestCanonicalRootAuditSkipsBarrier();
@@ -201,7 +201,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         AssertSkippedFailure(report, label);
     }
 
-    private async Task TestFalseReleaseGateKeepsContentRoots()
+    private async Task TestFalseReleaseGateKeepsContentOwners()
     {
         var fake = new FakeShutdownHooks { ReleaseGatePasses = false };
         ShutdownReport report = await RunPipeline(
@@ -213,7 +213,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         _test.True(report.FinalizerBarrierSkipped, "unsafe barrier is skipped");
         _test.Eq(report.FinalPhase, ApplicationShutdownPhase.QuitRequested, "failure reaches quit");
         _test.Eq(report.EffectiveExitCode, 1, "skipped barrier forces failure");
-        _test.False(fake.ContentCalled, "content roots remain while borrowers may be live");
+        _test.False(fake.ContentCalled, "content owners remain while borrowers may be live");
         _test.False(fake.BarrierCalled, "barrier is not forced with active owners");
         _test.Eq(
             string.Join(",", fake.Calls),
@@ -226,7 +226,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         );
     }
 
-    private async Task TestActiveAuditOwnerKeepsContentRoots()
+    private async Task TestActiveAuditOwnerKeepsContentOwners()
     {
         var fake = new FakeShutdownHooks();
         var audit = new LifecycleAuditRegistry();
@@ -300,7 +300,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         var audit = new LifecycleAuditRegistry();
         var contentRoot = new object();
         const string path = "res://data/configs/lifecycle_pipeline_probe.tres";
-        audit.RegisterProcessContentRoot(path, typeof(object), contentRoot);
+        audit.RegisterEngineAssetRoot(path, typeof(object), contentRoot);
 
         ShutdownReport report = await RunPipeline(fake, audit, "canonical root remains");
 
@@ -312,7 +312,7 @@ public partial class run_application_shutdown_pipeline_regression : LifecycleTes
         );
         AssertSkippedFailure(report, "canonical root remains");
 
-        audit.ReleaseProcessContentRoot(path);
+        audit.ReleaseEngineAssetRoot(path);
     }
 
     private async Task TestFinalizerBarrierFailureDoesNotClaimDrain()

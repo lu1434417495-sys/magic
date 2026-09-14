@@ -4,7 +4,6 @@ using Godot;
 
 public sealed class DerivedAttributeRule
 {
-    public StringName target_attribute_id { get; private set; } = "";
     public int base_value { get; private set; }
     public IReadOnlyDictionary<StringName, int> coefficients { get; private set; } =
         new ReadOnlyDictionary<StringName, int>(new Dictionary<StringName, int>());
@@ -14,7 +13,6 @@ public sealed class DerivedAttributeRule
     public int source_offset { get; private set; }
 
     public DerivedAttributeRule(
-        StringName p_target_attribute_id = default,
         int p_base_value = 0,
         IReadOnlyDictionary<StringName, int> p_coefficients = null,
         int p_divisor = 1,
@@ -23,14 +21,21 @@ public sealed class DerivedAttributeRule
         int p_source_offset = 0
     )
     {
-        target_attribute_id = p_target_attribute_id;
         base_value = p_base_value;
         coefficients = new ReadOnlyDictionary<StringName, int>(
             p_coefficients != null
                 ? new Dictionary<StringName, int>(p_coefficients)
                 : new Dictionary<StringName, int>()
         );
-        divisor = p_divisor > 0 ? p_divisor : 1;
+        if (p_divisor <= 0)
+        {
+            throw new System.ArgumentOutOfRangeException(
+                nameof(p_divisor),
+                p_divisor,
+                "DerivedAttributeRule divisor must be positive."
+            );
+        }
+        divisor = p_divisor;
         min_value = p_min_value;
         max_value = p_max_value;
         source_offset = p_source_offset;
@@ -45,8 +50,7 @@ public sealed class DerivedAttributeRule
             scaled_total += pair.Value * (sourceValue - source_offset);
         }
 
-        int safeDivisor = divisor <= 0 ? 1 : divisor;
-        int result = base_value + Mathf.FloorToInt((float)scaled_total / safeDivisor);
+        int result = base_value + Mathf.FloorToInt((float)scaled_total / divisor);
         if (max_value >= min_value && max_value != 0)
             return Mathf.Clamp(result, min_value, max_value);
         return Mathf.Max(result, min_value);
