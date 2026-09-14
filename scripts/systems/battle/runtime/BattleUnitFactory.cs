@@ -1418,10 +1418,10 @@ internal sealed class BattleUnitFactory
                 sp == null
                 || skillDefinition == null
                 || !sp.is_learned
-                || !sp.is_level_trigger_locked
+                || !prog.HasUsedGrowthTrigger(sid)
             )
                 continue;
-            int b = sp.bonus_to_hit_from_lock;
+            int b = PromotionEligibilityRules.CompletedSkillCheckBonus;
             if (b <= 0)
                 continue;
             r[sid] = b;

@@ -65,6 +65,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     public Label submap_hint_label;
     public Control bottom_action_bar;
     public Button party_button;
+    public Button promotion_reminder_button;
     public Control battle_loading_overlay;
     public Label battle_loading_label;
     public ProgressBar battle_loading_progress_bar;
@@ -318,6 +319,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             status_label.GetParent().GetParent<Control>().Visible = !_runtime_proxy.IsBattleActive();
         }
         string modalId = worldViewModel.ActiveModalId;
+        UpdatePromotionReminder();
         _update_responsive_log_layout();
         if (bottom_action_bar != null)
             bottom_action_bar.Visible = !_runtime_proxy.IsBattleActive();
@@ -497,6 +499,14 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     {
         if (_runtime == null || @event is not InputEventKey keyEvent)
             return;
+        if (keyEvent.Pressed && !keyEvent.Echo && keyEvent.Keycode == Key.G
+            && !_runtime_proxy.IsModalWindowOpen()
+            && (battle_map_panel == null || !battle_map_panel.IsLoadingBattle()))
+        {
+            _runtime_proxy.OpenPromotion();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (_runtime_proxy.IsBattleActive())
         {
             if (battle_map_panel != null && battle_map_panel.IsLoadingBattle())
@@ -677,8 +687,30 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     public bool PanBattleCamera(Vector2I direction) =>
         battle_map_panel != null && battle_map_panel.PanBattleCamera(direction);
 
-    public void _on_battle_loading_state_changed(bool is_loading, float progress_value) =>
+    public void _on_battle_loading_state_changed(bool is_loading, float progress_value)
+    {
         _set_battle_loading_overlay(is_loading, progress_value);
+        UpdatePromotionReminder();
+    }
+
+    private void UpdatePromotionReminder()
+    {
+        if (promotion_reminder_button == null || _runtime == null) return;
+        int readyCount = _runtime_proxy.GetPromotionReadyMemberCount();
+        promotion_reminder_button.Visible = readyCount > 0
+            && _runtime.GetActiveModalKind() != RuntimeModalKind.GameOver;
+        promotion_reminder_button.Text = $"可晋升（{readyCount}人）· G";
+        promotion_reminder_button.TooltipText = _runtime_proxy.GetPromotionReminderText();
+        promotion_reminder_button.Disabled = _runtime_proxy.IsModalWindowOpen()
+            || battle_map_panel?.IsLoadingBattle() == true;
+        bool inBattle = _runtime_proxy.IsBattleActive();
+        promotion_reminder_button.AnchorTop = inBattle ? 0 : 1;
+        promotion_reminder_button.AnchorBottom = inBattle ? 0 : 1;
+        promotion_reminder_button.OffsetLeft = inBattle ? 16 : 132;
+        promotion_reminder_button.OffsetRight = inBattle ? 260 : 376;
+        promotion_reminder_button.OffsetTop = inBattle ? 100 : -48;
+        promotion_reminder_button.OffsetBottom = inBattle ? 142 : -6;
+    }
 
     public void _set_battle_loading_overlay(bool is_visible, float progress_value)
     {
@@ -1161,7 +1193,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.SubmitPromotionChoice(
                 member_id,
                 profession_id,
-                PromotionSelectionData.FromPayload(selection)
+                PromotionCommitRequest.FromPayload(selection)
             );
     }
 
@@ -1170,6 +1202,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (_runtime != null)
             _runtime_proxy.CancelPromotionChoice();
     }
+
+    private void OnPromotionReminderPressed() => _runtime_proxy.OpenPromotion();
+
+    private void _on_party_promotion_requested(StringName memberId) =>
+        _runtime_proxy?.OpenPromotion(memberId);
 
     public void _on_character_reward_confirmed()
     {
@@ -1321,6 +1358,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         battle_map_panel = GetNode<BattleMapPanel>("MapViewport/BattleMapPanel");
         runtime_log_dock = GetNode<RuntimeLogDock>("%RuntimeLogDock");
         status_label = GetNodeOrNull<Label>("StatusPanel/StatusMargin/StatusLabel");
+        promotion_reminder_button = GetNode<Button>("%PromotionReminderButton");
         settlement_window = GetNode<SettlementWindow>("SettlementWindow");
         contract_board_service_modal = GetNode<ShopWindow>("ContractBoardServiceModal");
         shop_service_modal = GetNode<ShopWindow>("ShopServiceModal");
@@ -1379,6 +1417,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         party_management_window.leader_change_requested += _on_party_leader_change_requested;
         party_management_window.roster_change_requested += _on_party_roster_change_requested;
         party_management_window.warehouse_requested += _on_party_management_warehouse_requested;
+        party_management_window.promotion_requested += _on_party_promotion_requested;
         party_management_window.contingency_setup_requested += _on_party_contingency_setup_requested;
         party_management_window.closed += _on_party_management_window_closed;
         if (contingency_setup_window != null)
@@ -1398,6 +1437,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         submap_entry_window.confirmed += _on_submap_entry_confirmed;
         submap_entry_window.cancelled += _on_submap_entry_cancelled;
         party_button.Pressed += _on_party_button_pressed;
+        promotion_reminder_button.Pressed += OnPromotionReminderPressed;
         world_map_view.cell_clicked += _on_world_map_cell_clicked;
         world_map_view.cell_right_clicked += _on_world_map_cell_right_clicked;
         battle_map_panel.battle_cell_clicked += _on_battle_cell_clicked;
@@ -1461,6 +1501,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             party_management_window.leader_change_requested -= _on_party_leader_change_requested;
             party_management_window.roster_change_requested -= _on_party_roster_change_requested;
             party_management_window.warehouse_requested -= _on_party_management_warehouse_requested;
+            party_management_window.promotion_requested -= _on_party_promotion_requested;
             party_management_window.contingency_setup_requested -= _on_party_contingency_setup_requested;
             party_management_window.closed -= _on_party_management_window_closed;
         }
@@ -1492,6 +1533,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         }
         if (party_button != null)
             party_button.Pressed -= _on_party_button_pressed;
+        if (promotion_reminder_button != null)
+            promotion_reminder_button.Pressed -= OnPromotionReminderPressed;
         if (world_map_view != null)
         {
             world_map_view.cell_clicked -= _on_world_map_cell_clicked;
@@ -1517,6 +1560,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         battle_map_panel = null;
         runtime_log_dock = null;
         status_label = null;
+        promotion_reminder_button = null;
         settlement_window = null;
         contract_board_service_modal = null;
         shop_service_modal = null;

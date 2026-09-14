@@ -78,8 +78,8 @@ public partial class run_save_serializer_quest_round_trip_regression : Lifecycle
         GDictionary payload = payloadLease.Value;
         _test.Eq(
             DictInt(payload, "version", -1),
-            20,
-            "Current strict world schema should use top-level save version 20."
+            21,
+            "Current strict save schema should use top-level save version 21."
         );
         Dictionary<string, object> payloadPlain = RuntimePlainPayload.RestoreSaveDictionary(
             payload,

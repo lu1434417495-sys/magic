@@ -100,7 +100,7 @@ LoginScreen / Save
 
 世界生成输出和存档中的世界数据是 `Dictionary`。根世界和每个子地图的 `world_data` 使用同一主体 schema：
 
-根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。当前顶层存档版本为 `SaveVersion 20`，存档索引版本为 `SaveIndexVersion 5`；两者只接受当前精确版本。版本 19 / 4 及更早数据不会迁移，旧 world 路径字段也不会被别名接纳。
+根字段名称与 required/optional/array/string 分类由 `WorldRuntimeSaveSchema` 唯一声明，`WorldRuntimeData` 的 canonical 读写和 `SaveSerializer` 的磁盘边界校验共同消费。nested settlement、event、resource node、mounted submap 与 return-stack entry 的字段集合归各自 typed record；serializer 只负责递归顺序与可定位错误，不再复制 record 字段表。当前顶层存档版本为 `SaveVersion 21`，存档索引版本为 `SaveIndexVersion 5`；两者只接受当前精确版本。存档版本 20 及更早、索引版本 4 及更早数据不会迁移，旧 world 路径字段也不会被别名接纳。版本 21 的变化来自[角色晋升历史结构](../progression/skill_driven_promotion.md)，世界字段结构不变。
 
 | key | 类型 | 说明 |
 |---|---|---|

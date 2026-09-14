@@ -81,6 +81,7 @@
 
     { "glob": "scripts/player/progression/*State*.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/*Progress.cs", "layer": "domain_state" },
+    { "glob": "scripts/player/progression/UnitProgress.*.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/*Snapshot.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/*Collection.cs", "layer": "domain_state" },
     { "glob": "scripts/player/progression/*Map.cs", "layer": "domain_state" },

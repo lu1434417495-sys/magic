@@ -1,8 +1,8 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using Godot;
 
-public class UnitProgress
+public partial class UnitProgress
 {
     private static readonly string[] TO_DICT_FIELDS =
     {
@@ -18,12 +18,9 @@ public class UnitProgress
         "active_core_skill_ids",
         "attribute_growth_progress",
         "achievement_progress",
-        "pending_profession_choices",
         "blocked_relearn_skill_ids",
         "merged_skill_source_map",
         "unlocked_combat_resource_ids",
-        "active_level_trigger_core_skill_id",
-        "locked_level_trigger_skill_ids",
     };
     private readonly Dictionary<StringName, UnitSkillProgress> _skills = new();
     private readonly List<StringName> _knownKnowledgeIds = new();
@@ -32,14 +29,12 @@ public class UnitProgress
     private readonly Dictionary<StringName, AchievementProgressState> _achievementProgress =
         new();
     private readonly Dictionary<StringName, UnitProfessionProgress> _professions = new();
-    private readonly List<PendingProfessionChoice> _pendingProfessionChoices = new();
     private readonly List<StringName> _blockedRelearnSkillIds = new();
     private readonly Dictionary<StringName, List<StringName>> _mergedSkillSourceMap = new();
     private readonly List<StringName> _unlockedCombatResourceIds =
         new(CombatResourceIds.DefaultUnlocked);
-    private readonly List<StringName> _lockedLevelTriggerSkillIds = new();
 
-    public int version = 1;
+    public int version = 2;
     public StringName unit_id = "";
     public string display_name = "";
     public int character_level;
@@ -75,11 +70,6 @@ public class UnitProgress
         get => BuildAchievementProgressDictionary();
         set => SetAchievementProgressStates(value);
     }
-    public Godot.Collections.Array pending_profession_choices
-    {
-        get => BuildPendingProfessionChoicesArray();
-        set => SetPendingProfessionChoices(value);
-    }
     public StringNameList blocked_relearn_skill_ids
     {
         get => new(_blockedRelearnSkillIds);
@@ -95,12 +85,6 @@ public class UnitProgress
         get => new(_unlockedCombatResourceIds);
         set => SetUnlockedCombatResourceIds(value);
     }
-    public StringName active_level_trigger_core_skill_id = "";
-    public StringNameList locked_level_trigger_skill_ids
-    {
-        get => new(_lockedLevelTriggerSkillIds);
-        set => SetLockedLevelTriggerSkillIds(value);
-    }
     internal IReadOnlyList<StringName> KnownKnowledgeIdsTyped => _knownKnowledgeIds;
     internal IReadOnlyList<StringName> ActiveCoreSkillIdsTyped => _activeCoreSkillIds;
     internal IReadOnlyDictionary<StringName, UnitSkillProgress> SkillsTyped => _skills;
@@ -110,12 +94,10 @@ public class UnitProgress
         _achievementProgress;
     internal IReadOnlyDictionary<StringName, UnitProfessionProgress> ProfessionsTyped =>
         _professions;
-    internal IReadOnlyList<PendingProfessionChoice> PendingProfessionChoicesTyped => _pendingProfessionChoices;
     internal IReadOnlyList<StringName> BlockedRelearnSkillIdsTyped => _blockedRelearnSkillIds;
     internal IReadOnlyDictionary<StringName, List<StringName>> MergedSkillSourceMapTyped =>
         _mergedSkillSourceMap;
     internal IReadOnlyList<StringName> UnlockedCombatResourceIdsTyped => _unlockedCombatResourceIds;
-    internal IReadOnlyList<StringName> LockedLevelTriggerSkillIdsTyped => _lockedLevelTriggerSkillIds;
 
     public void SetSkillProgress(UnitSkillProgress sp)
     {
@@ -147,7 +129,7 @@ public class UnitProgress
 
     public void RemoveProfessionProgress(StringName pid)
     {
-        if (pid != "")
+        if (pid != "" && (!_professions.TryGetValue(pid, out var value) || value.promotion_history.Count == 0))
             _professions.Remove(pid);
     }
 
@@ -353,30 +335,6 @@ public class UnitProgress
         _attributeGrowthProgress[attributeId] = amount;
     }
 
-    public void SetPendingProfessionChoices(System.Collections.IEnumerable values)
-    {
-        _pendingProfessionChoices.Clear();
-        if (values == null)
-            return;
-        foreach (var value in values)
-        {
-            if (value is PendingProfessionChoice choice)
-            {
-                AddPendingProfessionChoice(choice);
-                continue;
-            }
-            if (TryParsePendingProfessionChoicePayload(value, out PendingProfessionChoice payloadChoice))
-                AddPendingProfessionChoice(payloadChoice);
-        }
-    }
-
-    public void AddPendingProfessionChoice(PendingProfessionChoice choice)
-    {
-        if (choice == null)
-            return;
-        _pendingProfessionChoices.Add(choice.DuplicateState());
-    }
-
     public void SetBlockedRelearnSkillIds(IEnumerable values) =>
         SetUniqueStringNames(_blockedRelearnSkillIds, values);
 
@@ -495,23 +453,8 @@ public class UnitProgress
     public void SetUnlockedCombatResourceIds(IEnumerable values) =>
         SetUniqueStringNames(_unlockedCombatResourceIds, values);
 
-    public bool HasLockedLevelTriggerSkillId(StringName skillId) =>
-        HasStringName(_lockedLevelTriggerSkillIds, skillId);
-
-    public void SetLockedLevelTriggerSkillIds(IEnumerable values) =>
-        SetUniqueStringNames(_lockedLevelTriggerSkillIds, values);
-
-    public void AddLockedLevelTriggerSkillId(StringName skillId) =>
-        AddUniqueStringName(_lockedLevelTriggerSkillIds, skillId);
-
-    public void RemoveLockedLevelTriggerSkillId(StringName skillId) =>
-        _lockedLevelTriggerSkillIds.Remove(skillId);
-
     public UnitProgress DuplicateState()
     {
-        SyncActiveCoreSkillIds();
-        SyncDefaultCombatResourceUnlocks();
-
         var copy = new UnitProgress
         {
             version = version,
@@ -520,44 +463,18 @@ public class UnitProgress
             character_level = character_level,
             unit_base_attributes = unit_base_attributes?.DuplicateState() ?? new UnitBaseAttributes(),
             reputation_state = reputation_state?.DuplicateState() ?? new UnitReputationState(),
-            active_level_trigger_core_skill_id = active_level_trigger_core_skill_id,
         };
         copy.SetKnownKnowledgeIds(_knownKnowledgeIds);
-        copy.SetActiveCoreSkillIds(_activeCoreSkillIds);
         copy.SetSkillProgressStates(_skills);
+        copy.SetActiveCoreSkillIds(_activeCoreSkillIds);
         copy.SetAttributeGrowthProgress(_attributeGrowthProgress);
         copy.SetAchievementProgressStates(_achievementProgress);
         copy.SetProfessionProgressStates(_professions);
         copy.SetBlockedRelearnSkillIds(_blockedRelearnSkillIds);
         copy.SetMergedSkillSourceMap(_mergedSkillSourceMap);
         copy.SetUnlockedCombatResourceIds(_unlockedCombatResourceIds);
-        copy.SetLockedLevelTriggerSkillIds(_lockedLevelTriggerSkillIds);
-
-        foreach (StringName skillId in GetSortedSkillIdsTyped())
-        {
-            var skillProgress = GetSkillProgress(skillId);
-            if (skillProgress != null)
-                copy.SetSkillProgress(skillProgress.DuplicateState());
-        }
-
-        foreach (StringName professionId in GetSortedProfessionIdsTyped())
-        {
-            var professionProgress = GetProfessionProgress(professionId);
-            if (professionProgress != null)
-                copy.SetProfessionProgress(professionProgress.DuplicateState());
-        }
-
-        foreach (var key in ProgressionDataUtils.sorted_string_keys(BuildAchievementProgressDictionary()))
-        {
-            var progressState = GetAchievementProgressState(new StringName(key));
-            if (progressState != null)
-                copy.SetAchievementProgressState(progressState);
-        }
-
-        foreach (var pendingChoice in _pendingProfessionChoices)
-            if (pendingChoice != null)
-                copy.AddPendingProfessionChoice(pendingChoice);
-
+        copy.SyncActiveCoreSkillIds();
+        copy.SyncDefaultCombatResourceUnlocks();
         return copy;
     }
 
@@ -579,10 +496,6 @@ public class UnitProgress
             if (pp != null)
                 pd[professionId] = pp.ToDictionary();
         }
-        var pcd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var pc in _pendingProfessionChoices)
-            if (pc != null)
-                pcd.Add(pc.ToDictionary());
         var ad = new Godot.Collections.Dictionary();
         foreach (var k in ProgressionDataUtils.sorted_string_keys(BuildAchievementProgressDictionary()))
         {
@@ -619,7 +532,6 @@ public class UnitProgress
                 ProgressionDataUtils.string_name_int_map_to_string_dict(_attributeGrowthProgress)
             },
             { "achievement_progress", ad },
-            { "pending_profession_choices", pcd },
             {
                 "blocked_relearn_skill_ids",
                 ProgressionDataUtils.string_name_array_to_string_array(_blockedRelearnSkillIds)
@@ -632,18 +544,15 @@ public class UnitProgress
                 "unlocked_combat_resource_ids",
                 ProgressionDataUtils.string_name_array_to_string_array(_unlockedCombatResourceIds)
             },
-            { "active_level_trigger_core_skill_id", (string)active_level_trigger_core_skill_id },
-            {
-                "locked_level_trigger_skill_ids",
-                ProgressionDataUtils.string_name_array_to_string_array(
-                    _lockedLevelTriggerSkillIds
-                )
-            },
         };
     }
 
-    public static UnitProgress FromDictionary(Godot.Collections.Dictionary data)
+    public static UnitProgress FromDictionary(Godot.Collections.Dictionary data) =>
+        FromDictionary(data, out _);
+
+    public static UnitProgress FromDictionary(Godot.Collections.Dictionary data, out string failureReason)
     {
+        failureReason = "invalid progression fields or values";
         if (!_hef(data, TO_DICT_FIELDS))
             return null;
         if (
@@ -703,14 +612,6 @@ public class UnitProgress
         if (
             !TryGetArray(
                 data,
-                "pending_profession_choices",
-                out Godot.Collections.Array pendingProfessionChoiceValues
-            )
-        )
-            return null;
-        if (
-            !TryGetArray(
-                data,
                 "blocked_relearn_skill_ids",
                 out Godot.Collections.Array blockedRelearnSkillIdValues
             )
@@ -732,16 +633,11 @@ public class UnitProgress
             )
         )
             return null;
-        if (
-            !TryGetArray(
-                data,
-                "locked_level_trigger_skill_ids",
-                out Godot.Collections.Array lockedLevelTriggerSkillIdValues
-            )
-        )
+        if (!TryGetStrictInt(data, "version", out int versionValue) || versionValue != 2)
+        {
+            failureReason = "version: expected 2";
             return null;
-        if (!TryGetStrictInt(data, "version", out int versionValue) || versionValue != 1)
-            return null;
+        }
 
         var parsedUnitId = _parse_required_string_name(data, "unit_id", out bool unitIdOk);
         if (!unitIdOk)
@@ -784,19 +680,6 @@ public class UnitProgress
         );
         if (parsedUnlockedResources == null)
             return null;
-        var parsedActiveLevelTriggerCoreSkillId = _parse_optional_string_name(
-            data,
-            "active_level_trigger_core_skill_id",
-            out bool activeTriggerOk
-        );
-        if (!activeTriggerOk)
-            return null;
-        var parsedLockedLevelTriggerSkillIds = _parse_unique_string_name_array(
-            lockedLevelTriggerSkillIdValues
-        );
-        if (parsedLockedLevelTriggerSkillIds == null)
-            return null;
-
         foreach (var resourceId in parsedUnlockedResources)
             if (CombatResourceIds.ToResourceKind(resourceId) == CombatResourceIdKind.Unknown)
                 return null;
@@ -817,14 +700,12 @@ public class UnitProgress
             character_level = characterLevelValue,
             unit_base_attributes = unitBaseAttributes,
             reputation_state = reputationState,
-            active_level_trigger_core_skill_id = parsedActiveLevelTriggerCoreSkillId,
         };
         progress.SetKnownKnowledgeIds(parsedKnownKnowledgeIds);
         progress.SetBlockedRelearnSkillIds(parsedBlockedRelearnSkillIds);
         progress.SetAttributeGrowthProgress(parsedAttributeGrowthProgress);
         progress.SetMergedSkillSourceMap(parsedMergedSkillSourceMap);
         progress.SetUnlockedCombatResourceIds(parsedUnlockedResources);
-        progress.SetLockedLevelTriggerSkillIds(parsedLockedLevelTriggerSkillIds);
         progress.SyncDefaultCombatResourceUnlocks();
 
         foreach (var key in skillsData.Keys)
@@ -850,8 +731,6 @@ public class UnitProgress
                 );
         }
 
-        if (!_has_valid_level_trigger_state(progress))
-            return null;
 
         foreach (var key in professionsData.Keys)
         {
@@ -899,29 +778,20 @@ public class UnitProgress
             progress.SetAchievementProgressState(progressState);
         }
 
-        foreach (var pendingChoiceData in pendingProfessionChoiceValues)
+        if (!progress.HasValidPromotionHistory())
         {
-            if (
-                !TryAsDictionary(
-                    pendingChoiceData,
-                    out Godot.Collections.Dictionary pendingChoicePayload
-                )
-            )
-                return null;
-            var pendingChoice = PendingProfessionChoice.FromDictionary(pendingChoicePayload);
-            if (pendingChoice == null)
-                return null;
-            progress.AddPendingProfessionChoice(pendingChoice);
+            failureReason = "promotion_history: ranks and unique growth triggers must match character_level";
+            return null;
         }
-
         progress.SetActiveCoreSkillIds(parsedActiveCoreSkillIds);
         progress.SyncActiveCoreSkillIds();
+        failureReason = "";
         return progress;
     }
 
     private static bool _hef(Godot.Collections.Dictionary d, IReadOnlyCollection<string> e)
     {
-        if (d.Count != e.Count)
+        if (d == null || d.Count != e.Count)
             return false;
         foreach (string fn in e)
             if (!d.ContainsKey(fn))
@@ -1004,27 +874,6 @@ public class UnitProgress
             if (value == target)
                 return true;
         return false;
-    }
-
-    private Godot.Collections.Array BuildPendingProfessionChoicesArray()
-    {
-        var result = new Godot.Collections.Array();
-        foreach (PendingProfessionChoice choice in _pendingProfessionChoices)
-            if (choice != null)
-                result.Add(choice.ToDictionary());
-        return result;
-    }
-
-    private static bool TryParsePendingProfessionChoicePayload(
-        object value,
-        out PendingProfessionChoice choice
-    )
-    {
-        choice = null;
-        if (!TryAsDictionary(value, out Godot.Collections.Dictionary payload))
-            return false;
-        choice = PendingProfessionChoice.FromDictionary(payload);
-        return choice != null;
     }
 
     internal List<StringName> GetSortedSkillIdsTyped()
@@ -1143,83 +992,6 @@ public class UnitProgress
                 result[achievementId] = value?.ToDictionary() ?? new Godot.Collections.Dictionary();
         }
         return result;
-    }
-
-    private static bool _has_valid_level_trigger_state(UnitProgress progress)
-    {
-        if (progress == null)
-            return false;
-        var activeSkillId = progress.active_level_trigger_core_skill_id;
-        int activeFlagCount = 0;
-        var activeFlagSkillId = new StringName("");
-        var lockedFlagLookup = new HashSet<StringName>();
-
-        foreach (var skillId in progress.GetSortedSkillIdsTyped())
-        {
-            var skillProgress = progress.GetSkillProgress(skillId);
-            if (skillProgress == null)
-                return false;
-            if (skillProgress.is_level_trigger_active)
-            {
-                activeFlagCount += 1;
-                activeFlagSkillId = skillId;
-                if (skillProgress.is_level_trigger_locked)
-                    return false;
-            }
-            if (skillProgress.is_level_trigger_locked)
-            {
-                lockedFlagLookup.Add(skillId);
-                if (skillProgress.is_level_trigger_active)
-                    return false;
-                if (!skillProgress.is_learned || !skillProgress.is_core)
-                    return false;
-            }
-        }
-
-        if (activeFlagCount > 1)
-            return false;
-        if (activeSkillId == "")
-        {
-            if (activeFlagCount != 0)
-                return false;
-        }
-        else
-        {
-            var activeSkillProgress = progress.GetSkillProgress(activeSkillId);
-            if (activeSkillProgress == null)
-                return false;
-            if (activeFlagCount != 1 || activeFlagSkillId != activeSkillId)
-                return false;
-            if (!activeSkillProgress.is_learned || !activeSkillProgress.is_core)
-                return false;
-            if (activeSkillProgress.is_level_trigger_locked)
-                return false;
-            if (progress.HasLockedLevelTriggerSkillId(activeSkillId))
-                return false;
-        }
-
-        var lockedListLookup = new HashSet<StringName>();
-        foreach (var lockedSkillId in progress.LockedLevelTriggerSkillIdsTyped)
-        {
-            if (lockedSkillId == "" || !lockedListLookup.Add(lockedSkillId))
-                return false;
-            var lockedSkillProgress = progress.GetSkillProgress(lockedSkillId);
-            if (lockedSkillProgress == null)
-                return false;
-            if (!lockedSkillProgress.is_learned || !lockedSkillProgress.is_core)
-                return false;
-            if (lockedSkillProgress.is_level_trigger_active)
-                return false;
-            if (!lockedSkillProgress.is_level_trigger_locked)
-                return false;
-        }
-
-        if (lockedListLookup.Count != lockedFlagLookup.Count)
-            return false;
-        foreach (var lockedSkillId in lockedFlagLookup)
-            if (!lockedListLookup.Contains(lockedSkillId))
-                return false;
-        return true;
     }
 
     private static bool TryGetStringLike(
@@ -1345,7 +1117,8 @@ public class UnitProgress
 
     private static bool TryAsStrictInt(object rawValue, out int value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int
+            && variant.AsInt64() >= int.MinValue && variant.AsInt64() <= int.MaxValue)
         {
             value = variant.AsInt32();
             return true;

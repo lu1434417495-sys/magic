@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
@@ -50,7 +50,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         var choiceCards = window.GetNode<HBoxContainer>(
-            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceCards"
+            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceScroll/ChoiceCards"
         );
         _test.True(window.Visible, "PromotionChoiceWindow 应继续接受 formal string payload。");
         _test.Eq(choiceCards.GetChildCount(), 1, "PromotionChoiceWindow 应渲染一条正式晋升选项。");
@@ -70,10 +70,10 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
             submittedProfessionId = professionId;
             submittedSelectionWasValid =
                 selection != null
-                && selection.ContainsKey("mode")
-                && selection["mode"].VariantType == Variant.Type.String;
+                && selection.ContainsKey("growth_trigger_skill_id")
+                && selection["growth_trigger_skill_id"].VariantType == Variant.Type.String;
             submittedSelectionMode = submittedSelectionWasValid
-                ? selection["mode"].AsString()
+                ? selection["growth_trigger_skill_id"].AsString()
                 : "";
         };
 
@@ -102,7 +102,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         );
         _test.Eq(
             submittedSelectionMode,
-            "frontline",
+            "slash",
             "PromotionChoiceWindow 应保持 selection payload 的字段语义。"
         );
         _test.False(window.Visible, "PromotionChoiceWindow 确认后应关闭窗口。");
@@ -136,7 +136,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
             "晋升提示中的 BBCode 形态文本应按字面显示。"
         );
         _test.True(
-            parsedText.Contains("slash[b]"),
+            parsedText.Contains("斩击[b]"),
             "授予技能文本中的方括号内容也不应被当作 BBCode。"
         );
         await DisposeWindow(window);
@@ -149,7 +149,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
         var choiceCards = window.GetNode<HBoxContainer>(
-            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceCards"
+            "CenterContainer/Panel/MarginContainer/Content/Body/ChoiceScroll/ChoiceCards"
         );
         _test.False(window.Visible, "PromotionChoiceWindow 应拒绝 StringName-valued prompt。");
         _test.Eq(choiceCards.GetChildCount(), 0, "StringName-valued prompt 不应局部渲染晋升选项。");
@@ -171,10 +171,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
                     ["description"] = "获得更稳定的前排姿态。",
                     ["granted_skill_ids"] = new List<object> { "slash", "guard" },
                     ["selection_hint"] = "确认后将在战斗中立即生效。",
-                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal)
-                    {
-                        ["mode"] = "frontline",
-                    },
+                    ["selection"] = new PromotionCommitRequest("slash", 1, new StringName[] { "slash" }, Array.Empty<StringName>(), "ui-fixture").ToPlainPayload(),
                 },
             },
         };
@@ -197,7 +194,7 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
                         new StringName("slash"),
                     },
                     ["selection_hint"] = new StringName("StringName hint"),
-                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal),
+                    ["selection"] = new PromotionCommitRequest("slash", 1, new StringName[] { "slash" }, Array.Empty<StringName>(), "ui-fixture").ToPlainPayload(),
                 },
             },
         };
@@ -216,8 +213,8 @@ public partial class run_promotion_choice_window_schema_regression : LifecycleTe
                     ["summary"] = "Rank 1",
                     ["description"] = "[color=red]仍是描述[/color]",
                     ["granted_skill_ids"] = new List<object> { "slash[b]" },
-                    ["selection_hint"] = "[url=confirm]确认[/url]",
-                    ["selection"] = new Dictionary<string, object>(StringComparer.Ordinal),
+                    ["selection_hint"] = "[url=confirm]确认[/url]\n授予技能：斩击[b]",
+                    ["selection"] = new PromotionCommitRequest("slash", 1, new StringName[] { "slash" }, Array.Empty<StringName>(), "ui-fixture").ToPlainPayload(),
                 },
             },
         };

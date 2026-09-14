@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -508,7 +508,6 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
             return;
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
             DisposeProfessionProgressGraph(professionProgress);
-        progress.SetPendingProfessionChoices(null);
     }
 
     private static void DisposeProfessionProgressGraph(
@@ -517,7 +516,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     {
         if (professionProgress == null)
             return;
-        professionProgress.promotion_history.Clear();
+        professionProgress.ClearPromotionHistoryForDispose();
         professionProgress.core_skill_ids.Clear();
         professionProgress.granted_skill_ids.Clear();
     }

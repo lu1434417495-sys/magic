@@ -1044,7 +1044,7 @@ public partial class
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult

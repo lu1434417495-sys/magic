@@ -6,6 +6,7 @@ internal enum TagRequirementSkillState
     Learned,
     Core,
     CoreMax,
+    CoreQualified,
 }
 
 internal enum TagRequirementOriginFilter
@@ -29,6 +30,7 @@ public partial class TagRequirement : RefCounted
     private static readonly StringName SkillStateLearned = "learned";
     private static readonly StringName SkillStateCore = "core";
     private static readonly StringName SkillStateCoreMax = "core_max";
+    private static readonly StringName SkillStateCoreQualified = "core_qualified";
     private static readonly StringName OriginFilterAny = "any";
     private static readonly StringName OriginFilterUnmergedOnly = "unmerged_only";
     private static readonly StringName OriginFilterMergedOnly = "merged_only";
@@ -71,6 +73,8 @@ public partial class TagRequirement : RefCounted
             return TagRequirementSkillState.Learned;
         if (value == SkillStateCore)
             return TagRequirementSkillState.Core;
+        if (value == SkillStateCoreQualified)
+            return TagRequirementSkillState.CoreQualified;
         if (value == SkillStateCoreMax)
             return TagRequirementSkillState.CoreMax;
         return TagRequirementSkillState.Unknown;
@@ -103,6 +107,7 @@ public partial class TagRequirement : RefCounted
             TagRequirementSkillState.Learned => SkillStateLearned,
             TagRequirementSkillState.Core => SkillStateCore,
             TagRequirementSkillState.CoreMax => SkillStateCoreMax,
+            TagRequirementSkillState.CoreQualified => SkillStateCoreQualified,
             _ => "",
         };
     }

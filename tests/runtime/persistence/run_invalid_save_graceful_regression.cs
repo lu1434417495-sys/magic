@@ -314,7 +314,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
                 );
             }
 
-            _test.Eq(SaveSchemaVersions.SaveVersion, 20, "阶段 7 顶层 save schema 应为 20。");
+            _test.Eq(SaveSchemaVersions.SaveVersion, 21, "技能成长历史模型的顶层 save schema 应为 21。");
             _test.True(
                 serializer.TryDecodePayload(
                     payload,
@@ -322,12 +322,12 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
                     saveMeta,
                     out _
                 ),
-                "当前 save 20 + world_generation_id payload 应可解码。"
+                "当前 save 21 + world_generation_id payload 应可解码。"
             );
 
             Dictionary<string, object> oldVersionPayload =
                 RuntimePlainPayload.CloneDictionary(payload);
-            oldVersionPayload["version"] = 19;
+            oldVersionPayload["version"] = 20;
             _test.False(
                 serializer.TryDecodePayload(
                     oldVersionPayload,
@@ -335,7 +335,7 @@ public partial class run_invalid_save_graceful_regression : LifecycleTestSceneTr
                     saveMeta,
                     out _
                 ),
-                "save 19 必须被精确版本门拒绝，不能迁移到 save 20。"
+                "save 20 必须被精确版本门拒绝，不能猜测旧晋升历史迁移到 save 21。"
             );
 
             Dictionary<string, object> oldPathPayload =

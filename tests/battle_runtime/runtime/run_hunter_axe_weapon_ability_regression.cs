@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -408,10 +408,11 @@ public partial class run_hunter_axe_weapon_ability_regression : LifecycleTestSce
                 skill_level = level,
                 current_mastery = currentMastery,
                 is_core = isCore,
-                is_level_trigger_locked = level > 3,
                 granted_source_type = "player",
             };
             progression?.SetSkillProgress(progress);
+            if (progression != null && isCore)
+                PromotionHistoryTestFixture.Record(progression, HunterMarkSkillId, level: 3);
             return progress;
         }
 

@@ -820,7 +820,7 @@ public partial class run_contingency_battle_lifecycle_regression : LifecycleTest
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult CommitBattleResources(

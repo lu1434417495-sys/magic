@@ -504,6 +504,7 @@ public sealed partial class GameRuntimeFacade
         ClearRuntimeBattleStateReference();
         _pending_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
         _pending_world_promotion_prompt = GameRuntimePromotionPromptContext.Empty;
+        _promotion_notifications.Clear();
         _active_character_info_context = null;
         _active_game_over_context = null;
         _active_contract_board_context = SettlementServiceWindowData.Empty;
@@ -530,7 +531,9 @@ public sealed partial class GameRuntimeFacade
         _character_info_builder?.Setup(this);
     }
 
-    public string GetStatusText() => _current_status_message;
+    public string GetStatusText() => string.IsNullOrEmpty(_promotion_notifications.Hint)
+        ? _current_status_message
+        : $"{_current_status_message}\n{_promotion_notifications.Hint}";
 
     public IReadOnlyDictionary<string, object> GetLogSnapshotPlain(int limit = 30) =>
         _game_session != null
@@ -1268,6 +1271,19 @@ public sealed partial class GameRuntimeFacade
     bool IGameRuntimeCharacterInfoQuery.HasPartyMember(StringName memberId) =>
         GetPartyState()?.HasMemberState(memberId) ?? false;
 
+    bool IGameRuntimeCharacterInfoQuery.TryGetSkillDefinition(
+        StringName skillId,
+        out SkillDefinition skillDefinition
+    )
+    {
+        skillDefinition = null;
+        return GetContentCatalogTyped()?.GetSkillDefinitionsTyped()
+            .TryGetValue(skillId, out skillDefinition) ?? false;
+    }
+
+    ProgressionIdentityCatalogData IGameRuntimeCharacterInfoQuery.GetIdentityCatalog() =>
+        GetContentCatalogTyped()?.GetProgressionIdentityCatalogTyped();
+
     bool IGameRuntimeCharacterInfoQuery.TryGetItemDefinition(
         StringName itemId,
         out ItemDefinition itemDefinition
@@ -1466,7 +1482,7 @@ public sealed partial class GameRuntimeFacade
     internal BattleEventBatch SubmitBattlePromotionChoice(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     ) =>
         _battle_runtime != null
             ? _battle_runtime.SubmitPromotionChoice(member_id, profession_id, selection)
@@ -1475,7 +1491,7 @@ public sealed partial class GameRuntimeFacade
     internal CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     ) => _character_management?.PromoteProfession(member_id, profession_id, selection);
 
     private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
@@ -1576,6 +1592,8 @@ public sealed partial class GameRuntimeFacade
         }
         if (HasPendingBattleGenerationRequest())
             return false;
+        if (RefreshPromotionNotifications())
+            return true;
         if (IsBattleActive())
         {
             if (_is_battle_finished() || IsBattleTimelineModalActive())
@@ -2000,7 +2018,7 @@ public sealed partial class GameRuntimeFacade
             || (_settlement_entry_active && _settlement_entry_target_coord == coord)
         )
             _mark_settlement_visited(_active_settlement_id);
-        _active_settlement_feedback_text = "据点通过窗口交付，不切换到城内地图。";
+        _active_settlement_feedback_text = "选择一项服务，开始交谈或交易。";
         _active_modal_kind = RuntimeModalKind.Settlement;
         UpdateStatusInternal(
             $"已打开 {settlement.DisplayNameOrFallback("据点")} 的据点窗口。"
@@ -2241,6 +2259,7 @@ public sealed partial class GameRuntimeFacade
     {
         _battle_session_facade.ApplyBattleBatch(batch);
         _log_battle_batch_entries(batch);
+        RefreshPromotionNotifications(batch?.ChangedUnitIdsTyped.Count > 0);
     }
 
     internal void RecordCommandBattleBatch(BattleEventBatch batch)

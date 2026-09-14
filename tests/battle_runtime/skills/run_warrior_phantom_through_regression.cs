@@ -821,7 +821,7 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
         public CharacterProgressionDelta PromoteProfession(
             StringName memberId,
             StringName professionId,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = memberId };
         public BattleResourceCommitResult CommitBattleResources(
             StringName memberId,

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public partial class run_text_command_reward_flow_regression : LifecycleTestSceneTree
@@ -165,7 +165,7 @@ public partial class run_text_command_reward_flow_regression : LifecycleTestScen
                     "",
                     System.Array.Empty<StringName>(),
                     "",
-                    PromotionSelectionData.Empty
+                    new PromotionCommitRequest("test_skill", 1, new StringName[] { "test_skill" }, System.Array.Empty<StringName>())
                 ),
             }
         );

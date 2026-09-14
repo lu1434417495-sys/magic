@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public partial class run_game_runtime_reward_flow_handler_regression : LifecycleTestSceneTree
@@ -38,15 +38,15 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult missingChoiceResult =
                 runtime.CommandChoosePromotionTyped("warrior");
             _test.False(missingChoiceResult.Ok, "command_choose_promotion() 应委托给正式 reward handler 并拒绝不存在的职业。");
-            _test.Eq(missingChoiceResult.Message, "当前晋升列表中不存在职业 warrior。", "缺失晋升选项应返回正式错误文案。");
+            _test.Eq(missingChoiceResult.Message, "职业 warrior 没有唯一匹配方案，请同时指定成长技能。", "缺失晋升选项应返回正式错误文案。");
 
             RuntimeCommandResult cancelResult = runtime.CommandCancelPromotionChoiceTyped();
             _test.True(
                 cancelResult.Ok,
                 "cancel_promotion_choice() 应委托给正式 reward handler。"
             );
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "world promotion 取消后仍应停留在 promotion modal。");
-            _test.Eq(runtime.GetStatusText(), "当前晋升选择必须确认后才能继续结算奖励。", "world promotion 取消应刷新正式状态文案。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "暂缓应关闭 promotion modal。");
+            _test.Eq(runtime.GetStatusText(), "已暂缓晋升，可从人物管理或按 G 重新打开。", "world promotion 取消应刷新正式状态文案。");
 
             runtime.ClearPendingWorldPromotionPromptState();
             runtime.SetRuntimeActiveModalKind(RuntimeModalKind.None);
@@ -161,7 +161,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
             RuntimeCommandResult cancelPromotionChoice =
                 handler.CommandCancelPromotionChoiceTyped();
             _test.True(cancelPromotionChoice.Ok, "cancel promotion choice 应走 typed helper。");
-            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.Promotion, "cancel promotion choice 后应仍停留在 promotion modal。");
+            _test.Eq(runtime.GetActiveModalKind(), RuntimeModalKind.None, "cancel promotion choice 应允许暂缓。");
         }
         finally
         {
@@ -246,7 +246,7 @@ public partial class run_game_runtime_reward_flow_handler_regression : Lifecycle
                     "",
                     System.Array.Empty<StringName>(),
                     "",
-                    PromotionSelectionData.Empty
+                    new PromotionCommitRequest("test_skill", 1, new StringName[] { "test_skill" }, System.Array.Empty<StringName>())
                 ),
             }
         );

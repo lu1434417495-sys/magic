@@ -1,0 +1,14 @@
+Running 3 test(s) with 2 parallel job(s).
+Per-test Godot user data root: C:\Users\lu\AppData\Local\Temp\godot-regression-user-data-u5al87hg
+
+[1/3] [RUN] tests/runtime/facade/run_game_runtime_reward_flow_regression.cs
+
+[2/3] [RUN] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs
+[1/3] [DONE] tests/runtime/facade/run_game_runtime_reward_flow_regression.cs - 成功 (18.10s)
+
+[3/3] [RUN] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs
+[2/3] [DONE] tests/text_runtime/headless/run_text_command_reward_flow_regression.cs - 成功 (18.76s)
+[3/3] [DONE] tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs - 成功 (18.03s)
+
+Passed: 3
+Failed: 0

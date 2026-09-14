@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = System.Collections.Generic.IReadOnlyList<object>;
@@ -390,7 +390,7 @@ public static class GameTextSnapshotRenderer
         if (MemberHasProgressionSnapshot(member))
         {
             lines.Add(
-                $"member_progression={memberId} | resources={FormatArray(GetArray(member, "unlocked_combat_resource_ids"))} | aura={GetInt(member, "current_aura")} | active_core={FormatArray(GetArray(member, "active_core_skill_ids"))} | active_trigger={GetString(member, "active_level_trigger_core_skill_id")} | locked_trigger={FormatArray(GetArray(member, "locked_level_trigger_skill_ids"))} | blocked_relearn={FormatArray(GetArray(member, "blocked_relearn_skill_ids"))}"
+                $"member_progression={memberId} | resources={FormatArray(GetArray(member, "unlocked_combat_resource_ids"))} | aura={GetInt(member, "current_aura")} | active_core={FormatArray(GetArray(member, "active_core_skill_ids"))} | growth_completed={FormatArray(GetArray(member, "used_growth_trigger_skill_ids"))} | blocked_relearn={FormatArray(GetArray(member, "blocked_relearn_skill_ids"))}"
             );
         }
         AppendMemberSkillLines(lines, memberId, GetArray(member, "skill_entries"));
@@ -404,8 +404,7 @@ public static class GameTextSnapshotRenderer
             "unlocked_combat_resource_ids",
             "current_aura",
             "active_core_skill_ids",
-            "active_level_trigger_core_skill_id",
-            "locked_level_trigger_skill_ids",
+            "used_growth_trigger_skill_ids",
             "blocked_relearn_skill_ids",
             "skill_entries",
             "profession_entries",
@@ -430,7 +429,7 @@ public static class GameTextSnapshotRenderer
             if (string.IsNullOrEmpty(skillId))
                 continue;
             lines.Add(
-                $"member_skill={memberId} | {skillId} | lv={GetInt(skillEntry, "level")} | core={FormatBool(ReadExactBool(skillEntry, "is_core"))} | trigger_active={FormatBool(ReadExactBool(skillEntry, "is_level_trigger_active"))} | trigger_locked={FormatBool(ReadExactBool(skillEntry, "is_level_trigger_locked"))} | growth_claimed={FormatBool(ReadExactBool(skillEntry, "core_max_growth_claimed"))} | profession={GetString(skillEntry, "assigned_profession_id")}"
+                $"member_skill={memberId} | {skillId} | lv={GetInt(skillEntry, "level")} | core={FormatBool(ReadExactBool(skillEntry, "is_core"))} | growth_completed={FormatBool(ReadExactBool(skillEntry, "growth_completed"))} | profession={GetString(skillEntry, "assigned_profession_id")}"
             );
         }
     }

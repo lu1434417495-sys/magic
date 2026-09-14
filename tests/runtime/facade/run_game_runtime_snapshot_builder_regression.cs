@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -1516,8 +1516,6 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             "mp",
             "aura",
         };
-        memberState.progression.active_level_trigger_core_skill_id = "warrior_heavy_strike";
-        memberState.progression.locked_level_trigger_skill_ids = new GStringNameArray { "mage_blink" };
         memberState.progression.blocked_relearn_skill_ids = new GStringNameArray { "old_focus" };
 
         var coreSkill = new UnitSkillProgress
@@ -1527,7 +1525,6 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             skill_level = 3,
             is_core = true,
             assigned_profession_id = "warrior",
-            is_level_trigger_active = true,
         };
         memberState.progression.SetSkillProgress(coreSkill);
 
@@ -1536,8 +1533,6 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             skill_id = "mage_blink",
             is_learned = true,
             skill_level = 1,
-            is_level_trigger_locked = true,
-            core_max_growth_claimed = true,
         };
         memberState.progression.SetSkillProgress(lockedSkill);
 
@@ -1550,6 +1545,8 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             granted_skill_ids = new GStringNameArray { "warrior_guard_break" },
         };
         memberState.progression.SetProfessionProgress(profession);
+        profession.rank = 0;
+        PromotionHistoryTestFixture.Record(memberState.progression, "mage_blink", "warrior");
         partyState.SetMemberState(memberState);
 
         var runtime = new SnapshotTestRuntime { PartyState = partyState };
@@ -1573,13 +1570,9 @@ public partial class run_game_runtime_snapshot_builder_regression : LifecycleTes
             new[] { "warrior_heavy_strike" },
             "成员快照应暴露激活核心技能列表。"
         );
-        _test.Eq(
-            StringValue(memberSnapshot, "active_level_trigger_core_skill_id"),
-            "warrior_heavy_strike",
-            "成员快照应暴露 active level trigger。"
-        );
+        _test.False(memberSnapshot.ContainsKey("active_level_trigger_core_skill_id"), "The removed active trigger is absent from snapshots.");
         AssertStringListEq(
-            StringList(ArrayValue(memberSnapshot, "locked_level_trigger_skill_ids")),
+            StringList(ArrayValue(memberSnapshot, "used_growth_trigger_skill_ids")),
             new[] { "mage_blink" },
             "成员快照应暴露 locked trigger 技能。"
         );

@@ -790,7 +790,7 @@ public partial class run_contingency_damage_hook_contract_regression : Lifecycle
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) =>
             new();
 

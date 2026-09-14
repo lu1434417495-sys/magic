@@ -126,7 +126,6 @@ public sealed class SkillMergeService
                 )
             )
             {
-                ClearCompositeTriggerReferences(normalizedSourceIds, resultSkillId);
                 resultProgress.is_core = false;
                 resultProgress.ClearProfessionAssignment();
             }
@@ -138,7 +137,6 @@ public sealed class SkillMergeService
         }
         else if (coreTransitionMode == CoreSkillTransitionMode.ReplaceSourcesWithResult)
         {
-            ClearCompositeTriggerReferences(normalizedSourceIds, resultSkillId);
             resultProgress.is_core = false;
             resultProgress.ClearProfessionAssignment();
         }
@@ -169,7 +167,6 @@ public sealed class SkillMergeService
                 );
             else
                 RemoveSourceSkillFromAllProfessions(sourceSkillId);
-            ClearLevelTriggerReferences(sourceSkillId);
             sourceProgress.ClearProfessionAssignment();
             _unit_progress.BlockSkillRelearn(sourceSkillId);
             _unit_progress.RemoveSkillProgress(sourceSkillId);
@@ -197,7 +194,6 @@ public sealed class SkillMergeService
         }
         if (!keepCore)
         {
-            ClearLevelTriggerReferences(resultSkillId);
             RemoveSourceSkillFromAllProfessions(resultSkillId);
             resultProgress.is_core = false;
             resultProgress.ClearProfessionAssignment();
@@ -349,33 +345,6 @@ public sealed class SkillMergeService
         return resultProgress;
     }
 
-    // 复合升级降级为非核心时，被消耗的 source 触发锁也必须清理，
-    // 与 ReplaceSourceCoresWithResult 成功路径保持同一套语义。
-    private void ClearCompositeTriggerReferences(
-        IEnumerable<StringName> sourceSkillIds,
-        StringName resultSkillId
-    )
-    {
-        foreach (var sourceSkillId in sourceSkillIds)
-            ClearLevelTriggerReferences(sourceSkillId);
-        ClearLevelTriggerReferences(resultSkillId);
-    }
-
-    private void ClearLevelTriggerReferences(StringName skillId)
-    {
-        if (_unit_progress == null || skillId == "")
-            return;
-        if (_unit_progress.active_level_trigger_core_skill_id == skillId)
-            _unit_progress.active_level_trigger_core_skill_id = "";
-        _unit_progress.RemoveLockedLevelTriggerSkillId(skillId);
-        UnitSkillProgress skillProgress = _unit_progress.GetSkillProgress(skillId);
-        if (skillProgress == null)
-            return;
-        skillProgress.is_level_trigger_active = false;
-        skillProgress.is_level_trigger_locked = false;
-        _unit_progress.SetSkillProgress(skillProgress);
-    }
-
     private void RemoveSourceSkillFromProfession(StringName skillId, StringName professionId)
     {
         if (IsEmpty(professionId))
@@ -425,7 +394,6 @@ public sealed class SkillMergeService
                 _unit_progress.GetSkillProgress(sourceSkillId);
             if (sourceProgress == null || sourceProgress.assigned_profession_id != targetProfessionId)
                 continue;
-            ClearLevelTriggerReferences(sourceSkillId);
             sourceProgress.is_core = false;
             sourceProgress.ClearProfessionAssignment();
             professionProgress.RemoveCoreSkill(sourceSkillId);

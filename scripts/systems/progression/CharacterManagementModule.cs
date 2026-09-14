@@ -439,6 +439,7 @@ public sealed partial class CharacterManagementModule
 
     public void SetPartyState(PartyState party_state)
     {
+        PromotionAvailabilityRevision++;
         _party_state = party_state ?? new PartyState();
         _party_warehouse_service.Setup(
             _party_state,
@@ -1324,31 +1325,6 @@ public sealed partial class CharacterManagementModule
         return _build_practice_growth_service().GetSkillLearnedStatusTyped(skill_id, progression);
     }
 
-    public LevelGrowthTriggerResult SetActiveLevelTriggerCoreSkillTyped(
-        StringName member_id,
-        StringName skill_id
-    )
-    {
-        var member_state = GetMemberState(member_id);
-        var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_definition_index);
-        var result = service.SetActiveTriggerCoreSkillTyped(member_state, skill_id);
-        if (result.Ok && member_state?.progression != null)
-            BuildProgressionService(member_state.progression).RefreshRuntimeState();
-        return result;
-    }
-
-    public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)
-    {
-        var member_state = GetMemberState(member_id);
-        var service = new LevelGrowthEvaluationService();
-        service.Setup(_skill_definition_index);
-        var result = service.ClearActiveTriggerCoreSkillTyped(member_state);
-        if (result.Ok && member_state?.progression != null)
-            BuildProgressionService(member_state.progression).RefreshRuntimeState();
-        return result;
-    }
-
     public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)
     {
         if (_party_state == null || days_elapsed <= 0)
@@ -1410,6 +1386,7 @@ public sealed partial class CharacterManagementModule
                     skill_id
                 );
                 delta?.AppendUnlockedAchievementIds(replacement_achievement_ids);
+                PromotionAvailabilityRevision++;
                 return true;
             }
             if (!practice_status.CanLearn)
@@ -1425,6 +1402,7 @@ public sealed partial class CharacterManagementModule
             );
         var achievement_ids = RecordAchievementEvent(member_id, "skill_learned", 1, skill_id);
         delta?.AppendUnlockedAchievementIds(achievement_ids);
+        PromotionAvailabilityRevision++;
         return true;
     }
 
@@ -1440,6 +1418,7 @@ public sealed partial class CharacterManagementModule
         var progression_service = BuildProgressionService(progression);
         if (!progression_service.LearnKnowledge(knowledge_id))
             return false;
+        PromotionAvailabilityRevision++;
         var achievement_ids = RecordAchievementEvent(
             member_id,
             "knowledge_learned",
@@ -2052,38 +2031,39 @@ public sealed partial class CharacterManagementModule
         };
     }
 
-    public CharacterProgressionDelta PromoteProfession(
-        StringName member_id,
-        StringName profession_id,
-        PromotionSelectionData selection
-    )
+    internal long PromotionAvailabilityRevision { get; private set; }
+
+    public IReadOnlyList<PendingProfessionChoice> GetPromotionOffers(StringName memberId)
     {
-        var member_state = GetMemberState(member_id);
+        var member = GetMemberState(memberId);
+        return member?.progression == null || member.is_dead
+            ? System.Array.Empty<PendingProfessionChoice>()
+            : BuildProgressionService(member.progression).GetProfessionUpgradeCandidates();
+    }
+
+    public CharacterProgressionDelta PromoteProfession(StringName member_id, StringName profession_id, PromotionCommitRequest selection)
+    {
+        var member = GetMemberState(member_id);
         var delta = _new_delta(member_id);
-        if (member_state == null || member_state.progression is not UnitProgress progression)
-            return delta;
-
-        var before_skill_levels = _capture_skill_levels(progression);
-        var before_granted_skill_ids = _capture_granted_skill_ids(progression);
-        var before_profession_ranks = _capture_profession_ranks(progression);
-        var trigger_skill_id = progression.active_level_trigger_core_skill_id;
-        delta.character_level_before = progression.character_level;
-
-        var progression_service = BuildProgressionService(progression);
-        if (progression_service.PromoteProfession(profession_id, selection ?? PromotionSelectionData.Empty))
+        if (member?.progression == null || member.is_dead)
         {
-            _apply_level_trigger_attribute_growth(member_state, trigger_skill_id, delta);
-            _fill_delta_from_progression(
-                delta,
-                progression,
-                before_skill_levels,
-                before_granted_skill_ids,
-                before_profession_ranks
-            );
-            delta.AppendUnlockedAchievementIds(
-                RecordAchievementEvent(member_id, "profession_promoted", 1, profession_id)
-            );
+            delta.PromotionFailure = PromotionFailureKind.NotEligible;
+            return delta;
         }
+        var before = member.progression;
+        delta.character_level_before = before.character_level;
+        var levels = _capture_skill_levels(before);
+        var skills = _capture_granted_skill_ids(before);
+        var ranks = _capture_profession_ranks(before);
+        var prepared = BuildProgressionService(before).PreparePromotion(profession_id, selection);
+        delta.PromotionFailure = prepared.Failure;
+        if (!prepared.Ok) return delta;
+        member.progression = prepared.Candidate;
+        foreach (var change in prepared.AttributeChanges)
+            if (change.Applied)
+                delta.AddAttributeChange(CharacterAttributeChangeFact.GrowthResult(_resolve_attribute_label(change.AttributeId), change));
+        _fill_delta_from_progression(delta, member.progression, levels, skills, ranks);
+        delta.AppendUnlockedAchievementIds(RecordAchievementEvent(member_id, "profession_promoted", 1, profession_id));
         return delta;
     }
 
@@ -2341,77 +2321,6 @@ public sealed partial class CharacterManagementModule
         );
     }
 
-    private void _apply_level_trigger_attribute_growth(
-        PartyMemberState member_state,
-        StringName trigger_skill_id,
-        CharacterProgressionDelta delta
-    )
-    {
-        if (
-            member_state == null
-            || member_state.progression is not UnitProgress progression
-            || trigger_skill_id == ""
-        )
-            return;
-        var skill_definition = GetSkillDefinition(trigger_skill_id);
-        if (skill_definition == null || skill_definition.AttributeGrowthProgress.Count == 0)
-            return;
-        var skill_progress = progression.GetSkillProgress(trigger_skill_id);
-        if (skill_progress == null || skill_progress.core_max_growth_claimed)
-            return;
-        var growth_entries = _collect_attribute_growth_entries(skill_definition);
-        if (growth_entries.Count == 0)
-            return;
-        var attribute_growth_service = new AttributeGrowthService();
-        attribute_growth_service.Setup(progression);
-        var did_apply_growth = false;
-        foreach (var entry in growth_entries)
-        {
-            var growth_result = attribute_growth_service.ApplyAttributeProgressTyped(
-                entry.AttributeId,
-                entry.Amount,
-                $"{_resolve_skill_label(trigger_skill_id)} 锁定成长"
-            );
-            if (!growth_result.Applied)
-                continue;
-            did_apply_growth = true;
-            delta?.AddAttributeChange(
-                CharacterAttributeChangeFact.GrowthResult(
-                    _resolve_attribute_label(entry.AttributeId),
-                    growth_result
-                )
-            );
-        }
-        if (!did_apply_growth)
-            return;
-        skill_progress.core_max_growth_claimed = true;
-        progression.SetSkillProgress(skill_progress);
-    }
-
-    private List<AttributeGrowthEntryData> _collect_attribute_growth_entries(
-        SkillDefinition skillDefinition
-    )
-    {
-        var entries = new List<AttributeGrowthEntryData>();
-        if (skillDefinition == null)
-            return entries;
-        var attribute_entries = new List<(string key, int amount)>();
-        foreach (KeyValuePair<StringName, int> entry in skillDefinition.AttributeGrowthProgress)
-        {
-            if (entry.Key != "")
-                attribute_entries.Add((entry.Key.ToString(), entry.Value));
-        }
-        attribute_entries.Sort((a, b) => string.CompareOrdinal(a.key, b.key));
-        foreach (var (attributeKey, amount) in attribute_entries)
-        {
-            var attribute_id = ProgressionDataUtils.to_string_name(attributeKey);
-            if (amount <= 0 || !AttributeGrowthService.IsValidAttributeId(attribute_id))
-                continue;
-            entries.Add(new AttributeGrowthEntryData(attribute_id, amount));
-        }
-        return entries;
-    }
-
     private static List<PendingCharacterRewardEntry> _sort_pending_reward_entries(
         IEnumerable<PendingCharacterRewardEntry> entries
     )
@@ -2442,7 +2351,7 @@ public sealed partial class CharacterManagementModule
         return result;
     }
 
-    private static void _fill_delta_from_progression(
+    private void _fill_delta_from_progression(
         CharacterProgressionDelta delta,
         UnitProgress progression,
         Dictionary<StringName, int> before_skill_levels,
@@ -2450,9 +2359,10 @@ public sealed partial class CharacterManagementModule
         Dictionary<StringName, int> before_profession_ranks
     )
     {
+        PromotionAvailabilityRevision++;
         delta.character_level_after = progression.character_level;
-        delta.SetPendingProfessionChoices(progression.PendingProfessionChoicesTyped);
-        delta.needs_promotion_modal = delta.PendingProfessionChoicesTyped.Count > 0;
+        delta.SetPendingProfessionChoices(BuildProgressionService(progression).GetProfessionUpgradeCandidates());
+        delta.needs_promotion_modal = false;
         foreach (var skill_id in progression.GetSortedSkillIdsTyped())
         {
             var skill_progress = progression.GetSkillProgress(skill_id);

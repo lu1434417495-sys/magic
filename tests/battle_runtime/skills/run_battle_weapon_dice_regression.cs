@@ -1606,7 +1606,7 @@ public partial class run_battle_weapon_dice_regression : LifecycleTestSceneTree
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult CommitBattleResources(

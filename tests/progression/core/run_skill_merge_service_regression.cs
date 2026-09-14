@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -14,14 +14,14 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
 
     private void Run()
     {
-        TestMergeClearsLevelTriggerStateWhenRemovingSources();
+        TestMergePreservesGrowthHistoryWhenRemovingSources();
         TestCompositeUpgradeRetainsSourcesAndMovesCore();
         TestCompositeUpgradeWithoutProfessionAssignmentStillUnlocksResult();
 
         RequestTestExit(_test.Finish("Skill merge service regression"));
     }
 
-    private void TestMergeClearsLevelTriggerStateWhenRemovingSources()
+    private void TestMergePreservesGrowthHistoryWhenRemovingSources()
     {
         UnitProgress progress = new()
         {
@@ -42,12 +42,9 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
             );
         }
         UnitSkillProgress activeProgress = progress.GetSkillProgress(activeSkillId);
-        activeProgress.is_level_trigger_active = true;
-        progress.active_level_trigger_core_skill_id = activeSkillId;
         progress.SetSkillProgress(activeProgress);
         UnitSkillProgress lockedProgress = progress.GetSkillProgress(lockedSkillId);
-        lockedProgress.is_level_trigger_locked = true;
-        progress.AddLockedLevelTriggerSkillId(lockedSkillId);
+        PromotionHistoryTestFixture.Record(progress, lockedSkillId);
         progress.SetSkillProgress(lockedProgress);
 
         SkillMergeService service = new();
@@ -62,15 +59,11 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
             "Removing source skills through merge should succeed."
         );
 
+
         _test.Eq(
-            progress.active_level_trigger_core_skill_id,
-            new StringName(""),
-            "Merge should clear top-level active trigger id."
-        );
-        _test.Eq(
-            progress.locked_level_trigger_skill_ids.Count,
-            0,
-            "Merge should clear top-level locked trigger ids."
+            progress.GetUsedGrowthTriggerIds().Count,
+            1,
+            "Merge must preserve consumed growth history even when the source is removed."
         );
         _test.True(
             progress.GetSkillProgress(activeSkillId) == null,
@@ -119,12 +112,10 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
         }
 
         UnitSkillProgress firstSourceProgress = progress.GetSkillProgress(firstSourceId);
-        firstSourceProgress.is_level_trigger_active = true;
-        progress.active_level_trigger_core_skill_id = firstSourceId;
         progress.SetSkillProgress(firstSourceProgress);
         UnitSkillProgress secondSourceProgress = progress.GetSkillProgress(secondSourceId);
-        secondSourceProgress.is_level_trigger_locked = true;
-        progress.AddLockedLevelTriggerSkillId(secondSourceId);
+        warriorProgress.rank = 0;
+        PromotionHistoryTestFixture.Record(progress, secondSourceId, warriorProgress.profession_id);
         progress.SetSkillProgress(secondSourceProgress);
 
         SkillMergeService service = new();
@@ -162,20 +153,16 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
                 && !progress.GetSkillProgress(secondSourceId).is_core,
             "Second source should remain learned without occupying a core slot."
         );
+
         _test.Eq(
-            progress.active_level_trigger_core_skill_id,
-            new StringName(""),
-            "Composite upgrade should clear active source trigger id."
-        );
-        _test.Eq(
-            progress.locked_level_trigger_skill_ids.Count,
-            0,
-            "Composite upgrade should remove locked source trigger ids."
+            progress.GetUsedGrowthTriggerIds().Count,
+            1,
+            "Composite upgrade must preserve the source growth history."
         );
         _test.True(
-            !progress.GetSkillProgress(firstSourceId).is_level_trigger_active
-                && !progress.GetSkillProgress(secondSourceId).is_level_trigger_locked,
-            "Sources should not keep trigger flags after leaving core slots."
+            !progress.HasUsedGrowthTrigger(firstSourceId)
+                && progress.HasUsedGrowthTrigger(secondSourceId),
+            "Moving core slots must neither consume another source nor reset the completed source."
         );
         _test.True(
             warriorProgress.core_skill_ids.Contains(resultSkillId)
@@ -215,8 +202,7 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
         }
 
         UnitSkillProgress firstSourceProgress = progress.GetSkillProgress(firstSourceId);
-        firstSourceProgress.is_level_trigger_locked = true;
-        progress.AddLockedLevelTriggerSkillId(firstSourceId);
+        PromotionHistoryTestFixture.Record(progress, firstSourceId);
         progress.SetSkillProgress(firstSourceProgress);
 
         SkillMergeService service = new();
@@ -257,9 +243,9 @@ public partial class run_skill_merge_service_regression : LifecycleTestSceneTree
             "Missing profession assignment should downgrade the composite result to non-core instead of failing."
         );
         _test.Eq(
-            progress.locked_level_trigger_skill_ids.Count,
-            0,
-            "Composite upgrade without profession assignment should still clear source trigger locks."
+            progress.GetUsedGrowthTriggerIds().Count,
+            1,
+            "Composite upgrade without profession assignment must still preserve growth history."
         );
     }
 

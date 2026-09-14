@@ -899,11 +899,16 @@ public sealed class GameTextCommandRunner : IDisposable
         GameRuntimeFacade runtime = _session.GetRuntimeFacadeTyped();
         if (runtime == null)
             return MissingWorldError();
-        if (tokens.Count < 3 || tokens[1] != "choose")
-            return Result(false, "用法: promotion choose <profession_id>");
+        if (tokens.Count < 2)
+            return Result(false, "用法: promotion open [member_id] / choose <profession_id> [skill_id] / defer");
         {
-            RuntimeCommandResult outcome =
-                runtime.CommandChoosePromotionTyped(new StringName(tokens[2]));
+            RuntimeCommandResult outcome = tokens[1] switch
+            {
+                "open" when tokens.Count <= 3 => runtime.CommandOpenPromotionTyped(tokens.Count == 3 ? new StringName(tokens[2]) : default),
+                "choose" when tokens.Count is 3 or 4 => runtime.CommandChoosePromotionTyped(new StringName(tokens[2]), tokens.Count == 4 ? new StringName(tokens[3]) : default),
+                "defer" when tokens.Count == 2 => runtime.CommandCancelPromotionChoiceTyped(),
+                _ => RuntimeCommandResult.Failure("用法: promotion open [member_id] / choose <profession_id> [skill_id] / defer"),
+            };
             return Result(outcome.Ok, outcome.Message, outcome.Code);
         }
     }

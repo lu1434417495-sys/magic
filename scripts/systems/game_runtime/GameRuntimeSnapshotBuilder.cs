@@ -522,11 +522,9 @@ public sealed class GameRuntimeSnapshotBuilder
                     ? progression.ActiveCoreSkillIdsTyped
                     : System.Array.Empty<StringName>()
             ),
-            ["active_level_trigger_core_skill_id"] =
-                progression != null ? progression.active_level_trigger_core_skill_id.ToString() : "",
-            ["locked_level_trigger_skill_ids"] = BuildSortedStringNameArray(
+            ["used_growth_trigger_skill_ids"] = BuildSortedStringNameArray(
                 progression != null
-                    ? progression.LockedLevelTriggerSkillIdsTyped
+                    ? progression.GetUsedGrowthTriggerIds()
                     : System.Array.Empty<StringName>()
             ),
             ["blocked_relearn_skill_ids"] = BuildSortedStringNameArray(
@@ -669,9 +667,7 @@ public sealed class GameRuntimeSnapshotBuilder
                     ["level"] = skillProgress.skill_level,
                     ["is_core"] = skillProgress.is_core,
                     ["assigned_profession_id"] = skillProgress.assigned_profession_id.ToString(),
-                    ["is_level_trigger_active"] = skillProgress.is_level_trigger_active,
-                    ["is_level_trigger_locked"] = skillProgress.is_level_trigger_locked,
-                    ["core_max_growth_claimed"] = skillProgress.core_max_growth_claimed,
+                    ["growth_completed"] = progression.HasUsedGrowthTrigger(skillId),
                     ["granted_source_type"] = skillProgress.granted_source_type.ToString(),
                     ["granted_source_id"] = skillProgress.granted_source_id.ToString(),
                 }

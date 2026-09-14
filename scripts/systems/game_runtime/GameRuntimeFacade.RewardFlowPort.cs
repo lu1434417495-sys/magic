@@ -72,6 +72,9 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeRewardFlowPort
     void IGameRuntimeRewardFlowPort.ClearPendingBattlePromotionPrompt() =>
         ClearPendingPromotionPrompt();
 
+    void IGameRuntimeRewardFlowPort.DeferBattlePromotionChoice() =>
+        _battle_runtime?.DeferPromotion();
+
     void IGameRuntimeRewardFlowPort.ClearPendingWorldPromotionPrompt() =>
         ClearPendingWorldPromotionPromptState();
 
@@ -83,7 +86,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeRewardFlowPort
     BattleEventBatch IGameRuntimeRewardFlowPort.SubmitBattlePromotionChoice(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     ) => SubmitBattlePromotionChoice(memberId, professionId, selection);
 
     void IGameRuntimeRewardFlowPort.ApplyBattleBatch(BattleEventBatch batch) =>
@@ -92,7 +95,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeRewardFlowPort
     CharacterProgressionDelta IGameRuntimeRewardFlowPort.PromoteProfession(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     ) => PromoteProfession(memberId, professionId, selection);
 
     void IGameRuntimeRewardFlowPort.SyncPartyStateFromCharacterManagement() =>

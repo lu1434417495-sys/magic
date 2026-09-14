@@ -1,0 +1,62 @@
+from pathlib import Path
+import hashlib
+import importlib.util
+import json
+import os
+import sys
+
+root = Path(r'E:\game\magic')
+scratch = Path(__file__).parent
+spec = importlib.util.spec_from_file_location('promotion_regression_runner', root / 'tests/run_regression_suite.py')
+runner = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = runner
+spec.loader.exec_module(runner)
+tests = {p.relative_to(root).as_posix() for p in (root / 'tests/progression/core').glob('run_*.cs')}
+tests.update(p.relative_to(root).as_posix() for p in (root / 'tests/runtime/persistence').glob('run_*.cs'))
+tests.update([
+    'tests/progression/fate/run_low_luck_event_service_regression.cs',
+    'tests/progression/schema/run_contingency_content_validator_regression.cs',
+    'tests/progression/schema/run_contingency_setup_schema_regression.cs',
+    'tests/runtime/lifecycle/run_application_lifecycle_soak_regression.cs',
+    'tests/runtime/facade/run_battle_session_promotion_prompt_regression.cs',
+    'tests/runtime/facade/run_game_runtime_snapshot_builder_regression.cs',
+    'tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.cs',
+    'tests/text_runtime/headless/run_first_promotion_closed_loop_regression.cs',
+    'tests/text_runtime/headless/run_progression_text_snapshot_regression.cs',
+    'tests/text_runtime/headless/run_text_command_reward_flow_regression.cs',
+    'tests/world_map/ui/run_promotion_choice_window_schema_regression.cs',
+    'tests/world_map/ui/run_promotion_window_flow_regression.cs',
+    'tests/battle_runtime/runtime/run_battle_projection_lease_regression.cs',
+    'tests/battle_runtime/runtime/run_hunter_axe_weapon_ability_regression.cs',
+])
+tests = sorted(tests)
+for path in tests:
+    assert (root / path).is_file(), path
+
+def fingerprints():
+    paths = [*root.glob('scripts/**/*.cs'), *root.glob('tests/**/*.cs'),
+             *root.glob('data/configs/json/**/*.json'), root / 'data/configs/engine_assets/engine_asset_catalog.tres']
+    return {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+
+before = fingerprints()
+(scratch / 'final-source-hashes.json').write_text(json.dumps(before, indent=2), encoding='utf-8')
+with (scratch / 'final-focused.txt').open('w', encoding='utf-8', buffering=1) as log:
+    sys.stdout = log
+    sys.stderr = log
+    print(f'Final focused verification: {len(tests)} tests, current compiled assembly, per-test user data.')
+    env = dict(os.environ)
+    env.pop('MAGIC_E2E_ISOLATED_USER_DATA', None)
+    env.pop('MAGIC_E2E_USER_DATA_ROOT', None)
+    passed, failed = runner.run_tests_parallel(
+        runner.resolve_godot_command('godot'), root, tests, 6, True, False,
+        scratch / 'final-user-data', False, 180, env)
+    after = fingerprints()
+    changed = sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p))
+    print(f'Passed: {passed}\nFailed: {len(failed)}')
+    print('Source/content files changed during run: ' + json.dumps(changed))
+    for result in failed:
+        print(f'FAILED {result.test_path} exit={result.returncode}')
+    (scratch / 'final-focused-result.json').write_text(json.dumps({
+        'tests': tests, 'passed': passed, 'failed': [r.test_path for r in failed], 'changed_during_run': changed
+    }, indent=2), encoding='utf-8')
+    raise SystemExit(1 if failed else 0)

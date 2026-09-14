@@ -110,7 +110,7 @@ public static class SkillPassiveResolver
             return Mathf.Clamp(rawLevel, 0, effectiveMax);
         }
 
-        var fallbackMax = skillProgress.is_level_trigger_locked ? 10 : VajraBodyNonCoreMaxLevel;
+        var fallbackMax = progressionState?.HasUsedGrowthTrigger(skillProgress.skill_id) == true ? 10 : VajraBodyNonCoreMaxLevel;
 
         return Mathf.Clamp(rawLevel, 0, fallbackMax);
     }

@@ -645,7 +645,6 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
         {
             unit_id = "hero_001",
             display_name = "Content Hero",
-            character_level = 7,
             unit_base_attributes = new UnitBaseAttributes
             {
                 strength = 10,
@@ -656,6 +655,7 @@ public partial class run_contingency_content_validator_regression : LifecycleTes
                 willpower = 12,
             },
         };
+        PromotionHistoryTestFixture.InitializeHistoricalLevel(progress, 7);
         foreach (UnitSkillProgress skill in learnedSkills)
             progress.SetSkillProgress(skill);
 

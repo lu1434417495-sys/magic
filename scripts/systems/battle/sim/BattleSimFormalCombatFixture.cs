@@ -1,3 +1,4 @@
+﻿using System.Linq;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -417,7 +418,7 @@ public sealed class BattleSimFormalCombatFixture
     public CharacterProgressionDelta PromoteProfession(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     ) => character_management?.PromoteProfession(member_id, profession_id, selection)
         ?? new CharacterProgressionDelta { member_id = member_id };
 
@@ -606,8 +607,7 @@ public sealed class BattleSimFormalCombatFixture
         if (progress == null)
             return;
         foreach (UnitProfessionProgress professionProgress in progress.ProfessionsTyped.Values)
-            professionProgress.promotion_history.Clear();
-        progress.SetPendingProfessionChoices(null);
+            professionProgress.ClearPromotionHistoryForDispose();
     }
 
     private static void DisposeEquipmentState(EquipmentState equipmentState)
@@ -971,6 +971,8 @@ public sealed class BattleSimFormalCombatFixture
             profession_rank,
             _collect_core_skill_ids(skill_configs)
         );
+        FinalizeFixtureSkillLevels(member_state, skill_configs);
+
         _equip_member(member_state, weapon_item_id, body_armor_item_id);
         party_state.SetMemberState(member_state);
         if ((string)faction_id == "hostile")
@@ -1125,12 +1127,7 @@ public sealed class BattleSimFormalCombatFixture
             {
                 progression_service.SetSkillCore(skill_id, true);
                 skill_progress = unit_progress.GetSkillProgress(skill_id);
-                _unlock_fixture_core_skill_level_cap(
-                    unit_progress,
-                    skill_progress,
-                    skill_definition,
-                    target_level
-                );
+
             }
             int mastery_amount = _calculate_mastery_for_level(skill_definition, target_level);
             if (mastery_amount > 0)
@@ -1138,67 +1135,34 @@ public sealed class BattleSimFormalCombatFixture
             if (is_core)
             {
                 progression_service.SetSkillCore(skill_id, true);
-                _apply_core_max_growth(member_state, skill_id, target_level);
+
             }
         }
         progression_service.RefreshRuntimeState();
     }
 
-    private void _unlock_fixture_core_skill_level_cap(
-        UnitProgress unit_progress,
-        UnitSkillProgress skill_progress,
-        SkillDefinition skill_definition,
-        int target_level
-    )
+    private void FinalizeFixtureSkillLevels(PartyMemberState member, IReadOnlyList<BattleSimFormalSkillConfigData> configs)
     {
-        if (unit_progress == null || skill_progress == null || skill_definition == null)
-            return;
-        int non_core_max_level = Mathf.Max(skill_definition.NonCoreMaxLevel, 0);
-        if (non_core_max_level <= 0 || target_level <= non_core_max_level)
-            return;
-        skill_progress.is_level_trigger_active = false;
-        skill_progress.is_level_trigger_locked = true;
-        if (!unit_progress.HasLockedLevelTriggerSkillId(skill_progress.skill_id))
-            unit_progress.AddLockedLevelTriggerSkillId(skill_progress.skill_id);
-        if (unit_progress.active_level_trigger_core_skill_id == skill_progress.skill_id)
-            unit_progress.active_level_trigger_core_skill_id = "";
-        unit_progress.SetSkillProgress(skill_progress);
-    }
-
-    private void _apply_core_max_growth(
-        PartyMemberState member_state,
-        StringName skill_id,
-        int target_level
-    )
-    {
-        var skill_definition = _get_skill_definition(skill_id);
-        var unit_progress = _unit_progress(member_state);
-        var skill_progress = unit_progress?.GetSkillProgress(skill_id);
-        if (skill_definition == null || skill_progress == null)
-            return;
-        if (skill_progress.core_max_growth_claimed)
-            return;
-        if (target_level < skill_definition.MaxLevel)
-            return;
-        IReadOnlyDictionary<StringName, int> growth = skill_definition.AttributeGrowthProgress;
-        if (growth.Count == 0)
+        var progress = member.progression;
+        foreach (var config in configs)
         {
-            skill_progress.core_max_growth_claimed = true;
-            unit_progress.SetSkillProgress(skill_progress);
-            return;
+            var skill = progress.GetSkillProgress(config.SkillId);
+            var definition = _get_skill_definition(config.SkillId);
+            if (skill == null || definition == null) continue;
+            skill.skill_level = Math.Min(config.Level, SkillEffectiveMaxLevelRules.GetEffectiveMaxLevel(definition, skill, progress));
+            skill.current_mastery = 0;
+            skill.total_mastery_earned = _calculate_mastery_for_level(definition, skill.skill_level);
+            skill.mastery_from_training = skill.total_mastery_earned;
         }
-        var growth_service = new AttributeGrowthService();
-        growth_service.Setup(member_state.progression);
-        foreach (KeyValuePair<StringName, int> entry in growth)
+        var growth = new AttributeGrowthService();
+        growth.Setup(progress);
+        foreach (StringName id in progress.GetUsedGrowthTriggerIds())
         {
-            growth_service.ApplyAttributeProgressTyped(
-                entry.Key,
-                entry.Value,
-                "battle_sim_fixture"
-            );
+            var definition = _get_skill_definition(id);
+            if (definition == null) continue;
+            foreach (var entry in definition.AttributeGrowthProgress)
+                growth.ApplyAttributeProgressTyped(entry.Key, entry.Value, "battle_sim_fixture");
         }
-        skill_progress.core_max_growth_claimed = true;
-        unit_progress.SetSkillProgress(skill_progress);
     }
 
     private void _apply_profession_rank(
@@ -1213,7 +1177,7 @@ public sealed class BattleSimFormalCombatFixture
             return;
         var profession_progress = new UnitProfessionProgress();
         profession_progress.profession_id = profession_id;
-        profession_progress.rank = rank;
+        profession_progress.rank = 0;
         profession_progress.is_active = true;
         foreach (var skill_id in core_skill_ids)
         {
@@ -1226,8 +1190,30 @@ public sealed class BattleSimFormalCombatFixture
                 unit_progress.SetSkillProgress(sp);
             }
         }
-        _apply_profession_granted_skills(member_state, profession_id, rank, profession_progress);
         unit_progress.SetProfessionProgress(profession_progress);
+        List<StringName> historySkills = new();
+        foreach (StringName id in core_skill_ids)
+            if (!historySkills.Contains(id)) historySkills.Add(id);
+        if (_profession_def_index.TryGetValue(profession_id, out var professionDefinition))
+            foreach (StringName id in _skill_definition_index.Keys.OrderBy(id => id.ToString(), StringComparer.Ordinal))
+            {
+                var skillDefinition = _skill_definition_index[id];
+                if (historySkills.Count >= rank) break;
+                if (!historySkills.Contains(id) && skillDefinition.NonCoreMaxLevel > 0
+                    && professionDefinition.UnlockRequirement.RequiredTagRules.Any(rule => skillDefinition.HasTag(rule.Tag)))
+                    historySkills.Add(id);
+            }
+        if (historySkills.Count < rank) throw new InvalidOperationException("Fixture needs distinct skills for each historical promotion.");
+        for (int index = 0; index < rank; index++)
+        {
+            StringName id = historySkills[index];
+            int level = Math.Max(1, PromotionEligibilityRules.GetMilestoneLevel(_get_skill_definition(id), unit_progress));
+            if (!unit_progress.TryAppendPromotionRecord(profession_id, new ProfessionPromotionRecord
+                { new_rank = index + 1, growth_trigger_skill_id = id, growth_trigger_level = level,
+                  consumed_skill_ids = new StringNameList(new[] { id }) }))
+                throw new InvalidOperationException("Invalid fixture promotion history.");
+        }
+        _apply_profession_granted_skills(member_state, profession_id, rank, profession_progress);
         int hp_gain_total = _calculate_profession_hp_gain_total(member_state, profession_id, rank);
         var attributes = unit_progress.unit_base_attributes;
         attributes.SetAttributeValue(

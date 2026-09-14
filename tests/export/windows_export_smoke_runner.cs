@@ -230,7 +230,7 @@ public partial class windows_export_smoke_runner : Node
                     "Production catalog returned a missing typed borrowed asset."
                 );
             }
-            if (resolver.PublishedAssetCount != 30)
+            if (resolver.PublishedAssetCount != 45)
             {
                 throw new InvalidOperationException(
                     "Production catalog published an unexpected asset count: "

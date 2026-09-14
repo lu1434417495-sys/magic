@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -21,8 +21,8 @@ public partial class run_character_management_quest_materializer_regression : Li
         TestPendingCharacterRewardRejectsInvalidAttributeTarget();
         TestPendingCharacterRewardBoundaryAcceptsTypedRewards();
         TestAttributeProgressRewardConvertsAndAccumulatesWithTypedResult();
-        TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys();
-        TestActiveLevelTriggerSetAndClearUseTypedResult();
+        TestPromotionOffersUseExactSkillDefKeys();
+        TestPromotionPublishesOnlyCompleteRequests();
         TestActiveLevelTriggerAttributeGrowthUsesTypedEntries();
         TestActiveLevelTriggerAttributeGrowthRejectsInvalidEntries();
         TestSkillMasteryRewardAggregatesTypedEntries();
@@ -30,44 +30,19 @@ public partial class run_character_management_quest_materializer_regression : Li
         RequestTestExit(_test.Finish("Character management quest materializer regression"));
     }
 
-    private void TestLevelGrowthEvaluationServiceSetupUsesExactSkillDefKeys()
+    private void TestPromotionOffersUseExactSkillDefKeys()
     {
         PartyState party = BuildPartyWithMember("hero", 1);
         PartyMemberState member = party.GetMemberState("hero");
-        SkillDefinition triggerSkill = BuildLevelTriggerSkillDefinition(
-            "test_level_trigger_catalog_boundary",
-            1
-        );
-        member.progression.SetSkillProgress(
-            new UnitSkillProgress
-            {
-                skill_id = triggerSkill.SkillId,
-                is_learned = true,
-                is_core = true,
-                skill_level = 1,
-            }
-        );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
-
-        LevelGrowthEvaluationService service = new();
-        service.Setup(
-            new Dictionary<StringName, SkillDefinition>
-            {
-                [new StringName("wrong_level_trigger_key")] = triggerSkill,
-            }
-        );
-        _test.True(
-            !service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should not recover a skill def from value.skill_id when the dictionary key is wrong."
-        );
-
-        service.Setup(
-            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill }
-        );
-        _test.True(
-            service.IsActiveTriggerReadyForLevelUp(member),
-            "LevelGrowthEvaluationService.Setup should accept a typed skill definition map keyed by skill id."
-        );
+        SkillDefinition trigger = BuildLevelTriggerSkillDefinition("test_catalog_boundary", 1);
+        member.progression.SetSkillProgress(new UnitSkillProgress { skill_id = trigger.SkillId, is_learned = true, skill_level = 1 });
+        var profession = BuildTestProfession("test_profession");
+        var professions = new Dictionary<StringName, ProfessionDefinition> { [profession.ProfessionId] = profession };
+        ProgressionService service = new();
+        service.SetupDefinitions(member.progression, new Dictionary<StringName, SkillDefinition> { ["wrong_key"] = trigger }, professions);
+        _test.Eq(service.GetProfessionUpgradeCandidates().Count, 0, "Catalog keys are authoritative; value.skill_id cannot recover a wrong key.");
+        service.SetupDefinitions(member.progression, new Dictionary<StringName, SkillDefinition> { [trigger.SkillId] = trigger }, professions);
+        _test.Eq(service.GetProfessionUpgradeCandidates().Count, 1, "A correctly keyed milestone skill creates an offer.");
     }
 
     private void TestSubmitItemObjectiveTracksProgressAndFailures()
@@ -594,82 +569,28 @@ public partial class run_character_management_quest_materializer_regression : Li
         _test.Eq(change.ReasonText, "cap check", "attribute change should preserve reason text.");
     }
 
-    private void TestActiveLevelTriggerSetAndClearUseTypedResult()
+    private void TestPromotionPublishesOnlyCompleteRequests()
     {
         PartyState party = BuildPartyWithMember("hero", 2);
-        PartyMemberState member = party.GetMemberState("hero");
-        SkillDefinition triggerSkill = TestSkillDefinitionProjection.BuildSkill(
-            "test_set_clear_trigger",
-            displayName: "Test set clear trigger",
-            maxLevel: 1
-        );
-        member.progression.SetSkillProgress(
-            new UnitSkillProgress
-            {
-                skill_id = triggerSkill.SkillId,
-                is_learned = true,
-                is_core = true,
-                skill_level = 1,
-            }
-        );
-
+        var member = party.GetMemberState("hero");
+        var trigger = TestSkillDefinitionProjection.BuildSkill("test_offer", maxLevel: 1);
+        var profession = BuildTestProfession("test_profession");
+        member.progression.SetSkillProgress(new UnitSkillProgress { skill_id = trigger.SkillId, is_learned = true, skill_level = 1 });
         CharacterManagementModule manager = new();
-        manager.setup(
-            party,
-            new Dictionary<StringName, SkillDefinition> { [triggerSkill.SkillId] = triggerSkill },
-            new Dictionary<StringName, ProfessionDefinition>(),
-            new Dictionary<StringName, AchievementDefinition>()
-        );
-
-        LevelGrowthTriggerResult setResult = manager.SetActiveLevelTriggerCoreSkillTyped(
-            "hero",
-            triggerSkill.SkillId
-        );
-        UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
-        _test.True(setResult.Ok, "set active trigger should succeed.");
-        _test.Eq(
-            setResult.SkillId,
-            triggerSkill.SkillId,
-            "set active trigger should preserve skill id in boundary result."
-        );
-        _test.Eq(
-            setResult.PreviousActive,
-            new StringName(""),
-            "set active trigger should expose the previous active skill id."
-        );
-        _test.Eq(
-            member.progression.active_level_trigger_core_skill_id,
-            triggerSkill.SkillId,
-            "set active trigger should update progression state."
-        );
-        _test.True(
-            triggerProgress != null && triggerProgress.is_level_trigger_active,
-            "set active trigger should mark the skill active."
-        );
-
-        LevelGrowthTriggerResult clearResult = manager.ClearActiveLevelTriggerCoreSkillTyped("hero");
-        triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
-        _test.True(clearResult.Ok, "clear active trigger should succeed.");
-        _test.Eq(
-            member.progression.active_level_trigger_core_skill_id,
-            new StringName(""),
-            "clear active trigger should remove active skill id."
-        );
-        _test.True(
-            triggerProgress != null && !triggerProgress.is_level_trigger_active,
-            "clear active trigger should clear the skill active flag."
-        );
-
-        LevelGrowthTriggerResult missingResult = manager.SetActiveLevelTriggerCoreSkillTyped(
-            "hero",
-            "missing_skill"
-        );
-        _test.True(!missingResult.Ok, "set active trigger should fail for missing skills.");
-        _test.Eq(
-            missingResult.Error,
-            "skill_not_learned",
-            "missing trigger failure should preserve boundary error code."
-        );
+        manager.setup(party, new Dictionary<StringName, SkillDefinition> { [trigger.SkillId] = trigger },
+            new Dictionary<StringName, ProfessionDefinition> { [profession.ProfessionId] = profession }, new Dictionary<StringName, AchievementDefinition>());
+        var before = member.progression;
+        _test.Eq(manager.GetPromotionOffers("hero").Count, 1, "Non-core skills can create promotion offers.");
+        _test.True(ReferenceEquals(before, member.progression) && !before.GetSkillProgress(trigger.SkillId).is_core, "Query leaves progression and core assignment untouched.");
+        var invalid = manager.PromoteProfession("hero", profession.ProfessionId, null);
+        _test.Eq(invalid.PromotionFailure, PromotionFailureKind.InvalidRequest, "Missing request returns an explicit failure.");
+        _test.True(ReferenceEquals(before, member.progression), "Failure must not publish another progression.");
+        var offer = manager.GetPromotionOffers("hero")[0];
+        var result = manager.PromoteProfession("hero", profession.ProfessionId, offer.DefaultSelection);
+        _test.Eq(result.ChangedProfessionIdsTyped.Count, 1, "Complete offer is applied.");
+        _test.False(ReferenceEquals(before, member.progression), "Successful commit publishes a new progression exactly once.");
+        _test.False(before.HasUsedGrowthTrigger(trigger.SkillId), "The previously published state remains untouched.");
+        _test.Eq(manager.GetPromotionOffers("hero").Count, 0, "Consumed skills no longer offer growth.");
     }
 
     private void TestActiveLevelTriggerAttributeGrowthUsesTypedEntries()
@@ -693,7 +614,6 @@ public partial class run_character_management_quest_materializer_regression : Li
                 skill_level = 1,
             }
         );
-        member.progression.active_level_trigger_core_skill_id = triggerSkill.SkillId;
 
         ProfessionDefinition profession = BuildTestProfession("test_growth_profession");
 
@@ -711,7 +631,7 @@ public partial class run_character_management_quest_materializer_regression : Li
         CharacterProgressionDelta delta = manager.PromoteProfession(
             "hero",
             profession.ProfessionId,
-            PromotionSelectionData.Empty
+            new PromotionCommitRequest(triggerSkill.SkillId, 1, new[] { triggerSkill.SkillId }, System.Array.Empty<StringName>())
         );
         UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.SkillId);
 
@@ -728,7 +648,7 @@ public partial class run_character_management_quest_materializer_regression : Li
             "active trigger should write attribute growth progress."
         );
         _test.True(
-            triggerProgress != null && triggerProgress.core_max_growth_claimed,
+            triggerProgress != null && member.progression.HasUsedGrowthTrigger(triggerSkill.SkillId),
             "active trigger should mark growth claimed after applying progress."
         );
         _test.Eq(
@@ -818,7 +738,6 @@ public partial class run_character_management_quest_materializer_regression : Li
                     skill_level = 1,
                 }
             );
-            member.progression.active_level_trigger_core_skill_id = triggerSkill.skill_id;
 
             ProfessionDefinition profession = BuildTestProfession(
                 new StringName(
@@ -872,14 +791,14 @@ public partial class run_character_management_quest_materializer_regression : Li
             CharacterProgressionDelta delta = manager.PromoteProfession(
                 "hero",
                 profession.ProfessionId,
-                PromotionSelectionData.Empty
+                new PromotionCommitRequest(triggerSkill.skill_id, 1, new[] { triggerSkill.skill_id }, System.Array.Empty<StringName>())
             );
             UnitSkillProgress triggerProgress = member.progression.GetSkillProgress(triggerSkill.skill_id);
 
             _test.Eq(
                 delta.changed_profession_ids.Count,
-                1,
-                $"{testCase.Label} should not block active trigger promotion itself."
+                0,
+                $"{testCase.Label} must reject the complete transaction before consuming growth."
             );
             _test.Eq(
                 delta.AttributeChangesTyped.Count,
@@ -892,7 +811,7 @@ public partial class run_character_management_quest_materializer_regression : Li
                 $"{testCase.Label} should not write agility growth progress."
             );
             _test.True(
-                triggerProgress != null && !triggerProgress.core_max_growth_claimed,
+                triggerProgress != null && !member.progression.HasUsedGrowthTrigger(triggerSkill.skill_id),
                 $"{testCase.Label} should not mark growth claimed."
             );
         }

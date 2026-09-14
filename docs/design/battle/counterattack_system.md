@@ -129,7 +129,7 @@ query 与 execute 使用同一 plan，并按 definition → current weapon requi
 
 当前生产基础攻击角色为 `basic_attack`；数量使用该 definition 的 `per_target_rank` 规则：normal/elite/boss 分别为 1/2/3。反击 action definition 的 mastery policy 不参与该判断，也不获得 action mastery。
 
-`SkillProfessionPromotionRules` 统一认定带 `weapon_training` 标签的技能不能作为职业升级 trigger。它们仍可学习、设为 core、增长熟练度和技能等级；但不能成为 active level trigger，不能满足 profession rank-up preview，也不能产生新的 pending profession choice 或 promotion modal。已有其他技能产生的 canonical pending choice 不会被删除。
+`SkillProfessionPromotionRules` 统一认定带 `weapon_training` 标签的技能不能作为职业升级 trigger。`PromotionEligibilityRules.IsReadyTrigger` 消费此规则，晋升候选发现与 `ProgressionService.PreparePromotion` 共用该资格入口。武器训练仍可学习、设为 core、增长熟练度和技能等级，并保留核心资格，但不得作为本次晋升的成长触发技能。`CharacterManagementModule` 只过滤本次武器训练 mastery delta 的 pending choice/modal；其他普通技能的晋升候选仍按正式规则计算。
 
 ## Preview 与 HUD
 

@@ -706,7 +706,7 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
         public CharacterProgressionDelta PromoteProfession(
             StringName memberId,
             StringName professionId,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = memberId };
         public BattleResourceCommitResult CommitBattleResources(
             StringName memberId,

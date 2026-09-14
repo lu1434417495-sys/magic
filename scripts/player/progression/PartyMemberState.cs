@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 public partial class PartyMemberState
@@ -671,10 +671,10 @@ public partial class PartyMemberState
             trait_instances = traitInstances,
             _contingencyMatrixSetups = contingencySetups,
         };
-        ms.progression = UnitProgress.FromDictionary(progData);
+        ms.progression = UnitProgress.FromDictionary(progData, out string progressionFailure);
         ms.equipment_state = EquipmentState.FromDictionary(esData);
         if (ms.progression == null)
-            return "progression: decode failed";
+            return $"progression: {progressionFailure}";
         if (ms.equipment_state == null)
             return "equipment_state: decode failed";
         if (ms.progression.unit_id == "")

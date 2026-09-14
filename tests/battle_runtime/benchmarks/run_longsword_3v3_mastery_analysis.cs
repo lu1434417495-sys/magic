@@ -333,7 +333,7 @@ public partial class run_longsword_3v3_mastery_analysis : LifecycleTestSceneTree
         public CharacterProgressionDelta PromoteProfession(
             StringName member_id,
             StringName profession_id,
-            PromotionSelectionData selection
+            PromotionCommitRequest selection
         ) => new() { member_id = member_id };
 
         public BattleResourceCommitResult CommitBattleResources(

@@ -1431,10 +1431,28 @@ public sealed partial class BattleRuntimeModule : IDisposable
         return (logLines.Count, reportEntries.Count);
     }
 
+    internal bool CanOpenPromotion(StringName memberId) =>
+        _state != null && _state.ModalStateKind == BattleModalStateKind.None
+        && _find_unit_by_member_id(memberId)?.IsAlive() == true;
+
+    internal bool OpenPromotion(StringName memberId)
+    {
+        if (!CanOpenPromotion(memberId)) return false;
+        _keep_promotion_choice_modal_open(null);
+        return true;
+    }
+
+    internal void DeferPromotion()
+    {
+        if (_state?.ModalStateKind != BattleModalStateKind.PromotionChoice) return;
+        _state.ModalStateKind = BattleModalStateKind.None;
+        if (_state.timeline != null) _state.timeline.frozen = false;
+    }
+
     public BattleEventBatch SubmitPromotionChoice(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         BeginObjectiveMutation();
@@ -1460,17 +1478,20 @@ public sealed partial class BattleRuntimeModule : IDisposable
     private BattleEventBatch SubmitPromotionChoiceCore(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         _ensure_sidecars_ready();
         BattleEventBatch batch = _new_batch();
         if (_state == null || _characterGateway == null)
             return batch;
+        if (_state.ModalStateKind != BattleModalStateKind.PromotionChoice
+            || _find_unit_by_member_id(member_id)?.IsAlive() != true)
+            return batch;
         CharacterProgressionDelta delta = _characterGateway.PromoteProfession(
             member_id,
             profession_id,
-            selection ?? PromotionSelectionData.Empty
+            selection
         );
         if (!_promotion_delta_applied(delta, member_id, profession_id))
         {

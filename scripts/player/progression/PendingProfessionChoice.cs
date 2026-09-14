@@ -41,6 +41,8 @@ public class PendingProfessionChoice
         set => SetAssignableSkillCandidateIds(value);
     }
 
+    public PromotionCommitRequest DefaultSelection { get; set; }
+
     public int required_qualifier_count { get; set; }
     public int required_assigned_core_count { get; set; }
 
@@ -101,6 +103,7 @@ public class PendingProfessionChoice
     {
         var copy = new PendingProfessionChoice
         {
+            DefaultSelection = DefaultSelection,
             required_qualifier_count = required_qualifier_count,
             required_assigned_core_count = required_assigned_core_count,
         };
@@ -116,6 +119,7 @@ public class PendingProfessionChoice
     public GDictionary ToDictionary() =>
         new()
         {
+            ["selection"] = DefaultSelection?.ToDictionary() ?? new GDictionary(),
             ["trigger_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
                 _triggerSkillIds
             ),
@@ -143,6 +147,7 @@ public class PendingProfessionChoice
                 data,
                 new[]
                 {
+                    "selection",
                     "trigger_skill_ids",
                     "candidate_profession_ids",
                     "target_rank_map",
@@ -196,8 +201,13 @@ public class PendingProfessionChoice
         )
             return null;
 
+        if (data["selection"].VariantType != Variant.Type.Dictionary) return null;
+        using var selectionPayload = data["selection"].AsGodotDictionary();
+        var selection = PromotionCommitRequest.FromPayload(selectionPayload);
+        if (selection == null) return null;
         var result = new PendingProfessionChoice
         {
+            DefaultSelection = selection,
             required_qualifier_count = data["required_qualifier_count"].AsInt32(),
             required_assigned_core_count = data["required_assigned_core_count"].AsInt32(),
         };

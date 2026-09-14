@@ -89,27 +89,32 @@ size_flags_vertical = 3
 theme_override_constants/separation = 12
 
 [node name="ChoiceTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
-text = "可选职业"
+text = "成长技能与职业方案"
 
-[node name="ChoiceCards" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 220)
+[node name="ChoiceScroll" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+custom_minimum_size = Vector2(0, 176)
 layout_mode = 2
+size_flags_vertical = 3
+vertical_scroll_mode = 0
+
+[node name="ChoiceCards" type="HBoxContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/ChoiceScroll"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 156)
+layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 14
 
 [node name="DetailsTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
+theme_type_variation = &"ChronicleSection"
 layout_mode = 2
-theme_override_colors/font_color = Color(0.972549, 0.815686, 0.427451, 1)
-theme_override_font_sizes/font_size = 20
 text = "详细说明"
 
 [node name="DetailsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 180)
+custom_minimum_size = Vector2(0, 140)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
@@ -123,12 +128,14 @@ alignment = 2
 theme_override_constants/separation = 12
 
 [node name="CancelButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+theme_type_variation = &"ChronicleQuiet"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 44)
 layout_mode = 2
-text = "取消"
+text = "暂缓晋升"
 
 [node name="ConfirmButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Footer"]
+theme_type_variation = &"ChroniclePrimary"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(140, 44)
 layout_mode = 2

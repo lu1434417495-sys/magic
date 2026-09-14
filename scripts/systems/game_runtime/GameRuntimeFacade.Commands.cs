@@ -552,14 +552,14 @@ public sealed partial class GameRuntimeFacade
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
-    internal RuntimeCommandResult CommandChoosePromotionTyped(StringName profession_id) =>
+    internal RuntimeCommandResult CommandChoosePromotionTyped(StringName profession_id, StringName triggerSkillId = default) =>
         ExecuteLoggedCommandTyped(
             "promotion.choose",
             "promotion",
-            new GDictionary { ["profession_id"] = profession_id },
+            new GDictionary { ["profession_id"] = profession_id, ["growth_trigger_skill_id"] = triggerSkillId },
             () =>
                 _reward_flow_handler != null
-                    ? _reward_flow_handler.CommandChoosePromotionTyped(profession_id)
+                    ? _reward_flow_handler.CommandChoosePromotionTyped(profession_id, triggerSkillId)
                     : BuildCommandErrorResult("运行时尚未初始化。")
         );
 
@@ -691,7 +691,7 @@ public sealed partial class GameRuntimeFacade
     internal RuntimeCommandResult CommandSubmitPromotionChoiceTyped(
         StringName member_id,
         StringName profession_id,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         Dictionary<string, object> context = new(StringComparer.Ordinal)
@@ -870,6 +870,7 @@ public sealed partial class GameRuntimeFacade
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         RuntimeCommandResult result = action?.Invoke() ?? RuntimeCommandResult.Failure("");
+        RefreshPromotionNotifications(invalidate: true);
         _log_active_command_scope_result(RuntimeCommandResultProjection.Project(result));
         return result;
     }
@@ -883,6 +884,7 @@ public sealed partial class GameRuntimeFacade
     {
         _command_logger.BeginLoggedCommand(event_id, domain, context ?? new GDictionary());
         var result = action?.Invoke() ?? new GDictionary();
+        RefreshPromotionNotifications(invalidate: true);
         return _command_logger.FinishLoggedCommand(result);
     }
 

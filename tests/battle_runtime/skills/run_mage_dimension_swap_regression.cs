@@ -460,7 +460,7 @@ public partial class run_mage_dimension_swap_regression : LifecycleTestSceneTree
         public WeaponProjection GetMemberWeaponProjectionForEquipmentViewTyped(StringName memberId, EquipmentState equipmentView) => new();
         public BattleEffectiveTraitProjection BuildEffectiveTraitProjectionForEquipmentView(StringName memberId, EquipmentState equipmentView) => BattleEffectiveTraitProjection.Empty;
         public PassiveSourceContext BuildPassiveSourceContext(StringName memberId, UnitProgress progressionState) => null;
-        public CharacterProgressionDelta PromoteProfession(StringName memberId, StringName professionId, PromotionSelectionData selection) => new() { member_id = memberId };
+        public CharacterProgressionDelta PromoteProfession(StringName memberId, StringName professionId, PromotionCommitRequest selection) => new() { member_id = memberId };
         public BattleResourceCommitResult CommitBattleResources(StringName memberId, int currentHp, int currentMp, int currentAura) => BattleResourceCommitResult.Success(memberId);
         public ContingencyConsumedCommitResult ValidateContingencyConsumedSetups(StringName memberId, IReadOnlyCollection<StringName> consumedSetupIds) => ContingencyConsumedCommitResult.Success(memberId, consumedSetupIds?.Count ?? 0);
         public ContingencyConsumedCommitResult CommitContingencyConsumedSetups(StringName memberId, IReadOnlyCollection<StringName> consumedSetupIds) => ContingencyConsumedCommitResult.Success(memberId, consumedSetupIds?.Count ?? 0);

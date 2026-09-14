@@ -453,7 +453,6 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
         {
             unit_id = "hero_001",
             display_name = "Schema Hero",
-            character_level = 7,
             unit_base_attributes = new UnitBaseAttributes
             {
                 strength = 10,
@@ -464,6 +463,7 @@ public partial class run_contingency_setup_schema_regression : LifecycleTestScen
                 willpower = 12,
             },
         };
+        PromotionHistoryTestFixture.InitializeHistoricalLevel(progress, 7);
         PartyMemberState memberState = new()
         {
             member_id = "hero_001",

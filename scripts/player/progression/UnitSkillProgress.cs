@@ -36,10 +36,6 @@ public class UnitSkillProgress
         "profession_granted_by",
         "granted_source_type",
         "granted_source_id",
-        "core_max_growth_claimed",
-        "is_level_trigger_active",
-        "is_level_trigger_locked",
-        "bonus_to_hit_from_lock",
     };
 
     public StringName skill_id = "";
@@ -73,13 +69,9 @@ public class UnitSkillProgress
 
     public StringName granted_source_id = "";
 
-    public bool core_max_growth_claimed;
 
-    public bool is_level_trigger_active;
 
-    public bool is_level_trigger_locked;
 
-    public int bonus_to_hit_from_lock = 1;
 
     public bool IsMaxLevel(int maxLevel) => skill_level >= maxLevel;
 
@@ -102,10 +94,6 @@ public class UnitSkillProgress
             profession_granted_by = profession_granted_by,
             granted_source_type = granted_source_type,
             granted_source_id = granted_source_id,
-            core_max_growth_claimed = core_max_growth_claimed,
-            is_level_trigger_active = is_level_trigger_active,
-            is_level_trigger_locked = is_level_trigger_locked,
-            bonus_to_hit_from_lock = bonus_to_hit_from_lock,
         };
     }
 
@@ -129,10 +117,6 @@ public class UnitSkillProgress
             { "profession_granted_by", (string)profession_granted_by },
             { "granted_source_type", (string)granted_source_type },
             { "granted_source_id", (string)granted_source_id },
-            { "core_max_growth_claimed", core_max_growth_claimed },
-            { "is_level_trigger_active", is_level_trigger_active },
-            { "is_level_trigger_locked", is_level_trigger_locked },
-            { "bonus_to_hit_from_lock", bonus_to_hit_from_lock },
         };
     }
 
@@ -154,9 +138,6 @@ public class UnitSkillProgress
             {
                 "is_learned",
                 "is_core",
-                "core_max_growth_claimed",
-                "is_level_trigger_active",
-                "is_level_trigger_locked",
             }
         )
             if (data[bf].VariantType != Variant.Type.Bool)
@@ -170,7 +151,6 @@ public class UnitSkillProgress
                 "total_mastery_earned",
                 "mastery_from_training",
                 "mastery_from_battle",
-                "bonus_to_hit_from_lock",
             }
         )
         {
@@ -254,8 +234,6 @@ public class UnitSkillProgress
             if (profGrantedBy != "")
                 return null;
 
-            if (_read_bool(data, "core_max_growth_claimed"))
-                return null;
         }
 
         int curMastery = data["current_mastery"].AsInt32();
@@ -292,13 +270,9 @@ public class UnitSkillProgress
             granted_source_type = grantSourceType,
             granted_source_id = grantSourceId,
 
-            core_max_growth_claimed = _read_bool(data, "core_max_growth_claimed"),
 
-            is_level_trigger_active = _read_bool(data, "is_level_trigger_active"),
 
-            is_level_trigger_locked = _read_bool(data, "is_level_trigger_locked"),
 
-            bonus_to_hit_from_lock = data["bonus_to_hit_from_lock"].AsInt32(),
         };
     }
 

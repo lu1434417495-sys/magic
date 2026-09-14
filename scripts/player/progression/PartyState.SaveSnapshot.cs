@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -143,13 +143,6 @@ public partial class PartyState
                 professions[professionId.ToString()] = BuildUnitProfessionProgressPlain(profession);
         }
 
-        var pendingChoices = new List<object>();
-        foreach (PendingProfessionChoice choice in progress.PendingProfessionChoicesTyped)
-        {
-            if (choice != null)
-                pendingChoices.Add(BuildPendingProfessionChoicePlain(choice));
-        }
-
         var achievements = EmptyMap();
         foreach (StringName achievementId in SortedKeys(progress.AchievementProgressTyped))
         {
@@ -188,7 +181,6 @@ public partial class PartyState
                 BuildStringNameIntMap(progress.AttributeGrowthProgressTyped, sortKeys: false)
             ),
             ("achievement_progress", achievements),
-            ("pending_profession_choices", pendingChoices),
             (
                 "blocked_relearn_skill_ids",
                 BuildStringList(progress.BlockedRelearnSkillIdsTyped)
@@ -200,14 +192,6 @@ public partial class PartyState
             (
                 "unlocked_combat_resource_ids",
                 BuildStringList(progress.UnlockedCombatResourceIdsTyped)
-            ),
-            (
-                "active_level_trigger_core_skill_id",
-                progress.active_level_trigger_core_skill_id.ToString()
-            ),
-            (
-                "locked_level_trigger_skill_ids",
-                BuildStringList(progress.LockedLevelTriggerSkillIdsTyped)
             )
         );
     }
@@ -264,11 +248,7 @@ public partial class PartyState
             ("mastery_from_battle", skill.mastery_from_battle),
             ("profession_granted_by", skill.profession_granted_by.ToString()),
             ("granted_source_type", skill.granted_source_type.ToString()),
-            ("granted_source_id", skill.granted_source_id.ToString()),
-            ("core_max_growth_claimed", skill.core_max_growth_claimed),
-            ("is_level_trigger_active", skill.is_level_trigger_active),
-            ("is_level_trigger_locked", skill.is_level_trigger_locked),
-            ("bonus_to_hit_from_lock", skill.bonus_to_hit_from_lock)
+            ("granted_source_id", skill.granted_source_id.ToString())
         );
     }
 
@@ -301,6 +281,8 @@ public partial class PartyState
     {
         return Map(
             ("new_rank", record.new_rank),
+            ("growth_trigger_skill_id", record.growth_trigger_skill_id.ToString()),
+            ("growth_trigger_level", record.growth_trigger_level),
             ("consumed_skill_ids", BuildStringList(record.consumed_skill_ids)),
             ("qualifier_skill_ids", BuildStringList(record.qualifier_skill_ids)),
             (
@@ -310,30 +292,6 @@ public partial class PartyState
                     : EmptyMap()
             ),
             ("timestamp", record.timestamp)
-        );
-    }
-
-    private static Dictionary<string, object> BuildPendingProfessionChoicePlain(
-        PendingProfessionChoice choice
-    )
-    {
-        return Map(
-            ("trigger_skill_ids", BuildStringList(choice.TriggerSkillIdsTyped)),
-            ("candidate_profession_ids", BuildStringList(choice.CandidateProfessionIdsTyped)),
-            (
-                "target_rank_map",
-                BuildStringNameIntMap(choice.TargetRankMapTyped, sortKeys: false)
-            ),
-            (
-                "qualifier_skill_pool_ids",
-                BuildStringList(choice.QualifierSkillPoolIdsTyped)
-            ),
-            (
-                "assignable_skill_candidate_ids",
-                BuildStringList(choice.AssignableSkillCandidateIdsTyped)
-            ),
-            ("required_qualifier_count", choice.required_qualifier_count),
-            ("required_assigned_core_count", choice.required_assigned_core_count)
         );
     }
 

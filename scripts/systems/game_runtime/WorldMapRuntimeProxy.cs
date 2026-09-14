@@ -610,6 +610,12 @@ internal sealed class WorldMapRuntimeProxy
         return RunRuntimeCommand(() => _runtime.CommandChoosePromotionTyped(professionId));
     }
 
+    internal int GetPromotionReadyMemberCount() => _runtime?.GetPromotionReadyMemberCount() ?? 0;
+    internal string GetPromotionReminderText() => _runtime?.GetPromotionReminderText() ?? "";
+
+    internal RuntimeCommandResult OpenPromotion(StringName memberId = default) =>
+        RunRuntimeCommand(() => _runtime.CommandOpenPromotionTyped(memberId));
+
     internal RuntimeCommandResult CommandConfirmSubmapEntry()
     {
         return RunRuntimeCommand(() => _runtime.CommandConfirmSubmapEntryTyped());
@@ -658,7 +664,7 @@ internal sealed class WorldMapRuntimeProxy
     internal RuntimeCommandResult SubmitPromotionChoice(
         StringName memberId,
         StringName professionId,
-        PromotionSelectionData selection
+        PromotionCommitRequest selection
     )
     {
         return RunRuntimeCommand(

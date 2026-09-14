@@ -25,6 +25,9 @@ public partial class PartyManagementWindow : ModalWindowShell
     public delegate void contingency_setup_requestedEventHandler(StringName member_id);
 
     [Signal]
+    public delegate void promotion_requestedEventHandler(StringName member_id);
+
+    [Signal]
     public delegate void closedEventHandler();
 
     private const int MaxActiveMemberCount = 4;
@@ -49,6 +52,7 @@ public partial class PartyManagementWindow : ModalWindowShell
     public Button move_to_reserve_button;
     public Button warehouse_button;
     public Button contingency_setup_button;
+    public Button promotion_button;
     public RichTextLabel overview_label;
     public RichTextLabel attributes_label;
     public RichTextLabel equipment_label;
@@ -102,6 +106,9 @@ public partial class PartyManagementWindow : ModalWindowShell
         move_to_reserve_button = GetNode<Button>("%MoveToReserveButton");
         warehouse_button = GetNode<Button>("%WarehouseButton");
         contingency_setup_button = GetNode<Button>("%ContingencySetupButton");
+        promotion_button = new Button { Name = "PromotionButton", Text = "职业晋升（G）" };
+        controls_column.AddChild(promotion_button);
+        promotion_button.Pressed += () => EmitSignal(SignalName.promotion_requested, _selected_member_id);
         overview_label = GetNode<RichTextLabel>("%OverviewLabel");
         attributes_label = GetNode<RichTextLabel>("%AttributesLabel");
         equipment_label = GetNode<RichTextLabel>("%EquipmentLabel");
@@ -465,6 +472,10 @@ public partial class PartyManagementWindow : ModalWindowShell
         move_to_reserve_button.Disabled = !canMoveToReserve;
         warehouse_button.Disabled = _party_state == null;
         contingency_setup_button.Disabled = !hasSelection;
+        int promotionCount = hasSelection ? _character_management?.GetPromotionOffers(_selected_member_id).Count ?? 0 : 0;
+        promotion_button.Disabled = promotionCount == 0;
+        promotion_button.Text = promotionCount > 0 ? $"职业晋升（{promotionCount} 个方案）" : "职业晋升（未就绪）";
+        promotion_button.TooltipText = "将未用于成长的技能练到基础上限，即可用它提升人物等级；还需满足职业条件。";
     }
 
     private void _refresh_details()
@@ -839,10 +850,8 @@ public partial class PartyManagementWindow : ModalWindowShell
             var tags = new List<string>();
             if (skillProgress.is_core)
                 tags.Add("核心");
-            if (skillProgress.is_level_trigger_active)
-                tags.Add("升级触发");
-            if (skillProgress.is_level_trigger_locked)
-                tags.Add($"锁定：命中/检定/DC +{skillProgress.bonus_to_hit_from_lock}");
+            if (progression.HasUsedGrowthTrigger(skillId))
+                tags.Add($"成长已完成：命中/检定/DC +{PromotionEligibilityRules.CompletedSkillCheckBonus}");
             if (skillProgress.profession_granted_by != (StringName)"")
                 tags.Add(
                     $"职业授予：{_get_profession_display_name(skillProgress.profession_granted_by)}"
