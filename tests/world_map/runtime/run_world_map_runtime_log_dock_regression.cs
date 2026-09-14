@@ -75,6 +75,14 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
 
         if (mapViewport != null)
         {
+            _test.True(runtimeLogDock.IsCollapsed(), "共享日志窗口应默认折叠。");
+            _test.True(
+                Mathf.IsEqualApprox(runtimeLogDock.Size.Y, runtimeLogDock.GetCollapsedHeight()),
+                "默认折叠状态应使用折叠高度。"
+            );
+            runtimeLogDock.collapse_button.EmitSignal(Button.SignalName.Pressed);
+            await ProcessFrames(2);
+            _test.False(runtimeLogDock.IsCollapsed(), "点击展开后应显示完整日志窗口。");
             Rect2 viewportRect = mapViewport.GetGlobalRect();
             Rect2 dockRect = runtimeLogDock.GetGlobalRect();
             Vector2 designPanelSize = runtimeLogDock.GetDesignPanelSize();
@@ -84,8 +92,8 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
                 "世界态共享日志窗口应覆盖在地图之上，而不是把地图挤开。"
             );
             _test.True(
-                IsVector2Close(dockRect.Size, designPanelSize, 1.0f),
-                $"世界态共享日志窗口默认尺寸应使用锁定宽度与默认高度。 actual={dockRect.Size} expected={designPanelSize}"
+                IsVector2Close(dockRect.Size, new Vector2(designPanelSize.X, 360.0f), 1.0f),
+                $"世界态展开日志窗口应使用锁定宽度与 360 高度上限。 actual={dockRect.Size}"
             );
             _test.True(
                 runtimeLogDock.log_output.GetThemeFontSize("normal_font_size") >= 18,
@@ -97,7 +105,7 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
 
             int defaultFontSize = runtimeLogDock.log_output.GetThemeFontSize("normal_font_size");
             Vector2I originalRootSize = Root.Size;
-            Root.Size = new Vector2I(960, 540);
+            Root.Size = new Vector2I(960, 420);
             worldMap.Size = Root.Size;
             await ProcessFrames(1);
             Rect2 resizedDockRect = runtimeLogDock.GetGlobalRect();
@@ -144,7 +152,9 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
             runtimeLogDock.log_output.GetParsedText().Contains("战斗开始："),
             "进入战斗后共享日志窗口应切到 battle start 之后的战斗日志。"
         );
-        _test.True(runtimeLogDock.meta_label.Text.Contains("上限"), "进入战斗后共享日志窗口元信息应切到 battle log 容量摘要。");
+        _test.True(runtimeLogDock.meta_label.Text.Contains("战斗记录"), "进入战斗后共享日志窗口元信息应切到战斗记录摘要。");
+        _test.True(runtimeLogDock.meta_label.TooltipText.Contains("log_entries="), "战斗日志元信息提示应披露记录数量。");
+        _test.True(runtimeLogDock.meta_label.TooltipText.Contains("text_budget="), "战斗日志元信息提示应披露文本占用。");
         if (mapViewport != null)
         {
             Rect2 battleViewportRect = mapViewport.GetGlobalRect();
