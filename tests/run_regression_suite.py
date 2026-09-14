@@ -69,6 +69,8 @@ def build_parser() -> argparse.ArgumentParser:
 	)
 	parser.add_argument("--offset", type=int, default=0, help="Skip the first N tests (0-based).")
 	parser.add_argument("--limit", type=int, default=0, help="Run at most N tests.")
+	parser.add_argument("--shard-index", type=int, default=0, help="Zero-based shard index.")
+	parser.add_argument("--shard-count", type=int, default=1, help="Partition the filtered test list into this many disjoint shards.")
 	parser.add_argument("--log-file", type=str, default="", help="Append output to this file instead of stdout.")
 	parser.add_argument("--jobs", "-j", default="1", help="Number of tests to run in parallel, or 'auto'. Default: 1.")
 	parser.add_argument(
@@ -165,6 +167,12 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 	if pattern and pattern.lower() not in lower_path:
 		return True
 	return False
+
+
+def select_test_shard(tests: list[str], index: int, count: int) -> list[str]:
+	if count < 1 or index < 0 or index >= count:
+		raise ValueError("--shard-count must be positive and --shard-index must be in [0, shard-count).")
+	return tests[index::count]
 
 
 def resolve_jobs(value: str, total: int) -> int:
@@ -634,6 +642,10 @@ def main() -> int:
 		for path in tests
 		if not should_skip_test(path, args.pattern, args.include_simulation, args.include_benchmarks)
 	]
+	try:
+		tests = select_test_shard(tests, args.shard_index, args.shard_count)
+	except ValueError as exc:
+		parser.error(str(exc))
 
 	if args.list_tests:
 		for test_path in tests:
