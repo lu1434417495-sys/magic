@@ -266,7 +266,12 @@ public partial class ApplicationLifetimeCoordinator : Node, IApplicationShutdown
         }
     }
 
-    /// 关窗与启动失败这两条路径没有调用者会 await 关闭流程。丢弃返回值会让管线自身
+    internal void RequestExit()
+    {
+        ObserveShutdown(RequestShutdownAsync(new ShutdownRequest(0, ShutdownReason.RequestedExit)));
+    }
+
+    /// 关窗、菜单退出与启动失败没有调用者会 await 关闭流程。丢弃返回值会让管线自身
     /// 抛出的异常落在无人观察的 Task 上——.NET 默认不会因此终止进程，表现为窗口关不掉、
     /// 既不退出也不报错。这里必须把异常接出来、记进报告并强制退出。
     private void ObserveShutdown(ValueTask<ShutdownReport> completion)

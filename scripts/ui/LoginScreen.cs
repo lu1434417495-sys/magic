@@ -18,6 +18,7 @@ public partial class LoginScreen : Control
     public Button test_button;
     public Button load_button;
     public Button settings_button;
+    public Button quit_button;
     public Label status_label;
     public WorldPresetPickerWindow world_preset_picker_window;
     public SaveListWindow save_list_window;
@@ -28,7 +29,7 @@ public partial class LoginScreen : Control
     public DisplaySettingsService _display_settings_service;
     public DisplaySettingsService.DisplaySettings _display_settings = new(
         DisplaySettingsService.DefaultWindowedResolution,
-        false
+        DisplaySettingsService.DefaultFullscreen
     );
     public StringName _pending_start_type = "";
     public StringName _pending_preset_id = "";
@@ -36,12 +37,13 @@ public partial class LoginScreen : Control
     public override void _Ready()
     {
         _display_settings_service = new DisplaySettingsService();
-        _display_settings = _display_settings_service.LoadAndApply(GetWindow());
+        _display_settings = _display_settings_service.ApplyStartupSettings(GetWindow());
 
         start_button = GetNode<Button>("%StartButton");
         test_button = GetNode<Button>("%TestButton");
         load_button = GetNode<Button>("%LoadButton");
         settings_button = GetNode<Button>("%SettingsButton");
+        quit_button = GetNode<Button>("%QuitButton");
         status_label = GetNode<Label>("%StatusLabel");
         world_preset_picker_window = GetNode<WorldPresetPickerWindow>("WorldPresetPickerWindow");
         save_list_window = GetNode<SaveListWindow>("SaveListWindow");
@@ -52,15 +54,13 @@ public partial class LoginScreen : Control
         test_button.Pressed += _on_test_button_pressed;
         load_button.Pressed += _on_load_button_pressed;
         settings_button.Pressed += _on_settings_button_pressed;
+        quit_button.Pressed += _on_quit_button_pressed;
         world_preset_picker_window.preset_confirmed += _on_world_preset_confirmed;
         world_preset_picker_window.cancelled += _on_world_preset_picker_cancelled;
         save_list_window.save_load_requested += _on_save_load_requested;
         save_list_window.closed += _on_save_list_closed;
         display_settings_window.settings_apply_requested += _on_display_settings_apply_requested;
         display_settings_window.cancelled += _on_display_settings_cancelled;
-        display_settings_window.ConfigureOptions(
-            _display_settings_service.ListResolutionOptions()
-        );
         character_creation_window.character_confirmed += _on_character_creation_confirmed;
         character_creation_window.cancelled += _on_character_creation_cancelled;
         _configure_character_creation_window();
@@ -85,7 +85,17 @@ public partial class LoginScreen : Control
 
         Viewport viewport = GetViewport();
         viewport?.SetInputAsHandled();
-        _open_start_game_picker();
+        Control focusedControl = viewport?.GuiGetFocusOwner();
+        if (focusedControl == load_button)
+            _on_load_button_pressed();
+        else if (focusedControl == test_button)
+            _on_test_button_pressed();
+        else if (focusedControl == settings_button)
+            _on_settings_button_pressed();
+        else if (focusedControl == quit_button)
+            _on_quit_button_pressed();
+        else if (focusedControl == null || focusedControl == start_button)
+            _open_start_game_picker();
     }
 
     public void _on_start_button_pressed()
@@ -120,7 +130,7 @@ public partial class LoginScreen : Control
         save_list_window.ShowWindow(saveSlots);
         status_label.Text =
             saveSlots.Count == 0
-                ? "当前没有可加载的存档。可以先点击“进入游戏”或“测试地图”创建新存档。"
+                ? "当前没有可加载的存档。可以先点击“新建游戏”或“测试地图”创建新存档。"
                 : "请选择一个已有存档继续加载游戏。";
     }
 
@@ -128,8 +138,26 @@ public partial class LoginScreen : Control
     {
         if (_is_transitioning)
             return;
+        _display_settings = _display_settings_service.NormalizeSettings(_display_settings);
+        display_settings_window.ConfigureOptions(
+            _display_settings_service.ListResolutionOptions(),
+            _display_settings_service.GetSystemResolution()
+        );
         display_settings_window.ShowWindow(_display_settings);
         status_label.Text = "请选择游戏分辨率，并按需切换全屏模式。";
+    }
+
+    public void _on_quit_button_pressed()
+    {
+        if (_is_transitioning || _is_modal_open())
+            return;
+
+        var coordinator = GetNode<ApplicationLifetimeCoordinator>(
+            "/root/ApplicationLifetimeCoordinator"
+        );
+        _set_transition_state(true);
+        status_label.Text = "正在退出游戏...";
+        coordinator.RequestExit();
     }
 
     public void _open_start_game_picker()
@@ -282,12 +310,12 @@ public partial class LoginScreen : Control
             saveError == Error.Ok
                 ? $"显示设置已应用：{_display_settings_service.DescribeSettings(_display_settings)}。"
                 : "显示设置已应用，但本地保存失败。";
-        start_button.GrabFocus();
+        settings_button.GrabFocus();
     }
 
     public void _on_display_settings_cancelled()
     {
-        start_button.GrabFocus();
+        settings_button.GrabFocus();
         _show_idle_status();
     }
 
@@ -382,6 +410,7 @@ public partial class LoginScreen : Control
         test_button.Disabled = in_progress;
         load_button.Disabled = in_progress;
         settings_button.Disabled = in_progress;
+        quit_button.Disabled = in_progress;
     }
 
     public bool _validate_start_scene_path()
@@ -405,7 +434,7 @@ public partial class LoginScreen : Control
     public void _show_idle_status()
     {
         status_label.Text =
-            "点击“进入游戏”创建正式世界，点击“加载存档”继续已有进度，或点击“测试地图”创建测试世界。";
+            "新建冒险或加载已有进度，也可以调整游戏设置。";
     }
 
     public void _show_error(string message)
