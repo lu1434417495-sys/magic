@@ -413,8 +413,7 @@ public partial class BattleAiScoreService
         }
         if (elapsedTu > 0)
         {
-            new BattleRuntimeSkillTurnResolver()
-                .AdvanceUnitStatusDurations(projectedUnit, elapsedTu);
+            BattleStatusDurationRules.AdvanceUnitProjection(projectedUnit, elapsedTu);
         }
         return projectedUnit;
     }

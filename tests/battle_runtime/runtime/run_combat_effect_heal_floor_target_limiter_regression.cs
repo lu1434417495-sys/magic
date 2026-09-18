@@ -27,10 +27,6 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
 
     private void TestSchemaAcceptsOnlyTypedFloorAndDeterministicLimiter()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         var validEffect = new CombatEffectDef
         {
             effect_type = "heal",
@@ -41,12 +37,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             target_order = "lowest_hp_percent_then_unit_id",
         };
         var validErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            validErrors,
-            "typed_floor_valid",
-            validEffect,
-            "test_effect"
-        );
+        validErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(validEffect, "typed_floor_valid"));
         _test.Eq(validErrors.Count, 0, "合法 typed floor + limiter 应通过正式 validator。");
 
         var invalidOrder = new CombatEffectDef
@@ -58,12 +49,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             target_order = "grid_order",
         };
         var invalidOrderErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            invalidOrderErrors,
-            "typed_floor_bad_order",
-            invalidOrder,
-            "test_effect"
-        );
+        invalidOrderErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidOrder, "typed_floor_bad_order"));
         _test.True(
             ContainsError(invalidOrderErrors, "target_order"),
             "未知 target_order 必须被正式 validator 拒绝。"
@@ -77,12 +63,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             power = 3,
         };
         var mixedHealErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            mixedHealErrors,
-            "typed_floor_mixed_heal",
-            mixedHeal,
-            "test_effect"
-        );
+        mixedHealErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(mixedHeal, "typed_floor_mixed_heal"));
         _test.True(
             ContainsError(mixedHealErrors, "cannot be combined"),
             "百分比生命地板不得与 power/dice 治疗混配。"
@@ -96,12 +77,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             power = 3,
         };
         var wrongKindErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            wrongKindErrors,
-            "typed_floor_wrong_kind",
-            wrongKind,
-            "test_effect"
-        );
+        wrongKindErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(wrongKind, "typed_floor_wrong_kind"));
         _test.True(
             ContainsError(wrongKindErrors, "only supported on heal"),
             "非 heal effect 不得声明 heal_to_hp_percent_floor。"
@@ -114,12 +90,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             heal_missing_hp_percent = 60,
         };
         var validMissingHpErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            validMissingHpErrors,
-            "typed_missing_hp_valid",
-            validMissingHp,
-            "test_effect"
-        );
+        validMissingHpErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(validMissingHp, "typed_missing_hp_valid"));
         _test.Eq(validMissingHpErrors.Count, 0, "合法损失生命百分比治疗应通过正式 validator。");
 
         var mixedPercentageHeal = new CombatEffectDef
@@ -130,12 +101,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             heal_missing_hp_percent = 60,
         };
         var mixedPercentageErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            mixedPercentageErrors,
-            "typed_missing_hp_mixed",
-            mixedPercentageHeal,
-            "test_effect"
-        );
+        mixedPercentageErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(mixedPercentageHeal, "typed_missing_hp_mixed"));
         _test.True(
             ContainsError(mixedPercentageErrors, "mutually exclusive"),
             "生命地板与损失生命百分比治疗不得混配。"
@@ -148,12 +114,7 @@ public partial class run_combat_effect_heal_floor_target_limiter_regression : Li
             heal_missing_hp_percent = 101,
         };
         var invalidMissingHpErrors = new Godot.Collections.Array<string>();
-        validator.AppendEffectValidationErrors(
-            invalidMissingHpErrors,
-            "typed_missing_hp_invalid",
-            invalidMissingHp,
-            "test_effect"
-        );
+        invalidMissingHpErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidMissingHp, "typed_missing_hp_invalid"));
         _test.True(
             ContainsError(invalidMissingHpErrors, "between 0 and 100"),
             "损失生命治疗百分比必须限制在0到100。"

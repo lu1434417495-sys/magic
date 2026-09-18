@@ -1,31 +1,49 @@
 using System.Collections.Generic;
 using Godot;
 
-/// <see cref="BattleSkillPreviewService"/> 需要的运行时能力面。
-///
-/// 与 <see cref="IBattleTimelineRuntimePort"/> / <see cref="IBattleChargeRuntimePort"/> 同一套模式。
-///
-/// 这里出现了三种"该开访问器"的情形，都记在下面各自的注释里；其余一律是行为。
-/// 注意本服务**仍持有 <see cref="BattleSkillExecutionOrchestrator"/>（`_owner`）**：
-/// orchestrator 属 application 层，隔离层依赖它并不违规，把这层关系也端口化是
-/// orchestrator 自己那一轮的事，不在本次范围内。
+/// Runtime queries consumed by preview. Execution orchestration is not a preview dependency.
 internal interface IBattleSkillPreviewRuntimePort
 {
-    /// 访问器①：4 处调用全是把对象原样传给 `BattlePositionSwapRules` / `BattleAirbornePullRules`
-    /// / `BattleWindPushRules` / 目标收集，包成行为无从下手。
+    // Borrowed only for rules that have not yet adopted BattleStateReadView.
+    BattleState GetStateForReadOnlyRules();
+    BattleAttackCheckPolicyService GetAttackCheckPolicyService();
+    BattleRepeatAttackResolver GetRepeatAttackResolver();
+    bool IsMovementBlocked(BattleUnitState sourceUnit);
+    string GetSkillCommandBlockReason(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        CombatCastVariantDefinition variant
+    );
+    string GetTargetSlotCostBlockReason(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        int targetSlotCount
+    );
+    CombatSkillResourceCosts GetEffectiveSkillResourceCosts(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        int targetSlotCount = 1
+    );
+    BattlePreparedChainDamage BuildPreparedChainPreviewPlan(
+        BattleUnitReadView source,
+        BattleUnitReadView target,
+        SkillDefinition skill,
+        IReadOnlyList<CombatEffectDefinition> effects,
+        bool backlashTriggered
+    );
+
     BattleGridService GetGridService();
 
-    /// 访问器①同上（3 处原样外传）+ 一处直接开护壁预览会话。
     BattleLayeredBarrierService GetLayeredBarrierService();
 
-    /// 访问器②：转发数 ≥5——本服务用到它 7 个不同方法。
     BattleSkillResolutionRules GetSkillResolutionRules();
 
-    /// 访问器③：同层 peer（`BattleChargeResolver` 本身已在 battle_runtime_isolated），
-    /// 暴露它完全不泄露 hub 拓扑。
     BattleChargeResolver GetChargeResolver();
 
     SkillDefinition GetSkillDefinition(StringName skillId);
+
+    BattleStatusTickAdvancePreview PreviewStatusTickAdvance(
+        BattleDamagePreviewWorkingSet workingSet, CombatEffectDefinition effect, BattleStatusTickAdvancePreviewMode rollMode);
 
     IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefIndex();
 
@@ -100,10 +118,4 @@ internal interface IBattleSkillPreviewRuntimePort
         IReadOnlyList<Vector2I> effectCoords
     );
 
-    void AppendDamageResultLogLines(
-        BattleEventBatch batch,
-        string subjectLabel,
-        string targetDisplayName,
-        AttackEffectResolutionResult result
-    );
 }

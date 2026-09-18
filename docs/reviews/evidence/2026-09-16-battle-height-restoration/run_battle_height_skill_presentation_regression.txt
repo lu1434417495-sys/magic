@@ -1,0 +1,15 @@
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+Vulkan 1.4.341 - Forward+ - Using Device #0: NVIDIA - NVIDIA GeForce RTX 5090 D v2
+
+HUD cast mage_rampart_raise/pillar: 0 -> 3, generation 2 -> 3
+HUD cast mage_fossil_to_mud/lower_single_1: 3 -> 2, generation 4 -> 5
+HUD cast mage_fossil_to_mud/lower_single_1: 2 -> 1, generation 6 -> 7
+HUD cast mage_fossil_to_mud/lower_single_1: 1 -> 0, generation 8 -> 9
+HUD cast mage_fossil_to_mud/lower_single_1: 0 -> -1, generation 10 -> 11
+HUD cast mage_rampart_raise/pillar: 0 -> 3, generation 13 -> 14
+HUD cast mage_fossil_to_mud/lower_single_1: 3 -> 2, generation 15 -> 16
+HUD cast mage_fossil_to_mud/lower_single_1: 2 -> 1, generation 17 -> 18
+HUD cast mage_fossil_to_mud/lower_single_1: 1 -> 0, generation 19 -> 20
+HUD cast mage_fossil_to_mud/lower_single_1: 0 -> -1, generation 21 -> 22
+Battle height skill presentation regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0

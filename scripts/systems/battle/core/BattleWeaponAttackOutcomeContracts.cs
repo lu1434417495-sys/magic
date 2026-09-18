@@ -383,7 +383,7 @@ internal sealed class BattleCounterattackWeaponAttackPlan
             ProgressionDataUtils.to_string_name(weaponTrainingSkillId);
         if (
             WeaponTrainingSkillId != new StringName("")
-            && !BattleSkillMasteryService.IsWeaponTrainingSkillId(
+            && !BattleWeaponTrainingRules.IsWeaponTrainingSkillId(
                 WeaponTrainingSkillId
             )
         )

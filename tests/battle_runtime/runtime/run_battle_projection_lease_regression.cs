@@ -413,23 +413,23 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
             "BattleCommonSkillOutcome report getter must be detached."
         );
 
-        var sourceRanges = new List<BattleDamagePreviewRangeService.DamageEffectRange>
+        var sourceRanges = new List<BattleDamageEffectRange>
         {
             BuildDamageRange(),
         };
         var preview = new BattlePreview();
         preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(true, 3, 8, sourceRanges)
+            new BattleSkillDamagePreview(true, 3, 8, sourceRanges)
         );
         sourceRanges.Clear();
-        BattleDamagePreviewRangeService.SkillDamagePreview returnedPreview =
+        BattleSkillDamagePreview returnedPreview =
             preview.DamagePreviewTyped.Value;
         _test.Eq(
             returnedPreview.DamageRanges.Count,
             1,
             "Damage preview setter must detach caller-owned ranges."
         );
-        ((List<BattleDamagePreviewRangeService.DamageEffectRange>)returnedPreview.DamageRanges)
+        ((List<BattleDamageEffectRange>)returnedPreview.DamageRanges)
             .Clear();
         _test.Eq(
             preview.DamagePreviewTyped.Value.DamageRanges.Count,
@@ -802,11 +802,11 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         preview.AddTargetCoord(new Vector2I(2, 3));
         preview.AddRandomChainCandidateUnitId("unit_b");
         preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
+            new BattleSkillDamagePreview(
                 true,
                 3,
                 8,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>
+                new List<BattleDamageEffectRange>
                 {
                     BuildDamageRange(),
                 }
@@ -882,15 +882,15 @@ public partial class run_battle_projection_lease_regression : LifecycleTestScene
         return preview;
     }
 
-    private static BattleDamagePreviewRangeService.DamageEffectRange BuildDamageRange() =>
+    private static BattleDamageEffectRange BuildDamageRange() =>
         new(
             EffectIndex: 0,
             Power: 2,
             AddWeaponDice: true,
             MinDamage: 3,
             MaxDamage: 8,
-            SkillDiceRange: new BattleDamagePreviewRangeService.DiceRange(1, 6, 1, 2, 7),
-            WeaponDiceRange: new BattleDamagePreviewRangeService.DiceRange(1, 1, 0, 1, 1)
+            SkillDiceRange: new BattleDamageDiceRange(1, 6, 1, 2, 7),
+            WeaponDiceRange: new BattleDamageDiceRange(1, 1, 0, 1, 1)
         );
 
     private static BattleUnitState BuildUnit(

@@ -1,0 +1,1394 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "l0_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l1_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l2_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l3_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l4_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l6_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l7_no_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "l0_one_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l0_two_follow_ups",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 2,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l0_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_one_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_two_follow_ups",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 2,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_one_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l7_two_follow_ups",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 2,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l7_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_early_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 5,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_expired_follow_up",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 60,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 5.25
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_resistant_target",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 2.5.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 39.375
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 2.625
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_immune_target",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 2.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 0
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_already_vulnerable",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 4.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 0
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l5_two_sources_each_hit_60_percent",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "count": 1,
+          "first_event_tu": 20,
+          "interval_tu": 320,
+          "marginal_per_event": {
+            "damage_dealt_hp": 1.89
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "l0_insufficient_mp",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+        "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+        "docs/proposals/battle/skills/mage_cold_snap_status_assessment/build_input.py": "aec15229dbdf24f47f93d83ab9e831d1495b6b9fd1bf5ae4b1435a6310c91c4e"
+      },
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 60,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    }
+  ]
+}

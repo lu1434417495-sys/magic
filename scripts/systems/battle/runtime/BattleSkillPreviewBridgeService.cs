@@ -12,6 +12,50 @@ internal sealed class BattleSkillPreviewBridgeService
     : BattleRuntimeModuleBorrower,
         IBattleSkillPreviewRuntimePort
 {
+    BattleState IBattleSkillPreviewRuntimePort.GetStateForReadOnlyRules() => _runtime?._state;
+    BattleAttackCheckPolicyService IBattleSkillPreviewRuntimePort.GetAttackCheckPolicyService() =>
+        _runtime?.GetAttackCheckPolicyService();
+
+    BattleRepeatAttackResolver IBattleSkillPreviewRuntimePort.GetRepeatAttackResolver() =>
+        _runtime?._repeat_attack_resolver;
+
+    bool IBattleSkillPreviewRuntimePort.IsMovementBlocked(BattleUnitState sourceUnit) =>
+        _runtime?._movement_service?.IsMovementBlocked(sourceUnit) == true;
+
+    string IBattleSkillPreviewRuntimePort.GetSkillCommandBlockReason(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        CombatCastVariantDefinition variant
+    ) => _runtime?._get_skill_command_block_reason(unit, skill, variant) ?? "";
+
+    string IBattleSkillPreviewRuntimePort.GetTargetSlotCostBlockReason(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        int targetSlotCount
+    ) => _runtime?._get_target_slot_cost_block_reason(unit, skill, targetSlotCount) ?? "";
+
+    CombatSkillResourceCosts IBattleSkillPreviewRuntimePort.GetEffectiveSkillResourceCosts(
+        BattleUnitReadView unit,
+        SkillDefinition skill,
+        int targetSlotCount
+    ) => _runtime?._skill_turn_resolver?.GetEffectiveSkillResourceCosts(unit, skill, targetSlotCount)
+        ?? CombatSkillResourceCosts.Zero;
+
+    BattlePreparedChainDamage IBattleSkillPreviewRuntimePort.BuildPreparedChainPreviewPlan(
+        BattleUnitReadView source,
+        BattleUnitReadView target,
+        SkillDefinition skill,
+        IReadOnlyList<CombatEffectDefinition> effects,
+        bool backlashTriggered
+    ) => BattleChainDamagePreparationRules.BuildPreparedPlan(
+        _runtime?._state,
+        source.UnsafeUnitForReadOnlyRules,
+        target.UnsafeUnitForReadOnlyRules,
+        skill,
+        effects,
+        backlashTriggered
+    );
+
     BattleGridService IBattleSkillPreviewRuntimePort.GetGridService() =>
         _runtime?.GetGridService();
 
@@ -26,6 +70,11 @@ internal sealed class BattleSkillPreviewBridgeService
 
     SkillDefinition IBattleSkillPreviewRuntimePort.GetSkillDefinition(StringName skillId) =>
         _runtime?.GetSkillDefinitionTyped(skillId);
+
+    BattleStatusTickAdvancePreview IBattleSkillPreviewRuntimePort.PreviewStatusTickAdvance(
+        BattleDamagePreviewWorkingSet workingSet, CombatEffectDefinition effect, BattleStatusTickAdvancePreviewMode rollMode) =>
+        _runtime?.GetDamageResolver()?.PreviewStatusTickAdvanceOnWorkingSetTyped(workingSet, effect, rollMode)
+            ?? BattleStatusTickAdvancePreview.Empty;
 
     IReadOnlyDictionary<StringName, ItemDefinition> IBattleSkillPreviewRuntimePort.GetItemDefIndex() =>
         _runtime?.GetItemDefIndexTyped();
@@ -166,16 +215,4 @@ internal sealed class BattleSkillPreviewBridgeService
             effectCoords
         );
 
-    void IBattleSkillPreviewRuntimePort.AppendDamageResultLogLines(
-        BattleEventBatch batch,
-        string subjectLabel,
-        string targetDisplayName,
-        AttackEffectResolutionResult result
-    ) =>
-        _runtime?._report_formatter?.AppendDamageResultLogLines(
-            batch,
-            subjectLabel,
-            targetDisplayName,
-            result
-        );
 }

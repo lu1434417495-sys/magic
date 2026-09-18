@@ -1,0 +1,22 @@
+{
+  "command": [
+    "C:/Users/lu/AppData/Local/Microsoft/WinGet/Packages/GodotEngine.GodotEngine.Mono_Microsoft.Winget.Source_8wekyb3d8bbwe/Godot_v4.6.2-stable_mono_win64/Godot_v4.6.2-stable_mono_win64.exe",
+    "--path",
+    "E:\\game\\magic",
+    "--windowed",
+    "--resolution",
+    "1280x720",
+    "--position",
+    "80,80",
+    "--script",
+    "res://tests/e2e/run_character_journey_observer.cs"
+  ],
+  "sandbox": "C:\\Users\\lu\\.codex\\visualizations\\2026\\09\\15\\npc-first-quest-fix\\sandboxes\\godot-e2e-user-data-4dg3t2e8\\journey",
+  "seed": null,
+  "started_at": 1789442180.6513295,
+  "rendered": true,
+  "input_only": true,
+  "pid": 54772,
+  "exit_code": 0,
+  "ended_at": 1789442477.3096037
+}

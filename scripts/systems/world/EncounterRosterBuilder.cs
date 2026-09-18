@@ -860,7 +860,10 @@ public sealed class EncounterRosterBuilder : IDisposable
             if (unitState.GetKnownActiveSkillsViewTyped().Count == 0)
             {
                 unitState.SetKnownActiveSkillIds(
-                    PickDefaultEnemySkillIds(buildContext.SkillDefinitions)
+                    BattleEnemyDefaultSkillRules.PickDefaultSkillIds(
+                        _basicAttackSkillId,
+                        buildContext.SkillDefinitions
+                    )
                 );
             }
             EnsureBasicAttackSkill(unitState, buildContext.SkillDefinitions);
@@ -952,62 +955,6 @@ public sealed class EncounterRosterBuilder : IDisposable
             "encounter.missing_battle_encounter_roster",
             "encounter"
         );
-    }
-
-    private IReadOnlyList<StringName> PickDefaultEnemySkillIds(
-        IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
-    )
-    {
-        var preferredSkillIds = new List<StringName>
-        {
-            "warrior_heavy_strike",
-            "warrior_combo_strike",
-            "warrior_guard_break",
-        };
-        if (_basicAttackSkillId != "")
-            preferredSkillIds.Insert(0, _basicAttackSkillId);
-        foreach (StringName preferredSkillId in preferredSkillIds)
-        {
-            if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, preferredSkillId)))
-            {
-                return new[] { preferredSkillId };
-            }
-        }
-
-        foreach (StringName skillId in SortedIndexKeys(skillDefinitions))
-        {
-            if (IsValidEnemyCombatSkill(GetSkillDefinition(skillDefinitions, skillId)))
-            {
-                return new[] { skillId };
-            }
-        }
-        return Array.Empty<StringName>();
-    }
-
-    private static bool IsValidEnemyCombatSkill(SkillDefinition skillDefinition)
-    {
-        if (skillDefinition == null)
-        {
-            return false;
-        }
-        if (skillDefinition.SkillTypeKind != SkillTypeKind.Active)
-        {
-            return false;
-        }
-        if (!skillDefinition.CanUseInCombat())
-        {
-            return false;
-        }
-        CombatSkillDefinition combatProfile = skillDefinition.CombatProfile;
-        if (combatProfile == null)
-        {
-            return false;
-        }
-        if (combatProfile.TargetModeKind != BattleTargetMode.Unit)
-        {
-            return false;
-        }
-        return combatProfile.TargetFilterKind == BattleTargetFilter.Enemy;
     }
 
     private void EnsureBasicAttackSkill(
@@ -1156,29 +1103,6 @@ public sealed class EncounterRosterBuilder : IDisposable
             enemyUnitCountOverride,
             generationSeed
         );
-    }
-
-    private static IEnumerable<StringName> SortedIndexKeys<T>(
-        IReadOnlyDictionary<StringName, T> values
-    )
-    {
-        if (values == null || values.Count == 0)
-        {
-            yield break;
-        }
-        List<string> sortedKeys = new();
-        foreach (StringName key in values.Keys)
-        {
-            if (key != "")
-            {
-                sortedKeys.Add(key.ToString());
-            }
-        }
-        sortedKeys.Sort(StringComparer.Ordinal);
-        foreach (string key in sortedKeys)
-        {
-            yield return new StringName(key);
-        }
     }
 
     public void Dispose()

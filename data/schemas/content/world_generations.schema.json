@@ -261,11 +261,17 @@
         "shared_content_id": {
           "type": "string"
         },
+        "starting_area": {
+          "$ref": "#/$defs/WorldStartingAreaJsonDto"
+        },
         "starting_wild_spawn_max_distance": {
           "type": "integer"
         },
         "starting_wild_spawn_min_distance": {
           "type": "integer"
+        },
+        "starting_wild_spawn_region_tag": {
+          "type": "string"
         },
         "town_spacing_cells": {
           "type": "integer"
@@ -315,8 +321,10 @@
         "settlement_distribution",
         "settlement_library",
         "shared_content_id",
+        "starting_area",
         "starting_wild_spawn_max_distance",
         "starting_wild_spawn_min_distance",
+        "starting_wild_spawn_region_tag",
         "town_spacing_cells",
         "village_spacing_cells",
         "wild_monster_distribution",
@@ -417,11 +425,17 @@
         "shared_content_id": {
           "type": "string"
         },
+        "starting_area": {
+          "$ref": "#/$defs/WorldStartingAreaJsonDto__partial"
+        },
         "starting_wild_spawn_max_distance": {
           "type": "integer"
         },
         "starting_wild_spawn_min_distance": {
           "type": "integer"
+        },
+        "starting_wild_spawn_region_tag": {
+          "type": "string"
         },
         "town_spacing_cells": {
           "type": "integer"
@@ -536,11 +550,17 @@
         "shared_content_id": {
           "type": "string"
         },
+        "starting_area": {
+          "$ref": "#/$defs/WorldStartingAreaJsonDto__partial"
+        },
         "starting_wild_spawn_max_distance": {
           "type": "integer"
         },
         "starting_wild_spawn_min_distance": {
           "type": "integer"
+        },
+        "starting_wild_spawn_region_tag": {
+          "type": "string"
         },
         "town_spacing_cells": {
           "type": "integer"
@@ -669,6 +689,36 @@
         "settlement_id",
         "tier"
       ]
+    },
+    "WorldStartingAreaJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_challenge_rating": {
+          "type": "number"
+        },
+        "size": {
+          "$ref": "#/$defs/WorldVector2IJsonDto",
+          "description": "Rectangle centered on the actual player spawn; 0 x 0 disables the starting area."
+        }
+      },
+      "required": [
+        "max_challenge_rating",
+        "size"
+      ]
+    },
+    "WorldStartingAreaJsonDto__partial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_challenge_rating": {
+          "type": "number"
+        },
+        "size": {
+          "$ref": "#/$defs/WorldVector2IJsonDto__partial",
+          "description": "Rectangle centered on the actual player spawn; 0 x 0 disables the starting area."
+        }
+      }
     },
     "WorldVector2IJsonDto": {
       "type": "object",

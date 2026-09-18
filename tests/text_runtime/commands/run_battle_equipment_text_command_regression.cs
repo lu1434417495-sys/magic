@@ -153,11 +153,18 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             FindLatestChangeEquipmentReport(
             bodyArmorEquipResult.SnapshotTyped
         );
+        int bodyArmorCountBeforeUnequip = CountBattleBackpackItem(
+            bodyArmorEquipResult.SnapshotTyped, "leather_jerkin"
+        );
+        string equippedBodyArmorInstanceId = DictString(bodyArmorEquipReport, "instance_id");
+        _test.True(equippedBodyArmorInstanceId.Length > 0, "身体护甲换装应记录实际装备实例。");
         PrimeActiveUnitHpAndAp(runner, DictInt(bodyArmorEquipReport, "hp_max_after"), 2);
         GameTextCommandResult bodyArmorUnequipResult = RunCommand(runner, "battle unequip body");
         AssertBattleUnequipBodyArmorTurnEndWithoutHpClamp(
             bodyArmorUnequipResult.SnapshotTyped,
-            bodyArmorUnequipResult.snapshot_text
+            bodyArmorUnequipResult.snapshot_text,
+            bodyArmorCountBeforeUnequip,
+            equippedBodyArmorInstanceId
         );
 
         GameTextCommandResult finishResult = RunCommand(runner, "battle finish player");
@@ -748,7 +755,9 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
 
     private void AssertBattleUnequipBodyArmorTurnEndWithoutHpClamp(
         IReadOnlyDictionary<string, object> snapshot,
-        string textSnapshot
+        string textSnapshot,
+        int backpackCountBeforeUnequip,
+        string equippedInstanceId
     )
     {
         IReadOnlyDictionary<string, object> battleSnapshot = Dict(snapshot, "battle");
@@ -764,7 +773,16 @@ public partial class run_battle_equipment_text_command_regression : LifecycleTes
             DictString(report, "unit_id")
         );
         _test.True(FindEquippedEntry(ArrayValue(unit, "equipment"), "body").Count == 0, "身体护甲卸装后 body 槽应清空。");
-        _test.Eq(CountBattleBackpackItem(snapshot, "leather_jerkin"), 1, "身体护甲卸装后应回到 battle-local 背包。");
+        _test.Eq(CountBattleBackpackItem(snapshot, "leather_jerkin"), backpackCountBeforeUnequip + 1, "身体护甲卸装后 battle-local 背包应恰好增加一件。");
+        _test.Eq(DictString(report, "instance_id"), equippedInstanceId, "卸装应返回此前装备的同一实例。");
+        int returnedInstanceCount = 0;
+        foreach (object entry in ArrayValue(Dict(battleSnapshot, "party_backpack"), "equipment_instances"))
+        {
+            if (entry is IReadOnlyDictionary<string, object> instance
+                && DictString(instance, "instance_id") == equippedInstanceId)
+                returnedInstanceCount++;
+        }
+        _test.Eq(returnedInstanceCount, 1, "卸下的身体护甲实例应恰好出现在战斗背包一次。");
         _test.False(textSnapshot.Contains("hp_clamped=true"), "文本快照不应渲染不存在的 HP clamp。");
         _test.True(textSnapshot.Contains("active_unit_id="), "文本快照应渲染行动结束后的 active_unit_id。");
     }

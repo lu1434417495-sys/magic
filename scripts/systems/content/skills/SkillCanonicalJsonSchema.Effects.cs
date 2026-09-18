@@ -7,6 +7,8 @@ using System.Text.Json;
 internal static partial class SkillCanonicalJsonSchema
 {
     private abstract record EffectPayloadProjection(CombatEffectPayloadShape Shape);
+    private sealed record AdvanceTicksPayloadProjection(AdvanceStatusTicksEffectPayloadImportModel Value)
+        : EffectPayloadProjection(CombatEffectPayloadShape.AdvanceStatusTicks);
     private sealed record EmptyPayloadProjection(EmptyCombatEffectPayloadImportModel Value)
         : EffectPayloadProjection(CombatEffectPayloadShape.Empty);
     private sealed record StatusPayloadProjection(StatusEffectPayloadImportModel Value)
@@ -260,6 +262,7 @@ internal static partial class SkillCanonicalJsonSchema
             OBool<CombatEffectImportModel>("lock_counterattack", static x => x.LockCounterattack),
             OBool<CombatEffectImportModel>("lock_guard", static x => x.LockGuard),
             OBool<CombatEffectImportModel>("lock_dodge_bonus", static x => x.LockDodgeBonus),
+            OBool<CombatEffectImportModel>("incoming_attack_roll_disadvantage", static x => x.IncomingAttackRollDisadvantage),
             OBool<CombatEffectImportModel>("lock_crit", static x => x.LockCrit),
             OBool<CombatEffectImportModel>("skip_turn", static x => x.SkipTurn),
             OBool<CombatEffectImportModel>("break_on_positive_damage", static x => x.BreakOnPositiveDamage),
@@ -368,10 +371,17 @@ internal static partial class SkillCanonicalJsonSchema
                 OBool<OnKillGainResourcesEffectPayloadImportModel>("stack_on_multiple_kills", static x => x.StackOnMultipleKills)
             ));
 
+        ContentCanonicalJsonValueSchema<AdvanceStatusTicksEffectPayloadImportModel> advanceTicks =
+            ContentCanonicalJsonValue.Object(new ContentCanonicalJsonObjectSchema<AdvanceStatusTicksEffectPayloadImportModel>(
+                RInt<AdvanceStatusTicksEffectPayloadImportModel>("max_ticks", static x => x.MaxTicks),
+                RInt<AdvanceStatusTicksEffectPayloadImportModel>("max_sources", static x => x.MaxSources),
+                ContentCanonicalJsonProperty<AdvanceStatusTicksEffectPayloadImportModel>.Required("required_source_tag", static x => x.RequiredSourceTag, StringName)
+            ));
         return ContentCanonicalJsonValue.ClosedUnion<EffectPayloadProjection, CombatEffectPayloadShape>(
             static x => x.Shape,
             ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<EmptyPayloadProjection>(CombatEffectPayloadShape.Empty, ContentCanonicalJsonValue.Project<EmptyPayloadProjection, EmptyCombatEffectPayloadImportModel>(static x => x.Value, empty)),
             ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<StatusPayloadProjection>(CombatEffectPayloadShape.Status, ContentCanonicalJsonValue.Project<StatusPayloadProjection, StatusEffectPayloadImportModel>(static x => x.Value, status)),
+            ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<AdvanceTicksPayloadProjection>(CombatEffectPayloadShape.AdvanceStatusTicks, ContentCanonicalJsonValue.Project<AdvanceTicksPayloadProjection, AdvanceStatusTicksEffectPayloadImportModel>(static x => x.Value, advanceTicks)),
             ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<HealPayloadProjection>(CombatEffectPayloadShape.Heal, ContentCanonicalJsonValue.Project<HealPayloadProjection, HealEffectPayloadImportModel>(static x => x.Value, heal)),
             ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<EquipmentPayloadProjection>(CombatEffectPayloadShape.EquipmentDurabilityDamage, ContentCanonicalJsonValue.Project<EquipmentPayloadProjection, EquipmentDurabilityDamageEffectPayloadImportModel>(static x => x.Value, equipment)),
             ContentCanonicalJsonUnionCase<EffectPayloadProjection, CombatEffectPayloadShape>.Create<RepeatPayloadProjection>(CombatEffectPayloadShape.RepeatAttackUntilFail, ContentCanonicalJsonValue.Project<RepeatPayloadProjection, RepeatAttackUntilFailEffectPayloadImportModel>(static x => x.Value, repeat)),
@@ -390,6 +400,7 @@ internal static partial class SkillCanonicalJsonSchema
         {
             EmptyCombatEffectPayloadImportModel value => new EmptyPayloadProjection(value),
             StatusEffectPayloadImportModel value => new StatusPayloadProjection(value),
+            AdvanceStatusTicksEffectPayloadImportModel value => new AdvanceTicksPayloadProjection(value),
             HealEffectPayloadImportModel value => new HealPayloadProjection(value),
             EquipmentDurabilityDamageEffectPayloadImportModel value => new EquipmentPayloadProjection(value),
             RepeatAttackUntilFailEffectPayloadImportModel value => new RepeatPayloadProjection(value),

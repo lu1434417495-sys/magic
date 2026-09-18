@@ -16,6 +16,8 @@ public partial class DisplaySettingsWindow : ModalWindowShell
     private Button _applyButton;
     private Button _cancelButton;
     private Button _headerCloseButton;
+    private Vector2I _systemResolution;
+    private Vector2I _windowedResolution;
 
     private readonly List<DisplaySettingsService.ResolutionOption> _resolutionOptions = new();
 
@@ -52,8 +54,12 @@ public partial class DisplaySettingsWindow : ModalWindowShell
         }
     }
 
-    public void ConfigureOptions(IReadOnlyList<DisplaySettingsService.ResolutionOption> resolution_options)
+    public void ConfigureOptions(
+        IReadOnlyList<DisplaySettingsService.ResolutionOption> resolution_options,
+        Vector2I systemResolution
+    )
     {
+        _systemResolution = systemResolution;
         _resolutionOptions.Clear();
         if (resolution_options != null)
         {
@@ -77,6 +83,7 @@ public partial class DisplaySettingsWindow : ModalWindowShell
         _rebuild_resolution_options();
 
         Vector2I selectedResolution = current_settings.Resolution;
+        _windowedResolution = selectedResolution;
         int selectedIndex = _find_resolution_index(selectedResolution);
         if (_resolutionOptionButton.GetItemCount() > 0)
             _resolutionOptionButton.Select(selectedIndex);
@@ -84,10 +91,10 @@ public partial class DisplaySettingsWindow : ModalWindowShell
         _fullscreenCheckButton.ButtonPressed = current_settings.Fullscreen;
         _update_hint();
 
-        if (_resolutionOptionButton.GetItemCount() > 0)
+        if (!_resolutionOptionButton.Disabled && _resolutionOptionButton.GetItemCount() > 0)
             _resolutionOptionButton.GrabFocus();
         else
-            _cancelButton.GrabFocus();
+            _fullscreenCheckButton.GrabFocus();
     }
 
     public void HideWindow()
@@ -141,15 +148,25 @@ public partial class DisplaySettingsWindow : ModalWindowShell
         return _resolutionOptions[selectedIndex].Size;
     }
 
-    private void _on_fullscreen_toggled(bool _pressed)
+    private void _on_fullscreen_toggled(bool pressed)
     {
+        if (pressed)
+        {
+            _windowedResolution = _get_selected_resolution();
+            _resolutionOptionButton.Select(_find_resolution_index(_systemResolution));
+        }
+        else
+        {
+            _resolutionOptionButton.Select(_find_resolution_index(_windowedResolution));
+        }
         _update_hint();
     }
 
     private void _update_hint()
     {
+        _resolutionOptionButton.Disabled = _fullscreenCheckButton.ButtonPressed;
         _hintLabel.Text = _fullscreenCheckButton.ButtonPressed
-            ? "全屏模式会优先使用显示器的全屏显示；退出全屏后恢复所选窗口分辨率。"
+            ? $"全屏使用当前显示器的系统分辨率：{_systemResolution.X} x {_systemResolution.Y}。"
             : "窗口模式会立即切换到所选的常见分辨率。";
     }
 

@@ -1,13 +1,10 @@
-using System;
-
 public sealed class CombatApproachAttackDefinition
 {
     public CombatApproachAttackDefinition(int maximumPathHeightDeltaFromOrigin)
     {
-        MaximumPathHeightDeltaFromOrigin = Math.Max(
-            maximumPathHeightDeltaFromOrigin,
-            0
-        );
+        // 不在这里钳位：负值要原样交给 SkillDefinitionCombatProfileValidator 在内容期拒绝，
+        // 钳成 0 会让作者写错的高差悄悄变成"不允许任何高差"。
+        MaximumPathHeightDeltaFromOrigin = maximumPathHeightDeltaFromOrigin;
     }
 
     public int MaximumPathHeightDeltaFromOrigin { get; }

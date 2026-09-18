@@ -371,14 +371,10 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
 
     private void TestTemporalContentValidationRules()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
 
         // 1) 施加 time_stasis 必须带 temporal tag / temporal save_tag / save。
         var missingErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            missingErrors,
-            "stasis_missing_meta",
-            TestResourceOwnership.Own(
+        missingErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(TestResourceOwnership.Own(
                 new CombatEffectDef
                 {
                     effect_type = "status",
@@ -386,35 +382,25 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                     duration_tu = 15,
                 },
                 "TimeStasis.stasis-missing-meta"
-            ),
-            "test_effect"
-        );
+            ), "stasis_missing_meta"));
         AssertExactErrors(
             missingErrors,
             new[]
             {
-                "Skill stasis_missing_meta effect test_effect applying time_stasis must declare effect_tags temporal.",
-                "Skill stasis_missing_meta effect test_effect applying time_stasis must use save_tag temporal.",
-                "Skill stasis_missing_meta effect test_effect applying time_stasis must configure a save.",
+                "Skill stasis_missing_meta effect combat_profile.effect_defs[0] applying time_stasis must declare effect_tags temporal.",
+                "Skill stasis_missing_meta effect combat_profile.effect_defs[0] applying time_stasis must use save_tag temporal.",
+                "Skill stasis_missing_meta effect combat_profile.effect_defs[0] applying time_stasis must configure a save.",
             },
             "缺少 temporal tag/save_tag/save 的静滞效果"
         );
 
         var validErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            validErrors,
-            "stasis_valid",
-            MakeStasisEffect(),
-            "test_effect"
-        );
+        validErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(MakeStasisEffect(), "stasis_valid"));
         _test.Eq(validErrors.Count, 0, $"合法静滞效果不应报错。 errors={FormatErrors(validErrors)}");
 
-        // 2) save_bonus_by_tag 参数：string key / 非法 tag / 非 int 值都应被拒绝。
+        // 2) status payload 是闭集，save_bonus_by_tag 不是可编写成员，整个 params 条目都应被拒绝。
         var bonusErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            bonusErrors,
-            "bad_save_bonus_by_tag",
-            TestResourceOwnership.Own(
+        bonusErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(TestResourceOwnership.Own(
                 new CombatEffectDef
                 {
                     effect_type = "status",
@@ -433,26 +419,19 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                     },
                 },
                 "TimeStasis.bad-save-bonus-by-tag"
-            ),
-            "test_effect"
-        );
+            ), "bad_save_bonus_by_tag"));
         AssertExactErrors(
             bonusErrors,
             new[]
             {
-                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag keys must be StringName.",
-                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag uses unsupported save tag not_a_save_tag.",
-                "Skill bad_save_bonus_by_tag effect test_effect params.save_bonus_by_tag.sleep must be an int >= 1.",
+                "skill.fixture.invalid_input bad_save_bonus_by_tag/combat_profile/effect_defs/0/payload/save_bonus_by_tag: Unknown effect payload member.",
             },
-            "save_bonus_by_tag 的 string key/非法 tag/非 int 值"
+            "save_bonus_by_tag 旧 params 条目"
         );
 
         // 3) 直接施加 time_reverberation 应被拒绝。
         var reverbErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            reverbErrors,
-            "direct_reverberation",
-            TestResourceOwnership.Own(
+        reverbErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(TestResourceOwnership.Own(
                 new CombatEffectDef
                 {
                     effect_type = "status",
@@ -460,14 +439,12 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                     duration_tu = 60,
                 },
                 "TimeStasis.direct-reverberation"
-            ),
-            "test_effect"
-        );
+            ), "direct_reverberation"));
         AssertExactErrors(
             reverbErrors,
             new[]
             {
-                "Skill direct_reverberation effect test_effect cannot apply time_reverberation directly; it is runtime-applied on temporal release.",
+                "Skill direct_reverberation effect combat_profile.effect_defs[0] cannot apply time_reverberation directly; it is runtime-applied on temporal release.",
             },
             "内容直接施加 time_reverberation"
         );
@@ -475,10 +452,7 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
         // 4) temporal-tagged erase_status 指向非 temporal 状态应被拒绝；
         //    解除 temporal 状态但缺 temporal tag 也应被拒绝。
         var mismatchedEraseErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            mismatchedEraseErrors,
-            "temporal_erase_wrong_status",
-            TestResourceOwnership.Own(
+        mismatchedEraseErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(TestResourceOwnership.Own(
                 new CombatEffectDef
                 {
                     effect_type = "erase_status",
@@ -486,37 +460,30 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                     effect_tags = new Godot.Collections.Array<StringName> { TemporalTag },
                 },
                 "TimeStasis.temporal-erase-wrong-status"
-            ),
-            "test_effect"
-        );
+            ), "temporal_erase_wrong_status"));
         AssertExactErrors(
             mismatchedEraseErrors,
             new[]
             {
-                "Skill temporal_erase_wrong_status effect test_effect temporal erase_status must target time_stasis or time_slow.",
+                "Skill temporal_erase_wrong_status effect combat_profile.effect_defs[0] temporal erase_status must target time_stasis or time_slow.",
             },
             "temporal erase_status 指向非 temporal 状态"
         );
 
         var untaggedEraseErrors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            untaggedEraseErrors,
-            "untagged_temporal_erase",
-            TestResourceOwnership.Own(
+        untaggedEraseErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(TestResourceOwnership.Own(
                 new CombatEffectDef
                 {
                     effect_type = "erase_status",
                     status_id = BattleStatusSemanticTable.STATUS_TIME_STASIS,
                 },
                 "TimeStasis.untagged-temporal-erase"
-            ),
-            "test_effect"
-        );
+            ), "untagged_temporal_erase"));
         AssertExactErrors(
             untaggedEraseErrors,
             new[]
             {
-                "Skill untagged_temporal_erase effect test_effect erasing time_stasis must declare effect_tags temporal.",
+                "Skill untagged_temporal_erase effect combat_profile.effect_defs[0] erasing time_stasis must declare effect_tags temporal.",
             },
             "解除 temporal 状态但缺 temporal tag"
         );
@@ -564,10 +531,11 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
                 },
             };
             var mixedErrors = new Godot.Collections.Array<string>();
-            registry.AppendTemporalReleaseSkillValidationErrors(
-                mixedErrors,
-                "mixed_temporal_release",
-                mixedProfile
+            mixedErrors.AddRange(
+                TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(
+                    mixedProfile,
+                    "mixed_temporal_release"
+                )
             );
             AssertExactErrors(
                 mixedErrors,
@@ -588,10 +556,11 @@ public partial class run_time_stasis_regression : LifecycleTestSceneTree
             },
         };
         var pureErrors = new Godot.Collections.Array<string>();
-        registry.AppendTemporalReleaseSkillValidationErrors(
-            pureErrors,
-            "pure_temporal_release",
-            pureProfile
+        pureErrors.AddRange(
+            TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(
+                pureProfile,
+                "pure_temporal_release"
+            )
         );
         _test.Eq(
             pureErrors.Count,

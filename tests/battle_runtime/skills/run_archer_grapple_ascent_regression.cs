@@ -103,10 +103,6 @@ public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTr
 
     private void TestSchemaRejectsInvalidGrappleData()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using var invalid = new CombatEffectDef
         {
             effect_type = "forced_move",
@@ -122,7 +118,7 @@ public partial class run_archer_grapple_ascent_regression : LifecycleTestSceneTr
         };
         profile.effect_defs.Add(invalid);
         var errors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(errors, "invalid_grapple", profile);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, "invalid_grapple"));
         _test.True(
             ErrorsContain(errors, "forced_move_distance = 1"),
             $"grapple_ascent 平面距离不是1时必须拒绝。errors={string.Join(" | ", errors)}"

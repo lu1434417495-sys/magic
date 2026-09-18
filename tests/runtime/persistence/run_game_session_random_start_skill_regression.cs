@@ -15,6 +15,7 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
     private void Run()
     {
         TestStartingEquipmentMatchesSelectedRandomSkillThroughCreateNewSave();
+        TestStartingBodyArmorPersistsAndAddsArmorClass();
         TestMpStartingSkillGrantsBasicMeditationAndRandomManaPool();
         TestFrostBoltRandomStartTierAndAffordableLevelCost();
         TestBoneChillRandomStartTierAndAffordableLevelCost();
@@ -150,6 +151,86 @@ public partial class run_game_session_random_start_skill_regression : LifecycleT
         finally
         {
             CleanupTestSession(gameSession);
+        }
+    }
+
+    private void TestStartingBodyArmorPersistsAndAddsArmorClass()
+    {
+        foreach (string skillId in new[] { "warrior_heart_sword_pure", "mage_arcane_missile" })
+        {
+            GameSession gameSession = GameSessionTestFactory.CreateBorrowingProcessSnapshot();
+            try
+            {
+                gameSession.SetRandomStartingSkillSelectorForTests(_ => new StringName(skillId));
+                Error createError = (Error)gameSession.CreateNewSave(TestWorldConfig);
+                _test.Eq(createError, Error.Ok, "初始皮甲回归应能创建新档。");
+                if (createError != Error.Ok)
+                    continue;
+
+                PartyState party = gameSession.GetPartyState();
+                StringName memberId = party.GetResolvedMainCharacterMemberId();
+                EquipmentState equipment = party.GetMemberState(memberId).equipment_state;
+                _test.Eq(equipment.GetEquippedItemId("body"), new StringName("leather_jerkin"),
+                    "近战与法术开局都应自动穿上皮革短甲。");
+                StringName armorInstanceId = equipment.GetEquippedInstanceId("body");
+                _test.True(armorInstanceId != "", "初始皮甲必须有持久实例 ID。");
+                _test.True(armorInstanceId != equipment.GetEquippedInstanceId("main_hand"),
+                    "初始皮甲与武器必须是独立实例。");
+
+                string saveId = gameSession.GetActiveSaveId();
+                gameSession.UnloadActiveWorld();
+                Error loadError = (Error)gameSession.LoadSave(saveId);
+                _test.Eq(loadError, Error.Ok, "初始装备应能通过真实存档读取恢复。");
+                if (loadError != Error.Ok)
+                    continue;
+
+                party = gameSession.GetPartyState();
+                equipment = party.GetMemberState(memberId).equipment_state;
+                _test.Eq(equipment.GetEquippedItemId("body"), new StringName("leather_jerkin"),
+                    "读档后皮革短甲应仍在身体槽位。");
+                _test.Eq(equipment.GetEquippedInstanceId("body"), armorInstanceId,
+                    "读档不得重新生成初始皮甲实例。");
+                _test.Eq(equipment.GetEquippedItemId("main_hand"),
+                    new StringName(skillId == "mage_arcane_missile" ? "oak_quarterstaff" : "steel_longsword"),
+                    "初始皮甲不得覆盖随机技能对应的武器。");
+                EquipmentInstanceState armor = equipment.GetEquippedInstance("body");
+                _test.True(armor != null, "读档后应存在皮甲装备实例。");
+                if (armor == null)
+                    continue;
+                _test.Eq(armor.rarity, (int)EquipmentInstanceState.RarityTier.COMMON,
+                    "初始皮甲应使用最低的普通品质。");
+                _test.Eq(armor.trait_instances.Count, 0, "初始皮甲不应附赠随机词条。");
+                _test.Eq(armor.current_durability,
+                    EquipmentDurabilityRules.GetDefaultCurrentDurability(armor.rarity),
+                    "初始皮甲应为满耐久。");
+
+                AttributeSnapshot armored = BuildStartingMemberAttributes(party, memberId);
+                equipment.ClearSlot("body");
+                AttributeSnapshot unarmored = BuildStartingMemberAttributes(party, memberId);
+                _test.Eq(armored.GetValue("armor_ac_bonus") - unarmored.GetValue("armor_ac_bonus"), 2,
+                    "初始皮甲应通过正式装备投影增加 2 点护甲加值。");
+                _test.Eq(armored.GetValue("armor_class") - unarmored.GetValue("armor_class"), 2,
+                    "普通开局属性下初始皮甲应实际提高 2 点 AC。");
+            }
+            finally
+            {
+                CleanupTestSession(gameSession);
+            }
+        }
+    }
+
+    private static AttributeSnapshot BuildStartingMemberAttributes(PartyState party, StringName memberId)
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var manager = new CharacterManagementModule();
+        try
+        {
+            manager.setup(party, snapshot.Skills, snapshot.Professions, snapshot.Achievements, snapshot.Items);
+            return manager.GetMemberAttributeSnapshot(memberId);
+        }
+        finally
+        {
+            manager.Dispose();
         }
     }
 

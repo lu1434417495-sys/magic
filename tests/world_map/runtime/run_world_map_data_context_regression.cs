@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -16,21 +17,40 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
 
     private void Run()
     {
-        TestTypedSyncResultClampsInvalidSelectedCoord();
-        TestActiveWorldScalarQueries();
-        TestSettlementTypedQueries();
-        TestSettlementStateMutationUsesPublicWorldDataBoundary();
-        TestWorldNpcTypedQueries();
-        TestEncounterAnchorTypedQueries();
-        TestActiveWorldFogStateRoundTrip();
-        TestSubmapEntryAndReturnTypedResults();
-        TestSubmapRollbackRestoresRootOwnerAndFog();
-        TestEnsureSubmapGeneratedBuildsTypedWorldData();
-        TestWorldEventTypedQueries();
-        TestStaleSubmapIdFallsBackToRootWorld();
-
-        DisposePayloadLeases();
-        RequestTestExit(_test.Finish("World map data context regression"));
+        try
+        {
+            TestTypedSyncResultClampsInvalidSelectedCoord();
+            TestActiveWorldScalarQueries();
+            TestSettlementTypedQueries();
+            TestSettlementStateMutationUsesPublicWorldDataBoundary();
+            TestWorldNpcTypedQueries();
+            TestEncounterAnchorTypedQueries();
+            TestActiveWorldFogStateRoundTrip();
+            TestSubmapEntryAndReturnTypedResults();
+            TestSubmapRollbackRestoresRootOwnerAndFog();
+            TestEnsureSubmapGeneratedBuildsTypedWorldData();
+            TestWorldEventTypedQueries();
+            TestStaleSubmapIdFallsBackToRootWorld();
+        }
+        catch (Exception exception)
+        {
+            _test.Fail($"World map data context regression threw: {exception}");
+        }
+        finally
+        {
+            try
+            {
+                DisposePayloadLeases();
+            }
+            catch (Exception exception)
+            {
+                _test.Fail($"World map data context cleanup failed: {exception}");
+            }
+            finally
+            {
+                RequestTestExit(_test.Finish("World map data context regression"));
+            }
+        }
     }
 
     private GDictionary ProjectRootWorldData(WorldMapDataContext context) =>
@@ -647,6 +667,10 @@ public partial class run_world_map_data_context_regression : LifecycleTestSceneT
     private void TestEnsureSubmapGeneratedBuildsTypedWorldData()
     {
         WorldMapDataContext context = new();
+        ContentSnapshot content = GameSessionTestFactory.GetProcessSnapshot();
+        context.ConfigureEncounterChallenges(new EncounterChallengeCatalog(
+            content.BattleEncounters, content.EncounterRosters, content.EnemyTemplates
+        ));
         WorldMapGridSystem grid = new();
         try
         {

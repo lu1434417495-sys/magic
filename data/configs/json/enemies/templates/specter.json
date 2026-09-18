@@ -21,6 +21,7 @@
       "brain_id": "ranged_controller",
       "cognition_kind": "sapient",
       "creature_level": 5,
+      "challenge_rating": 4,
       "damage_resistances": {
         "negative_energy": "immune",
         "physical_blunt": "half",

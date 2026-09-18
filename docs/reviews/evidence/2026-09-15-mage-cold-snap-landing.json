@@ -1,0 +1,230 @@
+{
+  "date": "2026-09-15",
+  "scope": "shared dirty working tree; no commit",
+  "head": "49c80870c9a8d8e0f415544b25ed00be2ebb29f8",
+  "build": {
+    "command": "dotnet build magic.csproj --no-restore",
+    "exit_code": 0,
+    "warnings": 0,
+    "errors": 0
+  },
+  "changed_skill_entries_since_turn_snapshot": [
+    "mage_bone_chill",
+    "mage_cold_snap"
+  ],
+  "entry_before_after_sha256": {
+    "mage_bone_chill": {
+      "before": "3616de8d20ebcd03d771c0b2e625abdbffc7ba6c968cc1b3bd350711dd014727",
+      "after": "79ae44dfe86188d0e9fde3797c9b7cb8f58ee7d29ce9d79ca7354039d2e2438c"
+    },
+    "mage_cold_snap": {
+      "before": "7d002af643ded24972fca3ec07a40fbe883ed79557f3fe5e02376c11af0457f4",
+      "after": "77b7f63e381bf184e8c29026270b1669b52ee72ba8709d0ec59577529ba9ad6a"
+    }
+  },
+  "source_sha256_normalized_text": {
+    "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+    "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+    "scripts/systems/battle/rules/BattleDamageResolver.cs": "156ce69147fadc420849587e29851f0fad52eb24ce93f59f73c3d38dcd955c40",
+    "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+    "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+    "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+    "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+    "scripts/systems/battle/rules/BattleDamageResolver.DtoHelpers.cs": "f9637087cf996953e4bfc93bd627c58dae217320b5d58c1e3f77bf74cf5efe28",
+    "scripts/systems/battle/rules/BattleDamageResolver.Mitigation.cs": "15d87302b7b33cc7ee98dbd585e644a9b6194e2a68ad1148cf2fdadee245ba5a",
+    "scripts/systems/battle/runtime/BattleSkillPreviewService.cs": "45f026c6c5b2e8bca90c7eb7a89de0cd56a62a8e712a56371d1e686ba71e1fa2",
+    "scripts/systems/battle/core/BattleStatusContributionPreviewData.cs": "fe24fbb3e4ed8e6beb2b7a6a44780cd8b4f792ab49eb259ae52d40f6f1a5cc8e",
+    "scripts/systems/battle/core/BattlePreviewProjection.cs": "ea72cefad14005d72f123695f033d6125e1449038aa5f0fb23b888669e5a265c",
+    "scripts/systems/battle/ai/BattleAiScoreService.cs": "b50c070e3e2df2a4cad7fe1f81c54d9ff700eaf86a6a673cfe5a3d1805dd3e7f",
+    "scripts/systems/battle/ai/BattleAiScoreService.Effects.cs": "3cfa18ec60f85499f948455755d5677ad0c07e369cefb4723085783bc43ac1ba",
+    "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+    "scripts/systems/battle/ai/BattleAiScoreService.Vulnerability.cs": "612904001bd1acaa4819e786093da264ec52308363589899f99f0dc93c275a04",
+    "scripts/systems/battle/ai/BattleAiScoreInput.cs": "618e91fcafde3cdb014b1c414682b0482a046386c9792be608c3c2c4d1799424",
+    "scripts/systems/battle/ai/BattleAiDecisionResult.cs": "2f1a573e9816342293ce42843ca3483d225317981a2e9b659a3bc900736ddadd",
+    "scripts/systems/battle/ai/BattleAiGroundSkillActionEvaluator.cs": "c15c90691f31fa8e70fac608f6a313a343bdd1844012836d570192c41c4aa346",
+    "tests/battle_runtime/skills/run_mage_cold_snap_regression.cs": "f2794608c5974f8a91dc73d71bdb8a40b2bb9bf97e76eaf8b38ba3b4833f2070",
+    "tests/battle_runtime/rules/run_post_save_vulnerability_regression.cs": "45b685a9882c4c1cb9a02c3dfcfa3f1f2b8bad006c97ca377a16714136f8fa4f",
+    "tests/runtime/validation/run_skill_definition_projector_parity_regression.cs": "34912e9e305fd7d1174851cfff0c99ce29d31f58e538e2f4f192a253a5caf987"
+  },
+  "focused_checks": [
+    {
+      "check": "run_post_save_vulnerability_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_post_save_vulnerability_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_post_save_vulnerability_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "2b6465f9d8f2dd47fb4ab0456e924feaa890692d22c6317b613217f9f787ce79"
+    },
+    {
+      "check": "run_mage_cold_snap_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_mage_cold_snap_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_cold_snap_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "35fe58c3c1f69d7fd595151991893ce7664f22b1bf114df40abb6258bcdb7616"
+    },
+    {
+      "check": "run_mage_bone_chill_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_mage_bone_chill_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_bone_chill_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "e0351cf242b7a3ace61a3425154c6fc9fcde4435e28d203ea5209fc5e0c36c7f"
+    },
+    {
+      "check": "run_battle_damage_resolver_preview_contract_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_battle_damage_resolver_preview_contract_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_damage_resolver_preview_contract_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "d64331a51fb94ef52f2da98e1af0667eabbda0c486ad1e39db716cfff33ca641"
+    },
+    {
+      "check": "run_battle_save_resolver_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_battle_save_resolver_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_save_resolver_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "2f789255b2cd56041cb68e2fa9ca76cde40573a1f82a4ceba8b2263914e941a6"
+    },
+    {
+      "check": "run_extra_damage_segment_critical_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_extra_damage_segment_critical_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_extra_damage_segment_critical_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "8523daa1b15987a0a738fccd032748ff5a3aafb88c47d37488ae3e6c48489133"
+    },
+    {
+      "check": "run_equipment_conditional_mitigation_tier_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_equipment_conditional_mitigation_tier_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_equipment_conditional_mitigation_tier_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "845ded7fdba83a1f01739e5f5454a4efb41be09a2f053c229f0b0f357dd63b51"
+    },
+    {
+      "check": "run_equipment_direct_effect_bonus_dice_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_equipment_direct_effect_bonus_dice_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_equipment_direct_effect_bonus_dice_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "4a7dea4f90481049fbcb7f332fe5e19bb20abecfc40fe44fdc718a47de8573c9"
+    },
+    {
+      "check": "run_phantasmal_kill_execution_rules_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_phantasmal_kill_execution_rules_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_phantasmal_kill_execution_rules_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "cedf11707d96c335b8b50b92ae34c1ce84a2c43c7f88bf47e5ee36ee4835a99f"
+    },
+    {
+      "check": "run_meteor_swarm_preview_surface_contract_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_meteor_swarm_preview_surface_contract_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_meteor_swarm_preview_surface_contract_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "2e5e80a512876c75a2ef46655c26b68e44d5e5f274fe1675aab9e37f403332cd"
+    },
+    {
+      "check": "run_battle_ai_score_input_metrics_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_battle_ai_score_input_metrics_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_ai_score_input_metrics_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "b7bd776b7be221702722fd2d273700505b6208dde5f1d4cdcb152a6c8206a476"
+    },
+    {
+      "check": "run_battle_ai_mutation_guard_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_battle_ai_mutation_guard_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_ai_mutation_guard_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "6395227cafa334ae0aacd45df17dd2f7a88aaf8f186cecf986ab87cbfa7c5eef"
+    },
+    {
+      "check": "run_status_effect_semantics_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_status_effect_semantics_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_status_effect_semantics_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "eb96f7ee5da81768b03e0b4c6f6051128f0d090089573939b040cc73500cd13c"
+    },
+    {
+      "check": "run_battle_save_skill_schema_regression",
+      "exit_code": 0,
+      "log": ".tmp/post-save-run_battle_save_skill_schema_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_save_skill_schema_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "c53fb3e6e9e6adeff57c1997552155f7daf1e798f23fa2cb231aa9f96d5c54f9"
+    },
+    {
+      "check": "run_mage_cold_snap_regression",
+      "exit_code": 0,
+      "log": ".tmp/final-cold-run_mage_cold_snap_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_cold_snap_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "e883882072ae7c4f95b465f1fad3e48eabbe6bc20ad3b8fbb3c82472ffec681c"
+    },
+    {
+      "check": "run_skill_definition_projector_parity_regression",
+      "exit_code": 1,
+      "log": ".tmp/final-cold-run_skill_definition_projector_parity_regression.log",
+      "summary": "Historical failure: outdated whole-catalog golden; reviewed and updated, later rerun passed.",
+      "command": "python tests/run_regression_suite.py --pattern run_skill_definition_projector_parity_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "2336ef850d84f1e93b4cd79187d79d15faa9d9cb55ff4e1a9ba016c10000c29f"
+    },
+    {
+      "check": "run_mage_voltage_hook_regression",
+      "exit_code": 0,
+      "log": ".tmp/final-cold-run_mage_voltage_hook_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_voltage_hook_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "d4dc353f0d53e6d49f451b021ae2c2ff701a57f6b037dfd1123bfecb15317f8b"
+    },
+    {
+      "check": "run_heartbane_weapon_ability_regression",
+      "exit_code": 0,
+      "log": ".tmp/final-cold-run_heartbane_weapon_ability_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_heartbane_weapon_ability_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "1325c6374d48283a8409abf439815057c501b75533a5adf02b7a7191dfa4de07"
+    },
+    {
+      "check": "run_skill_definition_projector_parity_regression",
+      "exit_code": 0,
+      "log": ".tmp/rechecked-cold-run_skill_definition_projector_parity_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_skill_definition_projector_parity_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "58dd01981db172feee2aa728c1d391197b3b0c6c536e9c54a66b1654c95c779f"
+    },
+    {
+      "check": "run_mage_blur_regression",
+      "exit_code": 0,
+      "log": ".tmp/rechecked-cold-run_mage_blur_regression.log",
+      "summary": "Passed: 1; Failed: 0",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_blur_regression --fail-on-output-error",
+      "log_sha256_normalized_text": "106867c79bb2f83dbe6af279bd78692cc3a3b1709f6c2e529ef066736f163d76"
+    }
+  ],
+  "unique_focused_checks": 18,
+  "assessment": {
+    "cases": 24,
+    "verdict": "arithmetic_only",
+    "result": "docs/proposals/battle/skills/mage_cold_snap_status_assessment/result.json"
+  },
+  "not_run": [
+    "full suite",
+    "CI",
+    "BattleSim",
+    "native visual inspection",
+    "clean checkout"
+  ],
+  "scope_limits": [
+    "Global double tier now applies after fixed mitigation and integer save.",
+    "Cold snap team chain test assigns active actors explicitly; it is not a timeline encounter simulation.",
+    "AI follow-up is bounded to other allies next affordable unit attack at fixed positions.",
+    "No save fields, legacy compatibility, migration or reprocessing of existing saves added."
+  ]
+}

@@ -1,3 +1,4 @@
+using static BattleSkillTargetPlanRules;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -496,7 +497,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             caster != null
             && caster.GetAnchorCoord() != casterCoordBeforePrecast;
 
-        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
+        BattleGroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             caster,
             skillDefinition,
             castVariantDefinition,

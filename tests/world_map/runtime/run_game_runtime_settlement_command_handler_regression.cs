@@ -1287,6 +1287,12 @@ public partial class run_game_runtime_settlement_command_handler_regression : Li
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
+        GameContentCatalog content = gameSession.GetContentCatalogTyped();
+        runtime._world_map_data_context.ConfigureEncounterChallenges(new EncounterChallengeCatalog(
+            content.GetBattleEncounterDefinitions(),
+            content.GetEncounterRosterDefinitions(),
+            content.GetEnemyTemplateDefinitions()
+        ));
         var contextGrid = new WorldMapGridSystem();
         runtime._world_map_data_context.SyncActiveWorldContext(
             gameSession._generation_definition,

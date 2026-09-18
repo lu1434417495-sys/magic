@@ -399,6 +399,9 @@
             "type": "string"
           }
         },
+        "starting_body_armor_item_id": {
+          "type": "string"
+        },
         "starting_weapon_fallback_item_id": {
           "type": "string"
         },
@@ -416,6 +419,7 @@
         "main_character_member_id",
         "members",
         "reserve_member_ids",
+        "starting_body_armor_item_id",
         "starting_weapon_fallback_item_id",
         "starting_weapon_rules"
       ]
@@ -450,6 +454,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "starting_body_armor_item_id": {
+          "type": "string"
         },
         "starting_weapon_fallback_item_id": {
           "type": "string"

@@ -102,10 +102,7 @@ public partial class run_mage_dimension_swap_regression : LifecycleTestSceneTree
             combat_profile = profile,
         };
         var errors = new GStringArray();
-        new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        ).AppendCombatProfileValidationErrors(errors, skillDef.skill_id, profile, skillDef);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, skillDef.skill_id, skillDef));
         _test.True(ErrorsContain(errors, "target_team_filter any"), "非 any 的换位目标筛选必须被拒绝。");
         _test.True(ErrorsContain(errors, "requires_los=true"), "不要求视线的换位必须被拒绝。");
         _test.True(ErrorsContain(errors, "exclude_source=true"), "允许自选的换位必须被拒绝。");

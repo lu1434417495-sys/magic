@@ -37,14 +37,11 @@ public partial class run_extra_damage_segment_critical_regression : LifecycleTes
             damage_tag = "physical_blunt",
         };
         effect.extra_damage_segments.Add(segment);
-        var errors = new Godot.Collections.Array<string>();
-
-        new SkillDamageEffectValidator().AppendDamageEffectValidationErrors(
-            errors,
-            "test_segment_critical_schema",
-            effect,
-            "effect[0]"
-        );
+        Godot.Collections.Array<string> errors =
+            TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(
+                effect,
+                "test_segment_critical_schema"
+            );
 
         _test.True(
             ContainsError(errors, "double_dice_on_critical requires dice_count and dice_sides"),

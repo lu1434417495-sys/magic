@@ -16,7 +16,7 @@ internal static class SkillValidatorDiagnosticGoldenHarness
     private const string CollateralPath =
         "res://tests/fixtures/skill_validator_diagnostic_golden/fixture_collateral_diagnostics.tsv";
     private const int ExpectedFixtureCount = 75;
-    private const int ExpectedOccurrenceCount = 518;
+    private const int ExpectedOccurrenceCount = 519;
     private const int ExpectedCollateralDiagnosticCount = 48;
 
     internal static void AssertRuleHitSet()

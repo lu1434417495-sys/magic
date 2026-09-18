@@ -21,6 +21,7 @@ public partial class run_gameplay_configuration_content_validator_regression
             AssertRewardAmountRulesAreKindSpecific();
             AssertFixtureDiagnosticsUseFieldPointers();
             AssertCrossDomainReferencesFailClosed();
+            AssertStartingBodyArmorReferencesFailClosed();
         }
         catch (Exception exception)
         {
@@ -274,6 +275,34 @@ public partial class run_gameplay_configuration_content_validator_regression
         AssertError(errors, "references missing brain missing_brain");
     }
 
+    private void AssertStartingBodyArmorReferencesFailClosed()
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var registry = new GameplayConfigurationContentRegistry();
+        registry.Rebuild();
+        GameplayConfigurationDefinition configuration = registry.GetDefinition();
+        _test.Eq(configuration.NewGameParty.StartingBodyArmorItemId, new StringName("leather_jerkin"),
+            "production new-game armor should project the basic leather jerkin");
+        foreach (string replacementId in new[] { "", "steel_longsword", "leather_cap" })
+        {
+            var items = new Dictionary<StringName, ItemDefinition>(snapshot.Items);
+            StringName armorId = configuration.NewGameParty.StartingBodyArmorItemId;
+            items.Remove(armorId);
+            if (replacementId != "")
+                items[armorId] = snapshot.Items[replacementId];
+            IReadOnlyList<string> errors = GameplayConfigurationCrossDomainValidator.Validate(
+                configuration, snapshot.Skills, items, snapshot.EnemyBrains,
+                snapshot.Races, snapshot.Subraces, snapshot.AgeProfiles
+            );
+            AssertError(errors, "starting body armor references missing/non-body-armor item");
+        }
+        IReadOnlyList<ContentJsonDiagnostic> diagnostics = Validate(BuildValidDto(startingBodyArmorId: ""));
+        _test.True(diagnostics.Any(diagnostic =>
+            diagnostic.RuleId == GameplayConfigurationJsonRules.IdRequired
+            && diagnostic.JsonPointer == "/entries/0/new_game_party/starting_body_armor_item_id"),
+            "empty starting armor must fail at its JSON field pointer");
+    }
+
     private void AssertError(IReadOnlyList<string> errors, string fragment)
     {
         _test.True(
@@ -285,7 +314,8 @@ public partial class run_gameplay_configuration_content_validator_regression
     private static GameplayConfigurationJsonDto BuildValidDto(
         IReadOnlyList<GameplayAchievementRewardJsonDto>? rewards = null,
         SkillGenerationBattleSimFixtureJsonDto? skillFixture = null,
-        BattleSkillRolesJsonDto? battleSkillRoles = null
+        BattleSkillRolesJsonDto? battleSkillRoles = null,
+        string startingBodyArmorId = "probe_armor"
     ) =>
         new()
         {
@@ -343,6 +373,7 @@ public partial class run_gameplay_configuration_content_validator_regression
                 ],
                 StartingWeaponRules = Array.Empty<NewGameStartingWeaponRuleJsonDto>(),
                 StartingWeaponFallbackItemId = "probe_weapon",
+                StartingBodyArmorItemId = startingBodyArmorId,
             },
             BattleSkillRoles = battleSkillRoles ?? new BattleSkillRolesJsonDto
             {

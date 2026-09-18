@@ -62,15 +62,15 @@ public partial class run_chain_damage_typed_schema_regression : LifecycleTestSce
         using SkillDef skill = BuildSkill(profile, maxLevel: 7);
         string errors = FormatErrors(Validate(profile, skill));
         _test.True(
-            errors.Contains("params.base_chain_radius is unsupported; use CombatEffectDef.chain_base_hop_range"),
+            errors.Contains("payload/base_chain_radius: Unknown effect payload member."),
             $"旧基础半径参数必须被拒绝。errors={errors}"
         );
         _test.True(
-            errors.Contains("params.wet_chain_radius is unsupported; use CombatEffectDef.chain_conductive_hop_range"),
+            errors.Contains("payload/wet_chain_radius: Unknown effect payload member."),
             $"旧湿地半径参数必须被拒绝。errors={errors}"
         );
         _test.True(
-            errors.Contains("params.bonus_terrain_effect_id is unsupported; use CombatEffectDef.chain_conductive_terrain_effect_ids"),
+            errors.Contains("payload/bonus_terrain_effect_id: Unknown effect payload member."),
             $"旧导电地形参数必须被拒绝。errors={errors}"
         );
     }
@@ -194,16 +194,7 @@ public partial class run_chain_damage_typed_schema_regression : LifecycleTestSce
     private static GStringArray Validate(CombatSkillDef profile, SkillDef skill)
     {
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            "chain_damage_schema_probe",
-            profile,
-            skill
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, "chain_damage_schema_probe", skill));
         return errors;
     }
 

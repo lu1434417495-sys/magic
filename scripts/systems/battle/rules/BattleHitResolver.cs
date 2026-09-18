@@ -828,6 +828,10 @@ public class BattleHitResolver : IDisposable
             target_unit,
             attack_context
         );
+        StringName incomingDisadvantageStatusId =
+            BattleIncomingAttackDisadvantageRules.ResolveContributingStatus(
+                target_unit, attack_check, isDisadvantage, attack_context);
+        isDisadvantage |= incomingDisadvantageStatusId != new StringName("");
         bool isAdvantage = _resolve_attack_advantage(attack_check, attack_context);
         NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
         if (attack_check.Invalid)
@@ -860,6 +864,7 @@ public class BattleHitResolver : IDisposable
         var metadata = new AttackResolutionMetadata
         {
             AttackResolution = ATTACK_RESOLUTION_MISS,
+            IncomingDisadvantageStatusId = incomingDisadvantageStatusId,
             IsDisadvantage = isDisadvantage,
             IsAdvantage = isAdvantage,
             HiddenLuckAtBirth = hiddenLuckAtBirth,
@@ -1535,6 +1540,8 @@ public class BattleHitResolver : IDisposable
         }
 
         bool isDisadvantage = battle_state.IsAttackDisadvantage(active_unit, target_unit);
+        isDisadvantage |= BattleIncomingAttackDisadvantageRules.ResolveContributingStatus(
+            target_unit, attack_check, isDisadvantage) != new StringName("");
         bool isAdvantage = attack_check.IsAdvantage;
         NormalizeAdvantageState(ref isDisadvantage, ref isAdvantage);
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(active_unit);

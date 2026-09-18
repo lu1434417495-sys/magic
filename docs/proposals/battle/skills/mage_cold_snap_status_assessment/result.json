@@ -1,0 +1,2048 @@
+{
+  "status": "arithmetic_only",
+  "baseline_version": "2026-09-15.1",
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "cases": [
+    {
+      "id": "l0_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 90,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.45,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l1_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.4846153846153846,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l2_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.4846153846153846,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l3_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l4_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l6_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_no_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 10.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.05,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_one_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 90,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 6.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 18.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.525,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_two_follow_ups",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 90,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 42.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 42.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 21.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.6,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 240,
+      "covered_tu": 120,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 10.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.45,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_one_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 52.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 52.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 8.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 26.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8076923076923077,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_two_follow_ups",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 57.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 57.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 28.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8884615384615384,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 160,
+      "covered_tu": 120,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 130,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 30,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 94.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_one_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 68.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 68.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 11.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 34.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.1375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_two_follow_ups",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 2
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 12.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.225,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 160,
+      "covered_tu": 120,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 126.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 21.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.05,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_early_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 52.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 52.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 8.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 26.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8076923076923077,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_expired_follow_up",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 0
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 0
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_resistant_target",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 2.5.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 42.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 42.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 21.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.6461538461538462,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_immune_target",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 2.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.4846153846153846,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_already_vulnerable",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 4.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 10.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.9692307692307692,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_two_sources_each_hit_60_percent",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.1875,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 49.14,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "horizon_marginal": {
+        "damage_dealt_hp": 49.14,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [
+        {
+          "id": "paid_allied_cold_follow_up",
+          "affected_events": 1
+        }
+      ],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 8.19,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 24.57,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.756,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_insufficient_mp",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Three actual surviving enemies; cold snap saves succeed with probability 0.5 and halve damage; D6 mean 3.5; combined damage factor for the three targets is 3.",
+        "For vulnerability probes, one target already has two bone_chill stacks from two allied successful casts. Each L0 preparation separately costs 1 AP and 20 MP; total preparation 2 AP/40 MP is not charged to the cold-snap caster budget.",
+        "A follow-up is one paid allied 2D6 cold spell with save-success probability 0.5. Ordinary-target marginal damage is 5.25; its own AP/MP is external and must be added to a team budget.",
+        "New vulnerability never increases the triggering cold snap. Pre-existing vulnerability does. No consumption or renewal of bone_chill. No automatic repeat vulnerability preparation.",
+        "Each stream count is the explicitly assumed number of independent allies/actions, not a skill target-count multiplier.",
+        "Ignores integer rounding, fixed reduction, equipment, movement, death and overkill. Runtime first floors partial saves, then doubles vulnerability; exact integer cases are verified by run_post_save_vulnerability_regression, not this mean-value arithmetic.",
+        "Repeat-cast probes are unprepared: no vulnerability follow-ups. This is arithmetic, not measured encounter pace or balance PASS."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [],
+      "cast_count": 0,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 0,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 0,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 0
+      },
+      "resource_remaining": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    }
+  ]
+}

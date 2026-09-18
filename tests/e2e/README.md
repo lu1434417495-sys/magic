@@ -22,7 +22,7 @@ This folder covers the application boundary that the ordinary service/runtime re
 
 ## Registered scenarios
 
-- `run_cold_boot_e2e.cs`: starts the configured main scene and verifies the canonical application owners plus the usable login surface.
+- `run_cold_boot_e2e.cs`: starts the configured main scene and verifies the canonical application owners, usable login actions, and keyboard navigation through settings and back to the menu.
 - `run_new_game_e2e.cs` + `run_load_game_e2e.cs`: two separate Godot processes create a game and then cold-start against the same isolated sandbox to load it through the login UI.
 - `run_world_save_mutation_e2e.cs` + `run_world_save_reload_e2e.cs`: two separate Godot processes move through the real world-map input path, let canonical shutdown persist the pending runtime state, and cold-load the same sandbox to verify the restored coordinate and world step.
 - `run_enter_battle_e2e.cs`: enters a generated encounter through world-map input and waits for the battle surface to become ready.

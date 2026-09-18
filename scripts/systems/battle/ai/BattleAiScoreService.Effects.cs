@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Godot;
@@ -12,6 +13,7 @@ public partial class BattleAiScoreService
     {
         public bool IsEmpty = true;
         public int Damage;
+        public int RetimedDamage;
         public int PostSaveDamage;
         public int ShieldAbsorbed;
         public bool StableLethal;
@@ -40,6 +42,7 @@ public partial class BattleAiScoreService
             {
                 IsEmpty = IsEmpty,
                 Damage = Damage,
+                RetimedDamage = RetimedDamage,
                 PostSaveDamage = PostSaveDamage,
                 ShieldAbsorbed = ShieldAbsorbed,
                 StableLethal = StableLethal,
@@ -751,6 +754,9 @@ public partial class BattleAiScoreService
         }
 
         scoreInput.enemy_target_count += 1;
+        // Keep lethal/shield timing estimates, but do not value the source's
+        // already scheduled HP damage a second time as new lifetime output.
+        scoreInput.hit_payoff_score -= targetMetrics.RetimedDamage * _scoreProfile.DamageWeight;
         scoreInput.estimated_enemy_damage += estimatedDamage;
         scoreInput.estimated_enemy_healing += estimatedHealing;
         PopulateEnemyTargetPayoff(
@@ -979,6 +985,7 @@ public partial class BattleAiScoreService
                 BattleStatusEffectState status = unitState.GetStatusEffect(statusId);
                 hash = hash * 31 + ProgressionDataUtils.to_string_name(statusId).GetHashCode();
                 hash = hash * 31 + (status?.power ?? 0);
+                hash = hash * 31 + (status?.incoming_attack_roll_disadvantage == true ? 1 : 0);
                 hash = hash * 31 + (status?.stacks ?? 0);
                 hash = hash * 31 + (status?.range_bonus ?? 0);
                 hash = hash * 31 + (status?.death_prevention_priority ?? 0);
@@ -1110,6 +1117,13 @@ public partial class BattleAiScoreService
             return metrics;
         }
         var damageEffects = new List<CombatEffectDefinition>();
+        BattleDamagePreviewWorkingSet advanceWorkingSet = null;
+        BattleDamagePreviewWorkingSet advanceMinimumSet = null;
+        using var advanceFallback = _damageResolver == null
+            && effectDefinitions?.Any(e => e?.EffectKind == BattleEffectKind.AdvanceStatusTicks) == true
+                ? new BattleDamageResolver() : null;
+        advanceFallback?.SetSkillDefinitions(context?.skill_definitions);
+        BattleDamageResolver advanceResolver = _damageResolver ?? advanceFallback;
         foreach (
             CombatEffectDefinition effectDefinition in effectDefinitions
                 ?? System.Array.Empty<CombatEffectDefinition>()
@@ -1118,6 +1132,7 @@ public partial class BattleAiScoreService
             if (
                 effectDefinition == null
                 || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
+                || !BattleDamageResolver.TargetStatusRequirementPasses(sourceUnit, targetUnit, effectDefinition)
             )
             {
                 continue;
@@ -1135,7 +1150,26 @@ public partial class BattleAiScoreService
                 continue;
             }
             BattleEffectKind effectKind = effectDefinition.EffectKind;
-            if (effectKind == BattleEffectKind.Damage)
+            if (effectKind == BattleEffectKind.AdvanceStatusTicks && advanceResolver != null)
+            {
+                advanceWorkingSet ??= BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, targetUnit, ContextState(context));
+                advanceMinimumSet ??= BattleDamagePreviewWorkingSet.CreateDetached(sourceUnit, targetUnit, ContextState(context));
+                for (int hit = 0; hit < hitCount; hit++)
+                {
+                    var advance = advanceResolver.PreviewStatusTickAdvanceOnWorkingSetTyped(advanceWorkingSet, effectDefinition);
+                    metrics.IsEmpty &= advance.TickCount == 0;
+                    metrics.Damage += advance.HpDamage;
+                    metrics.PostSaveDamage += advance.IncomingDamage;
+                    metrics.RetimedDamage += advance.HpDamage;
+                    metrics.ShieldAbsorbed += advance.ShieldAbsorbed;
+                    var minimum = advanceResolver.PreviewStatusTickAdvanceOnWorkingSetTyped(
+                        advanceMinimumSet, effectDefinition, BattleStatusTickAdvancePreviewMode.Minimum);
+                    metrics.StableLethal |= minimum.TargetDefeated && minimum.HpDamage > 0;
+                    metrics.HasTypedLethalPreview = true;
+                    metrics.LethalProbabilityBasisPoints = metrics.StableLethal ? 10000 : 0;
+                }
+            }
+            else if (effectKind == BattleEffectKind.Damage)
             {
                 metrics.IsEmpty = false;
                 damageEffects.Add(effectDefinition);
@@ -1206,7 +1240,8 @@ public partial class BattleAiScoreService
                 || effectKind == BattleEffectKind.ApplyStatus
             )
             {
-                if (effectDefinition.HealMultiplierPercent < 100)
+                if (effectDefinition.HealMultiplierPercent < 100
+                    || effectDefinition.MitigationTier == new StringName("double"))
                 {
                     metrics.IsEmpty = false;
                     continue;
@@ -1218,7 +1253,7 @@ public partial class BattleAiScoreService
                 StringName statusId = ProgressionDataUtils.to_string_name(
                     effectDefinition.StatusId
                 );
-                if (IsDedicatedThreatMitigationStatus(statusId))
+                if (effectDefinition.IncomingAttackRollDisadvantage || IsDedicatedThreatMitigationStatus(statusId))
                 {
                     continue;
                 }

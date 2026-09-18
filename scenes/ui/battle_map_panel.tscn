@@ -20,7 +20,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0, 0, 0, 1)
+color = Color(0.16862745, 0.26666667, 0.27843137, 1)
 
 [node name="MapFrame" type="PanelContainer" parent="." unique_id=156294457]
 unique_name_in_owner = true
@@ -28,8 +28,8 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 96.0
-offset_bottom = -132.0
+offset_top = 0.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -62,23 +62,28 @@ anchor_right = 1.0
 offset_top = 0.0
 offset_bottom = 88.0
 grow_horizontal = 2
+mouse_filter = 2
 
 [node name="TopLayoutVbox" type="VBoxContainer" parent="HudRoot/TopBar" unique_id=1929772257]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 6
 
 [node name="TopRow" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
 [node name="LeftCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
+mouse_filter = 2
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 1.0
 alignment = 0
 
 [node name="HeaderTitleLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/LeftCell" unique_id=85907835]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_vertical = 4
 text = "遭遇战"
@@ -94,6 +99,7 @@ text_overrun_behavior = 3
 
 [node name="CenterCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
+mouse_filter = 2
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 1.0
 alignment = 1
@@ -117,12 +123,14 @@ horizontal_alignment = 1
 
 [node name="ReadyLabel" type="Label" parent="HudRoot/TopBar/TopLayoutVbox/TopRow/CenterCell/RoundChip/RoundLayout" unique_id=2023688853]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 text = "READY 0"
 horizontal_alignment = 1
 
 [node name="RightCell" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox/TopRow"]
 layout_mode = 2
+mouse_filter = 2
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 1.0
 alignment = 2
@@ -142,6 +150,7 @@ horizontal_alignment = 1
 [node name="TimelineRow" type="HBoxContainer" parent="HudRoot/TopBar/TopLayoutVbox"]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 2
 size_flags_horizontal = 3
 alignment = 1
 theme_override_constants/separation = 4
@@ -149,6 +158,7 @@ theme_override_constants/separation = 4
 [node name="FateBadgeRow" type="HFlowContainer" parent="HudRoot/TopBar/TopLayoutVbox" unique_id=418070993]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 2
 size_flags_horizontal = 4
 theme_override_constants/h_separation = 6
 theme_override_constants/v_separation = 6
@@ -156,32 +166,37 @@ theme_override_constants/v_separation = 6
 [node name="BottomPanel" type="PanelContainer" parent="HudRoot" unique_id=812677194]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 12
+anchors_preset = 2
 anchor_top = 1.0
-anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 12.0
 offset_top = -126.0
-offset_bottom = -16.0
-grow_horizontal = 2
+offset_right = 322.0
+offset_bottom = -12.0
+grow_horizontal = 1
 grow_vertical = 0
+mouse_filter = 2
 
 [node name="BottomBand" type="HBoxContainer" parent="HudRoot/BottomPanel" unique_id=813230237]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 12
 
 [node name="UnitCard" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand" unique_id=808197548]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(268, 0)
+custom_minimum_size = Vector2(310, 0)
 layout_mode = 2
+size_flags_vertical = 8
 
 [node name="CardLayout" type="HBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard" unique_id=941147385]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="PortraitFrame" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout" unique_id=1132240515]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(84, 104)
+custom_minimum_size = Vector2(56, 84)
 layout_mode = 2
+size_flags_vertical = 4
 
 [node name="PortraitCenter" type="CenterContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/PortraitFrame" unique_id=783818194]
 layout_mode = 2
@@ -201,9 +216,12 @@ theme_override_constants/separation = 4
 unique_name_in_owner = true
 layout_mode = 2
 text = "待命"
+clip_text = true
+text_overrun_behavior = 3
 
 [node name="UnitRoleLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=366267]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 text = "未选中单位"
 
@@ -213,9 +231,14 @@ custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
-[node name="HpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=1001972996]
+[node name="HpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/HpBar" unique_id=1001972996]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+horizontal_alignment = 1
 text = "HP 0/1"
 
 [node name="StaminaBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
@@ -224,9 +247,14 @@ custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
-[node name="StaminaValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
+[node name="StaminaValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/StaminaBar"]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+horizontal_alignment = 1
 text = "体力 0/1"
 
 [node name="MpBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=788448658]
@@ -235,9 +263,14 @@ custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
-[node name="MpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=1182586279]
+[node name="MpValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/MpBar" unique_id=1182586279]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+horizontal_alignment = 1
 text = "MP 0/1"
 
 [node name="AuraBar" type="ProgressBar" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
@@ -246,9 +279,14 @@ custom_minimum_size = Vector2(0, 18)
 layout_mode = 2
 show_percentage = false
 
-[node name="AuraValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn"]
+[node name="AuraValueLabel" type="Label" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/AuraBar"]
 unique_name_in_owner = true
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+horizontal_alignment = 1
 text = "斗气 0/1"
 
 [node name="ApDotRow" type="HBoxContainer" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn" unique_id=2046964045]
@@ -280,15 +318,17 @@ theme_override_constants/separation = 4
 
 [node name="BattleEquipmentButton" type="Button" parent="HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/EquipmentButtonSlot" unique_id=2143009021]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(96, 30)
+custom_minimum_size = Vector2(44, 30)
 layout_mode = 2
 focus_mode = 0
-text = "战中背包"
+text = "背包"
+tooltip_text = "战中背包"
 
 [node name="SkillPanel" type="PanelContainer" parent="HudRoot/BottomPanel/BottomBand" unique_id=836238387]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 8
 
 [node name="SkillLayout" type="VBoxContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel" unique_id=1847017840]
 layout_mode = 2
@@ -296,6 +336,7 @@ theme_override_constants/separation = 6
 
 [node name="SkillHeader" type="HBoxContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=2143009030]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
 
@@ -306,10 +347,16 @@ size_flags_horizontal = 3
 text = "等待战斗数据"
 autowrap_mode = 3
 
-[node name="SkillGrid" type="GridContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout" unique_id=1485002171]
+[node name="SkillScroll" type="ScrollContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="SkillGrid" type="GridContainer" parent="HudRoot/BottomPanel/BottomBand/SkillPanel/SkillLayout/SkillScroll" unique_id=1485002171]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 6

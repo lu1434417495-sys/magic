@@ -84,6 +84,7 @@ internal static class BattleUnitSkillDefinitionExecutionRules
                 or BattleEffectKind.Status
                 or BattleEffectKind.ApplyStatus
                 or BattleEffectKind.EraseStatus
+                or BattleEffectKind.AdvanceStatusTicks
                 or BattleEffectKind.CleanseHarmful
                 or BattleEffectKind.Execute
                 or BattleEffectKind.GradedSaveExecute

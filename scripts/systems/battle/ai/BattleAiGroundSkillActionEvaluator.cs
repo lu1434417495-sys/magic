@@ -653,7 +653,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             Vector2I direction = context.unit_state != null
                 ? targetCoord - context.unit_state.GetAnchorCoord()
                 : Vector2I.Zero;
-            direction = BattleTargetCollectionService.ResolveAreaDirection(
+            direction = BattleAreaDirectionRules.ResolveAreaDirection(
                 combatProfile,
                 direction
             );
@@ -958,6 +958,8 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             || scoreInput.ground_control_score > 0
             || scoreInput.estimated_terrain_interrupt_threat_count > 0
             || scoreInput.estimated_taunt_ally_damage_relief > 0
+            || scoreInput.estimated_incoming_attack_damage_relief > 0
+            || scoreInput.estimated_vulnerability_follow_up_damage > 0
             || scoreInput.estimated_lethal_target_count > 0
             || scoreInput.estimated_lethal_threat_target_count > 0
         )

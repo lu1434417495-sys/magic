@@ -21,6 +21,7 @@
       "brain_id": "melee_aggressor",
       "cognition_kind": "instinctive",
       "creature_level": 5,
+      "challenge_rating": 4,
       "damage_resistances": {},
       "display_name": "\u9E2E\u718A",
       "drop_entries": [

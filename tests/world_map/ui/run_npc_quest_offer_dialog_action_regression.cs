@@ -1,114 +1,105 @@
-using System.Threading.Tasks;
+using System.Linq;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_npc_quest_offer_dialog_action_regression : LifecycleTestSceneTree
 {
-    private static readonly PackedScene DialogScene = GD.Load<PackedScene>(
-        "res://scenes/ui/npc_quest_offer_dialog.tscn"
-    );
     private readonly TestHarness _test = new();
-
-    public override void _Initialize()
-    {
-        RunAfterProcessStartup(RunAsync);
-    }
-
+    public override void _Initialize() => RunAfterProcessStartup(RunAsync);
     private async void RunAsync()
     {
+        NpcQuestOfferDialog dialog = null;
         try
         {
-            NpcQuestOfferDialog dialog = DialogScene.Instantiate<NpcQuestOfferDialog>();
+            dialog = GD.Load<PackedScene>("res://scenes/ui/npc_quest_offer_dialog.tscn").Instantiate<NpcQuestOfferDialog>();
             Root.AddChild(dialog);
-            await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-            try
+            await ToSignal(this, SignalName.ProcessFrame);
+            var data = new NpcQuestOfferWindowData
             {
-                TestActionLabelsFollowRuntimeState(dialog);
-                await TestActionSignalKeepsRuntimePayload(dialog);
-            }
-            finally
+                SettlementId = "village", ActionId = "chief", NpcName = "村长", SelectedQuestId = "first",
+            };
+            data.Entries.Add(new NpcQuestOfferEntryData
             {
-                dialog.QueueFree();
-                await ToSignal(this, SceneTree.SignalName.ProcessFrame);
+                QuestId = "first", DisplayName = "初阵", StateId = "available", IsEnabled = true,
+                AcceptDialogueText = "村外有危险，你愿意帮忙吗？", SummaryText = "目标 0/3", CostLabel = "奖励 50 金",
+            });
+            data.Entries.Add(new NpcQuestOfferEntryData
+            {
+                QuestId = "locked", DisplayName = "后续任务", StateId = "available", IsEnabled = false,
+                DisabledReason = "需要完成初阵", SummaryText = "锁定目标", CostLabel = "锁定奖励",
+            });
+            int actions = 0;
+            string quest = "", settlement = "", action = "", source = "";
+            bool confirmed = false;
+            dialog.action_requested += (s, a, payload) =>
+            {
+                actions++; settlement = s; action = a;
+                quest = payload["quest_id"].AsString(); source = payload["submission_source"].AsString();
+                confirmed = payload["confirm_accept"].AsBool();
+            };
+            dialog.ShowDialog(data);
+            _test.Eq(dialog.title_label.Text, "村长", "对话标题应显示说话者。");
+            _test.Eq(dialog.dialogue_label.Text, data.Entries[0].AcceptDialogueText, "NPC 应展示正式对话内容。");
+            _test.Eq(dialog.topic_choices.GetChildCount(), 0, "只有一个可谈话题时不展示任务列表，锁定后续任务不成为话题。");
+            _test.False(Labels(dialog).Any(t => t.Contains("0/3") || t.Contains("50 金")), "数字目标与奖励应只在日志展示。");
+            dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
+            _test.Eq(quest, "first", "对话回应必须接取当前任务。");
+            _test.Eq(settlement, "village", "保留据点 ID。");
+            _test.Eq(action, "chief", "保留 NPC action ID。");
+            _test.Eq(source, "npc_quest_offer", "保留正式提交渠道。");
+            _test.False(confirmed, "普通回应不能跳过确认。");
+
+            data.Entries.Add(new NpcQuestOfferEntryData
+            {
+                QuestId = "second", DisplayName = "采药", StateId = "available", IsEnabled = true,
+                AcceptDialogueText = "能帮我采药吗？",
+            });
+            dialog.ShowDialog(data);
+            _test.Eq(dialog.topic_choices.GetChildCount(), 2, "多个可谈话题应保留对话选择。");
+            dialog.topic_choices.GetChild<Button>(1).EmitSignal(BaseButton.SignalName.Pressed);
+            _test.Eq(actions, 1, "选择话题本身不接取任务。");
+            _test.Eq(dialog.dialogue_label.Text, "能帮我采药吗？", "话题选择更新对白。");
+            dialog.ShowDialog(data);
+            dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
+            _test.Eq(quest, "second", "刷新后回应仍对应所谈任务。");
+            data.SelectedQuestId = "second";
+            data.PendingConfirmationQuestId = "second";
+            data.PendingConfirmationText = "你确定要去吗？";
+            dialog.ShowDialog(data);
+            _test.Eq(dialog.dialogue_label.Text, "你确定要去吗？", "确认作为对话显示。");
+            dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
+            _test.True(confirmed, "确认回应携带 confirm_accept。");
+            dialog.topic_choices.GetChild<Button>(0).EmitSignal(BaseButton.SignalName.Pressed);
+            dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
+            _test.False(confirmed, "另一个话题不能继承确认状态。");
+
+            data.PendingConfirmationQuestId = "";
+            foreach (var stage in new[] { "active", "claimable", "completed" })
+            {
+                dialog.HideDialog();
+                data.SelectedQuestId = "first";
+                data.Entries[0].StateId = stage;
+                data.Entries[0].IsEnabled = stage != "completed";
+                dialog.ShowDialog(data);
+                _test.Eq(dialog.accept_button.Visible, stage != "completed", "可提交物品/交付时提供回应，完成后只告别。");
+                int before = actions;
+                dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
+                _test.Eq(actions, before + (stage == "completed" ? 0 : 1), "回应可用性保持运行时语义。");
             }
+            dialog.HideDialog();
+            data.SelectedQuestId = "locked";
+            dialog.ShowDialog(data);
+            _test.False(dialog.accept_button.Visible, "锁定任务不能通过对话接受。");
         }
-        catch (System.Exception exception)
-        {
-            _test.Fail($"Unhandled exception: {exception}");
-        }
+        catch (System.Exception e) { _test.Fail(e.ToString()); }
         finally
         {
-            RequestTestExit(_test.Finish("NPC quest offer dialog action regression"));
+            if (dialog != null) { dialog.QueueFree(); await ToSignal(this, SignalName.ProcessFrame); }
+            RequestTestExit(_test.Finish("NPC conversation action regression"));
         }
     }
-
-    private void TestActionLabelsFollowRuntimeState(NpcQuestOfferDialog dialog)
+    private static System.Collections.Generic.IEnumerable<string> Labels(Node node)
     {
-        dialog.ShowDialog(BuildWindowData("active", "提交物品", true));
-        _test.True(dialog.Visible, "NPC 委托面板应显示运行时提供的 active 状态。");
-        _test.Eq(dialog.accept_button.Text, "提交物品", "active 采集任务应显示提交物品。");
-        _test.False(dialog.accept_button.Disabled, "可提交任务的动作按钮应启用。");
-
-        dialog.ShowDialog(BuildWindowData("claimable", "领取奖励", true));
-        _test.Eq(dialog.accept_button.Text, "领取奖励", "claimable 任务应显示领取奖励。");
-        _test.False(dialog.accept_button.Disabled, "待领奖任务的动作按钮应启用。");
-
-        dialog.ShowDialog(BuildWindowData("completed", "已完成", false));
-        _test.Eq(dialog.accept_button.Text, "已完成", "completed 任务应显示已完成。");
-        _test.True(dialog.accept_button.Disabled, "已完成任务不应允许重复提交。");
+        if (node is Label label && label.IsVisibleInTree()) yield return label.Text;
+        foreach (Node child in node.GetChildren()) foreach (string text in Labels(child)) yield return text;
     }
-
-    private async Task TestActionSignalKeepsRuntimePayload(NpcQuestOfferDialog dialog)
-    {
-        string capturedSettlementId = "";
-        string capturedActionId = "";
-        GDictionary capturedPayload = null;
-        dialog.action_requested += (settlementId, actionId, payload) =>
-        {
-            capturedSettlementId = settlementId;
-            capturedActionId = actionId;
-            capturedPayload = payload;
-        };
-
-        dialog.ShowDialog(BuildWindowData("claimable", "领取奖励", true));
-        dialog.accept_button.EmitSignal(BaseButton.SignalName.Pressed);
-        await ToSignal(this, SceneTree.SignalName.ProcessFrame);
-
-        _test.Eq(capturedSettlementId, "spring_village_01", "动作信号应保留 settlement_id。");
-        _test.Eq(capturedActionId, "npc_village_healer", "动作信号应保留 NPC action_id。");
-        _test.True(capturedPayload != null, "动作按钮应发射 payload。");
-        if (capturedPayload == null)
-            return;
-        _test.Eq(capturedPayload["submission_source"].AsString(), "npc_quest_offer", "动作 payload 应保留正式 submission_source。");
-        _test.Eq(capturedPayload["quest_id"].AsString(), "tutorial_gather_herbs", "动作 payload 应保留 quest_id。");
-        _test.False(capturedPayload["confirm_accept"].AsBool(), "非接取确认动作不应伪造 confirm_accept。");
-    }
-
-    private static NpcQuestOfferWindowData BuildWindowData(
-        string stateId,
-        string actionLabel,
-        bool isEnabled
-    ) =>
-        new()
-        {
-            SettlementId = "spring_village_01",
-            ActionId = "npc_village_healer",
-            NpcInteractionId = "npc_village_healer",
-            NpcName = "村医",
-            SelectedQuestId = "tutorial_gather_herbs",
-            Entries = new System.Collections.Generic.List<NpcQuestOfferEntryData>
-            {
-                new()
-                {
-                    QuestId = "tutorial_gather_herbs",
-                    DisplayName = "采集药材",
-                    Description = "提交三份药草。",
-                    SummaryText = "目标：提交物资 治疗药草 0/3",
-                    CostLabel = "奖励：30 金",
-                    StateId = stateId,
-                    ActionLabel = actionLabel,
-                    IsEnabled = isEnabled,
-                },
-            },
-        };
 }

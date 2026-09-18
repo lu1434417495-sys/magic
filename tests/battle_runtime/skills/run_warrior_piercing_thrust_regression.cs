@@ -153,10 +153,6 @@ public partial class run_warrior_piercing_thrust_regression : LifecycleTestScene
 
     private void TestSchemaRejectsInvalidProfiles()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using CombatSkillDef invalidHeight = BuildApproachProfile();
         using var invalidHeightDef = new CombatApproachAttackDef
         {
@@ -164,11 +160,7 @@ public partial class run_warrior_piercing_thrust_regression : LifecycleTestScene
         };
         invalidHeight.approach_attack_profile = invalidHeightDef;
         var heightErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            heightErrors,
-            "invalid_approach_height",
-            invalidHeight
-        );
+        heightErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(invalidHeight, invalidHeight.skill_id));
         _test.True(
             ErrorsContain(heightErrors, "maximum_path_height_delta_from_origin must be >= 0"),
             $"负绝对高度差必须被schema拒绝。errors={string.Join(" | ", heightErrors)}"
@@ -177,11 +169,7 @@ public partial class run_warrior_piercing_thrust_regression : LifecycleTestScene
         using CombatSkillDef fixedDamage = BuildApproachProfile();
         fixedDamage.effect_defs[0].power = 1;
         var damageErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            damageErrors,
-            "invalid_approach_fixed_damage",
-            fixedDamage
-        );
+        damageErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(fixedDamage, "invalid_approach_fixed_damage"));
         _test.True(
             ErrorsContain(damageErrors, "ordinary current-weapon attack"),
             $"固定伤害必须被schema拒绝。errors={string.Join(" | ", damageErrors)}"

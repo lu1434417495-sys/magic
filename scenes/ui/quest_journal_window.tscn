@@ -1,0 +1,233 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/QuestJournalWindow.cs" id="1_script"]
+[ext_resource type="Theme" path="res://scenes/ui/styles/chronicle_theme.tres" id="2_theme"]
+
+[sub_resource type="StyleBoxFlat" id="PanelStyle"]
+bg_color = Color(0.035, 0.041, 0.047, 1)
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.36, 0.2, 1)
+
+[node name="QuestJournalWindow" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.035, 0.041, 0.047, 1)
+
+
+[node name="FullPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PanelStyle")
+
+
+[node name="Margin" type="MarginContainer" parent="FullPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_bottom = 24
+
+
+[node name="Content" type="VBoxContainer" parent="FullPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+
+[node name="Header" type="HBoxContainer" parent="FullPanel/Margin/Content"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 64)
+
+
+[node name="Title" type="Label" parent="FullPanel/Margin/Content/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ChronicleTitle"
+theme_override_font_sizes/font_size = 36
+text = "任务日志"
+
+
+[node name="CloseButton" type="Button" parent="FullPanel/Margin/Content/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"ChronicleQuiet"
+text = "返回大地图  ·  Esc"
+custom_minimum_size = Vector2(210, 44)
+
+
+[node name="Filters" type="TabBar" parent="FullPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+clip_tabs = false
+tab_alignment = 0
+
+
+[node name="Body" type="HBoxContainer" parent="FullPanel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 32
+
+
+[node name="QuestList" type="ItemList" parent="FullPanel/Margin/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(312, 0)
+size_flags_vertical = 3
+theme_override_constants/v_separation = 20
+theme_override_font_sizes/font_size = 18
+
+
+[node name="Divider" type="VSeparator" parent="FullPanel/Margin/Content/Body"]
+layout_mode = 2
+
+
+[node name="Reading" type="VBoxContainer" parent="FullPanel/Margin/Content/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+
+[node name="EmptyLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+vertical_alignment = 1
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+text = "旅途尚未留下委托。"
+
+
+[node name="DetailScroll" type="ScrollContainer" parent="FullPanel/Margin/Content/Body/Reading"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+
+[node name="Details" type="VBoxContainer" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+
+[node name="StateLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 18
+theme_override_constants/line_spacing = 6
+text = ""
+theme_override_colors/font_color = Color(0.79, 0.65, 0.4, 1)
+
+
+[node name="QuestTitle" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 32
+theme_override_constants/line_spacing = 6
+text = ""
+theme_type_variation = &"ChronicleTitle"
+
+
+[node name="ProviderLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 16
+theme_override_constants/line_spacing = 6
+text = ""
+
+
+[node name="DescriptionLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 20
+theme_override_constants/line_spacing = 6
+text = ""
+
+
+[node name="ObjectivesTitle" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 22
+theme_override_constants/line_spacing = 6
+text = "目标"
+theme_override_colors/font_color = Color(0.79, 0.65, 0.4, 1)
+
+
+[node name="ObjectivesLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 20
+theme_override_constants/line_spacing = 6
+text = ""
+
+
+[node name="RewardsTitle" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 22
+theme_override_constants/line_spacing = 6
+text = "报酬"
+theme_override_colors/font_color = Color(0.79, 0.65, 0.4, 1)
+
+
+[node name="RewardsLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 18
+theme_override_constants/line_spacing = 6
+text = ""
+
+
+[node name="NextStepLabel" type="Label" parent="FullPanel/Margin/Content/Body/Reading/DetailScroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 18
+theme_override_constants/line_spacing = 6
+text = ""
+
+
+[node name="Footer" type="HBoxContainer" parent="FullPanel/Margin/Content"]
+layout_mode = 2
+
+
+[node name="CountLabel" type="Label" parent="FullPanel/Margin/Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "旅途记录"
+
+
+[node name="Hint" type="Label" parent="FullPanel/Margin/Content/Footer"]
+layout_mode = 2
+text = "J  查看 / 收起任务日志"

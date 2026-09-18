@@ -112,18 +112,10 @@ public partial class run_mage_force_lance_regression : LifecycleTestSceneTree
 
     private void TestSchemaRejectsFixedDamageAndShortCurves()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using CombatSkillDef fixedDamage = BuildSchemaProfile();
         fixedDamage.effect_defs[0].power = 1;
         var fixedDamageErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            fixedDamageErrors,
-            "force_lance_fixed_damage",
-            fixedDamage
-        );
+        fixedDamageErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(fixedDamage, "force_lance_fixed_damage"));
         _test.True(
             ErrorsContain(fixedDamageErrors, "ordinary non-weapon dice damage"),
             $"固定伤害必须被schema拒绝。errors={string.Join(" | ", fixedDamageErrors)}"
@@ -132,11 +124,7 @@ public partial class run_mage_force_lance_regression : LifecycleTestSceneTree
         using CombatSkillDef shortCurve = BuildSchemaProfile();
         shortCurve.sequential_line_hit_profile.continuation_range_curve = Array.Empty<int>();
         var curveErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            curveErrors,
-            "force_lance_short_curve",
-            shortCurve
-        );
+        curveErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(shortCurve, "force_lance_short_curve"));
         _test.True(
             ErrorsContain(curveErrors, "continuation_range_curve"),
             $"缺失机制曲线必须被schema拒绝。errors={string.Join(" | ", curveErrors)}"

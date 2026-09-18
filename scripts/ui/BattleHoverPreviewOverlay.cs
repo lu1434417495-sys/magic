@@ -22,7 +22,17 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     private ProgressBar _targetHpLossBar;
     private ProgressBar _targetHpBar;
     private Label _targetHpLabel;
-    private HFlowContainer _targetStatusRow;
+    private GridContainer _targetResourceGrid;
+    private Label _targetAttributesLabel;
+    private Label _statusHeading;
+    private ScrollContainer _statusScroll;
+    private VBoxContainer _targetStatusRow;
+    internal StringName DisplayedUnitId { get; private set; } = "";
+    internal bool HasPointerInside()
+    {
+        Control hovered = GetViewport()?.GuiGetHoveredControl();
+        return hovered != null && (hovered == this || IsAncestorOf(hovered));
+    }
     private HBoxContainer _hitStageRow;
     private Label _hitSummaryLabel;
     private HFlowContainer _fateBadgeRow;
@@ -33,9 +43,9 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     {
         if (_layout != null)
             return;
-        MouseFilter = MouseFilterEnum.Ignore;
+        MouseFilter = MouseFilterEnum.Stop;
         Visible = false;
-        CustomMinimumSize = new Vector2(340, 0);
+        CustomMinimumSize = new Vector2(380, 0);
         AddThemeStyleboxOverride("panel", _build_panel_style());
         _build_layout();
     }
@@ -43,6 +53,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
     public void Clear()
     {
         Visible = false;
+        DisplayedUnitId = "";
     }
 
     internal void ApplyPreview(BattleHoverSnapshot preview)
@@ -54,11 +65,14 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
 
         BattleHoverTargetUnitSnapshot targetUnit = preview.TargetUnit;
+        StringName nextUnitId = targetUnit?.UnitId ?? "";
+        if (nextUnitId != DisplayedUnitId) _statusScroll.ScrollVertical = 0;
+        DisplayedUnitId = nextUnitId;
         bool hasTargetUnit = targetUnit != null;
         bool hasSkill = preview.HasSelectedSkill;
         bool isValidTarget = preview.HoverIsValidTarget;
 
-        if (!hasTargetUnit && !hasSkill)
+        if (!hasTargetUnit && (!hasSkill || !isValidTarget))
         {
             Visible = false;
             return;
@@ -102,6 +116,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         {
             Name = "TargetNameLabel",
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
         };
         _targetNameLabel.AddThemeFontSizeOverride("font_size", PreviewFontLabel);
         _targetNameLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
@@ -155,16 +170,30 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _targetHpLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         _layout.AddChild(_targetHpLabel);
 
-        _targetStatusRow = new HFlowContainer { Name = "TargetStatusRow" };
-        _targetStatusRow.AddThemeConstantOverride("h_separation", 6);
-        _targetStatusRow.AddThemeConstantOverride("v_separation", 4);
-        _layout.AddChild(_targetStatusRow);
+        _targetResourceGrid = new GridContainer { Name = "TargetResourceGrid", Columns = 2 };
+        _targetResourceGrid.AddThemeConstantOverride("h_separation", 18);
+        _targetResourceGrid.AddThemeConstantOverride("v_separation", 6);
+        _layout.AddChild(_targetResourceGrid);
+        _targetAttributesLabel = DetailLabel("TargetAttributesLabel", 15, BattleUiTheme.TEXT_SECONDARY());
+        _layout.AddChild(_targetAttributesLabel);
+        _statusHeading = DetailLabel("StatusHeading", 16, BattleUiTheme.TEXT_PRIMARY());
+        _layout.AddChild(_statusHeading);
+        _statusScroll = new ScrollContainer
+        {
+            Name = "StatusScroll", HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            VerticalScrollMode = ScrollContainer.ScrollMode.Auto, MouseFilter = MouseFilterEnum.Stop,
+        };
+        _layout.AddChild(_statusScroll);
+        _targetStatusRow = new VBoxContainer { Name = "TargetStatusRow", SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        _targetStatusRow.AddThemeConstantOverride("separation", 8);
+        _statusScroll.AddChild(_targetStatusRow);
 
         _hitStageRow = new HBoxContainer { Name = "HitStageRow" };
         _hitStageRow.AddThemeConstantOverride("separation", HitStageSegmentSeparation);
         _layout.AddChild(_hitStageRow);
 
         _hitSummaryLabel = new Label { Name = "HitSummaryLabel" };
+        _hitSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _hitSummaryLabel.AddThemeFontSizeOverride("font_size", PreviewFontLabel);
         _hitSummaryLabel.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         _layout.AddChild(_hitSummaryLabel);
@@ -188,6 +217,9 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _invalidLabel.AddThemeFontSizeOverride("font_size", PreviewFontCaption);
         _invalidLabel.AddThemeColorOverride("font_color", BattleUiTheme.FATE_DANGER());
         _layout.AddChild(_invalidLabel);
+        IgnoreLayoutMouse(_layout);
+        _statusScroll.MouseFilter = MouseFilterEnum.Stop;
+        _statusScroll.GetVScrollBar().MouseFilter = MouseFilterEnum.Stop;
     }
 
     private void _refresh_target_unit(
@@ -202,6 +234,9 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
             _targetHeader.Visible = false;
             _targetHpStack.Visible = false;
             _targetHpLabel.Visible = false;
+            _targetResourceGrid.Visible = false;
+            _targetAttributesLabel.Visible = false;
+            _statusHeading.Visible = false;
             _refresh_target_statuses(null);
             return;
         }
@@ -209,12 +244,11 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         _targetHeader.Visible = true;
         _targetHpStack.Visible = true;
         _targetHpLabel.Visible = true;
+        _refresh_target_resources(targetUnit);
         _refresh_target_statuses(targetUnit.StatusEffects);
         _targetNameLabel.Text = string.IsNullOrEmpty(targetUnit.Name) ? "单位" : targetUnit.Name;
-        _targetFactionLabel.Text =
-            targetUnit.IsSelf ? "本单位"
-            : targetUnit.IsEnemy ? "敌方"
-            : "我方";
+        _targetFactionLabel.Text = (targetUnit.IsEnemy ? "敌方" : "我方")
+            + (targetUnit.IsSelf ? " · 行动中" : "");
 
         int hpMax = Mathf.Max(targetUnit.HpMax, 1);
         int hpCurrent = Mathf.Clamp(targetUnit.HpCurrent, 0, hpMax);
@@ -244,22 +278,63 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         ClearChildren(_targetStatusRow);
         int statusCount = statuses?.Count ?? 0;
         _targetStatusRow.Visible = statusCount > 0;
+        _statusScroll.Visible = statusCount > 0;
+        _statusScroll.CustomMinimumSize = new Vector2(0, Mathf.Min(180, statusCount * 76));
+        _statusHeading.Text = statusCount > 0 ? $"状态效果 · {statusCount}" : "无增益或减益";
         if (statusCount == 0)
             return;
         foreach (BattleHudStatusEffectSnapshot status in statuses)
         {
             if (status == null)
                 continue;
-            _targetStatusRow.AddChild(
-                _build_fate_badge(
-                    new BattleHudFateBadgeSnapshot(
-                        BattleMapPanel.FormatStatusBadgeText(status),
-                        new StringName(status.IsDebuff ? "danger" : "calm"),
-                        status.TooltipText
-                    )
-                )
-            );
+            var row = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+            var title = DetailLabel("StatusName", 16,
+                status.IsDebuff ? BattleUiTheme.FATE_WARNING() : BattleUiTheme.FATE_CALM());
+            string duration = status.RemainingTu >= 0 ? $"剩余 {status.RemainingTu} TU" : "持续生效";
+            title.Text = $"{status.Label}  ×{Mathf.Max(status.Stacks, 1)}  ·  {duration}";
+            row.AddChild(title);
+            var description = DetailLabel("StatusDetail", 14, BattleUiTheme.TEXT_SECONDARY());
+            description.Text = status.TooltipText;
+            row.AddChild(description);
+            _targetStatusRow.AddChild(row);
         }
+    }
+
+    private void _refresh_target_resources(BattleHoverTargetUnitSnapshot unit)
+    {
+        ClearChildren(_targetResourceGrid);
+        _targetResourceGrid.Visible = true;
+        AddResource("Stamina", "体力", unit.StaminaCurrent, unit.StaminaMax, BattleUiTheme.RESOURCE_STAMINA());
+        AddResource("Ap", "行动点", unit.ApCurrent, unit.ApMax, BattleUiTheme.TEXT_PRIMARY());
+        if (unit.MpVisible) AddResource("Mp", "MP", unit.MpCurrent, unit.MpMax, BattleUiTheme.RESOURCE_MP());
+        if (unit.AuraVisible) AddResource("Aura", "斗气", unit.AuraCurrent, unit.AuraMax, BattleUiTheme.RESOURCE_AURA());
+        if (unit.Resources?.Move != null)
+            AddResource("Move", "移动点", unit.Resources.Move.Current, unit.Resources.Move.Max, BattleUiTheme.TEXT_SECONDARY());
+        _targetAttributesLabel.Text = unit.AttributesText;
+        _targetAttributesLabel.Visible = !string.IsNullOrWhiteSpace(unit.AttributesText);
+        _statusHeading.Visible = true;
+    }
+
+    private void AddResource(string name, string label, int current, int max, Color color)
+    {
+        var text = DetailLabel(name, 16, color);
+        text.Text = $"{label}  {current}/{max}";
+        _targetResourceGrid.AddChild(text);
+    }
+
+    private static Label DetailLabel(string name, int fontSize, Color color)
+    {
+        var label = new Label { Name = name, MouseFilter = MouseFilterEnum.Ignore,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        label.AddThemeFontSizeOverride("font_size", fontSize);
+        label.AddThemeColorOverride("font_color", color);
+        return label;
+    }
+
+    private static void IgnoreLayoutMouse(Node node)
+    {
+        if (node is Control control) control.MouseFilter = MouseFilterEnum.Ignore;
+        foreach (Node child in node.GetChildren()) IgnoreLayoutMouse(child);
     }
 
     private void _refresh_hit_stages(IReadOnlyList<int> stageRates)

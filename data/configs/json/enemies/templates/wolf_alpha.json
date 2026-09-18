@@ -22,6 +22,7 @@
       "brain_id": "pack_leader",
       "cognition_kind": "instinctive",
       "creature_level": 4,
+      "challenge_rating": 3,
       "damage_resistances": {},
       "display_name": "\u8352\u72FC\u5934\u76EE",
       "drop_entries": [

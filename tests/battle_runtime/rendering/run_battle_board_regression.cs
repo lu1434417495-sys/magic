@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
@@ -201,6 +202,8 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
             );
             AssertSpawnCoordsAvoidWater(layout, profileId);
             AssertLayoutUsesSupportedProps(layout);
+            _test.True(layout.Cells.Values.All(cell => cell.current_height >= 4 && cell.current_height <= 8),
+                $"{profileId}: 正式初始地形保持 4～8 层，最低高度不能因美术绘制归一化而降低。");
         }
     }
 
@@ -268,14 +271,12 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
     private void AssertTacticalGridCoverage(BattleBoard2D board, int expectedCells)
     {
         var outlinedCoords = new HashSet<Vector2I>();
-        for (int height = 0; height <= 8; height++)
+        foreach (Node child in board.GetChildren())
         {
-            var grid = board.GetNodeOrNull<BattleTerrainPaintLayer>($"TacticalGridH{height}");
-            if (grid == null)
+            if (child is not BattleTerrainPaintLayer grid
+                || !grid.Name.ToString().StartsWith("TacticalGridH", StringComparison.Ordinal))
                 continue;
             _test.True(grid.Visible && grid.Material != null, "常驻格线必须有独立可见绘制层。");
-            _test.True(grid.ZIndex < board.GetNode<TileMapLayer>($"MarkerH{height}").ZIndex,
-                "常驻格线应位于行动标记下方。");
             foreach (BattleTerrainPaintLayer.Patch patch in grid.Patches)
             {
                 Vector2 center = Vector2.Zero;
@@ -291,7 +292,10 @@ public partial class run_battle_board_regression : LifecycleTestSceneTree
                     "格线中心必须与含高度偏移的实际拾取中心一致。");
                 var tree = board.GetNodeOrNull<Sprite2D>($"PaintedOak_{coord.X}_{coord.Y}");
                 if (tree != null)
-                    _test.True(grid.ZIndex > tree.ZIndex, "树冠不能盖住同层格子的战术边界。");
+                    _test.True(grid.ZIndex < tree.ZIndex, "战术边界必须贴地，不能画到树冠上。");
+                var marker = board.GetNodeOrNull<Sprite2D>($"PaintMarker_{coord.X}_{coord.Y}");
+                if (marker != null)
+                    _test.True(grid.ZIndex < marker.ZIndex, "常驻格线应位于行动标记下方。");
             }
         }
         _test.Eq(outlinedCoords.Count, expectedCells, "常驻格线必须覆盖全部战斗格，包含水域和森林。");

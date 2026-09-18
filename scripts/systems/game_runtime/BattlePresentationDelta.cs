@@ -41,17 +41,20 @@ internal sealed class BattlePresentationDelta
     internal BattlePresentationDelta(
         BattlePresentationDirtyFlags dirtyFlags,
         IReadOnlyList<StringName> changedUnitIds,
-        IReadOnlyList<Vector2I> changedCoords
+        IReadOnlyList<Vector2I> changedCoords,
+        IReadOnlyList<BattleMovementPresentation> movements = null
     )
     {
         DirtyFlags = dirtyFlags;
         ChangedUnitIds = changedUnitIds ?? EmptyUnitIds;
         ChangedCoords = changedCoords ?? EmptyCoords;
+        Movements = movements ?? Array.Empty<BattleMovementPresentation>();
     }
 
     internal BattlePresentationDirtyFlags DirtyFlags { get; }
     internal IReadOnlyList<StringName> ChangedUnitIds { get; }
     internal IReadOnlyList<Vector2I> ChangedCoords { get; }
+    internal IReadOnlyList<BattleMovementPresentation> Movements { get; }
     internal bool HasChanges => DirtyFlags != BattlePresentationDirtyFlags.None;
     internal bool IsLogOnly => DirtyFlags == BattlePresentationDirtyFlags.Log;
     internal bool RequiresFullBoardRefresh =>

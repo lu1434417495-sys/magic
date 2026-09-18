@@ -552,8 +552,30 @@ public sealed class BattleHudAdapter : IDisposable
             ApMax: Mathf.Max(apMax, 1),
             IsEnemy: isEnemy,
             IsSelf: isSelf,
-            StatusEffects: statusEffects
+            StatusEffects: statusEffects,
+            Resources: BuildResourceInfo(unitState),
+            AttributesText: BuildHoverAttributesText(unitState)
         );
+    }
+
+    private static string BuildHoverAttributesText(BattleUnitState unit)
+    {
+        var values = new List<string>();
+        foreach ((UnitBaseAttributeKind kind, string label) in new[]
+        {
+            (UnitBaseAttributeKind.Strength, "力量"), (UnitBaseAttributeKind.Agility, "敏捷"),
+            (UnitBaseAttributeKind.Constitution, "体质"), (UnitBaseAttributeKind.Perception, "感知"),
+            (UnitBaseAttributeKind.Intelligence, "智力"), (UnitBaseAttributeKind.Willpower, "意志"),
+        })
+        {
+            StringName id = UnitBaseAttributes.ToStringName(kind);
+            if (unit.attribute_snapshot?.HasValue(id) == true)
+                values.Add($"{label} {unit.attribute_snapshot.GetValue(id)}");
+        }
+        var rows = new List<string>();
+        for (int i = 0; i < values.Count; i += 3)
+            rows.Add(string.Join("　", values.GetRange(i, Math.Min(3, values.Count - i))));
+        return string.Join("\n", rows);
     }
 
     internal static IReadOnlyList<BattleHudStatusEffectSnapshot> BuildStatusEffectSnapshots(
@@ -1919,11 +1941,11 @@ public sealed class BattleHudAdapter : IDisposable
         BattlePreview selectedSkillPreview
     )
     {
-        BattleDamagePreviewRangeService.SkillDamagePreview? damagePreview =
+        BattleSkillDamagePreview? damagePreview =
             selectedSkillPreview?.DamagePreviewTyped;
         if (!damagePreview.HasValue || !damagePreview.Value.HasDamage)
             return DamagePreviewSummary.Empty;
-        BattleDamagePreviewRangeService.SkillDamagePreview value = damagePreview.Value;
+        BattleSkillDamagePreview value = damagePreview.Value;
         return new DamagePreviewSummary(
             true,
             value.MinDamage,

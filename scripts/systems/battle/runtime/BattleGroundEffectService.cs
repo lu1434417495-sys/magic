@@ -618,7 +618,7 @@ internal class BattleGroundEffectService
                 normalizedEffectCoords
             );
         IReadOnlyList<BattleUnitState> plannedTargets =
-            BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+            BattleSkillTargetPlanRules.CollectPlannedTargets(
                 effectDefinitionList,
                 effectTargetPlan
             );
@@ -650,7 +650,7 @@ internal class BattleGroundEffectService
                 continue;
             }
             var applicableEffects = new List<CombatEffectDefinition>(
-                BattleSkillExecutionOrchestrator.CollectPlannedEffectsForTarget(
+                BattleSkillTargetPlanRules.CollectPlannedEffectsForTarget(
                     effectDefinitionList,
                     effectTargetPlan,
                     targetUnit.unit_id

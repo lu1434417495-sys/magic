@@ -78,7 +78,7 @@ public partial class run_archer_long_draw_regression : LifecycleTestSceneTree
         };
         string errors = string.Join(" | ", Validate(invalid));
         _test.True(
-            errors.Contains("unsupported weapon_range_policy skill_id_specific_range"),
+            errors.Contains("combat_profile/weapon_range_policy: Business string is not registered by this field's closed import rule."),
             $"Unknown range policies should fail schema validation. errors={errors}"
         );
     }
@@ -397,11 +397,7 @@ public partial class run_archer_long_draw_regression : LifecycleTestSceneTree
     private static GStringArray Validate(CombatSkillDef profile)
     {
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        validator.AppendCombatProfileValidationErrors(errors, profile.skill_id, profile);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, profile.skill_id));
         return errors;
     }
 

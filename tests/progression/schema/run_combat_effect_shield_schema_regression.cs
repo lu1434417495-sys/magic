@@ -30,33 +30,29 @@ public partial class run_combat_effect_shield_schema_regression : LifecycleTestS
 
     private void TestShieldFieldValidation()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef valid = BuildValidShield();
-        AssertErrors(registry, valid);
+        AssertErrors(valid);
 
         using CombatEffectDef legacy = BuildValidShield();
         legacy.shield_family = "";
         legacy.@params = new GDictionary { ["shield_family"] = "holy_barrier" };
         AssertErrors(
-            registry,
             legacy,
-            "params.shield_family is unsupported; use CombatEffectDef.shield_family."
+            "payload/shield_family: Unknown effect payload member."
         );
 
         using CombatEffectDef invalidModifier = BuildValidShield();
         invalidModifier.shield_attribute_modifier_id = "spell_proficiency_bonus";
         AssertErrors(
-            registry,
             invalidModifier,
-            "shield_attribute_modifier_id must name a base ability modifier."
+            "effect_defs/0/shield_attribute_modifier_id: Value is not registered by the closed combat effect contract."
         );
 
         using CombatEffectDef whitespaceFamily = BuildValidShield();
         whitespaceFamily.shield_family = "   ";
         AssertErrors(
-            registry,
             whitespaceFamily,
-            "shield_family must not be whitespace."
+            "effect_defs/0/shield_family: StringName value must be empty or a canonical snake_case identifier."
         );
 
         using CombatEffectDef missingDice = new()
@@ -68,7 +64,6 @@ public partial class run_combat_effect_shield_schema_regression : LifecycleTestS
             shield_roll_per_target = true,
         };
         AssertErrors(
-            registry,
             missingDice,
             "shield_roll_per_target requires a valid dice config."
         );
@@ -81,20 +76,18 @@ public partial class run_combat_effect_shield_schema_regression : LifecycleTestS
             shield_family = "holy_barrier",
         };
         AssertErrors(
-            registry,
             wrongEffect,
             "shield fields are only supported on shield effects."
         );
     }
 
     private void AssertErrors(
-        SkillContentRegistry registry,
         CombatEffectDef effect,
         params string[] expectedFragments
     )
     {
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(errors, "shield_schema_probe", effect, "test_effect");
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "shield_schema_probe"));
         _test.Eq(
             errors.Count,
             expectedFragments?.Length ?? 0,

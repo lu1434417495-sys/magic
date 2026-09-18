@@ -106,7 +106,6 @@ public partial class run_archer_repel_arrow_regression : LifecycleTestSceneTree
             new StringName("attack_hit"),
             "attack_hit应能无损投影回资源值。"
         );
-        using var registry = new SkillContentRegistry(loadDefaultContent: false);
         var validEffect = new CombatEffectDef
         {
             effect_type = "forced_move",
@@ -123,11 +122,11 @@ public partial class run_archer_repel_arrow_regression : LifecycleTestSceneTree
         };
         var validErrors = new GStringArray();
         var invalidErrors = new GStringArray();
-        registry.AppendEffectValidationErrors(validErrors, SkillId, validEffect, "valid");
-        registry.AppendEffectValidationErrors(invalidErrors, SkillId, invalidEffect, "invalid");
+        validErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(validEffect, SkillId));
+        invalidErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidEffect, SkillId));
         _test.Eq(validErrors.Count, 0, "正式attack_hit触发条件必须通过效果校验。");
         _test.True(
-            ContainsError(invalidErrors, "unsupported trigger_event"),
+            ContainsError(invalidErrors, "effect_defs/0/trigger_event: Value is not registered by the closed combat effect contract."),
             "未知命中触发值必须在内容校验期被拒绝。"
         );
         validEffect.Dispose();

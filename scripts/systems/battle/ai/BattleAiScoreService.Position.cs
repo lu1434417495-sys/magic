@@ -274,6 +274,7 @@ public partial class BattleAiScoreService
             if (
                 effectDefinition != null
                 && (effectDefinition.EffectKind == BattleEffectKind.Damage
+                    || effectDefinition.EffectKind == BattleEffectKind.AdvanceStatusTicks
                     || effectDefinition.EffectKind == BattleEffectKind.Execute)
             )
             {

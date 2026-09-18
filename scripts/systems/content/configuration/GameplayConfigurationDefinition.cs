@@ -130,7 +130,8 @@ public sealed class NewGamePartyDefinition
         IReadOnlyList<StringName> reserveMemberIds,
         IReadOnlyList<NewGameMemberDefinition> members,
         IReadOnlyList<NewGameStartingWeaponRuleDefinition> startingWeaponRules,
-        StringName startingWeaponFallbackItemId
+        StringName startingWeaponFallbackItemId,
+        StringName startingBodyArmorItemId
     )
     {
         Gold = gold;
@@ -143,6 +144,7 @@ public sealed class NewGamePartyDefinition
             (startingWeaponRules ?? Array.Empty<NewGameStartingWeaponRuleDefinition>()).ToArray()
         );
         StartingWeaponFallbackItemId = startingWeaponFallbackItemId;
+        StartingBodyArmorItemId = startingBodyArmorItemId;
     }
 
     public int Gold { get; }
@@ -153,6 +155,7 @@ public sealed class NewGamePartyDefinition
     public IReadOnlyList<NewGameMemberDefinition> Members { get; }
     public IReadOnlyList<NewGameStartingWeaponRuleDefinition> StartingWeaponRules { get; }
     public StringName StartingWeaponFallbackItemId { get; }
+    public StringName StartingBodyArmorItemId { get; }
 }
 
 public sealed record SkillGenerationBattleSimFixtureDefinition(

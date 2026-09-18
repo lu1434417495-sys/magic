@@ -1,0 +1,222 @@
+{
+  "status": "proposed_not_implemented_or_balance_calibrated",
+  "levels": [
+    {
+      "level": 0,
+      "window_tu": 40,
+      "max_sources": 2,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 40,
+      "range": 4,
+      "cooldown_tu": 80
+    },
+    {
+      "level": 1,
+      "window_tu": 40,
+      "max_sources": 2,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 35,
+      "range": 4,
+      "cooldown_tu": 80
+    },
+    {
+      "level": 2,
+      "window_tu": 40,
+      "max_sources": 2,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 35,
+      "range": 5,
+      "cooldown_tu": 80
+    },
+    {
+      "level": 3,
+      "window_tu": 60,
+      "max_sources": 2,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 40,
+      "range": 5,
+      "cooldown_tu": 80
+    },
+    {
+      "level": 4,
+      "window_tu": 60,
+      "max_sources": 2,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 40,
+      "range": 5,
+      "cooldown_tu": 40
+    },
+    {
+      "level": 5,
+      "window_tu": 60,
+      "max_sources": 3,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 50,
+      "range": 5,
+      "cooldown_tu": 40
+    },
+    {
+      "level": 6,
+      "window_tu": 60,
+      "max_sources": 3,
+      "source_selection_mode": "highest_window_damage",
+      "ap": 1,
+      "mp": 45,
+      "range": 5,
+      "cooldown_tu": 40
+    },
+    {
+      "level": 7,
+      "window_tu": 80,
+      "max_sources": null,
+      "source_selection_mode": "all_eligible",
+      "ap": 1,
+      "mp": 60,
+      "range": 5,
+      "cooldown_tu": 40
+    }
+  ],
+  "source_sha256": {
+    "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+    "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+    "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+    "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+    "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+    "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+    "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+    "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+    "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+    "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+    "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+    "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+    "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+    "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+    "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+    "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+    "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+    "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+  },
+  "mastery_curve": [
+    60,
+    80,
+    110,
+    150,
+    200,
+    270,
+    350
+  ],
+  "mastery_cumulative": [
+    60,
+    140,
+    250,
+    400,
+    600,
+    870,
+    1220
+  ],
+  "candidate_rows": 456,
+  "prepared_fixed_burn_examples": [
+    {
+      "sources": 1,
+      "stacks_each": 1,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 12
+    },
+    {
+      "sources": 1,
+      "stacks_each": 3,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 18
+    },
+    {
+      "sources": 2,
+      "stacks_each": 1,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 24
+    },
+    {
+      "sources": 2,
+      "stacks_each": 3,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 36
+    },
+    {
+      "sources": 3,
+      "stacks_each": 1,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 36
+    },
+    {
+      "sources": 3,
+      "stacks_each": 3,
+      "power_each": 2,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 60,
+      "l5_instant_hp": 54
+    }
+  ],
+  "prepared_example_warning": "These are deliberately prebuilt upper scenarios, not free or automatically affordable cast sequences.",
+  "all_source_prepared_examples": [
+    {
+      "sources": 3,
+      "power_each": 3,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 80,
+      "l7_instant_hp": 72
+    },
+    {
+      "sources": 4,
+      "power_each": 3,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 80,
+      "l7_instant_hp": 96
+    },
+    {
+      "sources": 5,
+      "power_each": 3,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 80,
+      "l7_instant_hp": 120
+    },
+    {
+      "sources": 9,
+      "power_each": 3,
+      "interval_tu": 10,
+      "next_tick_offset_tu": 10,
+      "remaining_tu_at_least": 80,
+      "l7_instant_hp": 216
+    }
+  ],
+  "validation": {
+    "build": "0 warnings, 0 errors",
+    "source_probe": "PASS: 57 snapshots and per-source additivity checks in the controlled fixture",
+    "candidate_execution": "NOT IMPLEMENTED",
+    "battle_sim_win_rate": "NOT RUN",
+    "full_suite_ci": "NOT RUN"
+  }
+}

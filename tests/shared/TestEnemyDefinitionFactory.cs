@@ -468,6 +468,7 @@ internal sealed class TestEnemyTemplateDefinitionBuilder
     internal int EnemyCount { get; set; } = 1;
     internal int BodySize { get; set; } = BattleUnitState.BodySizeMedium;
     internal int CreatureLevel { get; set; } = 1;
+    internal double ChallengeRating { get; set; } = 1;
     internal int HitDieSides { get; set; } = 8;
     internal StringName CognitionKind { get; set; } = "";
     internal List<StringName> Tags { get; } = new();
@@ -504,6 +505,7 @@ internal sealed class TestEnemyTemplateDefinitionBuilder
             EnemyCount,
             BodySize,
             CreatureLevel,
+            ChallengeRating,
             HitDieSides,
             BattleCognitionContentRules.ToKind(CognitionKind),
             Tags,

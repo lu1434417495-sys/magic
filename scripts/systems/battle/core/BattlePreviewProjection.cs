@@ -688,6 +688,8 @@ internal static class BattlePreviewProjection
             payload["status_display_name"] = preview.StatusDisplayName ?? "";
             if (preview.HealMultiplierPercent is int healMultiplierPercent)
                 payload["heal_multiplier_percent"] = healMultiplierPercent;
+            if (preview.MitigationTier == MitigationTierKind.Double)
+                payload["mitigation_tier"] = "double";
             payload["summary_text"] = preview.SummaryText;
             result.Add(payload);
         }

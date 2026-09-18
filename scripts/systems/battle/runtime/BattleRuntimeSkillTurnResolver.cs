@@ -22,7 +22,7 @@ internal readonly record struct BattleTurnControlStatusResult(
         new(false, false, false, "", false, false);
 }
 
-internal sealed class BattleRuntimeSkillTurnResolver
+internal sealed class BattleRuntimeSkillTurnResolver : IBattleStatusDurationRuntimeHooks
 {
     private static readonly StringName STATUS_PINNED = "pinned";
     private static readonly StringName STATUS_ROOTED = "rooted";
@@ -2095,130 +2095,38 @@ internal sealed class BattleRuntimeSkillTurnResolver
         BattleUnitState unit_state,
         int elapsed_tu,
         BattleEventBatch batch = null
-    )
-    {
-        if (unit_state == null)
-        {
-            return false;
-        }
-        // Advance state that existed for the whole interval before expiry
-        // reactions can apply a fresh shield at the interval boundary.
-        bool changed = unit_state.AdvanceShieldDurationTyped(elapsed_tu);
-        changed |=
-            _runtime
-                ?.GetEquipmentAbilityRuntimeService()
-                ?.AdvanceTargetMarkDurations(unit_state, elapsed_tu, batch) == true;
-        var expiredStatusIds = new List<StringName>();
-        var expiredStatusEntries = new Dictionary<StringName, BattleStatusEffectState>();
-        foreach (BattleStatusEffectState statusEntry in unit_state.GetStatusEffectsTyped())
-        {
-            BattleStatusDurationAdvanceResult durationResult =
-                BattleStatusSemanticTable.AdvanceTimelineDurationResult(
-                statusEntry,
-                elapsed_tu
-            );
-            if (durationResult.Expired)
-            {
-                expiredStatusIds.Add(statusEntry.status_id);
-                expiredStatusEntries[statusEntry.status_id] = statusEntry;
-                changed = true;
-                continue;
-            }
-            if (durationResult.Changed)
-            {
-                unit_state.SetStatusEffect(statusEntry);
-                changed = true;
-            }
-        }
-        foreach (StringName expiredStatusId in expiredStatusIds)
-        {
-            expiredStatusEntries.TryGetValue(
-                expiredStatusId,
-                out BattleStatusEffectState expiredStatusEntry
-            );
-            bool shouldEraseStatus = true;
-            if (_is_body_size_category_override_status(expiredStatusEntry))
-            {
-                shouldEraseStatus = false;
-                if (
-                    _restore_body_size_category_override_if_needed(
-                        unit_state,
-                        expiredStatusEntry,
-                        batch
-                    )
-                )
-                {
-                    changed = true;
-                    shouldEraseStatus = true;
-                }
-                else if (_body_size_already_matches_previous(unit_state, expiredStatusEntry))
-                {
-                    shouldEraseStatus = true;
-                }
-            }
-            if (shouldEraseStatus)
-            {
-                _runtime
-                    ?.GetEquipmentAbilityRuntimeService()
-                    ?.ResolveTargetMarkExpired(unit_state, expiredStatusEntry, batch);
-                EraseStatusEffect(unit_state, expiredStatusId);
-            }
-        }
-        return changed;
-    }
+    ) =>
+        BattleStatusDurationRules.Advance(
+            unit_state,
+            elapsed_tu,
+            batch,
+            _runtime != null ? this : null
+        );
 
-    internal bool _body_size_already_matches_previous(
+    bool IBattleStatusDurationRuntimeHooks.AdvanceTargetMarkDurations(
+        BattleUnitState unit,
+        int elapsedTu,
+        BattleEventBatch batch
+    ) =>
+        _runtime
+            ?.GetEquipmentAbilityRuntimeService()
+            ?.AdvanceTargetMarkDurations(unit, elapsedTu, batch) == true;
+
+    void IBattleStatusDurationRuntimeHooks.ResolveTargetMarkExpired(
+        BattleUnitState unit,
+        BattleStatusEffectState expiredStatus,
+        BattleEventBatch batch
+    ) =>
+        _runtime
+            ?.GetEquipmentAbilityRuntimeService()
+            ?.ResolveTargetMarkExpired(unit, expiredStatus, batch);
+
+    bool IBattleStatusDurationRuntimeHooks.TryRestoreBodySizeCategory(
         BattleUnitState unit_state,
-        BattleStatusEffectState status_entry
+        StringName previousCategory,
+        BattleEventBatch batch
     )
     {
-        if (unit_state == null || status_entry == null)
-        {
-            return false;
-        }
-        if (!BodySizeContentRules.IsValidBodySizeCategory(status_entry.body_size_category_override))
-        {
-            return false;
-        }
-        StringName previousCategory = status_entry.previous_body_size_category;
-        if (!BodySizeContentRules.IsValidBodySizeCategory(previousCategory))
-        {
-            return false;
-        }
-        return unit_state.GetBodySizeCategory() == previousCategory;
-    }
-
-    internal bool _is_body_size_category_override_status(BattleStatusEffectState status_entry)
-    {
-        return status_entry != null
-            && BodySizeContentRules.IsValidBodySizeCategory(
-                status_entry.body_size_category_override
-            );
-    }
-
-    internal bool _restore_body_size_category_override_if_needed(
-        BattleUnitState unit_state,
-        BattleStatusEffectState status_entry,
-        BattleEventBatch batch = null
-    )
-    {
-        if (unit_state == null || status_entry == null)
-        {
-            return false;
-        }
-        if (!BodySizeContentRules.IsValidBodySizeCategory(status_entry.body_size_category_override))
-        {
-            return false;
-        }
-        StringName previousCategory = status_entry.previous_body_size_category;
-        if (!BodySizeContentRules.IsValidBodySizeCategory(previousCategory))
-        {
-            return false;
-        }
-        if (unit_state.GetBodySizeCategory() == previousCategory)
-        {
-            return false;
-        }
         List<Vector2I> previousCoords = new(
             unit_state.GetOccupiedCoordsReadViewTyped()
         );

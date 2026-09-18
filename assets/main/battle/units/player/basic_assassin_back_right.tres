@@ -1,0 +1,14 @@
+[gd_resource type="AtlasTexture" script_class="BattleUnitSpriteTexture" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/player/basic_assassin_4way.png" id="1_atlas"]
+
+[ext_resource type="Script" path="res://scripts/ui/BattleUnitSpriteTexture.cs" id="2_sprite"]
+
+[resource]
+script = ExtResource("2_sprite")
+atlas = ExtResource("1_atlas")
+region = Rect2(544, 731, 530, 681)
+margin = Rect2(125, 265, 238, 343)
+filter_clip = true
+LeftFootContact = Vector2(271, 879)
+RightFootContact = Vector2(428, 937)

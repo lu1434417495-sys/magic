@@ -5,6 +5,7 @@ using Godot;
 public sealed partial class BattleBoardController
 {
     private readonly List<Node2D> _terrainArtNodes = new();
+    private readonly Dictionary<Vector2I, Sprite2D> _paintedMarkers = new();
     private ImageTexture _terrainArtData;
     private ShaderMaterial _terrainArtMaterial;
     private Texture2D _paintedGround;
@@ -12,7 +13,6 @@ public sealed partial class BattleBoardController
     private Texture2D _paintedTree;
     private Texture2D _paintedScrub;
     private ShaderMaterial _paintedCliffMaterial;
-    private ShaderMaterial _paintedSurroundMaterial;
     private ShaderMaterial _paintedGridMaterial;
     internal int PaintedSurfaceCount { get; private set; }
     internal ulong TerrainArtGeneration { get; private set; }
@@ -28,8 +28,6 @@ public sealed partial class BattleBoardController
         _paintedScrub = EngineAssetAccess.ResolveCodeAssetBorrowed<Texture2D>($"{paintedArtDir}/canyon_scrub.png");
         _paintedCliffMaterial = EngineAssetAccess.ResolveCodeAssetBorrowed<ShaderMaterial>(
             "res://scenes/ui/styles/battle_painted_cliff_material.tres");
-        _paintedSurroundMaterial = EngineAssetAccess.ResolveCodeAssetBorrowed<ShaderMaterial>(
-            "res://scenes/ui/styles/battle_painted_surround_material.tres");
         _paintedGridMaterial = EngineAssetAccess.ResolveCodeAssetBorrowed<ShaderMaterial>(
             "res://scenes/ui/styles/battle_tactical_grid_material.tres");
         _terrainArtData = OwnRenderResource(new ImageTexture(), "painted-terrain-data");
@@ -55,31 +53,38 @@ public sealed partial class BattleBoardController
         foreach (TileMapLayer layer in _edge_drop_south_layers) layer.Visible = false;
         foreach (TileMapLayer layer in _wall_east_layers) layer.Visible = false;
         foreach (TileMapLayer layer in _wall_south_layers) layer.Visible = false;
+        foreach (TileMapLayer layer in _overlay_layers) layer.Visible = false;
+        foreach (TileMapLayer layer in _marker_layers) layer.Visible = false;
 
         Vector2 origin = _input_layer.MapToLocal(Vector2I.Zero);
         Vector2 axisX = _input_layer.MapToLocal(Vector2I.Right) - origin;
         Vector2 axisY = _input_layer.MapToLocal(Vector2I.Down) - origin;
         Vector2[] corners = { new(-0.5f,-0.5f), new(0.5f,-0.5f), new(0.5f,0.5f), new(-0.5f,0.5f) };
-        var tops = new Dictionary<int, BattleTerrainPaintLayer>();
-        var grids = new Dictionary<int, BattleTerrainPaintLayer>();
-        var edges = new Dictionary<int, BattleTerrainPaintLayer>();
-        int floor = 8;
-        foreach (BattleBoardCellSnapshot cell in cells) floor = Math.Min(floor, cell.Height);
-        floor = floor < 0 ? floor - 1 : Math.Max(0, floor - 1);
-        DrawTerrainSurround(origin, axisX, axisY, floor);
+        var tops = new Dictionary<(int Row, int Height), BattleTerrainPaintLayer>();
+        var grids = new Dictionary<(int Row, int Height), BattleTerrainPaintLayer>();
+        var edges = new Dictionary<(int Row, int Height, bool Wall, bool Right), BattleTerrainPaintLayer>();
+        // Match the original outside datum: generated terrain starts at height 4–8,
+        // with its full rock body extending down to zero. Never raise the base to
+        // follow the lowest surface. Only extend it downward for zero/negative terrain.
+        int floor = 0;
+        foreach (BattleBoardCellSnapshot cell in cells) floor = Math.Min(floor, cell.Height - 1);
+        DrawBattleBackground(origin, axisX, axisY, floor);
         foreach (BattleBoardCellSnapshot cell in cells)
         {
             if (!_is_cell_inside_battle(cell.Coord)) continue;
             int height = Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
-            if (!tops.TryGetValue(height, out BattleTerrainPaintLayer top))
+            int row = cell.Coord.X + cell.Coord.Y;
+            var key = (row, height);
+            int depth = GetCellDrawDepth(cell.Coord);
+            if (!tops.TryGetValue(key, out BattleTerrainPaintLayer top))
             {
-                top = AddTerrainPaintLayer($"PaintTopH{height}", height * LAYER_Z_STRIDE,
+                top = AddTerrainPaintLayer($"PaintTopH{height}R{row}", depth,
                     _paintedGround, _terrainArtMaterial);
-                tops.Add(height, top);
-                // Keep the cell footprint visible over trees and surface effects, below
-                // state markers and units. Higher terraces still occlude lower cells.
-                grids.Add(height, AddTerrainPaintLayer($"TacticalGridH{height}",
-                    height * LAYER_Z_STRIDE + OVERLAY_LAYER_Z_OFFSET, null, _paintedGridMaterial));
+                tops.Add(key, top);
+                // Grid lines belong to the ground. A rear terrace must never cut
+                // through a tree standing in front of it, regardless of elevation.
+                grids.Add(key, AddTerrainPaintLayer($"TacticalGridH{height}R{row}",
+                    depth + 4, null, _paintedGridMaterial));
             }
             Vector2 anchor = _input_layer.MapToLocal(cell.Coord) - new Vector2(0, height * _get_visual_height_step());
             var points = new Vector2[4];
@@ -90,8 +95,12 @@ public sealed partial class BattleBoardController
                 uvs[i] = (Vector2)cell.Coord + corners[i];
             }
             top.Patches.Add(new(points, uvs, Colors.White));
-            grids[height].Patches.Add(new(points, uvs, Colors.White));
+            grids[key].Patches.Add(new(points, uvs, Colors.White));
             PaintedSurfaceCount++;
+            int overlaySource = _get_overlay_source_id(cell);
+            if (overlaySource >= 0)
+                AddTerrainArtNode(CreateGroundTileSprite(cell.Coord, overlaySource, depth + 3,
+                    $"PaintOverlay_{cell.Coord.X}_{cell.Coord.Y}"));
             if (cell.BaseTerrain == TERRAIN_FOREST)
                 DrawPaintedTree(cell, anchor);
         }
@@ -105,8 +114,9 @@ public sealed partial class BattleBoardController
                 DrawPaintedFace(edge, height, false, edges, axisX, axisY);
             }
             if (edge.HasFeatureFace)
-                for (int offset = 0; offset < edge.FeatureLayers; offset++)
-                    DrawPaintedFace(edge, Math.Max(MIN_RENDER_HEIGHT, edge.FromHeight - offset), true, edges, axisX, axisY);
+                DrawRaisedWall(edge, axisX, axisY);
+            if (edge.BlocksMovement)
+                DrawBlockedBoundary(edge, axisX, axisY);
             BattleBoardCellSnapshot cell = _snapshot.GetCell(edge.OriginCoord);
             if (cell == null || !edge.HasDropFace) continue;
             int variant = _get_variant_index(cell.Coord, 13, 77);
@@ -118,7 +128,7 @@ public sealed partial class BattleBoardController
                     - new Vector2(0, height * _get_visual_height_step());
                 Vector2 direction = edge.Direction == Vector2I.Right ? axisX : axisY;
                 AddPaintedScrub(anchor + direction * 0.43f, 120 + variant * 8,
-                    height * LAYER_Z_STRIDE + 2, 1f, $"RimScrub_{cell.Coord.X}_{cell.Coord.Y}");
+                    GetCellDrawDepth(cell.Coord) + 6, 1f, $"RimScrub_{cell.Coord.X}_{cell.Coord.Y}");
             }
         }
         // Runtime boundary faces use height zero as their outside datum. Extend the
@@ -130,26 +140,9 @@ public sealed partial class BattleBoardController
             {
                 if (_snapshot.ContainsCell(cell.Coord + direction)) continue;
                 var boundary = new BattleBoardEdgeSnapshot(cell.Coord, cell.Coord + direction,
-                    direction, Array.Empty<int>(), BattleEdgeRenderKind.None, 0, cell.Height);
+                    direction, Array.Empty<int>(), BattleEdgeRenderKind.None, 0, cell.Height, false);
                 for (int height = cell.Height; height > floor; height--)
                     DrawPaintedFace(boundary, height, false, edges, axisX, axisY);
-            }
-        }
-        // Unselectable surroundings provide a quiet continuation below the cutaway.
-        // Their placement is deterministic and never enters the battle snapshot.
-        Vector2I[] directions = { Vector2I.Right, Vector2I.Down, Vector2I.Left, Vector2I.Up };
-        foreach (BattleBoardCellSnapshot cell in cells)
-        {
-            int variant = _get_variant_index(cell.Coord, 11, 89);
-            if (variant < 6) continue;
-            foreach (Vector2I direction in directions)
-            {
-                if (_snapshot.ContainsCell(cell.Coord + direction)) continue;
-                Vector2 anchor = _input_layer.MapToLocal(cell.Coord) +
-                    (axisX * direction.X + axisY * direction.Y) * (0.9f + variant * 0.03f)
-                    - new Vector2(0, floor * _get_visual_height_step());
-                AddPaintedScrub(anchor, 240 + variant * 16, -70, 0.74f,
-                    $"SurroundScrub_{cell.Coord.X}_{cell.Coord.Y}_{direction.X}_{direction.Y}");
             }
         }
     }
@@ -163,9 +156,9 @@ public sealed partial class BattleBoardController
         foreach (BattleBoardCellSnapshot cell in cells)
         {
             if (!_is_cell_inside_battle(cell.Coord)) continue;
-            float water = cell.BaseTerrain == TERRAIN_SHALLOW_WATER ? 0.8f
+            float water = cell.BaseTerrain == TERRAIN_SHALLOW_WATER || cell.BaseTerrain == TERRAIN_WATER ? 0.8f
                 : cell.BaseTerrain == TERRAIN_FLOWING_WATER ? 0.9f
-                : cell.BaseTerrain == TERRAIN_DEEP_WATER || cell.BaseTerrain == TERRAIN_WATER ? 1f : 0f;
+                : cell.BaseTerrain == TERRAIN_DEEP_WATER ? 1f : 0f;
             data.SetPixelv(cell.Coord, new Color(water, cell.BaseTerrain == TERRAIN_FOREST ? 1f : 0f,
                 cell.BaseTerrain == TERRAIN_MUD ? 1f : 0f, (Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT) - MIN_RENDER_HEIGHT + 1f) / 16f));
         }
@@ -174,15 +167,19 @@ public sealed partial class BattleBoardController
     }
 
     private void DrawPaintedFace(BattleBoardEdgeSnapshot edge, int height, bool wall,
-        Dictionary<int, BattleTerrainPaintLayer> layers, Vector2 axisX, Vector2 axisY)
+        Dictionary<(int Row, int Height, bool Wall, bool Right), BattleTerrainPaintLayer> layers,
+        Vector2 axisX, Vector2 axisY)
     {
         if (height < MIN_RENDER_HEIGHT || height > MAX_RENDER_HEIGHT) return;
         bool right = edge.Direction == Vector2I.Right;
-        int z = height * LAYER_Z_STRIDE + (wall ? (right ? -2 : -1) : (right ? -4 : -3));
-        if (!layers.TryGetValue(z, out BattleTerrainPaintLayer layer))
+        int row = edge.OriginCoord.X + edge.OriginCoord.Y;
+        int z = GetCellDrawDepth(edge.OriginCoord) - 1;
+        var key = (row, height, wall, right);
+        if (!layers.TryGetValue(key, out BattleTerrainPaintLayer layer))
         {
-            layer = AddTerrainPaintLayer($"PaintFace{z}", z, _paintedRock, _paintedCliffMaterial);
-            layers.Add(z, layer);
+            layer = AddTerrainPaintLayer($"PaintFaceR{row}H{height}_{wall}_{right}", z,
+                _paintedRock, _paintedCliffMaterial);
+            layers.Add(key, layer);
         }
         Vector2 coord = edge.OriginCoord;
         Vector2 anchor = _input_layer.MapToLocal(edge.OriginCoord) - new Vector2(0, height * _get_visual_height_step());
@@ -201,7 +198,8 @@ public sealed partial class BattleBoardController
         bool lip = wall || height == edge.FromHeight;
         if (lip)
         {
-            var rim = AddTerrainPaintLayer($"RockLip_{edge.OriginCoord.X}_{edge.OriginCoord.Y}_{z}", z + 5, null, null);
+            var rim = AddTerrainPaintLayer($"RockLip_{edge.OriginCoord.X}_{edge.OriginCoord.Y}_{height}_{right}",
+                GetCellDrawDepth(edge.OriginCoord) + 1, null, null);
             rim.Strokes.Add(new(new[] { a, b }, new Color(0.29f,0.23f,0.16f,0.34f), 5f));
             rim.Strokes.Add(new(new[] { a - new Vector2(0,1.5f), b - new Vector2(0,1.5f) },
                 new Color(1f,0.85f,0.57f,0.5f), 1.5f));
@@ -210,13 +208,12 @@ public sealed partial class BattleBoardController
 
     private void DrawPaintedTree(BattleBoardCellSnapshot cell, Vector2 anchor)
     {
-        int height = Mathf.Clamp(cell.Height, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
         int variant = _get_variant_index(cell.Coord, 7, 53);
         float width = 188f + variant * 8f;
         float scale = width / _paintedTree.GetWidth();
         // Contact shadows sit on the same terrace, below trees and tactical markers.
         var shadow = AddTerrainPaintLayer($"TreeShadow_{cell.Coord.X}_{cell.Coord.Y}",
-            height * LAYER_Z_STRIDE + 1, null, null);
+            GetCellDrawDepth(cell.Coord) + 2, null, null);
         for (int ring = 0; ring < 8; ring++)
         {
             var points = new Vector2[24];
@@ -234,24 +231,22 @@ public sealed partial class BattleBoardController
             Position = anchor + new Vector2((variant - 3) * 3f, -_paintedTree.GetHeight() * scale * 0.47f),
             Scale = new Vector2(scale * (0.96f + variant * 0.012f), scale),
             TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
-            ZIndex = height * LAYER_Z_STRIDE + 5,
+            ZIndex = GetCellDrawDepth(cell.Coord) + 6,
             Modulate = new Color(1f - variant * 0.012f, 1f - variant * 0.009f, 1f),
         };
         AddTerrainArtNode(tree);
     }
 
-    private void DrawTerrainSurround(Vector2 origin, Vector2 axisX, Vector2 axisY, int floor)
+    private void DrawBattleBackground(Vector2 origin, Vector2 axisX, Vector2 axisY, int floor)
     {
-        var surround = AddTerrainPaintLayer("CanyonSurround", -100, _paintedGround, _paintedSurroundMaterial);
+        var background = AddTerrainPaintLayer("BattleBackground", -4096, null, null);
         Vector2[] coords = { new(-50,-50), new(80,-50), new(80,80), new(-50,80) };
         var points = new Vector2[4];
-        var uvs = new Vector2[4];
         for (int i = 0; i < 4; i++)
         {
             points[i] = origin + axisX * coords[i].X + axisY * coords[i].Y - new Vector2(0, floor * _get_visual_height_step());
-            uvs[i] = coords[i] / 10f;
         }
-        surround.Patches.Add(new(points, uvs, Colors.White));
+        background.Patches.Add(new(points, null, BattleBoardRenderProfile.BackgroundColor));
     }
 
     private static bool IsPaintedWater(StringName terrain) => terrain == TERRAIN_WATER
@@ -284,8 +279,48 @@ public sealed partial class BattleBoardController
         _input_layer.GetParent().AddChild(node);
     }
 
+    // The isometric ground diagonal is depth; elevation only moves artwork upward.
+    // Every column's faces, surface and occupants share this band, so a foreground
+    // cliff can occlude a rear tree, but a rear cliff cannot erase a foreground crown.
+    private int GetCellDrawDepth(Vector2I coord) =>
+        (coord.X + coord.Y - (_snapshot.MapSize.X + _snapshot.MapSize.Y - 2) / 2) * LAYER_Z_STRIDE;
+
+    private Sprite2D CreateGroundTileSprite(Vector2I coord, int sourceId, int depth, string name)
+    {
+        var source = (TileSetAtlasSource)_tile_set.GetSource(sourceId);
+        TileData tile = source.GetTileData(Vector2I.Zero, 0);
+        return new Sprite2D
+        {
+            Name = name,
+            Texture = source.Texture,
+            RegionEnabled = true,
+            RegionRect = source.GetTileTextureRegion(Vector2I.Zero),
+            Material = tile.Material,
+            Modulate = tile.Modulate,
+            Position = _get_cell_anchor_position(coord, _get_cell_height(coord)) - tile.TextureOrigin,
+            ZIndex = depth,
+            TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
+        };
+    }
+
+    private void SetPaintedMarker(Vector2I coord, int sourceId)
+    {
+        if (_paintedMarkers.Remove(coord, out Sprite2D old)) old.Free();
+        Sprite2D marker = CreateGroundTileSprite(coord, sourceId, GetCellDrawDepth(coord) + 5,
+            $"PaintMarker_{coord.X}_{coord.Y}");
+        _paintedMarkers.Add(coord, marker);
+        _input_layer.GetParent().AddChild(marker);
+    }
+
+    private void ClearPaintedMarkers()
+    {
+        foreach (Sprite2D marker in _paintedMarkers.Values) marker.Free();
+        _paintedMarkers.Clear();
+    }
+
     private void ClearTerrainArtNodes()
     {
+        ClearPaintedMarkers();
         foreach (Node2D node in _terrainArtNodes)
         {
             if (!GodotObject.IsInstanceValid(node)) continue;
@@ -305,7 +340,6 @@ public sealed partial class BattleBoardController
         _paintedTree = null;
         _paintedScrub = null;
         _paintedCliffMaterial = null;
-        _paintedSurroundMaterial = null;
         _paintedGridMaterial = null;
     }
 }

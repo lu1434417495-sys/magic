@@ -21,6 +21,7 @@
       "brain_id": "ranged_controller",
       "cognition_kind": "sapient",
       "creature_level": 4,
+      "challenge_rating": 4,
       "damage_resistances": {
         "freeze": "half"
       },

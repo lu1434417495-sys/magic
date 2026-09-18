@@ -128,7 +128,7 @@ internal sealed class WorldMapRuntimeProxy
 
     public bool Advance(float delta)
     {
-        return _runtime?.advance(delta) ?? false;
+        return !IsPresentationBusy && (_runtime?.advance(delta) ?? false);
     }
 
     public WorldMapGridSystem GetGridSystem()
@@ -372,6 +372,12 @@ internal sealed class WorldMapRuntimeProxy
         return RunRuntimeCommand(() => _runtime.CommandOpenPartyTyped());
     }
 
+    internal RuntimeCommandResult CommandOpenQuestJournal() =>
+        RunRuntimeCommand(() => _runtime.CommandOpenQuestJournalTyped());
+
+    internal QuestJournalWindowData GetQuestJournalWindowDataTyped() =>
+        _runtime?.GetQuestJournalWindowDataTyped() ?? QuestJournalWindowData.Empty;
+
     internal RuntimeCommandResult CommandAcceptQuest(StringName questId, bool allowReaccept = false)
     {
         return RunRuntimeCommand(() => _runtime.CommandAcceptQuestTyped(questId, allowReaccept));
@@ -581,6 +587,8 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
+        if (IsPresentationBusy)
+            return PresentationBusyError();
         if (command == null)
             return RuntimeCommandResult.Failure(
                 "战斗命令无效。",
@@ -711,6 +719,8 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeUnavailableError();
+        if (IsPresentationBusy)
+            return PresentationBusyError();
         _runtime.ResetLastCommandBattlePresentationDelta();
         RuntimeCommandResult result = command?.Invoke() ?? RuntimeCommandResult.Failure("");
         RenderRuntimeCommandResult(result);
@@ -721,6 +731,8 @@ internal sealed class WorldMapRuntimeProxy
     {
         if (_runtime == null)
             return RuntimeCommandResultProjection.Project(RuntimeUnavailableError());
+        if (IsPresentationBusy)
+            return RuntimeCommandResultProjection.Project(PresentationBusyError());
         _runtime.ResetLastCommandBattlePresentationDelta();
         Dictionary result = command?.Invoke() ?? new Dictionary();
         RenderCommandPayload(result);
@@ -745,11 +757,16 @@ internal sealed class WorldMapRuntimeProxy
     private bool TryRenderLastCommandPresentationDelta()
     {
         BattlePresentationDelta delta = GetLastCommandBattlePresentationDelta();
-        if (_runtime?.IsBattleActive() != true || !delta.HasChanges)
+        if (!delta.HasChanges)
             return false;
         _renderTarget?.RenderFromRuntime(true, delta);
         return true;
     }
+
+    private bool IsPresentationBusy => _renderTarget?.IsBattleMovementPlaying == true;
+
+    private static RuntimeCommandResult PresentationBusyError() =>
+        RuntimeCommandResult.Failure("请等待移动完成。", RuntimeCommandCode.InvalidState);
 
     private static RuntimeCommandResult RuntimeUnavailableError()
     {
@@ -758,4 +775,7 @@ internal sealed class WorldMapRuntimeProxy
             RuntimeCommandCode.RuntimeUnavailable
         );
     }
+    internal PartyManagementViewData GetPartyManagementViewDataTyped() =>
+        PartyManagementViewBuilder.Capture(GetPartyState(), GetCharacterManagement());
+
 }

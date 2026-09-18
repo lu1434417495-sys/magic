@@ -1,0 +1,719 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "current_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 1,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "current_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 1,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "current_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 1,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l0_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 16,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l0_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 16,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l0_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 16,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l1_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l1_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l1_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 30,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l2_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l2_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l2_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 100,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l3_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l3_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l3_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l4_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l4_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l4_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 40,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l5_80",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l5_160",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    },
+    {
+      "id": "proposed_l5_320",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 0,
+          "stamina": 60,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 1,
+        "alternative_damage_per_ap": 0,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": []
+    }
+  ]
+}

@@ -115,11 +115,12 @@ public partial class run_battle_status_badge_regression : LifecycleTestSceneTree
                 "poisoned", "中毒", 2, 30, true, "中毒 · 减益 · 层数 2 · 剩余 30 TU"
             ),
         }));
-        var statusRow = overlay.GetNode<HFlowContainer>("HoverLayout/TargetStatusRow");
+        var statusRow = overlay.GetNode<VBoxContainer>("HoverLayout/StatusScroll/TargetStatusRow");
         _test.True(statusRow.Visible, "目标有状态效果时 TargetStatusRow 应可见。");
-        _test.Eq(statusRow.GetChildCount(), 1, "TargetStatusRow 应为每个状态渲染一个徽章。");
+        _test.Eq(statusRow.GetChildCount(), 1, "每个状态应渲染一条详情。");
         Label badgeLabel = statusRow.GetChild(0).GetChild<Label>(0);
-        _test.Eq(badgeLabel.Text, "中毒×2 30TU", "hover 状态徽章文本应与 UnitCard 规则一致。");
+        _test.True(badgeLabel.Text.Contains("中毒") && badgeLabel.Text.Contains("×2")
+            && badgeLabel.Text.Contains("30 TU"), "悬停详情应直接显示状态名称、层数和剩余时间。");
 
         overlay.ApplyPreview(MakeHover(statusEffects: Array.Empty<BattleHudStatusEffectSnapshot>()));
         _test.False(statusRow.Visible, "目标无状态效果时 TargetStatusRow 应隐藏。");

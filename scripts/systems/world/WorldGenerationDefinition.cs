@@ -28,6 +28,8 @@ public sealed class WorldGenerationDefinition
         int worldStrongholdSpacingCells,
         int metropolisSpacingCells,
         bool guaranteeStartingWildEncounter,
+        string startingWildSpawnRegionTag,
+        WorldStartingAreaDefinition startingArea,
         int startingWildSpawnMinDistance,
         int startingWildSpawnMaxDistance,
         IReadOnlyList<SettlementDefinition> settlementLibrary,
@@ -65,6 +67,8 @@ public sealed class WorldGenerationDefinition
         WorldStrongholdSpacingCells = worldStrongholdSpacingCells;
         MetropolisSpacingCells = metropolisSpacingCells;
         GuaranteeStartingWildEncounter = guaranteeStartingWildEncounter;
+        StartingWildSpawnRegionTag = startingWildSpawnRegionTag;
+        StartingArea = startingArea ?? throw new ArgumentNullException(nameof(startingArea));
         StartingWildSpawnMinDistance = startingWildSpawnMinDistance;
         StartingWildSpawnMaxDistance = startingWildSpawnMaxDistance;
         SettlementLibrary = WorldDefinitionProjection.FreezeValues(
@@ -135,6 +139,8 @@ public sealed class WorldGenerationDefinition
     public int WorldStrongholdSpacingCells { get; }
     public int MetropolisSpacingCells { get; }
     public bool GuaranteeStartingWildEncounter { get; }
+    public string StartingWildSpawnRegionTag { get; }
+    public WorldStartingAreaDefinition StartingArea { get; }
     public int StartingWildSpawnMinDistance { get; }
     public int StartingWildSpawnMaxDistance { get; }
     public IReadOnlyList<SettlementDefinition> SettlementLibrary { get; }

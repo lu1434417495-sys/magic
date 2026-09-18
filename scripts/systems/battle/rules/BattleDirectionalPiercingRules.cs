@@ -34,6 +34,27 @@ internal sealed class BattleDirectionalPiercingPlan
 
 internal static class BattleDirectionalPiercingRules
 {
+    internal static IReadOnlyList<CombatEffectDefinition> BuildDirectionalPiercingEffects(
+        IEnumerable<CombatEffectDefinition> effects,
+        double multiplier
+    )
+    {
+        var result = new List<CombatEffectDefinition>();
+        foreach (CombatEffectDefinition effect in effects ?? Array.Empty<CombatEffectDefinition>())
+        {
+            if (effect == null)
+                continue;
+            result.Add(
+                effect.EffectKind == BattleEffectKind.Damage
+                    ? effect.WithPreResistanceDamageMultiplier(
+                        effect.PreResistanceDamageMultiplier * Math.Max(multiplier, 0.0)
+                    )
+                    : effect
+            );
+        }
+        return result.AsReadOnly();
+    }
+
     internal static bool IsDirectionalPiercingSkill(SkillDefinition skillDefinition) =>
         skillDefinition?.CombatProfile?.DirectionalPiercing != null;
 

@@ -52,7 +52,6 @@ internal class BattleGroundEffectCoordService
         Runtime?.GetTargetCollectionService();
     private BattleSkillResolutionRules SkillResolutionRules => Runtime?.GetSkillResolutionRules();
 
-
     internal IReadOnlyList<Vector2I> BuildGroundEffectCoords(
         SkillDefinition skillDefinition,
         IReadOnlyList<Vector2I> targetCoords,
@@ -235,7 +234,7 @@ internal class BattleGroundEffectCoordService
             );
         var targetUnitIds = new List<StringName>();
         foreach (
-            BattleUnitState targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+            BattleUnitState targetUnit in BattleSkillTargetPlanRules.CollectPlannedTargets(
                 effectDefinitions,
                 plan
             )
@@ -265,7 +264,7 @@ internal class BattleGroundEffectCoordService
             );
         var targetUnitIds = new List<StringName>();
         foreach (
-            BattleUnitReadView targetUnit in BattleSkillExecutionOrchestrator.CollectPlannedTargets(
+            BattleUnitReadView targetUnit in BattleSkillTargetPlanRules.CollectPlannedTargets(
                 effectDefinitions,
                 plan
             )

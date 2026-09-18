@@ -21,6 +21,7 @@
       "brain_id": "melee_aggressor",
       "cognition_kind": "sapient",
       "creature_level": 7,
+      "challenge_rating": 6,
       "damage_resistances": {
         "fire": "double",
         "physical_pierce": "half"

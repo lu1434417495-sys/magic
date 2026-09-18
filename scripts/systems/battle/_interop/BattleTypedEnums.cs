@@ -105,6 +105,7 @@ internal enum BattleEffectKind
     Height,
     HeightDelta,
     TerrainEffect,
+    AdvanceStatusTicks,
 }
 
 internal enum CombatEffectTargetOrder
@@ -204,6 +205,7 @@ internal enum CombatSkillMasteryTriggerMode
     IncomingPhysicalHit,
     SecondaryHit,
     SourceBoundWeaponBonusDamage,
+    IncomingAttackDisadvantage,
     TerrainEffectiveTrigger,
 }
 
@@ -284,6 +286,7 @@ internal static class BattleTypedNames
     internal static readonly StringName EffectStaminaRestore = "stamina_restore";
     internal static readonly StringName EffectStatus = "status";
     internal static readonly StringName EffectEraseStatus = "erase_status";
+    internal static readonly StringName EffectAdvanceStatusTicks = "advance_status_ticks";
     internal static readonly StringName EffectCleanseHarmful = "cleanse_harmful";
     internal static readonly StringName EffectTerrain = "terrain";
     internal static readonly StringName EffectTerrainEffect = "terrain_effect";
@@ -339,6 +342,7 @@ internal static class BattleTypedNames
     internal static readonly StringName MasteryTriggerIncomingPhysicalHit =
         "incoming_physical_hit";
     internal static readonly StringName MasteryTriggerSecondaryHit = "secondary_hit";
+    internal static readonly StringName MasteryTriggerIncomingAttackDisadvantage = "incoming_attack_disadvantage";
     internal static readonly StringName MasteryTriggerSourceBoundWeaponBonusDamage =
         "source_bound_weapon_bonus_damage";
     internal static readonly StringName MasteryTriggerTerrainEffectiveTrigger =
@@ -618,6 +622,8 @@ internal static class BattleTypedNames
             return BattleEffectKind.ApplyStatus;
         if (value == EffectEraseStatus)
             return BattleEffectKind.EraseStatus;
+        if (value == EffectAdvanceStatusTicks)
+            return BattleEffectKind.AdvanceStatusTicks;
         if (value == EffectCleanseHarmful)
             return BattleEffectKind.CleanseHarmful;
         if (value == EffectBodySizeCategoryOverride)
@@ -666,6 +672,7 @@ internal static class BattleTypedNames
             BattleEffectKind.Status => EffectStatus,
             BattleEffectKind.ApplyStatus => EffectApplyStatus,
             BattleEffectKind.EraseStatus => EffectEraseStatus,
+            BattleEffectKind.AdvanceStatusTicks => EffectAdvanceStatusTicks,
             BattleEffectKind.CleanseHarmful => EffectCleanseHarmful,
             BattleEffectKind.BodySizeCategoryOverride => EffectBodySizeCategoryOverride,
             BattleEffectKind.Execute => EffectExecute,
@@ -927,6 +934,8 @@ internal static class BattleTypedNames
             return CombatSkillMasteryTriggerMode.IncomingPhysicalHit;
         if (value == MasteryTriggerSecondaryHit)
             return CombatSkillMasteryTriggerMode.SecondaryHit;
+        if (value == MasteryTriggerIncomingAttackDisadvantage)
+            return CombatSkillMasteryTriggerMode.IncomingAttackDisadvantage;
         if (value == MasteryTriggerSourceBoundWeaponBonusDamage)
             return CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage;
         if (value == MasteryTriggerTerrainEffectiveTrigger)
@@ -948,6 +957,7 @@ internal static class BattleTypedNames
             CombatSkillMasteryTriggerMode.IncomingPhysicalHit =>
                 MasteryTriggerIncomingPhysicalHit,
             CombatSkillMasteryTriggerMode.SecondaryHit => MasteryTriggerSecondaryHit,
+            CombatSkillMasteryTriggerMode.IncomingAttackDisadvantage => MasteryTriggerIncomingAttackDisadvantage,
             CombatSkillMasteryTriggerMode.SourceBoundWeaponBonusDamage =>
                 MasteryTriggerSourceBoundWeaponBonusDamage,
             CombatSkillMasteryTriggerMode.TerrainEffectiveTrigger =>
@@ -1003,6 +1013,7 @@ internal static class BattleTypedNames
     {
         return kind
             is BattleEffectKind.Damage
+                or BattleEffectKind.AdvanceStatusTicks
                 or BattleEffectKind.ChainDamage
                 or BattleEffectKind.Execute
                 or BattleEffectKind.GradedSaveExecute
@@ -1031,6 +1042,7 @@ internal static class BattleTypedNames
     {
         return kind
             is BattleEffectKind.Damage
+                or BattleEffectKind.AdvanceStatusTicks
                 or BattleEffectKind.ChainDamage
                 or BattleEffectKind.EquipmentDurabilityDamage
                 or BattleEffectKind.DispelMagic

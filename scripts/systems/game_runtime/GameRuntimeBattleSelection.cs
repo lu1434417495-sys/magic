@@ -1411,7 +1411,6 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
             BattleAirbornePullRules.CollectLegalDestinations(
                 state,
                 Port?.GetBattleGridService(),
-                Port?.GetBattleLayeredBarrierService(),
                 activeUnit,
                 targetUnit,
                 effect
@@ -2812,7 +2811,6 @@ public sealed class GameRuntimeBattleSelection : IDisposable, IBattleSelectionSe
                 BattleAirbornePullRules.CollectLegalDestinations(
                     GetBattleState(),
                     GetBattleGridService(),
-                    Port?.GetBattleLayeredBarrierService(),
                     activeUnit,
                     targetUnit,
                     airbornePullEffect

@@ -58,7 +58,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
-        policy.Setup(hitResolver, null);
+        policy.Setup(hitResolver);
         var battleState = new BattleState();
         var activeUnit = new BattleUnitState
         {
@@ -279,7 +279,7 @@ public partial class run_attack_policy_parity_regression : LifecycleTestSceneTre
     {
         var query = new ProbeAttackCheckQuery();
         var policy = new BattleAttackCheckPolicyService();
-        policy.Setup(hitResolver, null, query);
+        policy.Setup(hitResolver, query);
         BattleAttackCheckPolicyContext context = policy.BuildSkillDefinitionAttackContext(
             battleState,
             activeUnit,

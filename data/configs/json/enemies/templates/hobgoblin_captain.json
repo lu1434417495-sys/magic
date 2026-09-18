@@ -29,6 +29,7 @@
       "brain_id": "frontline_bulwark",
       "cognition_kind": "sapient",
       "creature_level": 4,
+      "challenge_rating": 4,
       "damage_resistances": {},
       "display_name": "\u5927\u54E5\u5E03\u6797\u961F\u957F",
       "drop_entries": [

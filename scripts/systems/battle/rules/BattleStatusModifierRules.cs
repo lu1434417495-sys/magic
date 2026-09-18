@@ -129,7 +129,7 @@ public static class BattleStatusModifierRules
         return statusEntry.TryGetShieldGainMultiplierPercentTyped(out int value) ? value : null;
     }
 
-    /// 两个授权源（SkillExecuteEffectValidator 与 EquipmentAbilityPayloadValidators）都已在
+    /// 两个授权源（SkillDefinitionExecuteEffectValidator 与 EquipmentAbilityPayloadValidators）都已在
     /// 内容校验期把这两个百分比限死在 0..100。原先的"警告一句然后 clamp"意味着 JSON 写的数
     /// 和战斗里跑的数不一致却照常打完，所以这里改成越界即报缺陷。
     private static int RequireMultiplierPercent(

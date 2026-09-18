@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "withdrawn_distance_gated_l0",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Only one of the three attackers satisfies the old distance gate; positions are held fixed.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 180,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 1,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "withdrawn_blur_l6",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Three attackers act every 30 TU from t=5. Each makes one eligible attack against the protected actor.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 150,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "withdrawn_blur_l7",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Three attackers act every 30 TU from t=5. Each makes one eligible attack against the protected actor.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "l7_one_cast_budget",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Three attackers act every 30 TU from t=5. Each makes one eligible attack against the protected actor.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 45,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "l7_late_enemy_phase",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Three attackers act every 30 TU from t=5. Each makes one eligible attack against the protected actor.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 30,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "l7_short_80tu_encounter",
+      "basis": "controlled_assumption",
+      "source_sha256": {},
+      "assumptions": [
+        "Withdrawn design, not current mage_blur content or an approved balance anchor.",
+        "Instant self buff; normal time flow; no interruption, dispel, movement, deaths, regeneration or competing resource spending.",
+        "Three attackers act every 30 TU from t=5. Each makes one eligible attack against the protected actor.",
+        "Ignoring crits, advantage and special dice, hit probability 0.60 becomes 0.36; on-hit damage=10; marginal HP prevented/event=(0.60-0.36)*10=2.4.",
+        "Reference attack has expected damage 6 HP and costs 1 AP; MP budget 120 is an artificial fixed probe budget, not a typical character pool."
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "eligible_attacks",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    }
+  ]
+}

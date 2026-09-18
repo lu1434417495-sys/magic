@@ -835,6 +835,12 @@ public partial class run_settlement_persist_failure_rollback_regression : Lifecy
         runtime.SetActiveSettlementId(DictString(settlements[0], "settlement_id", ""));
         runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
         runtime._world_map_data_context.BindRootWorldData(worldData);
+        GameContentCatalog content = gameSession.GetContentCatalogTyped();
+        runtime._world_map_data_context.ConfigureEncounterChallenges(new EncounterChallengeCatalog(
+            content.GetBattleEncounterDefinitions(),
+            content.GetEncounterRosterDefinitions(),
+            content.GetEnemyTemplateDefinitions()
+        ));
         runtime._world_map_data_context.SyncActiveWorldContext(
             gameSession._generation_definition,
             runtime._grid_system,

@@ -7,6 +7,7 @@ public partial class BattleMapPanel
 {
     private const int AP_DOT_MAX_PIPS = 8;
     private static readonly Vector2 AP_DOT_SIZE = new(10, 10);
+    private HBoxContainer _command_dock_row;
 
     private void _create_command_dock()
     {
@@ -18,10 +19,11 @@ public partial class BattleMapPanel
             rightCell.MoveChild(resolve_button, 0);
         }
 
-        if (skill_grid?.GetParent() is not VBoxContainer skillLayout)
+        if (skill_panel?.GetNodeOrNull<VBoxContainer>("SkillLayout") is not VBoxContainer skillLayout)
             return;
 
-        var dockRow = new HBoxContainer { Name = "CommandDock" };
+        var dockRow = new HBoxContainer { Name = "CommandDock", Visible = false };
+        _command_dock_row = dockRow;
         dockRow.AddThemeConstantOverride("separation", 8);
 
         clear_skill_button = _create_dock_button("ClearSkillButton", "取消 Esc");
@@ -32,6 +34,9 @@ public partial class BattleMapPanel
         {
             Name = "VariantNameLabel",
             VerticalAlignment = VerticalAlignment.Center,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            ClipText = true,
+            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
         };
         next_variant_button = _create_dock_button("NextVariantButton", "E ▶");
         next_variant_button.Pressed += _on_next_variant_pressed;
@@ -53,9 +58,19 @@ public partial class BattleMapPanel
         hint_label = new Label
         {
             Name = "HintLabel",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            AnchorLeft = 0.15f,
+            AnchorRight = 0.85f,
+            AnchorTop = 1.0f,
+            AnchorBottom = 1.0f,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            ClipText = true,
+            TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
+            MouseFilter = MouseFilterEnum.Ignore,
         };
-        hint_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
+        hint_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
+        hint_label.AddThemeColorOverride("font_outline_color", Colors.Black);
+        hint_label.AddThemeConstantOverride("outline_size", 4);
+        hint_label.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_BODY());
         barrier_status_label = new Label
         {
             Name = "BarrierStatusLabel",
@@ -73,7 +88,7 @@ public partial class BattleMapPanel
         log_label.AddThemeFontSizeOverride("font_size", 11);
         log_label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_SECONDARY());
         skillLayout.AddChild(barrier_status_label);
-        skillLayout.AddChild(hint_label);
+        GetNode<Control>("%HudRoot").AddChild(hint_label);
         skillLayout.AddChild(log_label);
     }
 
@@ -97,12 +112,13 @@ public partial class BattleMapPanel
         _reset_view_button = new Button
         {
             Name = "ResetViewButton",
-            Text = "重置视角",
+            Text = "视角",
             FocusMode = FocusModeEnum.None,
             TooltipText = "恢复默认缩放并回到当前行动单位",
         };
         _reset_view_button.Pressed += _on_reset_view_pressed;
         rightCell.AddChild(_zoom_chip);
+        _zoom_chip.Visible = false;
         rightCell.AddChild(_reset_view_button);
         rightCell.MoveChild(_zoom_chip, 0);
         rightCell.MoveChild(_reset_view_button, 1);
@@ -158,24 +174,44 @@ public partial class BattleMapPanel
             _set_resolve_highlight(snapshot?.SelectedSkillConfirmReady == true);
         }
         if (clear_skill_button != null)
+        {
             clear_skill_button.Disabled = !dock.ClearSkillEnabled;
+            clear_skill_button.Visible = dock.ClearSkillEnabled;
+        }
         if (prev_variant_button != null)
             prev_variant_button.Disabled = !dock.PrevVariantEnabled;
         if (next_variant_button != null)
             next_variant_button.Disabled = !dock.NextVariantEnabled;
         if (variant_name_label != null)
+        {
             variant_name_label.Text = snapshot?.SelectedSkillVariantName ?? "";
+            variant_name_label.TooltipText = variant_name_label.Text;
+        }
+        bool hasVariantControls = dock.PrevVariantEnabled || dock.NextVariantEnabled;
+        if (prev_variant_button != null) prev_variant_button.Visible = hasVariantControls;
+        if (next_variant_button != null) next_variant_button.Visible = hasVariantControls;
+        if (variant_name_label != null) variant_name_label.Visible = hasVariantControls;
         if (command_summary_label != null)
             command_summary_label.Text = _build_command_summary(snapshot);
         if (hint_label != null)
+        {
             hint_label.Text = snapshot?.HintText ?? "";
+            hint_label.Visible = !string.IsNullOrEmpty(hint_label.Text);
+        }
         if (barrier_status_label != null)
         {
             barrier_status_label.Text = snapshot?.BarrierSummaryText ?? "";
-            barrier_status_label.Visible = !string.IsNullOrEmpty(barrier_status_label.Text);
+            // The full barrier summary is available on the skill panel tooltip.
+            barrier_status_label.Visible = false;
         }
         if (log_label != null)
             log_label.Text = _join_recent_log_lines(snapshot);
+        if (_command_dock_row != null)
+            _command_dock_row.Visible = dock.ClearSkillEnabled || hasVariantControls
+                || !string.IsNullOrEmpty(command_summary_label?.Text);
+        if (skill_panel != null)
+            skill_panel.Visible = skill_grid.GetChildCount() > 0 || _command_dock_row?.Visible == true;
+        _update_hud_layout();
     }
 
     private void _set_resolve_highlight(bool highlighted)
@@ -224,6 +260,7 @@ public partial class BattleMapPanel
         portrait_glyph_label.Text = focusUnit?.Glyph ?? "?";
         unit_name_label.Text = focusUnit?.Name ?? "待命";
         unit_role_label.Text = focusUnit?.RoleText ?? "未选中单位";
+        unit_name_label.TooltipText = $"{unit_name_label.Text}\n{unit_role_label.Text}";
         BattleHudResourceInfoSnapshot resourceInfo = focusUnit?.ResourceInfo;
 
         _set_progress_bar_values(

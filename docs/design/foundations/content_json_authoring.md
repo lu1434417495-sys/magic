@@ -43,11 +43,16 @@ file-local template 必须从至少一个 entry 经父模板链可达；孤立�
 回归锁定，不在设计文档复制易漂移计数。
 
 `gameplay_configuration` 是进程级规则配置域，集中拥有成就定义、据点商店目录、
-新游戏队伍/起始武器标签规则、`battle_skill_roles` 核心战斗技能角色，以及技能/装备生成
+新游戏队伍/起始武器标签规则与身体防具、`battle_skill_roles` 核心战斗技能角色，以及技能/装备生成
 BattleSim 的基准角色 ID。基础攻击只在 `battle_skill_roles.basic_attack_skill_id` 声明一次，
 两个生成 fixture 借用该投影。运行时只消费
 投影后的 `GameplayConfigurationDefinition`；不得在 registry、session、商店服务或生成门禁中
 保留同一批内容 ID、价格、概率或初始成员的代码种子。
+
+`new_game_party.starting_body_armor_item_id` 必须引用可装备于身体槽位的防具。当前配置为
+`leather_jerkin`（皮革短甲）；`GameSession` 创建新成员时以普通品质、满耐久生成独立实例并
+自动装备，与按随机技能选择的起始武器并存。它提供基础护甲加值 +2，不增加生命值。
+该配置只影响新档创建；已有存档直接恢复保存的装备，不重新发放。
 
 物品 JSON 是旧 item-template 链的最终展开结果；production 不再执行模板继承或
 `MergeWithTemplate`。装备能力的 condition/action payload 是 plain import model；kind

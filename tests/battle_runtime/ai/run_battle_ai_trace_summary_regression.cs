@@ -71,11 +71,11 @@ public partial class run_battle_ai_trace_summary_regression : LifecycleTestScene
     {
         var preview = new BattlePreview();
         preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
+            new BattleSkillDamagePreview(
                 true,
                 4,
                 9,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+                new List<BattleDamageEffectRange>()
             )
         );
 

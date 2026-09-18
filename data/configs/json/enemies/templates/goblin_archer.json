@@ -28,6 +28,7 @@
       "brain_id": "ranged_archer",
       "cognition_kind": "sapient",
       "creature_level": 1,
+      "challenge_rating": 1,
       "damage_resistances": {},
       "display_name": "\u54E5\u5E03\u6797\u5C04\u624B",
       "drop_entries": [

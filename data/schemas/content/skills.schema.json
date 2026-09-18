@@ -5,6 +5,26 @@
   "description": "Current full skill import contract, including combat profiles, nested effects, and closed typed payload variants.",
   "$ref": "#/$defs/SkillJsonDocumentDto",
   "$defs": {
+    "AdvanceStatusTicksEffectPayloadJsonDto": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_sources": {
+          "type": "integer"
+        },
+        "max_ticks": {
+          "type": "integer"
+        },
+        "required_source_tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "max_sources",
+        "max_ticks",
+        "required_source_tag"
+      ]
+    },
     "AttributeModifierJsonDto": {
       "type": "object",
       "additionalProperties": false,
@@ -309,6 +329,9 @@
     "CombatEffectJsonDto": {
       "oneOf": [
         {
+          "$ref": "#/$defs/CombatEffectJsonDto__advance_status_ticks"
+        },
+        {
           "$ref": "#/$defs/CombatEffectJsonDto__body_size_category_override"
         },
         {
@@ -396,6 +419,7 @@
       "discriminator": {
         "propertyName": "effect_type",
         "mapping": {
+          "advance_status_ticks": "#/$defs/CombatEffectJsonDto__advance_status_ticks",
           "body_size_category_override": "#/$defs/CombatEffectJsonDto__body_size_category_override",
           "chain_damage": "#/$defs/CombatEffectJsonDto__chain_damage",
           "charge": "#/$defs/CombatEffectJsonDto__charge",
@@ -426,6 +450,958 @@
           "vault_behind_target": "#/$defs/CombatEffectJsonDto__vault_behind_target"
         }
       }
+    },
+    "CombatEffectJsonDto__advance_status_ticks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "add_weapon_dice": {
+          "type": "boolean"
+        },
+        "allow_repeat_hits_across_steps": {
+          "type": "boolean"
+        },
+        "ap_gain": {
+          "type": "integer"
+        },
+        "applied_status_duration_tu": {
+          "type": "integer"
+        },
+        "attack_roll_advantage": {
+          "type": "boolean"
+        },
+        "attack_roll_bonus": {
+          "type": "integer"
+        },
+        "attack_roll_penalty": {
+          "type": "integer"
+        },
+        "base_heal": {
+          "type": "integer"
+        },
+        "body_size_category": {
+          "type": "string",
+          "enum": [
+            "tiny",
+            "small",
+            "medium",
+            "large",
+            "huge",
+            "gargantuan",
+            "boss"
+          ]
+        },
+        "bonus_condition": {
+          "type": "string",
+          "enum": [
+            "target_low_hp",
+            "target_debuff_count",
+            "target_creature_type",
+            "target_hard_controlled",
+            "target_has_shield"
+          ]
+        },
+        "bonus_condition_creature_type_tag": {
+          "type": "string"
+        },
+        "bonus_damage_dice_bonus": {
+          "type": "integer"
+        },
+        "bonus_damage_dice_count": {
+          "type": "integer"
+        },
+        "bonus_damage_dice_sides": {
+          "type": "integer"
+        },
+        "bonus_damage_separate_event": {
+          "type": "boolean"
+        },
+        "bonus_weapon_dice_multiplier": {
+          "type": "integer"
+        },
+        "break_on_hard_control": {
+          "type": "boolean"
+        },
+        "break_on_positive_damage": {
+          "type": "boolean"
+        },
+        "chain_backlash_hop_range_bonus": {
+          "type": "integer"
+        },
+        "chain_base_hop_range": {
+          "type": "integer"
+        },
+        "chain_conductive_hop_range": {
+          "type": "integer"
+        },
+        "chain_conductive_status_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chain_conductive_terrain_effect_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "chain_max_total_targets": {
+          "type": "integer"
+        },
+        "charge_trap_immunity_min_skill_level": {
+          "type": "integer"
+        },
+        "combo_attack_bonus_stack_divisor": {
+          "type": "integer"
+        },
+        "combo_attack_bonus_status_id": {
+          "type": "string"
+        },
+        "con_mod_base": {
+          "type": "integer"
+        },
+        "con_mod_per_2_levels": {
+          "type": "integer"
+        },
+        "consume_on_next_attack_check": {
+          "type": "boolean"
+        },
+        "consume_on_next_save": {
+          "type": "boolean"
+        },
+        "consumed_status_id": {
+          "type": "string"
+        },
+        "content_dr": {
+          "type": "integer"
+        },
+        "control_save_bonus": {
+          "type": "integer"
+        },
+        "counts_as_debuff": {
+          "type": "boolean"
+        },
+        "counts_as_debuff_override": {
+          "type": "boolean"
+        },
+        "damage_category": {
+          "type": "string",
+          "enum": [
+            "physical",
+            "spell",
+            "magic",
+            "energy"
+          ]
+        },
+        "damage_ratio_percent": {
+          "type": "integer"
+        },
+        "damage_tag": {
+          "type": "string",
+          "enum": [
+            "physical_slash",
+            "physical_pierce",
+            "physical_blunt",
+            "fire",
+            "freeze",
+            "lightning",
+            "negative_energy",
+            "force",
+            "psychic",
+            "radiant",
+            "thunder",
+            "magic",
+            "acid",
+            "poison"
+          ],
+          "description": "Closed runtime damage tag. Use freeze for cold damage; cold is not valid. Force damage also requires force_effect in effect_categories."
+        },
+        "damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "physical_slash",
+              "physical_pierce",
+              "physical_blunt",
+              "fire",
+              "freeze",
+              "lightning",
+              "negative_energy",
+              "force",
+              "psychic",
+              "radiant",
+              "thunder",
+              "magic",
+              "acid",
+              "poison"
+            ]
+          }
+        },
+        "death_prevention_priority": {
+          "type": "integer"
+        },
+        "debuff_count_threshold": {
+          "type": "integer"
+        },
+        "dice_bonus": {
+          "type": "integer"
+        },
+        "dice_count": {
+          "type": "integer"
+        },
+        "dice_per_consumed_stack": {
+          "type": "integer"
+        },
+        "dice_sides": {
+          "type": "integer"
+        },
+        "dice_sides_base": {
+          "type": "integer"
+        },
+        "dice_sides_per_constitution_mod": {
+          "type": "integer"
+        },
+        "dice_sides_per_stack": {
+          "type": "integer"
+        },
+        "dice_sides_per_willpower_mod": {
+          "type": "integer"
+        },
+        "dispellable_beneficial_magic": {
+          "type": "boolean"
+        },
+        "dispellable_harmful_magic": {
+          "type": "boolean"
+        },
+        "dispellable_magic": {
+          "type": "boolean"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "does_not_stack_with_status_id": {
+          "type": "string"
+        },
+        "does_not_stack_with_status_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dr_bypass_tag": {
+          "type": "string"
+        },
+        "duration_tu": {
+          "type": "integer"
+        },
+        "effect_categories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Typed effect categories used by runtime rules. Force damage must explicitly include force_effect; it is not inferred from damage_tag."
+        },
+        "effect_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effect_target_team_filter": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "self",
+            "ally",
+            "enemy",
+            "any"
+          ]
+        },
+        "effect_type": {
+          "type": "string",
+          "const": "advance_status_ticks"
+        },
+        "equipment_durability_slot_weights": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatEffectSlotWeightJsonDto"
+          }
+        },
+        "exclude_source": {
+          "type": "boolean"
+        },
+        "extra_damage_segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatDamageSegmentJsonDto"
+          }
+        },
+        "fixed_attack_count": {
+          "type": "integer"
+        },
+        "follow_up_attack_roll_bonus_curve": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "follow_up_damage_multiplier_percent": {
+          "type": "integer"
+        },
+        "forced_move_distance": {
+          "type": "integer"
+        },
+        "forced_move_max_target_body_size": {
+          "type": "integer"
+        },
+        "forced_move_mode": {
+          "type": "string",
+          "enum": [
+            "jump",
+            "blink",
+            "wind_push",
+            "evasive",
+            "retreat",
+            "knockback",
+            "reposition",
+            "grapple_ascent",
+            "airborne_pull"
+          ]
+        },
+        "free_move_points_gain": {
+          "type": "integer"
+        },
+        "grapple_max_height_gain": {
+          "type": "integer"
+        },
+        "guard_block": {
+          "type": "integer"
+        },
+        "heal_missing_hp_percent": {
+          "type": "integer"
+        },
+        "heal_multiplier_percent": {
+          "type": "integer"
+        },
+        "heal_per_level": {
+          "type": "integer"
+        },
+        "heal_to_hp_percent_floor": {
+          "type": "integer"
+        },
+        "height_delta": {
+          "type": "integer"
+        },
+        "hp_ratio_threshold_percent": {
+          "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
+        "jump_arc_ratio": {
+          "type": "number"
+        },
+        "jump_base_budget": {
+          "type": "integer"
+        },
+        "jump_range_multiplier": {
+          "type": "integer"
+        },
+        "jump_str_scale": {
+          "type": "number"
+        },
+        "lifetime_policy": {
+          "type": "string",
+          "enum": [
+            "timed",
+            "battle"
+          ]
+        },
+        "lock_counterattack": {
+          "type": "boolean"
+        },
+        "lock_crit": {
+          "type": "boolean"
+        },
+        "lock_dodge_bonus": {
+          "type": "boolean"
+        },
+        "lock_guard": {
+          "type": "boolean"
+        },
+        "main_skill_lock_other_debuff_count": {
+          "type": "integer"
+        },
+        "max_affected_targets": {
+          "type": "integer"
+        },
+        "max_skill_level": {
+          "type": "integer"
+        },
+        "max_status_removed": {
+          "type": "integer"
+        },
+        "melee_combo_stack_gain_bonus": {
+          "type": "integer"
+        },
+        "min_hp_after_damage": {
+          "type": "integer"
+        },
+        "min_skill_level": {
+          "type": "integer"
+        },
+        "mitigation_bypass_damage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "physical_slash",
+              "physical_pierce",
+              "physical_blunt",
+              "fire",
+              "freeze",
+              "lightning",
+              "negative_energy",
+              "force",
+              "psychic",
+              "radiant",
+              "thunder",
+              "magic",
+              "acid",
+              "poison"
+            ]
+          }
+        },
+        "mitigation_bypass_tiers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "half",
+              "double",
+              "immune"
+            ]
+          }
+        },
+        "mitigation_tier": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "half",
+            "double",
+            "immune"
+          ]
+        },
+        "move_cost_delta": {
+          "type": "integer"
+        },
+        "on_removed_status_consume_after_normal_turn": {
+          "type": "boolean"
+        },
+        "on_removed_status_id": {
+          "type": "string"
+        },
+        "on_removed_status_save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "sleep",
+              "paralysis",
+              "charm",
+              "poison",
+              "dragon_breath",
+              "fireball",
+              "chain_lightning",
+              "equipment_disjunction",
+              "magic",
+              "illusion",
+              "frightened",
+              "dragon_frightful_presence",
+              "execute",
+              "temporal",
+              "petrification",
+              "antidote",
+              "strength",
+              "agility",
+              "constitution",
+              "perception",
+              "intelligence",
+              "willpower"
+            ]
+          }
+        },
+        "on_removed_status_undispellable": {
+          "type": "boolean"
+        },
+        "overlay_priority": {
+          "type": "integer"
+        },
+        "passive_reduction": {
+          "type": "integer"
+        },
+        "path_step_area_pattern": {
+          "type": "string",
+          "enum": [
+            "single",
+            "self",
+            "diamond",
+            "square",
+            "radius",
+            "cross"
+          ]
+        },
+        "path_step_log_label": {
+          "type": "string"
+        },
+        "path_step_radius": {
+          "type": "integer"
+        },
+        "payload": {
+          "$ref": "#/$defs/AdvanceStatusTicksEffectPayloadJsonDto"
+        },
+        "power": {
+          "type": "integer"
+        },
+        "pre_resistance_damage_multiplier": {
+          "type": "number"
+        },
+        "prevent_repeat_target": {
+          "type": "boolean"
+        },
+        "range_bonus": {
+          "type": "integer"
+        },
+        "remove_beneficial": {
+          "type": "boolean"
+        },
+        "remove_beneficial_from_enemies": {
+          "type": "boolean"
+        },
+        "remove_harmful": {
+          "type": "boolean"
+        },
+        "remove_harmful_from_allies": {
+          "type": "boolean"
+        },
+        "render_overlay_id": {
+          "type": "string"
+        },
+        "repeat_hit_status_duration_tu": {
+          "type": "integer"
+        },
+        "repeat_hit_status_id": {
+          "type": "string"
+        },
+        "repeat_hit_status_log_template": {
+          "type": "string"
+        },
+        "repeat_hit_status_min_skill_level": {
+          "type": "integer"
+        },
+        "repeat_hit_status_power": {
+          "type": "integer"
+        },
+        "repeat_hit_status_threshold": {
+          "type": "integer"
+        },
+        "require_damage_applied": {
+          "type": "boolean"
+        },
+        "required_target_creature_type_tag": {
+          "type": "string"
+        },
+        "required_target_min_cognition": {
+          "type": "string",
+          "enum": [
+            "mindless",
+            "instinctive",
+            "sapient"
+          ]
+        },
+        "required_target_status_id": {
+          "type": "string"
+        },
+        "required_target_status_min_stacks": {
+          "type": "integer"
+        },
+        "required_target_status_source_selector": {
+          "type": "string",
+          "enum": [
+            "source"
+          ]
+        },
+        "requires_weapon": {
+          "type": "boolean"
+        },
+        "resolve_as_weapon_attack": {
+          "type": "boolean"
+        },
+        "save_ability": {
+          "type": "string",
+          "enum": [
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ]
+        },
+        "save_advantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "sleep",
+              "paralysis",
+              "charm",
+              "poison",
+              "dragon_breath",
+              "fireball",
+              "chain_lightning",
+              "equipment_disjunction",
+              "magic",
+              "illusion",
+              "frightened",
+              "dragon_frightful_presence",
+              "execute",
+              "temporal",
+              "petrification",
+              "antidote",
+              "strength",
+              "agility",
+              "constitution",
+              "perception",
+              "intelligence",
+              "willpower"
+            ]
+          }
+        },
+        "save_bonus": {
+          "type": "integer"
+        },
+        "save_dc": {
+          "type": "integer"
+        },
+        "save_dc_bonus": {
+          "type": "integer"
+        },
+        "save_dc_mode": {
+          "type": "string",
+          "enum": [
+            "static",
+            "caster_spell"
+          ]
+        },
+        "save_dc_source_ability": {
+          "type": "string",
+          "enum": [
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ]
+        },
+        "save_disadvantage_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "sleep",
+              "paralysis",
+              "charm",
+              "poison",
+              "dragon_breath",
+              "fireball",
+              "chain_lightning",
+              "equipment_disjunction",
+              "magic",
+              "illusion",
+              "frightened",
+              "dragon_frightful_presence",
+              "execute",
+              "temporal",
+              "petrification",
+              "antidote",
+              "strength",
+              "agility",
+              "constitution",
+              "perception",
+              "intelligence",
+              "willpower"
+            ]
+          }
+        },
+        "save_failure_status_id": {
+          "type": "string"
+        },
+        "save_failure_status_outcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatWeightedStatusOutcomeJsonDto"
+          }
+        },
+        "save_immunity_tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "sleep",
+              "paralysis",
+              "charm",
+              "poison",
+              "dragon_breath",
+              "fireball",
+              "chain_lightning",
+              "equipment_disjunction",
+              "magic",
+              "illusion",
+              "frightened",
+              "dragon_frightful_presence",
+              "execute",
+              "temporal",
+              "petrification",
+              "antidote",
+              "strength",
+              "agility",
+              "constitution",
+              "perception",
+              "intelligence",
+              "willpower"
+            ]
+          }
+        },
+        "save_partial_on_success": {
+          "type": "boolean"
+        },
+        "save_tag": {
+          "type": "string",
+          "enum": [
+            "sleep",
+            "paralysis",
+            "charm",
+            "poison",
+            "dragon_breath",
+            "fireball",
+            "chain_lightning",
+            "equipment_disjunction",
+            "magic",
+            "illusion",
+            "frightened",
+            "dragon_frightful_presence",
+            "execute",
+            "temporal",
+            "petrification",
+            "antidote",
+            "strength",
+            "agility",
+            "constitution",
+            "perception",
+            "intelligence",
+            "willpower"
+          ],
+          "description": "Closed semantic save context used by save bonuses. Choose a registered enum value such as fireball or magic; do not invent a per-skill identifier."
+        },
+        "secondary_hit_dc_base": {
+          "type": "integer"
+        },
+        "shield_attribute_modifier_id": {
+          "type": "string",
+          "enum": [
+            "strength_modifier",
+            "agility_modifier",
+            "constitution_modifier",
+            "perception_modifier",
+            "intelligence_modifier",
+            "willpower_modifier"
+          ]
+        },
+        "shield_family": {
+          "type": "string"
+        },
+        "shield_gain_multiplier_percent": {
+          "type": "integer"
+        },
+        "shield_roll_per_target": {
+          "type": "boolean"
+        },
+        "skip_turn": {
+          "type": "boolean"
+        },
+        "soul_fracture_duration_tu": {
+          "type": "integer"
+        },
+        "source_bound_weapon_bonus_damage_dice_bonus": {
+          "type": "integer"
+        },
+        "source_bound_weapon_bonus_damage_dice_count": {
+          "type": "integer"
+        },
+        "source_bound_weapon_bonus_damage_dice_sides": {
+          "type": "integer"
+        },
+        "source_retreat_distance": {
+          "type": "integer"
+        },
+        "stack_behavior": {
+          "type": "string",
+          "enum": [
+            "refresh",
+            "add",
+            "stack"
+          ]
+        },
+        "stack_limit": {
+          "type": "integer"
+        },
+        "status_id": {
+          "type": "string"
+        },
+        "stop_on_miss": {
+          "type": "boolean"
+        },
+        "stop_on_target_down": {
+          "type": "boolean"
+        },
+        "target_damage_multiplier_rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CombatTargetDamageMultiplierRuleJsonDto"
+          }
+        },
+        "target_order": {
+          "type": "string",
+          "enum": [
+            "lowest_hp_percent_then_unit_id"
+          ]
+        },
+        "termination_attack_roll_penalty": {
+          "type": "integer"
+        },
+        "termination_cooldown_tu": {
+          "type": "integer"
+        },
+        "termination_status_duration_tu": {
+          "type": "integer"
+        },
+        "termination_status_id": {
+          "type": "string"
+        },
+        "terrain_contact_mode": {
+          "type": "string",
+          "enum": [
+            "interrupt_movement_on_failed_save"
+          ]
+        },
+        "terrain_effect_id": {
+          "type": "string"
+        },
+        "terrain_effective_trigger_count": {
+          "type": "integer"
+        },
+        "terrain_max_active_instances_per_source": {
+          "type": "integer"
+        },
+        "terrain_recheck_from_inside": {
+          "type": "boolean"
+        },
+        "terrain_replace_existing_from_source": {
+          "type": "boolean"
+        },
+        "terrain_replace_to": {
+          "type": "string"
+        },
+        "terrain_requires_ground_contact": {
+          "type": "boolean"
+        },
+        "threshold_base_value": {
+          "type": "integer"
+        },
+        "threshold_cap_max_hp_ratio_percent": {
+          "type": "integer"
+        },
+        "threshold_level_anchor": {
+          "type": "integer"
+        },
+        "threshold_level_bonus_per_delta": {
+          "type": "integer"
+        },
+        "threshold_max_hp_ratio_percent": {
+          "type": "integer"
+        },
+        "tick_effect_type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "damage",
+            "movement_cost",
+            "status"
+          ]
+        },
+        "tick_interval_tu": {
+          "type": "integer"
+        },
+        "trigger_condition": {
+          "type": "string",
+          "enum": [
+            "battle_start",
+            "on_fatal_damage"
+          ]
+        },
+        "trigger_event": {
+          "type": "string",
+          "enum": [
+            "attack_hit",
+            "critical_hit",
+            "ordinary_hit",
+            "secondary_hit",
+            "forced_move_applied"
+          ]
+        },
+        "trigger_status_id": {
+          "type": "string"
+        },
+        "undispellable": {
+          "type": "boolean"
+        },
+        "upkeep_base_cost": {
+          "type": "integer"
+        },
+        "upkeep_cost_multiplier": {
+          "type": "integer"
+        },
+        "upkeep_escalation_interval_tu": {
+          "type": "integer"
+        },
+        "upkeep_interval_tu": {
+          "type": "integer"
+        },
+        "upkeep_resource": {
+          "type": "string",
+          "enum": [
+            "ap",
+            "aura",
+            "mp",
+            "stamina"
+          ]
+        },
+        "use_weapon_physical_damage_tag": {
+          "type": "boolean"
+        },
+        "weapon_dice_multiplier": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "effect_type",
+        "payload"
+      ]
     },
     "CombatEffectJsonDto__body_size_category_override": {
       "type": "object",
@@ -772,6 +1748,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -1722,6 +2701,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -2670,6 +3652,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -3620,6 +4605,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -4568,6 +5556,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -5518,6 +6509,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -6466,6 +7460,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -7416,6 +8413,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -8364,6 +9364,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -9314,6 +10317,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -10262,6 +11268,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -11212,6 +12221,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -12160,6 +13172,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -13110,6 +14125,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -14058,6 +15076,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -15008,6 +16029,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -15956,6 +16980,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -16906,6 +17933,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -17854,6 +18884,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -18804,6 +19837,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -19752,6 +20788,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -20702,6 +21741,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -21650,6 +22692,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -22600,6 +23645,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -23548,6 +24596,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -24498,6 +25549,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -25447,6 +26501,9 @@
         "hp_ratio_threshold_percent": {
           "type": "integer"
         },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
+        },
         "jump_arc_ratio": {
           "type": "number"
         },
@@ -26395,6 +27452,9 @@
         },
         "hp_ratio_threshold_percent": {
           "type": "integer"
+        },
+        "incoming_attack_roll_disadvantage": {
+          "type": "boolean"
         },
         "jump_arc_ratio": {
           "type": "number"
@@ -27491,6 +28551,7 @@
             "damage_dealt",
             "status_applied",
             "effect_applied",
+            "incoming_attack_disadvantage",
             "incoming_physical_hit",
             "secondary_hit",
             "source_bound_weapon_bonus_damage",
@@ -27926,6 +28987,7 @@
             "damage_dealt",
             "status_applied",
             "effect_applied",
+            "incoming_attack_disadvantage",
             "incoming_physical_hit",
             "secondary_hit",
             "source_bound_weapon_bonus_damage",

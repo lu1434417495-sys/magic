@@ -379,6 +379,7 @@ internal sealed class BattleAiSkillAffordanceClassifier
         }
         BattleEffectKind effectKind = effectDef.EffectKind;
         return effectKind == BattleEffectKind.Damage
+            || effectKind == BattleEffectKind.AdvanceStatusTicks
             || effectKind == BattleEffectKind.ChainDamage
             || effectKind == BattleEffectKind.PathStepAoe
             || effectKind == BattleEffectKind.Execute

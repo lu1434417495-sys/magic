@@ -187,6 +187,8 @@ internal sealed class WorldContentRegistry
                 import.WorldStrongholdSpacingCells,
                 import.MetropolisSpacingCells,
                 import.GuaranteeStartingWildEncounter,
+                import.StartingWildSpawnRegionTag,
+                new WorldStartingAreaDefinition(ProjectVector(import.StartingArea.Size), import.StartingArea.MaxChallengeRating),
                 import.StartingWildSpawnMinDistance,
                 import.StartingWildSpawnMaxDistance,
                 import.SettlementLibrary.Select(ProjectSettlement).ToArray(),

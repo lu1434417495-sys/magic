@@ -34,7 +34,8 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         gridSystem.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
         WorldMapSpawnSystem.WorldBuildData typedWorld = new WorldMapSpawnSystem().BuildWorldTyped(
             definition,
-            gridSystem
+            gridSystem,
+            BuildChallenges()
         );
         WorldMapSpawnSystem.SettlementInstanceData playerVillage = null;
         foreach (WorldMapSpawnSystem.SettlementInstanceData settlement in typedWorld.Settlements)
@@ -134,7 +135,8 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         WorldMapSpawnSystem spawnSystem = new();
         WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
             definition,
-            gridSystem
+            gridSystem,
+            BuildChallenges()
         );
         Dictionary<string, object> projectedWorld =
             WorldMapSpawnProjection.BuildSnapshotPlain(typedWorld);
@@ -249,7 +251,8 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         WorldMapSpawnSystem spawnSystem = new();
         WorldMapSpawnSystem.WorldBuildData typedWorld = spawnSystem.BuildWorldTyped(
             definition,
-            gridSystem
+            gridSystem,
+            BuildChallenges()
         );
 
         _test.True(typedWorld.ResourceNodes.Count > 0, "typed world build 应生成资源点。");
@@ -347,4 +350,10 @@ public partial class run_world_map_spawn_typed_regression : LifecycleTestSceneTr
         && value is string text
             ? text
             : "";
+    private static EncounterChallengeCatalog BuildChallenges()
+    {
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        return new(snapshot.BattleEncounters, snapshot.EncounterRosters, snapshot.EnemyTemplates);
+    }
+
 }

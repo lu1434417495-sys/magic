@@ -2,34 +2,10 @@ using System;
 using System.Collections.Generic;
 using Godot;
 
-internal sealed class BattlePreparedChainDamage
-{
-    internal static BattlePreparedChainDamage Empty { get; } =
-        new(null, Array.Empty<CombatEffectDefinition>(), BattleChainDamagePlan.Empty);
-
-    internal BattlePreparedChainDamage(
-        CombatEffectDefinition chainEffect,
-        IReadOnlyList<CombatEffectDefinition> targetEffects,
-        BattleChainDamagePlan plan
-    )
-    {
-        ChainEffect = chainEffect;
-        TargetEffects = targetEffects ?? Array.Empty<CombatEffectDefinition>();
-        Plan = plan ?? BattleChainDamagePlan.Empty;
-    }
-
-    internal CombatEffectDefinition ChainEffect { get; }
-    internal IReadOnlyList<CombatEffectDefinition> TargetEffects { get; }
-    internal BattleChainDamagePlan Plan { get; }
-    internal bool IsConfigured =>
-        ChainEffect?.ChainDamage != null && TargetEffects.Count > 0;
-}
-
 internal sealed class BattleChainDamageService
 {
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillExecutionOrchestrator _owner;
-    private BattleSkillPreviewService _skillPreviewService;
 
     private BattleRuntimeModule _runtime
     {
@@ -47,80 +23,23 @@ internal sealed class BattleChainDamageService
 
     internal void Setup(
         BattleRuntimeModule runtime,
-        BattleSkillExecutionOrchestrator owner,
-        BattleSkillPreviewService skillPreviewService
+        BattleSkillExecutionOrchestrator owner
     )
     {
         _runtime = runtime;
         _owner = owner;
-        _skillPreviewService = skillPreviewService;
     }
 
     internal void DisposeRuntime()
     {
         _runtime = null;
         _owner = null;
-        _skillPreviewService = null;
     }
 
     internal BattlePreparedChainDamage BuildPreparedPlan(
-        BattleUnitState sourceUnit,
-        BattleUnitState primaryTarget,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        bool backlashTriggered
-    )
-    {
-        if (sourceUnit == null || primaryTarget == null || skillDefinition == null)
-            return BattlePreparedChainDamage.Empty;
-        CombatEffectDefinition chainEffect = FindChainEffect(effectDefinitions);
-        if (chainEffect?.ChainDamage == null)
-            return BattlePreparedChainDamage.Empty;
-        IReadOnlyList<CombatEffectDefinition> targetEffects =
-            BuildChainTargetEffectDefinitions(effectDefinitions, chainEffect);
-        if (targetEffects.Count == 0)
-            return BattlePreparedChainDamage.Empty;
-
-        StringName targetFilter = _owner.ResolveEffectTargetFilter(
-            skillDefinition,
-            chainEffect
-        );
-        if (BattleSkillExecutionOrchestrator.StringNameIsEmpty(targetFilter))
-            return BattlePreparedChainDamage.Empty;
-        BattleState state = _owner.RtState();
-        if (state == null)
-            return BattlePreparedChainDamage.Empty;
-        BattleChainDamagePlan plan = BattleChainDamageRules.BuildPlan(
-            state.AsReadView(),
-            primaryTarget,
-            chainEffect.ChainDamage,
-            backlashTriggered,
-            candidate =>
-                _owner._is_unit_valid_for_effect(
-                    sourceUnit,
-                    candidate.UnsafeUnitForReadOnlyRules,
-                    targetFilter
-                )
-        );
-        return new BattlePreparedChainDamage(chainEffect, targetEffects, plan);
-    }
-
-    internal BattlePreparedChainDamage BuildPreparedPreviewPlan(
-        BattleUnitReadView sourceUnit,
-        BattleUnitReadView primaryTarget,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        bool backlashTriggered
-    )
-    {
-        return BuildPreparedPlan(
-            sourceUnit.UnsafeUnitForReadOnlyRules,
-            primaryTarget.UnsafeUnitForReadOnlyRules,
-            skillDefinition,
-            effectDefinitions,
-            backlashTriggered
-        );
-    }
+        BattleUnitState sourceUnit, BattleUnitState primaryTarget, SkillDefinition skillDefinition,
+        IReadOnlyList<CombatEffectDefinition> effectDefinitions, bool backlashTriggered
+    ) => BattleChainDamagePreparationRules.BuildPreparedPlan(Runtime?._state, sourceUnit, primaryTarget, skillDefinition, effectDefinitions, backlashTriggered);
 
     internal void _apply_chain_damage_effects(
         BattleUnitState sourceUnit,
@@ -223,7 +142,7 @@ internal sealed class BattleChainDamageService
             _owner._append_changed_unit_id(batch, chainTarget.unit_id);
             _owner._append_changed_unit_coords(batch, chainTarget);
             _owner.append_result_source_status_effects(batch, sourceUnit, chainResolution);
-            _skillPreviewService.AppendDamageResultLogLines(
+            Runtime?._report_formatter?.AppendDamageResultLogLines(
                 batch,
                 $"{skillSubject} 的连锁闪电",
                 chainTarget.display_name,
@@ -278,43 +197,4 @@ internal sealed class BattleChainDamageService
         }
     }
 
-    internal static CombatEffectDefinition FindChainEffect(
-        IEnumerable<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition?.EffectKind == BattleEffectKind.ChainDamage
-                && effectDefinition.ChainDamage != null
-            )
-                return effectDefinition;
-        }
-        return null;
-    }
-
-    internal static IReadOnlyList<CombatEffectDefinition> BuildChainTargetEffectDefinitions(
-        IEnumerable<CombatEffectDefinition> effectDefinitions,
-        CombatEffectDefinition chainEffect
-    )
-    {
-        var chainTargetEffects = new List<CombatEffectDefinition>();
-        foreach (
-            CombatEffectDefinition effectDefinition in effectDefinitions
-                ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition == null
-                || effectDefinition == chainEffect
-                || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
-            )
-                continue;
-            chainTargetEffects.Add(effectDefinition);
-        }
-        return chainTargetEffects;
-    }
 }

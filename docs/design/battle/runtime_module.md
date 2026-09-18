@@ -347,7 +347,8 @@ AI 决策必须使用 snapshot/value object：
 - `public bool IsUnitGuardLocked(BattleUnitState unit_state) =>`
 - `public bool IsUnitCounterattackLocked(BattleUnitState unit_state) =>`
 - `public bool IsUnitFollowUpLocked(BattleUnitState unit_state) =>`
-- `internal void _ensure_sidecars_ready()`
+- `internal void AssertRuntimeAvailable()`（只检查生命周期；不触发 Setup）
+- `private void BindRuntimeSidecars()`（构造、FinishSetup 与显式更换 damage resolver 的统一组合入口）
 - `internal WarehouseState _get_party_backpack_state(PartyState party_state)`
 - `public bool IsBattleActive() =>`
 - `internal IReadOnlyList<Vector2I> GetUnitReachableMoveCoordsTyped(BattleUnitState unit_state)`
@@ -620,30 +621,32 @@ AI 决策必须使用 snapshot/value object：
 - `internal bool CommitEquipmentSkillUsageIfNeeded(...)`
 - 装备技能 usage 与 granted-skill reaction 的真实提交归执行编排器；module 只保留测试/兄弟服务使用的窄门面。
 
+依赖方向和独立 core 契约详见 [运行时依赖边界](runtime_dependency_boundaries.md)。
+
 ### `scripts/systems/battle/runtime/BattleSkillPreviewService.cs`
 
-- `internal sealed class BattleSkillPreviewService`
+- `internal sealed partial class BattleSkillPreviewService`（含 `BattleSkillPreviewService.Targeting.cs`）
 - `internal void Setup(...)` / `internal void DisposeRuntime()`
-- 拥有技能 preview、unit/ground preview 分支、伤害预览与结果日志；弱借用 runtime，关闭时断开 orchestrator 与 target-validation borrower。
+- 拥有技能 preview、unit/ground preview 分支及伤害预览；弱借用 `IBattleSkillPreviewRuntimePort`，关闭时断开端口与 target-validation borrower，不再持有执行器。执行日志直接交给 report formatter。
 
 ### `scripts/systems/battle/runtime/BattleSkillTargetValidationService.cs`
 
 - `internal sealed class BattleSkillTargetValidationService`
 - `internal void Setup(...)` / `internal void DisposeRuntime()`
-- 拥有目标归一化/排序、unit/read-view 校验、dead/execute/体型规则与 target affordance；`_is_multi_unit_skill(...)` 只属于该 service。
+- 拥有目标归一化/排序、unit/read-view 校验、dead/execute/体型规则、target affordance 与随机链候选池；`_is_multi_unit_skill(...)` 只属于该 service。校验器不持有执行器，仅借用当前命令等级查询委托。
 
 ### `scripts/systems/battle/runtime/BattleChainDamageService.cs`
 
 - `internal readonly record struct ChainDamageParameters` / `internal readonly record struct ChainDamageHop`
 - `internal sealed class BattleChainDamageService`
 - `internal void Setup(...)` / `internal void DisposeRuntime()`
-- 拥有 chain target 收集、逐跳 origin、半径/地形 bonus、屏障/路径检查与结算；关闭时断开 orchestrator 与 preview borrower。
+- 拥有逐跳 origin、屏障/路径检查与正式结算；chain target 准备统一调用 `BattleChainDamagePreparationRules`。关闭时断开 orchestrator borrower，日志不再经过 preview。
 
 ### `scripts/systems/battle/runtime/BattleRandomChainSkillService.cs`
 
 - `internal sealed class BattleRandomChainSkillService`
 - `internal void Setup(...)` / `internal void DisposeRuntime()`
-- 拥有随机链候选池、每目标命中上限、抽样与执行；`_shuffle_random_chain_pool(...)` 只属于该 service，关闭时断开 orchestrator 与 target-validation borrower。
+- 消费目标校验器提供的随机链候选池，拥有每目标命中上限、抽样与执行；`_shuffle_random_chain_pool(...)` 只属于该 service，关闭时断开 orchestrator 与 target-validation borrower。
 
 ### `scripts/systems/battle/runtime/BattleTargetCollectionService.cs`
 
@@ -684,6 +687,7 @@ AI 决策必须使用 snapshot/value object：
 - `internal void InitializeAppliedStatusTimelineTicks(...)`（Godot collection 与 plain typed overload）
 - `internal BattleStatusTickResult ApplyTurnStartStatusesResult(...)` / `ApplyUnitStatusPeriodicTicksResult(...)`
 - `internal bool AdvanceUnitStatusDurations(...)`
+- 状态与护盾时钟推进的单一实现是 `BattleStatusDurationRules.Advance(...)`；resolver 通过 `IBattleStatusDurationRuntimeHooks` 接回目标标记时钟与到期反应、体型恢复时的占格校验。AI 推演只调用 `BattleStatusDurationRules.AdvanceUnitProjection(...)`，不实例化 resolver，也不触碰 `BattleState`、网格或 batch。
 - 真实拥有 cooldown 的 current-TU/静滞/turn-start 调度、非法粒度日志与 changed-unit 提交，以及 turn timer、状态周期 tick/duration/turn-start 规则和护盾 duration 调度；cooldown map/anchor 的唯一存储与原子判定/推进归 `BattleUnitCooldownState`。该 resolver 仍以状态应用时的 current TU 为基准初始化 `next_tick_at_tu`；护盾实际递减和到期六字段清空归 `BattleUnitShieldState`。
 - `BattleRuntimeModule.MarkAppliedStatusesForTurnTiming(...)` 只负责先调用该 resolver 初始化 tick anchor，再通知 Fate runtime；不成为状态计时 owner。
 

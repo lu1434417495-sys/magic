@@ -250,6 +250,7 @@ internal sealed partial class CombatEffectJsonDto
     [JsonPropertyName("lock_counterattack")] public bool LockCounterattack { get; init; }
     [JsonPropertyName("lock_guard")] public bool LockGuard { get; init; }
     [JsonPropertyName("lock_dodge_bonus")] public bool LockDodgeBonus { get; init; }
+    [JsonPropertyName("incoming_attack_roll_disadvantage")] public bool IncomingAttackRollDisadvantage { get; init; }
     [JsonPropertyName("lock_crit")] public bool LockCrit { get; init; }
     [JsonPropertyName("skip_turn")] public bool SkipTurn { get; init; }
     [JsonPropertyName("break_on_positive_damage")] public bool BreakOnPositiveDamage { get; init; }
@@ -345,6 +346,14 @@ internal sealed class CombatWeightedStatusOutcomeJsonDto
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class EmptyCombatEffectPayloadJsonDto { }
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class AdvanceStatusTicksEffectPayloadJsonDto
+{
+    [JsonPropertyName("max_ticks")] public required int MaxTicks { get; init; }
+    [JsonPropertyName("max_sources")] public required int MaxSources { get; init; }
+    [JsonPropertyName("required_source_tag")] public required string RequiredSourceTag { get; init; }
+}
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed class StatusEffectPayloadJsonDto

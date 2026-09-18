@@ -7,7 +7,7 @@ using GDictionary = Godot.Collections.Dictionary;
 internal static class BattleDamagePreviewRangeProjection
 {
     internal static GodotProjectionLease<GDictionary> BuildLease(
-        BattleDamagePreviewRangeService.SkillDamagePreview? preview
+        BattleSkillDamagePreview? preview
     )
     {
         GDictionary root = new();
@@ -33,7 +33,7 @@ internal static class BattleDamagePreviewRangeProjection
 
     internal static GDictionary WriteOwned<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        BattleDamagePreviewRangeService.SkillDamagePreview? preview,
+        BattleSkillDamagePreview? preview,
         string reason
     )
         where TLeaseRoot : class, IDisposable
@@ -47,7 +47,7 @@ internal static class BattleDamagePreviewRangeProjection
     private static void WriteInto<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
         GDictionary target,
-        BattleDamagePreviewRangeService.SkillDamagePreview preview
+        BattleSkillDamagePreview preview
     )
         where TLeaseRoot : class, IDisposable
     {
@@ -64,7 +64,7 @@ internal static class BattleDamagePreviewRangeProjection
 
     private static GArray WriteDamageRanges<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        IReadOnlyList<BattleDamagePreviewRangeService.DamageEffectRange> ranges,
+        IReadOnlyList<BattleDamageEffectRange> ranges,
         string reason
     )
         where TLeaseRoot : class, IDisposable
@@ -79,7 +79,7 @@ internal static class BattleDamagePreviewRangeProjection
 
     private static GDictionary WriteRange<TLeaseRoot>(
         GodotProjectionLease<TLeaseRoot> lease,
-        BattleDamagePreviewRangeService.DamageEffectRange range,
+        BattleDamageEffectRange range,
         string reason
     )
         where TLeaseRoot : class, IDisposable

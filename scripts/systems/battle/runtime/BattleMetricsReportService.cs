@@ -112,13 +112,13 @@ internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
 
     internal void _initialize_battle_metrics()
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.InitializeBattleMetrics();
     }
 
     internal void RecordTurnStartedMetrics(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordTurnStarted(unit_state);
     }
 
@@ -128,19 +128,19 @@ internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
         int ap_cost = 0
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordActionIssued(unit_state, command_type, ap_cost);
     }
 
     internal void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordSkillAttempt(unit_state, skill_id);
     }
 
     internal void _record_skill_success(BattleUnitState unit_state, StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordSkillSuccess(unit_state, skill_id);
     }
 
@@ -152,7 +152,7 @@ internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
         int kill_count
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordEffectMetrics(
             source_unit,
             target_unit,
@@ -164,7 +164,7 @@ internal sealed class BattleMetricsReportService : BattleRuntimeModuleBorrower
 
     internal void _record_unit_defeated(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._metrics_collector.RecordUnitDefeated(unit_state);
     }
 }

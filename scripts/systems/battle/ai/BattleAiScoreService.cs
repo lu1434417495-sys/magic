@@ -373,6 +373,7 @@ public sealed partial class BattleAiScoreService : IDisposable
         );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
         PopulateHealingSuppressionMetrics(scoreInput, context);
+        PopulateVulnerabilityMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
         PopulateForcedMovePositionMetrics(scoreInput, context);
         PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
         PopulateRangedWeaponReactionThreatMetrics(
@@ -380,6 +381,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             context,
             skillDefinition
         );
+        PopulateIncomingAttackDefenseMetrics(scoreInput, context, effectiveEffectDefinitions);
         PopulateTauntAllyDamageRelief(
             scoreInput,
             context,
@@ -1302,7 +1304,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             }
             else
             {
-                targetEffects = BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
+                targetEffects = BattleDirectionalPiercingRules.BuildDirectionalPiercingEffects(
                         effectDefinitions,
                         directionalBaseDamagePercent / 100.0
                             * BattleDirectionalPiercingRules.GetExpectedDecayMultiplier(
@@ -1318,7 +1320,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             }
             if (repeatAttackEffect != null)
             {
-                targetEffects = BattleRepeatAttackResolver.BuildRepeatAttackPreviewEffects(
+                targetEffects = BattleRepeatAttackEffectRules.BuildPreviewEffects(
                     targetEffects,
                     repeatAttackEffect,
                     repeatAttackStageCount

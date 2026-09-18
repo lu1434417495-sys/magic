@@ -256,6 +256,8 @@ public partial class run_validation_text_surface_regression : LifecycleTestScene
             source.WorldStrongholdSpacingCells,
             source.MetropolisSpacingCells,
             source.GuaranteeStartingWildEncounter,
+            source.StartingWildSpawnRegionTag,
+            source.StartingArea,
             source.StartingWildSpawnMinDistance,
             source.StartingWildSpawnMaxDistance,
             source.SettlementLibrary,

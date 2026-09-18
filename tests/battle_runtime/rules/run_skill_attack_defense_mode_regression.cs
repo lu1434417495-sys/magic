@@ -9,7 +9,7 @@ public partial class run_skill_attack_defense_mode_regression : LifecycleTestSce
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
-        policy.Setup(hitResolver, null);
+        policy.Setup(hitResolver);
         try
         {
             TestNormalTouchAndFlatFootedAc(policy, hitResolver);

@@ -152,7 +152,7 @@ internal static class BattleAiPayloadGuard
     }
 
     internal static bool ValidateNoForbiddenObject(
-        BattleDamagePreviewRangeService.SkillDamagePreview? value,
+        BattleSkillDamagePreview? value,
         string context
     )
     {

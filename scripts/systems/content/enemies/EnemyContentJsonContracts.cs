@@ -458,6 +458,8 @@ internal sealed class EnemyTemplateJsonDto
     [JsonPropertyName("enemy_count"), JsonRequired] public int EnemyCount { get; init; }
     [JsonPropertyName("body_size"), JsonRequired] public int BodySize { get; init; }
     [JsonPropertyName("creature_level"), JsonRequired] public int CreatureLevel { get; init; }
+    [Description("Authored challenge rating of one creature, independent of creature_level and encounter count; finite and >= 0.")]
+    [JsonPropertyName("challenge_rating"), JsonRequired] public double ChallengeRating { get; init; }
     [JsonPropertyName("hit_die_sides"), JsonRequired] public int HitDieSides { get; init; }
     [JsonPropertyName("cognition_kind"), JsonRequired] public string CognitionKind { get; init; } = "";
     [JsonPropertyName("tags"), JsonRequired] public IReadOnlyList<string> Tags { get; init; } = Array.Empty<string>();

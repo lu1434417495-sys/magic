@@ -90,7 +90,6 @@ internal class BattleMovementService
         return BattleSourceRetreatRules.BuildPlan(
             State,
             GridService,
-            LayeredBarrierService,
             sourceUnit,
             targetCoord,
             direction,
@@ -109,7 +108,6 @@ internal class BattleMovementService
         return BattleSourceRetreatRules.BuildPlan(
             State,
             GridService,
-            LayeredBarrierService,
             sourceUnit,
             targetCoord,
             direction,
@@ -127,7 +125,6 @@ internal class BattleMovementService
         return BattleApproachAttackRules.BuildPlan(
             State,
             GridService,
-            LayeredBarrierService,
             sourceUnit,
             targetUnit,
             skillDefinition,
@@ -144,7 +141,6 @@ internal class BattleMovementService
         return BattleApproachAttackRules.BuildPlan(
             State,
             GridService,
-            LayeredBarrierService,
             sourceUnit,
             targetUnit,
             skillDefinition,
@@ -234,7 +230,6 @@ internal class BattleMovementService
             !BattleLineThroughAttackRules.CanCommitLanding(
                 State,
                 GridService,
-                LayeredBarrierService,
                 sourceUnit,
                 plan
             )
@@ -743,6 +738,7 @@ internal class BattleMovementService
         );
         BattleValidatedMoveExecutionResult executionResult =
             MoveUnitAlongValidatedPathTyped(active_unit, anchorPath, targetCoord, batch);
+        batch?.AddMovement(active_unit.unit_id, executionResult.ExecutedPath);
         if (executionResult.Executed || executionResult.MovementAttemptCommitted)
         {
             moveCost = executionResult.StoppedByTerrainContact

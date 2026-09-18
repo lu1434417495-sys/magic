@@ -21,6 +21,7 @@
       "brain_id": "frontline_bulwark",
       "cognition_kind": "instinctive",
       "creature_level": 4,
+      "challenge_rating": 3,
       "damage_resistances": {},
       "display_name": "\u8352\u72FC\u5148\u950B",
       "drop_entries": [

@@ -22,6 +22,12 @@ internal static class TestSkillDefinitionProjection
     internal static GStringArray ValidateSyntheticSkillFixture(
         SkillDef skill,
         string sourceLabel = "<synthetic-skill>"
+    ) => ValidateSyntheticSkillFixture(skill, sourceLabel, out _);
+
+    private static GStringArray ValidateSyntheticSkillFixture(
+        SkillDef skill,
+        string sourceLabel,
+        out bool projected
     )
     {
         var errors = new GStringArray();
@@ -30,12 +36,78 @@ internal static class TestSkillDefinitionProjection
             SkillDiagnosticFixtureProjection.TryProject(context, skill);
         foreach (ContentJsonDiagnostic diagnostic in result.Diagnostics)
             errors.Add($"{diagnostic.RuleId} {diagnostic.SourceLabel}{diagnostic.JsonPointer}: {diagnostic.Message}");
+        projected = result.HasValue;
         if (!result.HasValue)
             return errors;
         var validator = new SkillImportModelValidator();
         foreach (string message in validator.ValidateMessages(result.Value))
             errors.Add(message);
         return errors;
+    }
+
+    /// <summary>
+    /// 经生产 fixture 投影与 Definition validator 校验单个 effect。
+    /// 只返回该 effect 引入的报错：同一外壳技能在不含该 effect 时已有的报错会被扣除。
+    /// effect 在生产报错里的位置标签是 <c>combat_profile.effect_defs[0]</c>。
+    /// </summary>
+    internal static GStringArray ValidateSyntheticEffectFixture(
+        CombatEffectDef effect,
+        StringName skillId,
+        SkillDef skillContext = null
+    )
+    {
+        using var profile = new CombatSkillDef { skill_id = skillId };
+        profile.effect_defs.Add(effect);
+        try
+        {
+            return ValidateSyntheticCombatProfileFixture(profile, skillId, skillContext);
+        }
+        finally
+        {
+            profile.effect_defs.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 经生产 fixture 投影与 Definition validator 校验 combat profile。
+    /// 只返回该 profile 引入的报错：同一技能外壳在没有 combat profile 时已有的报错会被扣除。
+    /// 传入 <paramref name="skillContext"/> 时沿用它的技能级字段，校验结束后恢复其 combat_profile。
+    /// </summary>
+    internal static GStringArray ValidateSyntheticCombatProfileFixture(
+        CombatSkillDef profile,
+        StringName skillId,
+        SkillDef skillContext = null
+    )
+    {
+        using SkillDef ownedShell = skillContext == null
+            ? new SkillDef { skill_id = skillId, display_name = skillId.ToString() }
+            : null;
+        SkillDef shell = skillContext ?? ownedShell;
+        CombatSkillDef originalProfile = shell.combat_profile;
+        try
+        {
+            shell.combat_profile = null;
+            GStringArray baseline = ValidateSyntheticSkillFixture(
+                shell,
+                skillId.ToString(),
+                out bool baselineProjected
+            );
+            if (!baselineProjected)
+            {
+                throw new InvalidOperationException(
+                    "Synthetic skill shell failed fixture projection: " + string.Join(" | ", baseline)
+                );
+            }
+            shell.combat_profile = profile;
+            GStringArray result = ValidateSyntheticSkillFixture(shell, skillId.ToString());
+            foreach (string message in baseline)
+                result.Remove(message);
+            return result;
+        }
+        finally
+        {
+            shell.combat_profile = originalProfile;
+        }
     }
 
     private static IReadOnlyDictionary<StringName, SkillDefinition> LoadDefinitions()

@@ -162,10 +162,6 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
 
     private void TestOrderedSlotSchemaValidation()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using var invalidOrdered = new CombatSkillDef
         {
             skill_id = "invalid_ordered_slots",
@@ -179,11 +175,7 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
             mp_cost_per_target_slot = 2,
         };
         var invalidOrderedErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            invalidOrderedErrors,
-            invalidOrdered.skill_id,
-            invalidOrdered
-        );
+        invalidOrderedErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(invalidOrdered, invalidOrdered.skill_id));
         _test.True(
             invalidOrderedErrors.Any(error => error.Contains("allow_repeat_target=true")),
             $"ordered_slots缺少重复目标能力时必须被拒绝。errors={string.Join(" | ", invalidOrderedErrors)}"
@@ -196,11 +188,7 @@ public partial class run_mage_arcane_missile_regression : LifecycleTestSceneTree
             mp_cost_per_target_slot = 2,
         };
         var invalidAggregateErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            invalidAggregateErrors,
-            invalidAggregate.skill_id,
-            invalidAggregate
-        );
+        invalidAggregateErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(invalidAggregate, invalidAggregate.skill_id));
         _test.True(
             invalidAggregateErrors.Any(
                 error => error.Contains("per-target-slot costs require")

@@ -366,6 +366,7 @@ internal static class SkillDefinitionProjector
             lockCounterattack: source.LockCounterattack,
             lockGuard: source.LockGuard,
             lockDodgeBonus: source.LockDodgeBonus,
+            incomingAttackRollDisadvantage: source.IncomingAttackRollDisadvantage,
             lockCrit: source.LockCrit,
             saveBonus: source.SaveBonus,
             controlSaveBonus: source.ControlSaveBonus,
@@ -690,6 +691,8 @@ internal static class SkillDefinitionProjector
     {
         EmptyCombatEffectPayloadImportModel =>
             EmptyCombatEffectPayloadDefinition.Instance,
+        AdvanceStatusTicksEffectPayloadImportModel value => new AdvanceStatusTicksEffectPayloadDefinition(
+            value.MaxTicks, value.MaxSources, Name(value.RequiredSourceTag)),
         StatusEffectPayloadImportModel value => new StatusEffectPayloadDefinition(
             Name(value.BreaksBarrierLayer),
             Name(value.SourceSkillId)

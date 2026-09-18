@@ -1,0 +1,16 @@
+{
+  "documents": 2,
+  "local_links_checked": 51,
+  "observations": 73,
+  "temporary_observer_removed": true,
+  "build_after_cleanup": {
+    "command": "dotnet build magic.csproj --nologo",
+    "exit_code": 0,
+    "warnings": 0,
+    "errors": 0,
+    "elapsed_seconds": 13.59
+  },
+  "full_regression_run": false,
+  "ci_run": false,
+  "journey_verdict": "not_completed"
+}

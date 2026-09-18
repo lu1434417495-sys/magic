@@ -56,7 +56,6 @@ public partial class BattleMapPanel : Control
     private const float LOADING_PROGRESS_READY = 100.0f;
     private const float MIN_BATTLE_LOADING_DURATION_SECONDS = 0.35f;
     private const int MAX_BATTLE_RENDER_READY_FRAMES = 12;
-    private static readonly Color BATTLE_BACKGROUND_COLOR = Colors.Black;
     private const string BATTLE_BOARD_SCENE_PATH =
         "res://scenes/ui/battle_board_2d.tscn";
     private ShaderMaterial _skill_icon_grayscale_material;
@@ -157,6 +156,10 @@ public partial class BattleMapPanel : Control
     public Label log_label;
 
     private Vector2I _hover_preview_coord = InvalidHoverCoord;
+    private Vector2 _hover_viewport_position;
+    private Vector2 _hover_overlay_anchor;
+    private bool _hover_source_present;
+    private double _hover_exit_elapsed;
     private List<Vector2I> _hover_preview_valid_coords = new();
     private StringName _hover_preview_selected_skill_id = "";
     private StringName _hover_preview_selected_skill_variant_id = "";
@@ -210,6 +213,7 @@ public partial class BattleMapPanel : Control
         fate_badge_row = GetNode<HFlowContainer>("%FateBadgeRow");
         skill_grid = GetNode<GridContainer>("%SkillGrid");
         skill_grid.Resized += _update_skill_grid_columns;
+        GetNode<ScrollContainer>("%SkillScroll").Resized += _update_skill_grid_columns;
         hover_overlay = GetNode<BattleHoverPreviewOverlay>("%HoverPreviewOverlay");
 
         _create_command_dock();
@@ -218,6 +222,7 @@ public partial class BattleMapPanel : Control
         _ensure_battle_board();
         _update_zoom_chip();
         map_viewport_container.GuiInput += _on_map_viewport_container_gui_input;
+        map_viewport_container.MouseExited += _on_map_hover_exited;
         _apply_static_skin();
         _ensure_battle_equipment_ui();
         _set_placeholder_state();
@@ -236,6 +241,11 @@ public partial class BattleMapPanel : Control
 
     public override void _ExitTree()
     {
+        CancelMovementPlayback();
+        MovementPlaybackFinished = null;
+        var skillScroll = GetNodeOrNull<ScrollContainer>("%SkillScroll");
+        if (skillScroll != null)
+            skillScroll.Resized -= _update_skill_grid_columns;
         _invalidate_battle_reveal();
         _clear_pending_show_battle_payload();
         _clear_hover_preview_state();
@@ -246,7 +256,10 @@ public partial class BattleMapPanel : Control
         if (top_bar != null)
             top_bar.Resized -= _update_hud_layout;
         if (map_viewport_container != null)
+        {
             map_viewport_container.GuiInput -= _on_map_viewport_container_gui_input;
+            map_viewport_container.MouseExited -= _on_map_hover_exited;
+        }
         if (_map_viewport_host != null)
             _map_viewport_host.Resized -= _resize_map_viewport;
         GetViewport().SizeChanged -= _resize_map_viewport;
@@ -920,14 +933,18 @@ public partial class BattleMapPanel : Control
     {
         if (hover_overlay == null)
             return null;
-        if (battle_state == null || hover_coord == InvalidHoverCoord)
+        if (battle_state == null)
         {
             _clear_hover_preview_state();
             hover_overlay.Clear();
             return null;
         }
+        if (hover_coord == InvalidHoverCoord)
+        {
+            _hover_source_present = false;
+            return null;
+        }
         List<Vector2I> validTargetCoords = CloneVector2IList(valid_target_coords);
-        _hover_preview_coord = hover_coord;
         _hover_preview_valid_coords = CloneVector2IList(validTargetCoords);
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
         _hover_preview_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
@@ -943,6 +960,12 @@ public partial class BattleMapPanel : Control
             validTargetCoords,
             hoverPreview
         );
+        _hover_source_present = preview.TargetUnit != null || (preview.HasSelectedSkill && preview.HoverIsValidTarget);
+        if (!_hover_source_present) return hoverPreview;
+        if (_hover_preview_coord != hover_coord || !hover_overlay.Visible)
+            _hover_overlay_anchor = _hover_viewport_position;
+        _hover_preview_coord = hover_coord;
+        _hover_exit_elapsed = 0;
         hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)
             return hoverPreview;
@@ -958,6 +981,8 @@ public partial class BattleMapPanel : Control
 
     private void _clear_hover_preview_state()
     {
+        _hover_source_present = false;
+        _hover_exit_elapsed = 0;
         _hover_preview_coord = InvalidHoverCoord;
         _hover_preview_valid_coords.Clear();
         _hover_preview_selected_skill_id = "";
@@ -1010,15 +1035,51 @@ public partial class BattleMapPanel : Control
 
     public override void _Process(double delta)
     {
+        ProcessMovementPlayback(delta);
         if (hover_overlay == null || !hover_overlay.Visible)
             return;
         if (_hover_preview_coord == InvalidHoverCoord)
             return;
+        if (!_hover_source_present && !hover_overlay.HasPointerInside())
+        {
+            _hover_exit_elapsed += delta;
+            if (_hover_exit_elapsed >= 0.2)
+            {
+                ClearHoverPreview();
+                return;
+            }
+        }
+        else _hover_exit_elapsed = 0;
         _position_hover_overlay(_hover_preview_coord);
     }
 
-    // 放大后的 preview 跟随悬停会压住战场单位贴图,改为固定钉在地图视口左侧居中
-    // (右上角已被战斗日志占用),不再随光标移动。hover_coord 保留参数以兼容调用点。
+    private void _on_map_hover_exited()
+    {
+        _hover_source_present = false;
+        _battle_board?.ClearHover();
+    }
+
+    internal void RefreshCurrentHover(BattleState battleState)
+    {
+        if (hover_overlay?.Visible != true || _runtime_proxy == null || IsLoadingBattle()) return;
+        Vector2I coord;
+        if (hover_overlay.HasPointerInside() && hover_overlay.DisplayedUnitId != "")
+        {
+            BattleUnitState unit = battleState?.GetUnit(hover_overlay.DisplayedUnitId);
+            if (unit == null || !unit.IsAlive()) { ClearHoverPreview(); return; }
+            coord = unit.GetAnchorCoord();
+        }
+        else
+        {
+            if (!_hover_source_present) return;
+            coord = _battle_board.ResolveHoverCoord(_hover_viewport_position);
+        }
+        UpdateHoverPreview(battleState, coord, _runtime_proxy.GetBattleOverlayTargetCoords(),
+            _runtime_proxy.GetSelectedBattleSkillId(), _runtime_proxy.GetSelectedBattleSkillVariantId());
+    }
+
+    // Anchor once beside the hovered body; leave the panel stationary while its
+    // content is read or scrolled, and clamp it above the command dock.
     private void _position_hover_overlay(Vector2I hover_coord)
     {
         if (hover_overlay == null || map_viewport_container == null)
@@ -1027,17 +1088,31 @@ public partial class BattleMapPanel : Control
         Vector2 overlaySize = hover_overlay.Size;
         Vector2 mapPosition = _map_viewport_host.GlobalPosition - GlobalPosition;
         Vector2 mapSize = _map_viewport_host.Size;
-        float x = mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN;
-        float y = mapPosition.Y + Mathf.Max((mapSize.Y - overlaySize.Y) * 0.5f, HOVER_OVERLAY_EDGE_MARGIN);
+        Vector2 anchor = GetGlobalTransform().AffineInverse()
+            * (map_viewport_container.GetGlobalTransform() * _hover_overlay_anchor);
+        float x = anchor.X + 28;
+        if (x + overlaySize.X > mapPosition.X + mapSize.X - HOVER_OVERLAY_EDGE_MARGIN)
+            x = anchor.X - overlaySize.X - 28;
+        x = Mathf.Clamp(x, mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN,
+            Mathf.Max(mapPosition.X + HOVER_OVERLAY_EDGE_MARGIN, mapPosition.X + mapSize.X - overlaySize.X - HOVER_OVERLAY_EDGE_MARGIN));
+        float bottom = bottom_panel != null && bottom_panel.Visible
+            ? bottom_panel.GlobalPosition.Y - GlobalPosition.Y - 12 : mapPosition.Y + mapSize.Y - 12;
+        float y = Mathf.Clamp(anchor.Y - 40, mapPosition.Y + 56, Mathf.Max(mapPosition.Y + 56, bottom - overlaySize.Y));
         hover_overlay.Position = new Vector2(x, y);
     }
 
     private void _on_map_viewport_container_gui_input(InputEvent @event)
     {
+        if (IsMovementPlaying)
+        {
+            AcceptEvent();
+            return;
+        }
         if (_battle_board == null)
             return;
         if (@event is InputEventMouseMotion motionEvent)
         {
+            _hover_viewport_position = motionEvent.Position;
             if (
                 _battle_board.HandleViewportMouseMotion(
                     motionEvent.Position,
@@ -1112,7 +1187,7 @@ public partial class BattleMapPanel : Control
         {
             Name = "BattleBackground",
             MouseFilter = MouseFilterEnum.Ignore,
-            Color = BATTLE_BACKGROUND_COLOR,
+            Color = BattleBoardRenderProfile.BackgroundColor,
             ZIndex = -4096,
         };
         _map_subviewport.AddChild(_battle_background_rect);
@@ -1157,13 +1232,40 @@ public partial class BattleMapPanel : Control
     {
         if (bottom_panel == null || top_bar == null || map_frame == null)
             return;
-        float halfWidth = Mathf.Min(Size.X * 0.5f, 680.0f);
-        bottom_panel.AnchorLeft = 0.5f;
-        bottom_panel.AnchorRight = 0.5f;
-        bottom_panel.OffsetLeft = -halfWidth;
-        bottom_panel.OffsetRight = halfWidth;
-        map_frame.OffsetTop = top_bar.Size.Y + 8.0f;
-        map_frame.OffsetBottom = bottom_panel.OffsetBottom - bottom_panel.Size.Y - 8.0f;
+        float availableWidth = Mathf.Min(Mathf.Max(Size.X - 24.0f, 0.0f), 1360.0f);
+        float unitWidth = unit_card?.GetCombinedMinimumSize().X ?? 310.0f;
+        int slotCount = skill_grid?.GetChildCount() ?? 0;
+        float skillWidth = 0.0f;
+        if (skill_panel?.Visible == true)
+        {
+            float stride = BattleUiTheme.SKILL_SLOT_SIZE() + skill_grid.GetThemeConstant("h_separation");
+            float padding = 20.0f + GetNode<ScrollContainer>("%SkillScroll")
+                .GetVScrollBar().GetCombinedMinimumSize().X;
+            int maxColumns = Mathf.Max(1, Mathf.FloorToInt((availableWidth - unitWidth - 12.0f - padding) / stride));
+            skillWidth = Mathf.Min(slotCount, maxColumns) * stride + padding;
+            if (_command_dock_row?.Visible == true)
+                skillWidth = Mathf.Max(skillWidth, _command_dock_row.GetCombinedMinimumSize().X + 20.0f);
+        }
+        float width = Mathf.Min(availableWidth,
+            unitWidth + (skillWidth > 0 ? skillWidth + 12.0f : 0.0f));
+        bottom_panel.AnchorLeft = 0.0f;
+        bottom_panel.AnchorRight = 0.0f;
+        bottom_panel.OffsetLeft = 12.0f;
+        bottom_panel.OffsetRight = 12.0f + width;
+        bottom_panel.OffsetTop = bottom_panel.OffsetBottom - bottom_panel.GetCombinedMinimumSize().Y;
+        // The board fills the screen. Only the visible HUD islands intercept input;
+        // changing a resource, status, or skill selection must not resize the board.
+        map_frame.OffsetTop = 0.0f;
+        map_frame.OffsetBottom = 0.0f;
+        if (hint_label != null)
+        {
+            hint_label.AnchorLeft = 0.0f;
+            hint_label.AnchorRight = 0.0f;
+            hint_label.OffsetLeft = bottom_panel.OffsetLeft;
+            hint_label.OffsetRight = bottom_panel.OffsetRight;
+            hint_label.OffsetTop = bottom_panel.OffsetTop - 26.0f;
+            hint_label.OffsetBottom = bottom_panel.OffsetTop - 4.0f;
+        }
     }
 
     private void _request_map_viewport_update()
@@ -1183,10 +1285,10 @@ public partial class BattleMapPanel : Control
             panel.AddThemeStyleboxOverride(
                 "panel",
                 _build_panel_style(
-                    BattleUiTheme.PANEL_BG(),
-                    BattleUiTheme.PANEL_EDGE_SOFT(),
-                    BattleUiTheme.PANEL_RADIUS_LARGE(),
-                    BattleUiTheme.PANEL_BORDER(),
+                    Colors.Transparent,
+                    Colors.Transparent,
+                    0,
+                    0,
                     new Color(0, 0, 0, 0)
                 )
             );
@@ -1195,10 +1297,10 @@ public partial class BattleMapPanel : Control
         top_bar.AddThemeStyleboxOverride(
             "panel",
             _build_panel_style(
-                BattleUiTheme.PANEL_BG(),
-                BattleUiTheme.PANEL_EDGE_SOFT(),
+                Colors.Transparent,
+                Colors.Transparent,
                 BattleUiTheme.TOPBAR_RADIUS(),
-                BattleUiTheme.PANEL_BORDER(),
+                0,
                 new Color(0, 0, 0, 0),
                 BattleUiTheme.PANEL_CONTENT_MARGIN()
             )
@@ -1359,6 +1461,7 @@ public partial class BattleMapPanel : Control
         objective_status_label.Visible = hasObjectiveProgress;
         tu_label.Text = snapshot.RoundBadge?.TuText ?? "TU --";
         ready_label.Text = snapshot.RoundBadge?.ReadyText ?? "READY 0";
+        round_chip.TooltipText = ready_label.Text;
         mode_value_label.Text = string.IsNullOrEmpty(snapshot.ModeText)
             ? "手动"
             : snapshot.ModeText;
@@ -1367,6 +1470,13 @@ public partial class BattleMapPanel : Control
         _rebuild_skill_grid(snapshot.SkillSlots);
         skill_subtitle_label.Text = snapshot.SkillSubtitle;
         skill_subtitle_label.TooltipText = snapshot.SelectedSkillPreviewTooltipText;
+        skill_panel.TooltipText = string.Join("\n", new[]
+        {
+            snapshot.SkillSubtitle,
+            snapshot.SelectedSkillPreviewTooltipText,
+            snapshot.BarrierSummaryText,
+            snapshot.HintText,
+        }.Where(text => !string.IsNullOrEmpty(text)));
         _rebuild_fate_badges(snapshot.SelectedSkillFateBadges);
         _apply_command_dock(snapshot);
         _refresh_battle_equipment_ui();

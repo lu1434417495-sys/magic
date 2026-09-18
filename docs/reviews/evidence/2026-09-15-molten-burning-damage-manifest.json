@@ -1,0 +1,46 @@
+{
+  "generated_at_utc": "2026-09-15T15:18:55.863564+00:00",
+  "scope": "Explicit content inputs and direct mechanism owners; not a complete transitive checkout manifest.",
+  "hash_format": "SHA256 of UTF-8 text with BOM removed and universal newlines normalized to LF",
+  "source_sha256": {
+    "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+    "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+    "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+    "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+    "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+    "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+    "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+    "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+    "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+    "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+    "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+    "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+    "scripts/systems/content/skills/SkillDefinitionProjector.cs": "1f67f01a2fd07cc67a8bd6ec28cfaca448fbf259d40732d48d1ae3f7dabb9590",
+    "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+    "tests/shared/TestSkillDefinitionProjection.cs": "5f6a257abc318dae3b2d6c68b5b3edbeaf5076ca0e27b6456303a2e7214abb60",
+    "tests/battle_runtime/simulation/run_molten_burning_damage_analysis.cs": "b4fbc902bf9e0e709289e7c6890827a7f1dca20ada883fbc8529403fc5d445eb",
+    "docs/content/skills/skill_power_assessment.md": "ff3d850cb1870dd12729a15c5c3d377c3741c518d8e8fcefd7e4c72279253f5b",
+    ".codex/skills/design-godot-skill/assets/power-assessment/baseline.json": "cf22fb73e166c739de6c0f75ca1e1e9e9e8f1a0adae8c6bba6bf4db3faba59b3"
+  },
+  "evidence_sha256": {
+    "docs/reviews/evidence/2026-09-15-molten-burning-damage.json": "98a1ec2eb589462d0570dfe6607b29419add2560f4829680687ef204b1d5567a"
+  },
+  "counts": {
+    "source_rows": 9,
+    "burst_rows": 108,
+    "mixed_rows": 8,
+    "sequence_rows": 4,
+    "kill_rows": 4
+  },
+  "validation": {
+    "build": "dotnet build magic.csproj: PASS, 0 warnings, 0 errors",
+    "probe": "python tests/run_regression_suite.py --pattern run_molten_burning_damage_analysis --include-simulation --include-benchmarks --fail-on-output-error --log-file .tmp/molten-burning-analysis.log",
+    "probe_result": "1 passed, 0 failed; successful shutdown; data generation only, not balance PASS",
+    "not_run": [
+      "full regression suite",
+      "CI",
+      "randomized BattleSim",
+      "native visual validation"
+    ]
+  }
+}

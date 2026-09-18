@@ -6,7 +6,7 @@ internal sealed class BattleCounterattackSystem
     : IBattleAttackResolutionSink,
         IBattleReactionDrainOwner
 {
-    private readonly BattleRuntimeModule _runtime;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
     private readonly BattleAttackActionCoordinator
         _attackActionCoordinator;
     private readonly BattleEffectExecutionContextService
@@ -35,8 +35,9 @@ internal sealed class BattleCounterattackSystem
         IBattleCounterattackChanceRoller chanceRoller
     )
     {
-        _runtime = runtime
-            ?? throw new ArgumentNullException(nameof(runtime));
+        _runtimeRef = new WeakReference<BattleRuntimeModule>(
+            runtime ?? throw new ArgumentNullException(nameof(runtime))
+        );
         _attackActionCoordinator = attackActionCoordinator
             ?? throw new ArgumentNullException(
                 nameof(attackActionCoordinator)
@@ -60,8 +61,17 @@ internal sealed class BattleCounterattackSystem
         if (_disposed)
             return;
         AbortBoundaryCore();
+        _runtimeRef = null;
         _disposed = true;
     }
+
+    private BattleRuntimeModule Runtime =>
+        _runtimeRef != null
+        && _runtimeRef.TryGetTarget(out BattleRuntimeModule runtime)
+            ? runtime
+            : throw new InvalidOperationException(
+                "battle runtime is not bound"
+            );
 
     private void RequireUsable()
     {
@@ -111,7 +121,7 @@ internal sealed class BattleCounterattackSystem
         )
             return;
 
-        BattleState state = _runtime.GetState()
+        BattleState state = Runtime.GetState()
             ?? throw new InvalidOperationException(
                 "battle state is not bound"
             );
@@ -216,9 +226,10 @@ internal sealed class BattleCounterattackSystem
             );
         if (!eligibility.IsAllowed)
         {
-            _runtime._append_report_entry_to_batch(
+            BattleRuntimeModule runtime = Runtime;
+            runtime._append_report_entry_to_batch(
                 batch,
-                _runtime._report_formatter
+                runtime._report_formatter
                     .BuildCounterattackBlockedEntry(
                         entry,
                         eligibility,
@@ -267,9 +278,10 @@ internal sealed class BattleCounterattackSystem
         }
         if (!chancePassed)
         {
-            _runtime._append_report_entry_to_batch(
+            BattleRuntimeModule runtime = Runtime;
+            runtime._append_report_entry_to_batch(
                 batch,
-                _runtime._report_formatter
+                runtime._report_formatter
                     .BuildCounterattackChanceFailedEntry(
                         entry,
                         chancePercent,

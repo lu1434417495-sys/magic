@@ -1,0 +1,1656 @@
+{
+  "status": "arithmetic_only",
+  "baseline_version": "2026-09-15.1",
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "cases": [
+    {
+      "id": "current_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 1,
+      "gap_per_ideal_cycle_tu": 0,
+      "refresh_overlap_tu": 20,
+      "cast_times_tu": [
+        0,
+        40
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 80,
+      "horizon_coverage": 1.0,
+      "spent": {
+        "mp": 0,
+        "stamina": 2,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 58,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "current_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 1,
+      "gap_per_ideal_cycle_tu": 0,
+      "refresh_overlap_tu": 20,
+      "cast_times_tu": [
+        0,
+        40,
+        80,
+        120
+      ],
+      "cast_count": 4,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 160,
+      "horizon_coverage": 1.0,
+      "spent": {
+        "mp": 0,
+        "stamina": 4,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 56,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "current_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 1,
+      "gap_per_ideal_cycle_tu": 0,
+      "refresh_overlap_tu": 20,
+      "cast_times_tu": [
+        0,
+        40,
+        80,
+        120,
+        160,
+        200,
+        240,
+        280
+      ],
+      "cast_count": 8,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 320,
+      "horizon_coverage": 1.0,
+      "spent": {
+        "mp": 0,
+        "stamina": 8,
+        "aura": 0,
+        "ap": 8
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 52,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l0_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 30,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 0,
+        "stamina": 16,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 44,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l0_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 0,
+        "stamina": 32,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 28,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l0_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120,
+        240
+      ],
+      "cast_count": 3,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 90,
+      "horizon_coverage": 0.28125,
+      "spent": {
+        "mp": 0,
+        "stamina": 48,
+        "aura": 0,
+        "ap": 3
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l1_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 30,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 46,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l1_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 0,
+        "stamina": 28,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 32,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l1_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.75,
+      "ideal_cycle_coverage": 0.25,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120,
+        240
+      ],
+      "cast_count": 3,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 90,
+      "horizon_coverage": 0.28125,
+      "spent": {
+        "mp": 0,
+        "stamina": 42,
+        "aura": 0,
+        "ap": 3
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 18,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l2_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.3333333333333333,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 40,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 46,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l2_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.3333333333333333,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 80,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 28,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 32,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l2_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.3333333333333333,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120,
+        240
+      ],
+      "cast_count": 3,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 120,
+      "horizon_coverage": 0.375,
+      "spent": {
+        "mp": 0,
+        "stamina": 42,
+        "aura": 0,
+        "ap": 3
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 18,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l3_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 40,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 14,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 46,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l3_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 80,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 28,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 32,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l3_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80,
+        160,
+        240
+      ],
+      "cast_count": 4,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 160,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 56,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 4,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l4_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 40,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 48,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l4_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 80,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 24,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 36,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l4_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.0,
+      "ideal_cycle_coverage": 0.5,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80,
+        160,
+        240
+      ],
+      "cast_count": 4,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 160,
+      "horizon_coverage": 0.5,
+      "spent": {
+        "mp": 0,
+        "stamina": 48,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l5_80",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 60,
+      "horizon_coverage": 0.75,
+      "spent": {
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 48,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l5_160",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 120,
+      "horizon_coverage": 0.75,
+      "spent": {
+        "mp": 0,
+        "stamina": 24,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 36,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "proposed_l5_320",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "Timing and stamina envelope only, not a complete movement or defense valuation.",
+        "Every scheduled roll finds a legal path and the caster survives; actual hazards, blocked movement, attacks, healing and competing stamina spending are omitted.",
+        "At most one roll per activation, 40TU interval, fixed 60 stamina; no movement cells or prevented HP are assigned an invented value.",
+        "Proposed numbers are an unapproved author design, not current gameplay."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 1.5,
+      "ideal_cycle_coverage": 0.75,
+      "gap_per_ideal_cycle_tu": 20,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80,
+        160,
+        240
+      ],
+      "cast_count": 4,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 240,
+      "horizon_coverage": 0.75,
+      "spent": {
+        "mp": 0,
+        "stamina": 48,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 0,
+        "stamina": 12,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    }
+  ]
+}

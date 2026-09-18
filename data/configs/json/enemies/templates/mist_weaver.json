@@ -22,6 +22,7 @@
       "brain_id": "healer_controller",
       "cognition_kind": "sapient",
       "creature_level": 4,
+      "challenge_rating": 4,
       "damage_resistances": {
         "fire": "double",
         "freeze": "half",

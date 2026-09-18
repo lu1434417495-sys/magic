@@ -370,7 +370,7 @@ public sealed partial class BattleRuntimeModule
 
     internal int GetDoomSentenceRefundCalamityTotal()
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _loot_resolver?.GetDoomSentenceRefundCalamityTotal() ?? 0;
     }
 }

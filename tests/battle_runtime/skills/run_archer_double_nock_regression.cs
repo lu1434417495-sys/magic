@@ -33,7 +33,6 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
 
     private void TestTypedRepeatSchema()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidMultiplier = new()
         {
             effect_type = "fixed_repeat_attack",
@@ -41,12 +40,7 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
             follow_up_damage_multiplier_percent = 0,
         };
         GStringArray errors = new();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "invalid_repeat_multiplier",
-            invalidMultiplier,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidMultiplier, "invalid_repeat_multiplier"));
         _test.True(
             ContainsError(errors, "follow_up_damage_multiplier_percent must be > 0"),
             "连击后续段伤害倍率必须拒绝0或负数。"
@@ -60,12 +54,7 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
             follow_up_attack_roll_bonus_curve = new[] { 0, 1 },
         };
         errors.Clear();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "misplaced_repeat_curve",
-            misplacedCurve,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(misplacedCurve, "misplaced_repeat_curve"));
         _test.True(
             ContainsError(errors, "follow_up_attack_roll_bonus_curve is only supported"),
             "非连击效果不得误用后续段命中曲线。"
@@ -81,14 +70,9 @@ public partial class run_archer_double_nock_regression : LifecycleTestSceneTree
             },
         };
         errors.Clear();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "weak_repeat_multiplier",
-            weakAlias,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(weakAlias, "weak_repeat_multiplier"));
         _test.True(
-            ContainsError(errors, "use CombatEffectDef.follow_up_damage_multiplier_percent"),
+            ContainsError(errors, "payload/follow_up_damage_multiplier_percent: Unknown effect payload member."),
             "旧params倍率必须被内容校验拒绝并指向typed字段。"
         );
 

@@ -57,7 +57,6 @@ internal static class BattleLineThroughAttackRules
     internal static BattleLineThroughAttackPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
@@ -131,7 +130,6 @@ internal static class BattleLineThroughAttackRules
                 !CanTraverseAnchorStep(
                     state,
                     gridService,
-                    barrierService,
                     sourceUnit,
                     currentAnchor,
                     nextAnchor
@@ -199,7 +197,6 @@ internal static class BattleLineThroughAttackRules
     internal static bool CanCommitLanding(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleLineThroughAttackPlan plan
     )
@@ -220,7 +217,6 @@ internal static class BattleLineThroughAttackRules
                 !CanTraverseAnchorStep(
                     state,
                     gridService,
-                    barrierService,
                     sourceUnit,
                     plan.AnchorPath[index - 1],
                     plan.AnchorPath[index]
@@ -242,7 +238,6 @@ internal static class BattleLineThroughAttackRules
     private static bool CanTraverseAnchorStep(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         Vector2I fromAnchor,
         Vector2I toAnchor
@@ -255,7 +250,13 @@ internal static class BattleLineThroughAttackRules
                 sourceUnit.GetFootprintSize(),
                 sourceUnit
             )
-            || barrierService?.HasUnitBoundaryBarrier(sourceUnit, fromAnchor, toAnchor) == true
+            || BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                state,
+                gridService,
+                sourceUnit,
+                fromAnchor,
+                toAnchor
+            )
         )
         {
             return false;

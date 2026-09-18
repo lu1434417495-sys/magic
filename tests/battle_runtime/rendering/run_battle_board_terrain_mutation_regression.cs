@@ -184,12 +184,13 @@ public partial class run_battle_board_terrain_mutation_regression : LifecycleTes
             - new Vector2(0, height * _board._render_profile.visual_height_step);
         _test.True(_board._get_coord_anchor(_target).IsEqualApprox(expected),
             $"{label}: 拾取锚点应使用真实有符号高度 {height}。");
-        var grid = _board.GetNodeOrNull<BattleTerrainPaintLayer>($"TacticalGridH{height}");
+        int row = _target.X + _target.Y;
+        var grid = _board.GetNodeOrNull<BattleTerrainPaintLayer>($"TacticalGridH{height}R{row}");
         _test.True(grid != null, $"{label}: 格线必须落在真实高度层。");
         if (grid != null)
             _test.True(grid.Patches.Any(p => Average(p.Points).IsEqualApprox(expected)),
                 $"{label}: 格线几何应跟随新高度。");
-        var top = _board.GetNodeOrNull<BattleTerrainPaintLayer>($"PaintTopH{height}");
+        var top = _board.GetNodeOrNull<BattleTerrainPaintLayer>($"PaintTopH{height}R{row}");
         _test.True(top != null && top.Patches.Any(p => Average(p.Points).IsEqualApprox(expected)),
             $"{label}: 手绘表面必须跟随新高度。");
         var marker = _board.GetNodeOrNull<TileMapLayer>($"MarkerH{height}");
@@ -198,16 +199,18 @@ public partial class run_battle_board_terrain_mutation_regression : LifecycleTes
         if (marker != null)
             _test.True((marker.MapToLocal(_target) + marker.Position).IsEqualApprox(expected),
                 $"{label}: 标记绘制和拾取必须对齐。");
+        var paintedMarker = _board.GetNodeOrNull<Sprite2D>($"PaintMarker_{_target.X}_{_target.Y}");
+        _test.True(paintedMarker != null && paintedMarker.Position.IsEqualApprox(expected),
+            $"{label}: 实际可见标记必须随高度移动。");
+        _test.True(paintedMarker?.Material != null, $"{label}: 实际可见标记必须保留正式材质。");
         Node2D token = _board.unit_layer.GetNode<Node2D>(_caster.unit_id.ToString());
         _test.True(token.Position.IsEqualApprox(expected + _board._render_profile.unit_anchor_bias),
             $"{label}: 单位应跟随升降后的地面。");
         if (height < 0)
         {
-            _test.True(token.ZIndex < 0 && grid?.ZIndex < 0 && marker?.ZIndex < 0,
-                $"{label}: 负高度对象应按真实层级排序。");
             _test.True(_board.GetChildren().OfType<BattleTerrainPaintLayer>()
                 .Any(layer => layer.Name.ToString().StartsWith("PaintFace", StringComparison.Ordinal)
-                    && layer.ZIndex < 0 && layer.Patches.Count > 0),
+                    && layer.Patches.Any(p => p.Points.Any(point => point.Y > expected.Y))),
                 $"{label}: 零层以下的落差必须有实际岩壁绘制。");
         }
 

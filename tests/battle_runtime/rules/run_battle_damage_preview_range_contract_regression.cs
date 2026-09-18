@@ -20,7 +20,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
 
     private void TestEmptyPreviewContract()
     {
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(
                 null,
                 Array.Empty<CombatEffectDefinition>()
@@ -43,7 +43,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
     private void TestPowerOnlyDamagePreview()
     {
         CombatEffectDefinition effect = BuildDamageEffect(12);
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(null, new[] { effect });
 
         _test.True(preview.HasDamage, "power-only 伤害效果应产生伤害预览。");
@@ -63,12 +63,12 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         ApplyWeapon(source, 1, 6, 2);
         CombatEffectDefinition effect = BuildDamageEffect(5, true, 2, 4, 3);
 
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(
                 source,
                 new[] { effect }
             );
-        BattleDamagePreviewRangeService.DamageEffectRange damageRange =
+        BattleDamageEffectRange damageRange =
             preview.DamageRanges[0];
 
         _test.Eq(
@@ -100,7 +100,7 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         );
         CombatEffectDefinition skillEffect = BuildDamageEffect(10, false, 1, 8, 1);
 
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(
                 source,
                 new[] { weaponEffect, statusEffect, skillEffect }
@@ -145,9 +145,9 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
         );
         CombatEffectDefinition effect = BuildDamageEffect(1, true);
 
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(source, new[] { effect });
-        BattleDamagePreviewRangeService.DamageEffectRange damageRange = preview.DamageRanges[0];
+        BattleDamageEffectRange damageRange = preview.DamageRanges[0];
 
         _test.Eq(preview.MinDamage, 7, "只应加入正式配置的双手武器最小伤害。");
         _test.Eq(preview.MaxDamage, 17, "只应加入正式配置的双手武器最大伤害。");
@@ -161,9 +161,9 @@ public partial class run_battle_damage_preview_range_contract_regression : Lifec
     private void TestDiceBonusWithoutDiceIsIgnored()
     {
         CombatEffectDefinition effect = BuildDamageEffect(4, diceBonus: 99);
-        BattleDamagePreviewRangeService.SkillDamagePreview preview =
+        BattleSkillDamagePreview preview =
             BattleDamagePreviewRangeService.BuildSkillDamagePreview(null, new[] { effect });
-        BattleDamagePreviewRangeService.DamageEffectRange damageRange = preview.DamageRanges[0];
+        BattleDamageEffectRange damageRange = preview.DamageRanges[0];
 
         _test.Eq(preview.MinDamage, 4, "缺少有效技能骰时 dice_bonus 不应单独加入最小伤害。");
         _test.Eq(preview.MaxDamage, 4, "缺少有效技能骰时 dice_bonus 不应单独加入最大伤害。");

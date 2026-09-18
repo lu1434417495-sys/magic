@@ -13,14 +13,23 @@ public partial class BattleUnitTokenDecoration : Node2D
     public Vector2 GroundAnchor { get; init; }
     public bool IsActive { get; init; }
     public bool ShowMedallion { get; init; }
+    public bool ShowFootContacts { get; init; }
+    public Vector2 LeftFootContact { get; init; }
+    public Vector2 RightFootContact { get; init; }
 
     public override void _Draw()
     {
-        DrawSetTransform(GroundAnchor + new Vector2(0, 3), 0, new Vector2(1, 0.3f));
-        DrawCircle(Vector2.Zero, 62, new Color(0.04f, 0.035f, 0.03f, 0.12f), antialiased: true);
-        DrawCircle(Vector2.Zero, 53, new Color(0.04f, 0.035f, 0.03f, 0.28f), antialiased: true);
-        DrawArc(Vector2.Zero, 54, 0, Mathf.Tau, 64,
-            IsActive ? new Color(1, 0.87f, 0.52f) : FactionColor, IsActive ? 4 : 2.5f, true);
+        if (ShowFootContacts)
+        {
+            DrawFootContact(LeftFootContact);
+            DrawFootContact(RightFootContact);
+        }
+        else
+        {
+            DrawSetTransform(GroundAnchor + new Vector2(0, 3), 0, new Vector2(1, 0.3f));
+            DrawCircle(Vector2.Zero, 62, new Color(0.04f, 0.035f, 0.03f, 0.12f), antialiased: true);
+            DrawCircle(Vector2.Zero, 53, new Color(0.04f, 0.035f, 0.03f, 0.28f), antialiased: true);
+        }
         DrawSetTransform(Vector2.Zero);
         if (!ShowMedallion)
             return;
@@ -38,5 +47,12 @@ public partial class BattleUnitTokenDecoration : Node2D
                 new Vector2(-7, -49), new Vector2(7, -49), new Vector2(0, -42),
             }, new Color(1, 0.87f, 0.52f));
         }
+    }
+
+    private void DrawFootContact(Vector2 contact)
+    {
+        DrawSetTransform(contact, 0, new Vector2(1, 0.32f));
+        DrawCircle(Vector2.Zero, 15, new Color(0.04f, 0.035f, 0.03f, 0.10f), antialiased: true);
+        DrawCircle(Vector2.Zero, 10, new Color(0.04f, 0.035f, 0.03f, 0.24f), antialiased: true);
     }
 }

@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://dragon_login_scene"]
+[gd_scene load_steps=8 format=3 uid="uid://dragon_login_scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/LoginScreen.cs" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/main/login/backgroud.png" id="2_bg"]
@@ -88,7 +88,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "进入游戏"
+text = "新建游戏"
 
 [node name="LoadButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 unique_name_in_owner = true
@@ -104,6 +104,20 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "测试地图"
 
+[node name="SettingsButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "游戏设置"
+
+[node name="QuitButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "退出游戏"
+
 [node name="SpacerBottom" type="Control" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
 custom_minimum_size = Vector2(0, 6)
 layout_mode = 2
@@ -116,20 +130,6 @@ horizontal_alignment = 1
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.84, 0.55, 0.42, 1)
 autowrap_mode = 3
-
-[node name="FooterRow" type="HBoxContainer" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot"]
-layout_mode = 2
-alignment = 1
-
-[node name="SettingsButton" type="Button" parent="CenterWrap/PanelRoot/MarginRoot/VBoxRoot/FooterRow"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "显示设置"
-flat = true
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.75, 0.65, 0.42, 1)
-theme_override_colors/font_hover_color = Color(0.93, 0.81, 0.52, 1)
-theme_override_colors/font_pressed_color = Color(0.84, 0.69, 0.34, 1)
 
 [node name="WorldPresetPickerWindow" parent="." instance=ExtResource("3_world_preset")]
 unique_name_in_owner = true

@@ -104,18 +104,10 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
 
     private void TestSchemaRejectsForbiddenScaling()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using CombatSkillDef fixedDamage = BuildSchemaProfile();
         fixedDamage.effect_defs[0].power = 1;
         var fixedDamageErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            fixedDamageErrors,
-            "line_through_fixed_damage",
-            fixedDamage
-        );
+        fixedDamageErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(fixedDamage, "line_through_fixed_damage"));
         _test.True(
             ErrorsContain(fixedDamageErrors, "without fixed damage"),
             $"固定伤害必须被schema拒绝。errors={string.Join(" | ", fixedDamageErrors)}"
@@ -124,11 +116,7 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
         using CombatSkillDef percentageDamage = BuildSchemaProfile();
         percentageDamage.effect_defs[0].damage_ratio_percent = 150;
         var percentageErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            percentageErrors,
-            "line_through_percentage_damage",
-            percentageDamage
-        );
+        percentageErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(percentageDamage, "line_through_percentage_damage"));
         _test.True(
             ErrorsContain(percentageErrors, "percentage scaling"),
             $"百分比伤害成长必须被schema拒绝。errors={string.Join(" | ", percentageErrors)}"
@@ -137,11 +125,7 @@ public partial class run_warrior_phantom_through_regression : LifecycleTestScene
         using CombatSkillDef negativeAttack = BuildSchemaProfile();
         negativeAttack.line_through_attack_profile.primary_attack_roll_bonus_curve = new[] { -1 };
         var attackErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            attackErrors,
-            "line_through_negative_attack",
-            negativeAttack
-        );
+        attackErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(negativeAttack, "line_through_negative_attack"));
         _test.True(
             ErrorsContain(attackErrors, "non-negative"),
             $"负攻击修正必须被schema拒绝。errors={string.Join(" | ", attackErrors)}"

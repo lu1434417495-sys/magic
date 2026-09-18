@@ -298,10 +298,6 @@ public partial class BattleDamageResolver
         {
             tierAdjustedDamage /= 2;
         }
-        else if (mitigationTier == MitigationTierDouble)
-        {
-            tierAdjustedDamage *= 2;
-        }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
             sourceUnit,
@@ -496,10 +492,6 @@ public partial class BattleDamageResolver
         else if (mitigationTier == MitigationTierHalf)
         {
             tierAdjustedDamage /= 2;
-        }
-        else if (mitigationTier == MitigationTierDouble)
-        {
-            tierAdjustedDamage *= 2;
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
@@ -701,8 +693,6 @@ public partial class BattleDamageResolver
             tierAdjustedDamage = 0;
         else if (mitigationTier == MitigationTierHalf)
             tierAdjustedDamage /= 2;
-        else if (mitigationTier == MitigationTierDouble)
-            tierAdjustedDamage *= 2;
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
             sourceUnit,
@@ -843,10 +833,6 @@ public partial class BattleDamageResolver
         else if (mitigationTier == MitigationTierHalf)
         {
             tierAdjustedDamage /= 2;
-        }
-        else if (mitigationTier == MitigationTierDouble)
-        {
-            tierAdjustedDamage *= 2;
         }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(

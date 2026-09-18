@@ -7,6 +7,35 @@ using VT = Godot.Variant.Type;
 
 internal sealed class SkillDefinitionCombatProfileValidator
 {
+    // Keep the supported execution surface explicit until ordered mixtures and
+    // alternative targeting have canonical preview and AI consumers.
+    private static void AppendStatusTickAdvanceProfileErrors(
+        Godot.Collections.Array<string> errors, string skillId,
+        SkillDefinition skill, CombatSkillDefinition profile)
+    {
+        bool HasAdvance(IReadOnlyList<CombatEffectDefinition> effects) =>
+            effects.Any(e => e?.EffectKind == BattleEffectKind.AdvanceStatusTicks);
+        bool hasRoot = HasAdvance(profile.EffectDefinitions);
+        if (HasAdvance(profile.PassiveEffectDefinitions)
+            || profile.CastVariants.Any(v => v != null && HasAdvance(v.EffectDefinitions)))
+            errors.Add($"Skill {skillId} advance_status_ticks must be a root active effect, not passive or cast-variant content.");
+        if (!hasRoot)
+            return;
+        if (profile.TargetMode != "unit" || profile.TargetSelectionMode != "single_unit"
+            || profile.TargetTeamFilter != "enemy" || profile.SpecialResolutionProfileId != ""
+            || profile.CastVariants.Count != 0 || profile.AllowRepeatTarget)
+            errors.Add($"Skill {skillId} advance_status_ticks requires a single enemy unit and no special resolution or cast variants.");
+        for (int level = 0; level <= Math.Max(skill?.MaxLevel ?? 0, 0); level++)
+        {
+            var active = profile.EffectDefinitions.Where(e => e.IsUnlockedAtSkillLevel(level)).ToArray();
+            if (active.Length != 1 || active[0].EffectKind != BattleEffectKind.AdvanceStatusTicks
+                || profile.GetEffectiveAreaPattern(level) != "single"
+                || profile.GetEffectiveCastingTimeTu(level) != 0
+                || profile.GetEffectiveAttackResolutionMode(level) != CombatSkillAttackResolutionMode.DirectEffect)
+                errors.Add($"Skill {skillId} advance_status_ticks level {level} requires one standalone, immediate direct effect with a single-unit area.");
+        }
+    }
+
     private readonly SkillDefinitionDamageEffectValidator _damageEffectValidator;
     private readonly SkillDefinitionExecuteEffectValidator _executeEffectValidator;
 
@@ -84,6 +113,7 @@ internal sealed class SkillDefinitionCombatProfileValidator
             { "lock_counterattack", "lock_counterattack" },
             { "lock_guard", "lock_guard" },
             { "lock_dodge_bonus", "lock_dodge_bonus" },
+            { "incoming_attack_roll_disadvantage", "incoming_attack_roll_disadvantage" },
             { "lock_crit", "lock_crit" },
             { "save_bonus", "save_bonus" },
             { "control_save_bonus", "control_save_bonus" },
@@ -620,6 +650,7 @@ internal sealed class SkillDefinitionCombatProfileValidator
             );
         }
         _executeEffectValidator.AppendExecuteCombatProfileValidationErrors(errors, skillId, skillDef, combatProfile);
+        AppendStatusTickAdvanceProfileErrors(errors, skillId, skillDef, combatProfile);
 
         for (int effectIndex = 0; effectIndex < combatProfile.EffectDefinitions.Count; effectIndex++)
             AppendEffectValidationErrors(
@@ -1577,6 +1608,10 @@ internal sealed class SkillDefinitionCombatProfileValidator
             return;
         }
         BattleEffectKind effectKind = effectDef.EffectKind;
+        if (effectDef.IncomingAttackRollDisadvantage
+            && (effectKind is not BattleEffectKind.Status and not BattleEffectKind.ApplyStatus
+                || effectDef.DurationTu <= 0))
+            errors.Add($"Skill {skillId} effect {contextLabel} incoming_attack_roll_disadvantage requires a timed status effect.");
         if (effectKind == BattleEffectKind.Unknown)
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported effect_type {effectDef.EffectType}."
@@ -1728,6 +1763,24 @@ internal sealed class SkillDefinitionCombatProfileValidator
         );
 
         AppendPayloadCompatibilityErrors(errors, skillId, effectDef, contextLabel);
+        if (effectDef.EffectKind == BattleEffectKind.AdvanceStatusTicks)
+        {
+            if (effectDef.Payload is not AdvanceStatusTicksEffectPayloadDefinition advance
+                || advance.MaxTicks is < 1 or > 32 || advance.MaxSources is < 1 or > 8
+                || string.IsNullOrWhiteSpace(advance.RequiredSourceTag.ToString())
+                || CombatStatusSourceContentRules.GetStackingScope(effectDef.StatusId) != BattleStatusStackingScope.SourceDefinition)
+                errors.Add($"Skill {skillId} advance_status_ticks requires a source-scoped status, max_ticks 1..32, max_sources 1..8 and a source tag.");
+            if (effectDef.Power != 0 || effectDef.DiceCount != 0 || effectDef.SaveDc > 0
+                || effectDef.SaveAbility != "" || effectDef.RequiresWeapon || effectDef.AddWeaponDice
+                || effectDef.DurationTu != 0 || effectDef.TickIntervalTu != 0
+                || effectDef.DamageTag != "" || effectDef.DamageRatioPercent != 100
+                || effectDef.SaveFailureStatusOutcomes.Count != 0)
+                errors.Add($"Skill {skillId} advance_status_ticks cannot add base damage, saves, weapon dice or a new duration.");
+            if (effectDef.RequiredTargetStatusId != effectDef.StatusId
+                || effectDef.RequiredTargetStatusMinStacks != 1
+                || effectDef.EffectTargetTeamFilter != "enemy")
+                errors.Add($"Skill {skillId} advance_status_ticks requires its own status at one stack and enemy effect filtering.");
+        }
         AppendStringNameArrayValidationErrors(
             errors,
             skillId,
@@ -2677,6 +2730,7 @@ internal sealed class SkillDefinitionCombatProfileValidator
             BattleEffectKind.Status or BattleEffectKind.ApplyStatus =>
                 effectDef.Payload is StatusEffectPayloadDefinition,
             BattleEffectKind.Heal => effectDef.Payload is HealEffectPayloadDefinition,
+            BattleEffectKind.AdvanceStatusTicks => effectDef.Payload is AdvanceStatusTicksEffectPayloadDefinition,
             BattleEffectKind.EquipmentDurabilityDamage =>
                 effectDef.Payload is EquipmentDurabilityDamageEffectPayloadDefinition,
             BattleEffectKind.RepeatAttackUntilFail =>

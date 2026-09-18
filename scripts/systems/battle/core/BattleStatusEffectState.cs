@@ -34,6 +34,7 @@ public class BattleStatusEffectState
         "lock_counterattack",
         "lock_guard",
         "lock_dodge_bonus",
+        "incoming_attack_roll_disadvantage",
         "lock_crit",
         "main_skill_lock_other_debuff_count",
     };
@@ -195,6 +196,7 @@ public class BattleStatusEffectState
     public bool lock_counterattack { get; set; }
     public bool lock_guard { get; set; }
     public bool lock_dodge_bonus { get; set; }
+    public bool incoming_attack_roll_disadvantage { get; set; }
     public bool lock_crit { get; set; }
     public bool skip_turn { get; set; }
     public bool break_on_positive_damage { get; set; }
@@ -563,6 +565,7 @@ public class BattleStatusEffectState
             lock_counterattack = lock_counterattack,
             lock_guard = lock_guard,
             lock_dodge_bonus = lock_dodge_bonus,
+            incoming_attack_roll_disadvantage = incoming_attack_roll_disadvantage,
             lock_crit = lock_crit,
             skip_turn = skip_turn,
             break_on_positive_damage = break_on_positive_damage,
@@ -678,6 +681,10 @@ public class BattleStatusEffectState
         if (lock_dodge_bonus)
         {
             payload["lock_dodge_bonus"] = true;
+        }
+        if (incoming_attack_roll_disadvantage)
+        {
+            payload["incoming_attack_roll_disadvantage"] = true;
         }
         if (lock_crit)
         {
@@ -934,6 +941,14 @@ public class BattleStatusEffectState
             }
         }
 
+        bool incomingAttackRollDisadvantageValue = false;
+        if (effectDict.ContainsKey("incoming_attack_roll_disadvantage")
+            && (!TryReadBoolField(effectDict, "incoming_attack_roll_disadvantage", out incomingAttackRollDisadvantageValue)
+                || !incomingAttackRollDisadvantageValue))
+        {
+            return null;
+        }
+
         int mainSkillLockOtherDebuffCountValue = 0;
         if (effectDict.ContainsKey("main_skill_lock_other_debuff_count"))
         {
@@ -1065,6 +1080,7 @@ public class BattleStatusEffectState
             lock_counterattack = lockCounterattackValue,
             lock_guard = lockGuardValue,
             lock_dodge_bonus = lockDodgeBonusValue,
+            incoming_attack_roll_disadvantage = incomingAttackRollDisadvantageValue,
             lock_crit = lockCritValue,
             skip_turn = ReadOptionalBoolParam(parameters, "skip_turn"),
             break_on_positive_damage = ReadOptionalBoolParam(

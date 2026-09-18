@@ -788,6 +788,7 @@ internal sealed class BattleAiTypedActionHelper
                 continue;
             if (
                 effectDefinition.EffectKind == BattleEffectKind.Damage
+                || effectDefinition.EffectKind == BattleEffectKind.AdvanceStatusTicks
                 || effectDefinition.EffectKind == BattleEffectKind.ChainDamage
                 || effectDefinition.EffectKind == BattleEffectKind.Execute
                 || effectDefinition.EffectKind == BattleEffectKind.Charge

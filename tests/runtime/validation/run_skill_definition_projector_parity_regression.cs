@@ -13,8 +13,11 @@ using Godot;
 public partial class run_skill_definition_projector_parity_regression
     : LifecycleTestSceneTree
 {
+    // 2026-09-15: reviewed mage_blur incoming-disadvantage field/content and
+    // mage_bone_chill / mage_cold_snap status redesign, and mage_molten_burst
+    // advance_status_ticks. See the corresponding skill landing reviews.
     private const string ExpectedDefinitionGoldenSha256 =
-        "478D3DBD64C6E9FD5AC4D735925CA3E7C8898C658B2A429CFB6802083C5DD069";
+        "26051FEA8F53B92BAFD5BD68B1B482B06331FA9357773E7E48871B4123D62E85";
     private readonly TestHarness _test = new();
 
     public override void _Initialize() => RunAfterProcessStartup(Run);
@@ -138,6 +141,8 @@ public partial class run_skill_definition_projector_parity_regression
             BattleEffectKind.Status or BattleEffectKind.ApplyStatus =>
                 effect.Payload is StatusEffectPayloadDefinition,
             BattleEffectKind.Heal => effect.Payload is HealEffectPayloadDefinition,
+            BattleEffectKind.AdvanceStatusTicks =>
+                effect.Payload is AdvanceStatusTicksEffectPayloadDefinition,
             BattleEffectKind.EquipmentDurabilityDamage =>
                 effect.Payload is EquipmentDurabilityDamageEffectPayloadDefinition,
             BattleEffectKind.RepeatAttackUntilFail =>

@@ -12,14 +12,6 @@ public static class ContingencyContentValidator
 
     public static IReadOnlyList<string> ValidateAllSetupsForSaveLoad(
         PartyState partyState,
-        GameContentCatalog catalog
-    )
-    {
-        return ValidateAllSetupsForSaveLoad(partyState, catalog?.GetSkillDefinitionsTyped());
-    }
-
-    public static IReadOnlyList<string> ValidateAllSetupsForSaveLoad(
-        PartyState partyState,
         IReadOnlyDictionary<StringName, SkillDefinition> skillDefinitions
     )
     {

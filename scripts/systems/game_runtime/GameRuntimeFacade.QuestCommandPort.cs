@@ -75,6 +75,7 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeQuestCommandPort
         }
 
         StringName anchorId = QuestAcceptEncounterPlacement.BuildStableAnchorId(questId);
+        WorldStartingAreaRules startingArea = _world_map_data_context.GetStartingAreaRules();
         EncounterAnchorData existingAnchor =
             _world_map_data_context.GetEncounterAnchorById(anchorId);
         if (existingAnchor != null)
@@ -87,6 +88,8 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeQuestCommandPort
             }
             if (!existingAnchor.is_cleared)
             {
+                if (!startingArea.Allows(existingAnchor.world_coord, encounterProfileId, encounterGrowthStage))
+                    return QuestAcceptEncounterSpawnResult.Failure("任务遭遇超过出生区域的挑战等级上限。");
                 return existingAnchor.growth_stage == encounterGrowthStage
                     ? QuestAcceptEncounterSpawnResult.ExistingAnchor(anchorId)
                     : QuestAcceptEncounterSpawnResult.Failure(
@@ -113,14 +116,17 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeQuestCommandPort
                 center,
                 candidate =>
                     candidate != _player_coord
+                    && startingArea.Allows(candidate, encounterProfileId, encounterGrowthStage)
                     && _grid_system.GetOccupantRoot(candidate).Length == 0
                     && _world_map_data_context.IsEncounterPlacementCoordAvailable(candidate),
-                out Vector2I encounterCoord
+                out Vector2I encounterCoord,
+                startingArea.Allows(center, encounterProfileId, encounterGrowthStage)
+                    ? 8 : Math.Max(startingArea.Bounds.Size.X, startingArea.Bounds.Size.Y) + 8
             )
         )
         {
             return QuestAcceptEncounterSpawnResult.Failure(
-                "发布者附近没有可放置任务遭遇的空格。"
+                "没有符合出生区域挑战等级限制的任务遭遇空格。"
             );
         }
 
@@ -247,14 +253,15 @@ internal static class QuestAcceptEncounterPlacement
         WorldMapGridSystem gridSystem,
         Vector2I center,
         Func<Vector2I, bool> isAvailable,
-        out Vector2I result
+        out Vector2I result,
+        int maxPlacementRadius = MaxPlacementRadius
     )
     {
         result = new Vector2I(-1, -1);
         if (gridSystem == null || isAvailable == null)
             return false;
 
-        for (int radius = 1; radius <= MaxPlacementRadius; radius++)
+        for (int radius = 1; radius <= maxPlacementRadius; radius++)
         {
             int minX = center.X - radius;
             int maxX = center.X + radius;

@@ -43,7 +43,6 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestLegacyChargeParametersAreRejected()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "charge",
@@ -58,13 +57,13 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
             },
         };
         GStringArray errors = new();
-        registry.AppendEffectValidationErrors(errors, "legacy_charge", effect, "test_effect");
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_charge"));
         string formattedErrors = string.Join(" | ", errors);
 
         foreach (string legacyKey in effect.@params.Keys)
         {
             _test.True(
-                formattedErrors.Contains($"params.{legacyKey} is unsupported"),
+                formattedErrors.Contains($"payload/{legacyKey}: Unknown effect payload member."),
                 $"legacy charge parameter {legacyKey} should be rejected. errors={formattedErrors}"
             );
         }
@@ -72,14 +71,13 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestInvalidTrapImmunityLevelIsRejected()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "charge",
             charge_trap_immunity_min_skill_level = -2,
         };
         GStringArray errors = new();
-        registry.AppendEffectValidationErrors(errors, "invalid_charge", effect, "test_effect");
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "invalid_charge"));
 
         _test.True(
             string.Join(" | ", errors).Contains(
@@ -120,7 +118,6 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
 
     private void TestLegacyPathStepAoeParametersAreRejected()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "path_step_aoe",
@@ -135,18 +132,13 @@ public partial class run_charge_skill_schema_regression : LifecycleTestSceneTree
             },
         };
         GStringArray errors = new();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_path_step_aoe",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_path_step_aoe"));
         string formattedErrors = string.Join(" | ", errors);
 
         foreach (string legacyKey in effect.@params.Keys)
         {
             _test.True(
-                formattedErrors.Contains($"params.{legacyKey} is unsupported"),
+                formattedErrors.Contains($"payload/{legacyKey}: Unknown effect payload member."),
                 $"legacy path-step parameter {legacyKey} should be rejected. errors={formattedErrors}"
             );
         }

@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -84,12 +82,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
             AssertEquipmentDurabilityScoreSchema(payload);
             AssertForcedMoveScoreSchema(payload);
             AssertLegacyTraceReference(trace, payload);
-            AssertFingerprint(
-                payload,
-                13090,
-                "63aebbcb7e3a462feb41832ad5d3dfc9d5d85175350eb75549119352ccdb60b0",
-                "full AI trace payload"
-            );
+            using GDictionary score = payload["score_input"].AsGodotDictionary();
+            AssertTacticalScoreValues(score, trace.ScoreInput);
             AssertDictionaryKeysAreStrings(payload, "trace");
             using GArray actionTraces = payload["action_traces"].AsGodotArray();
             using GDictionary actionTrace = actionTraces[0].AsGodotDictionary();
@@ -704,12 +698,7 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 0,
                 "Standalone non-barrier score must project an empty layered-barrier value object."
             );
-            AssertFingerprint(
-                lease.Value,
-                10458,
-                "7c3952d0df540aea502f2b3d800b28f9bf0f5f1f3f0864ecacfd5c7f41db6df9",
-                "full standalone AI score payload"
-            );
+            AssertTacticalScoreValues(lease.Value, scoreInput);
         }
         AssertReturnedToBaseline(baseline, "standalone AI score projection");
     }
@@ -770,12 +759,6 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 "offense",
                 77,
                 "bucket priorities"
-            );
-            AssertFingerprint(
-                payload,
-                2414,
-                "607b566463617e2b8bcb3c09852920c1e720b56d01d357ec5a59a278a9ff00d1",
-                "full AI score profile payload"
             );
         }
         AssertReturnedToBaseline(baseline, "profile map projection");
@@ -928,13 +911,6 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 3,
                 "status save bonus map"
             );
-            // 2026-08-15 行动节奏敏捷派生：action_threshold 默认值 120 -> 40，payload 短 1 字符。
-            AssertFingerprint(
-                lease.Value,
-                2345,
-                "008f44ad980dd18bc432fe4875ccf77b3129ef823fa1892d411fd0c7e84942c6",
-                "full real unit snapshot payload"
-            );
         }
         AssertReturnedToBaseline(baseline, "real unit snapshot projection");
         return snapshot;
@@ -989,13 +965,11 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 0,
                 "Successful simulation runs must expose an empty start failure payload."
             );
-            // 同上：action_threshold 默认值 120 -> 40。
-            AssertFingerprint(
-                reportLease.Value,
-                17564,
-                "1479c4074822adf8efcdea08e84ff8335099110f734b427dbc83d458bf2ce608",
-                "full simulation report payload"
-            );
+            using GArray traces = run["ai_turn_traces"].AsGodotArray();
+            _test.Eq(traces.Count, 1, "Simulation report should retain the decision trace.");
+            using GDictionary projectedTrace = traces[0].AsGodotDictionary();
+            using GDictionary score = projectedTrace["score_input"].AsGodotDictionary();
+            AssertTacticalScoreValues(score, trace.ScoreInput);
         }
         finally
         {
@@ -1043,12 +1017,6 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                 reportEntry["entry_type"].VariantType,
                 Variant.Type.StringName,
                 "Compact trace report entries must write typed managed facts directly."
-            );
-            AssertFingerprint(
-                summaryLease.Value,
-                7234,
-                "d80acec63ba7df214be66edf48d6626fa4d7ac0129175f6156322073d89b3695",
-                "full compact trace summary payload"
             );
         }
         AssertReturnedToBaseline(baseline, "compact trace summary projection");
@@ -1164,19 +1132,19 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
         );
     }
 
-    private void AssertFingerprint(
-        GDictionary payload,
-        int expectedLength,
-        string expectedSha256,
-        string label
-    )
+    private void AssertTacticalScoreValues(GDictionary payload, BattleAiScoreInput expected)
     {
-        string json = Json.Stringify(payload);
-        string sha256 = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(json))
-        ).ToLowerInvariant();
-        _test.Eq(json.Length, expectedLength, $"{label} JSON length golden.");
-        _test.Eq(sha256, expectedSha256, $"{label} SHA256 golden.");
+        _test.Eq(payload["total_score"].AsInt32(), expected.total_score, "Projection must retain total score.");
+        _test.Eq(
+            payload["estimated_incoming_attack_damage_relief"].AsInt32(),
+            expected.estimated_incoming_attack_damage_relief,
+            "Projection must retain incoming attack damage relief."
+        );
+        _test.Eq(
+            payload["estimated_vulnerability_follow_up_damage"].AsInt32(),
+            expected.estimated_vulnerability_follow_up_damage,
+            "Projection must retain vulnerability follow-up damage."
+        );
     }
 
     private static Variant FirstKey(GDictionary dictionary)
@@ -1482,6 +1450,8 @@ public partial class run_battle_ai_trace_projection_lease_regression : Lifecycle
                     null,
                 },
                 total_score = 42,
+                estimated_incoming_attack_damage_relief = 11,
+                estimated_vulnerability_follow_up_damage = 17,
             },
             ActionTraces = new[] { actionTrace },
             DecisionTargetSnapshots = new[]

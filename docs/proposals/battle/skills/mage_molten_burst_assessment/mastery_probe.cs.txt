@@ -1,0 +1,36 @@
+using System;
+using System.Collections.Generic;
+using Godot;
+
+// Temporary authoring probe: only validates a proposed mastery curve in memory.
+public partial class run_molten_burst_design_probe : LifecycleTestSceneTree
+{
+    private readonly TestHarness _test = new();
+    public override void _Initialize() => RunAfterProcessStartup(Run);
+    private void Run()
+    {
+        try
+        {
+            int[] curve = { 60, 100, 160, 240, 340, 460, 600 };
+            int cumulative = 0;
+            for (int gate = 1; gate <= 5; gate++)
+            {
+                cumulative += curve[gate - 1];
+                var skill = TestSkillDefinitionProjection.BuildSkill("molten_design_curve", maxLevel: 7,
+                    nonCoreMaxLevel: 5, masteryCurve: curve);
+                var progress = new UnitProgress { unit_id = "molten_probe" };
+                var service = new ProgressionService();
+                service.SetupDefinitions(progress, new Dictionary<StringName, SkillDefinition> { { skill.SkillId, skill } },
+                    new Dictionary<StringName, ProfessionDefinition>());
+                _test.True(service.LearnSkill(skill.SkillId), "Learn at level zero");
+                service.GrantSkillMastery(skill.SkillId, cumulative - 1, "battle");
+                _test.Eq(progress.GetSkillProgress(skill.SkillId).skill_level, gate - 1, "Below proposed gate");
+                service.GrantSkillMastery(skill.SkillId, 1, "battle");
+                _test.Eq(progress.GetSkillProgress(skill.SkillId).skill_level, gate, "At proposed gate");
+            }
+            GD.Print("Proposed cumulative gates: 60,160,320,560,900; production skill content unchanged.");
+        }
+        catch (Exception ex) { _test.Fail(ex.ToString()); }
+        RequestTestExit(_test.Finish("Molten burst design mastery probe"));
+    }
+}

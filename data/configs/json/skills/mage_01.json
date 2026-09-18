@@ -3384,7 +3384,7 @@
       "skill_id": "mage_blur",
       "icon_id": "mage_blur",
       "display_name": "幻身术",
-      "description": "获得持续60TU的闪避+20%，是法师基础自保技。",
+      "description": "身形变得难以辨认，使针对自己的普通攻击检定具有劣势。可被驱散，重复施放不叠加强度；不影响豁免、直接伤害和强制命中。熟练度在敌方攻击检定实际受到新增干扰时获得，普通/精英/首领每次1/2/3点；施放和刷新本身不奖励。",
       "max_level": 7,
       "tags": [
         "mage",
@@ -3392,70 +3392,62 @@
         "illusion",
         "support"
       ],
-      "level_description_template": "自身增益，闪避+20%持续60TU。消耗{mp}法力，冷却{cooldown}TU",
+      "level_description_template": "自身获得幻身：针对自己的普通攻击检定具有劣势，持续{duration}TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU。可驱散，不叠加强度；不影响豁免、直接伤害和强制命中。新增干扰敌方攻击检定时，按普通/精英/首领获得1/2/3熟练度。",
       "level_description_configs": {
         "0": {
           "ap": "1",
-          "cooldown": "15",
-          "duration": "60",
-          "hit": "+0",
           "mp": "60",
+          "duration": "60",
+          "cooldown": "180",
           "range": "0"
         },
         "1": {
           "ap": "1",
-          "cooldown": "15",
+          "mp": "55",
           "duration": "60",
-          "hit": "+0",
-          "mp": "60",
+          "cooldown": "180",
           "range": "0"
         },
         "2": {
           "ap": "1",
-          "cooldown": "15",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "60",
+          "mp": "55",
+          "duration": "80",
+          "cooldown": "180",
           "range": "0"
         },
         "3": {
           "ap": "1",
-          "cooldown": "15",
+          "mp": "55",
           "duration": "80",
-          "hit": "+0",
-          "mp": "60",
+          "cooldown": "160",
           "range": "0"
         },
         "4": {
           "ap": "1",
-          "cooldown": "15",
+          "mp": "50",
           "duration": "80",
-          "hit": "+0",
-          "mp": "60",
+          "cooldown": "160",
           "range": "0"
         },
         "5": {
           "ap": "1",
-          "cooldown": "10",
+          "mp": "50",
           "duration": "100",
-          "hit": "+0",
-          "mp": "60",
+          "cooldown": "160",
           "range": "0"
         },
         "6": {
           "ap": "1",
-          "cooldown": "10",
+          "mp": "50",
           "duration": "100",
-          "hit": "+0",
-          "mp": "60",
+          "cooldown": "120",
           "range": "0"
         },
         "7": {
           "ap": "1",
-          "cooldown": "10",
-          "duration": "120",
-          "hit": "+0",
-          "mp": "60",
+          "mp": "45",
+          "duration": "100",
+          "cooldown": "120",
           "range": "0"
         }
       },
@@ -3465,79 +3457,97 @@
         "range_value": 0,
         "area_pattern": "self",
         "mp_cost": 60,
-        "cooldown_tu": 15,
+        "cooldown_tu": 180,
         "effect_defs": [
           {
             "effect_type": "status",
-            "max_skill_level": 0,
+            "min_skill_level": 0,
+            "max_skill_level": 1,
             "power": 1,
             "duration_tu": 60,
             "payload": {},
             "effect_target_team_filter": "ally",
-            "status_id": "dodge_bonus_up"
+            "status_id": "blurred_form",
+            "incoming_attack_roll_disadvantage": true
           },
           {
             "effect_type": "status",
-            "min_skill_level": 1,
-            "max_skill_level": 2,
-            "power": 1,
-            "duration_tu": 60,
-            "payload": {},
-            "effect_target_team_filter": "ally",
-            "status_id": "dodge_bonus_up"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 3,
+            "min_skill_level": 2,
             "max_skill_level": 4,
-            "power": 2,
+            "power": 1,
             "duration_tu": 80,
             "payload": {},
             "effect_target_team_filter": "ally",
-            "status_id": "dodge_bonus_up"
+            "status_id": "blurred_form",
+            "incoming_attack_roll_disadvantage": true
           },
           {
             "effect_type": "status",
             "min_skill_level": 5,
-            "max_skill_level": 6,
-            "power": 2,
+            "max_skill_level": 7,
+            "power": 1,
             "duration_tu": 100,
             "payload": {},
             "effect_target_team_filter": "ally",
-            "status_id": "dodge_bonus_up"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 7,
-            "power": 3,
-            "duration_tu": 120,
-            "payload": {},
-            "effect_target_team_filter": "ally",
-            "status_id": "dodge_bonus_up"
+            "status_id": "blurred_form",
+            "incoming_attack_roll_disadvantage": true
           }
         ],
         "level_overrides": {
-          "3": {},
-          "5": {
-            "cooldown_tu": 10
+          "1": {
+            "ap_cost": 1,
+            "mp_cost": 55,
+            "cooldown_tu": 180
           },
-          "7": {}
+          "2": {
+            "ap_cost": 1,
+            "mp_cost": 55,
+            "cooldown_tu": 180
+          },
+          "3": {
+            "ap_cost": 1,
+            "mp_cost": 55,
+            "cooldown_tu": 160
+          },
+          "4": {
+            "ap_cost": 1,
+            "mp_cost": 50,
+            "cooldown_tu": 160
+          },
+          "5": {
+            "ap_cost": 1,
+            "mp_cost": 50,
+            "cooldown_tu": 160
+          },
+          "6": {
+            "ap_cost": 1,
+            "mp_cost": 50,
+            "cooldown_tu": 120
+          },
+          "7": {
+            "ap_cost": 1,
+            "mp_cost": 45,
+            "cooldown_tu": 120
+          }
         },
-        "mastery_trigger_mode": "effect_applied",
+        "mastery_trigger_mode": "incoming_attack_disadvantage",
         "delivery_categories": [
           "spell"
         ],
-        "target_selection_mode": "self"
+        "target_selection_mode": "self",
+        "ap_cost": 1,
+        "mastery_amount_mode": "per_target_rank",
+        "mastery_base_amount": 1
       },
       "non_core_max_level": 5,
       "mastery_curve": [
-        400,
-        1000,
-        2200,
-        4000,
-        6500,
-        9500,
-        13000
+        60,
+        100,
+        150,
+        210,
+        280,
+        380,
+        500
       ],
       "growth_tier": "advanced",
       "attribute_growth_progress": {
@@ -3551,7 +3561,7 @@
       "skill_id": "mage_bone_chill",
       "icon_id": "mage_bone_chill",
       "display_name": "骨寒术",
-      "description": "选择射程内一个可见的存活敌人（亡灵与构装除外），发射寒冷的负能量。命中造成负能量伤害并施加寒蚀；寒蚀期间，目标获得的生命治疗至多为正常值的50%。寒蚀只新增或刷新自身，不会延长其他减疗效果。",
+      "description": "选择射程内一个可见的存活敌人（亡灵与构装除外），发射寒冷的负能量。命中造成负能量伤害并施加寒蚀；寒蚀期间，目标获得的生命治疗至多为正常值的50%。每次命中增加1层寒蚀，最多2层；层数不增强减疗。寒蚀只叠加并刷新自身，不会延长其他减疗效果。",
       "max_level": 7,
       "tags": [
         "mage",
@@ -3560,7 +3570,7 @@
         "output",
         "debuff"
       ],
-      "level_description_template": "仅对非亡灵、非构装的存活敌人有效；射程{range}，接触攻击检定{hit}，命中造成{dmg}负能量伤害并施加寒蚀，使其获得的生命治疗至多为正常值的50%，持续{duration}TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_template": "仅对非亡灵、非构装的存活敌人有效；射程{range}，接触攻击检定{hit}，命中造成{dmg}负能量伤害并施加寒蚀，使其获得的生命治疗至多为正常值的50%，持续{duration}TU。消耗{ap}AP/{mp}法力，冷却{cooldown}TU。每次命中增加1层寒蚀，最多2层；减疗不随层数增强",
       "level_description_configs": {
         "0": {
           "ap": "1",
@@ -4744,7 +4754,7 @@
       "skill_id": "mage_cold_snap",
       "icon_id": "mage_cold_snap",
       "display_name": "霜爆回响",
-      "description": "若区域内存在带寒蚀的敌人，则对其追加一次50%碎裂伤害。",
+      "description": "对指定区域内的敌人造成寒冰伤害，体质魔法豁免成功伤害减半。伤害结算后，已有至少2层寒蚀且仍存活的目标获得60TU寒冰易伤；不额外豁免，不消耗或刷新寒蚀。新施加的易伤只影响之后的寒冰伤害，将豁免后的伤害翻倍，再由护盾吸收；与寒冰抗性抵消，不穿透寒冰免疫，相同易伤不叠加。",
       "max_level": 7,
       "tags": [
         "mage",
@@ -4753,87 +4763,71 @@
         "output",
         "control"
       ],
-      "level_description_template": "射程{range}，冰伤{dmg}，范围{area}格。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_template": "射程{range}，半径{area}格，造成{dmg}寒冰伤害；体质魔法豁免成功减半。结算后，存活且有至少2层寒蚀的敌人获得60TU寒冰易伤，使后续寒冰伤害在豁免后翻倍；不额外豁免，不消耗或刷新寒蚀。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
       "level_description_configs": {
         "0": {
           "ap": "2",
+          "mp": "70",
+          "range": "4",
           "area": "1",
-          "cooldown": "10",
           "dmg": "4D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
-          "range": "4"
+          "cooldown": "120"
         },
         "1": {
           "ap": "2",
+          "mp": "65",
+          "range": "4",
           "area": "1",
-          "cooldown": "10",
-          "dmg": "5D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
-          "range": "4"
+          "dmg": "4D6",
+          "cooldown": "120"
         },
         "2": {
           "ap": "2",
+          "mp": "65",
+          "range": "5",
           "area": "1",
-          "cooldown": "10",
-          "dmg": "5D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
-          "range": "4"
+          "dmg": "4D6",
+          "cooldown": "120"
         },
         "3": {
           "ap": "2",
+          "mp": "65",
+          "range": "5",
           "area": "1",
-          "cooldown": "10",
           "dmg": "6D6",
-          "duration": "80",
-          "hit": "+0",
-          "mp": "80",
-          "range": "5"
+          "cooldown": "120"
         },
         "4": {
           "ap": "2",
+          "mp": "65",
+          "range": "5",
           "area": "1",
-          "cooldown": "10",
           "dmg": "6D6",
-          "duration": "80",
-          "hit": "+0",
-          "mp": "80",
-          "range": "5"
+          "cooldown": "80"
         },
         "5": {
           "ap": "2",
-          "area": "1",
-          "cooldown": "5",
-          "dmg": "7D6",
-          "duration": "100",
-          "hit": "+0",
-          "mp": "80",
-          "range": "5"
+          "mp": "65",
+          "range": "5",
+          "area": "2",
+          "dmg": "6D6",
+          "cooldown": "80"
         },
         "6": {
           "ap": "2",
-          "area": "1",
-          "cooldown": "5",
-          "dmg": "7D6",
-          "duration": "100",
-          "hit": "+0",
-          "mp": "80",
-          "range": "5"
+          "mp": "60",
+          "range": "5",
+          "area": "2",
+          "dmg": "6D6",
+          "cooldown": "80"
         },
         "7": {
           "ap": "2",
-          "area": "1",
-          "cooldown": "5",
+          "mp": "60",
+          "range": "5",
+          "area": "2",
           "dmg": "8D6",
-          "duration": "120",
-          "hit": "+0",
-          "mp": "80",
-          "range": "5"
+          "cooldown": "80"
         }
       },
       "combat_profile": {
@@ -4842,12 +4836,13 @@
         "range_value": 4,
         "area_pattern": "radius",
         "ap_cost": 2,
-        "mp_cost": 80,
-        "cooldown_tu": 10,
+        "mp_cost": 70,
+        "cooldown_tu": 120,
         "effect_defs": [
           {
             "effect_type": "damage",
-            "max_skill_level": 0,
+            "min_skill_level": 0,
+            "max_skill_level": 2,
             "payload": {},
             "damage_tag": "freeze",
             "dice_count": 4,
@@ -4860,22 +4855,8 @@
           },
           {
             "effect_type": "damage",
-            "min_skill_level": 1,
-            "max_skill_level": 2,
-            "payload": {},
-            "damage_tag": "freeze",
-            "dice_count": 5,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "constitution",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
             "min_skill_level": 3,
-            "max_skill_level": 4,
+            "max_skill_level": 6,
             "payload": {},
             "damage_tag": "freeze",
             "dice_count": 6,
@@ -4888,21 +4869,8 @@
           },
           {
             "effect_type": "damage",
-            "min_skill_level": 5,
-            "max_skill_level": 6,
-            "payload": {},
-            "damage_tag": "freeze",
-            "dice_count": 7,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "constitution",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
             "min_skill_level": 7,
+            "max_skill_level": 7,
             "payload": {},
             "damage_tag": "freeze",
             "dice_count": 8,
@@ -4915,72 +4883,89 @@
           },
           {
             "effect_type": "status",
-            "min_skill_level": 3,
-            "max_skill_level": 4,
-            "power": 2,
-            "duration_tu": 80,
+            "status_id": "freeze_vulnerability",
+            "duration_tu": 60,
+            "power": 1,
             "payload": {},
             "effect_target_team_filter": "enemy",
-            "status_id": "slow",
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "willpower",
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 5,
-            "max_skill_level": 6,
-            "power": 2,
-            "duration_tu": 100,
-            "payload": {},
-            "effect_target_team_filter": "enemy",
-            "status_id": "slow",
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "willpower",
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 7,
-            "power": 3,
-            "duration_tu": 120,
-            "payload": {},
-            "effect_target_team_filter": "enemy",
-            "status_id": "slow",
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "willpower",
-            "save_tag": "magic"
+            "damage_tag": "freeze",
+            "mitigation_tier": "double",
+            "required_target_status_id": "bone_chill",
+            "required_target_status_min_stacks": 2,
+            "stack_behavior": "refresh",
+            "stack_limit": 1
           }
         ],
         "level_overrides": {
+          "1": {
+            "ap_cost": 2,
+            "mp_cost": 65,
+            "range_value": 4,
+            "area_value": 1,
+            "cooldown_tu": 120
+          },
+          "2": {
+            "ap_cost": 2,
+            "mp_cost": 65,
+            "range_value": 5,
+            "area_value": 1,
+            "cooldown_tu": 120
+          },
           "3": {
-            "range_value": 5
+            "ap_cost": 2,
+            "mp_cost": 65,
+            "range_value": 5,
+            "area_value": 1,
+            "cooldown_tu": 120
+          },
+          "4": {
+            "ap_cost": 2,
+            "mp_cost": 65,
+            "range_value": 5,
+            "area_value": 1,
+            "cooldown_tu": 80
           },
           "5": {
-            "cooldown_tu": 5,
-            "range_value": 5
+            "ap_cost": 2,
+            "mp_cost": 65,
+            "range_value": 5,
+            "area_value": 2,
+            "cooldown_tu": 80
+          },
+          "6": {
+            "ap_cost": 2,
+            "mp_cost": 60,
+            "range_value": 5,
+            "area_value": 2,
+            "cooldown_tu": 80
           },
           "7": {
-            "area_value": 2
+            "ap_cost": 2,
+            "mp_cost": 60,
+            "range_value": 5,
+            "area_value": 2,
+            "cooldown_tu": 80
           }
         },
         "area_value": 1,
         "delivery_categories": [
           "spell"
-        ]
+        ],
+        "requires_los": true,
+        "target_team_filter": "enemy",
+        "mastery_trigger_mode": "damage_dealt",
+        "mastery_amount_mode": "per_target_rank",
+        "mastery_base_amount": 1
       },
       "non_core_max_level": 5,
       "mastery_curve": [
-        400,
-        1000,
-        2200,
-        4000,
-        6500,
-        9500,
-        13000
+        60,
+        100,
+        150,
+        210,
+        280,
+        380,
+        500
       ],
       "growth_tier": "advanced",
       "attribute_growth_progress": {

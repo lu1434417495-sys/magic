@@ -38,7 +38,10 @@ internal static class TestWorldGenerationDefinitionFactory
         IReadOnlyList<WorldEventDefinition> worldEvents = null,
         WorldMapSettlementBundleDefinition defaultSettlementBundle = null,
         WorldMapWildSpawnBundleDefinition defaultWildSpawnBundle = null,
-        IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> settlementNamePools = null
+        IReadOnlyDictionary<SettlementTierKind, WorldMapSettlementNamePoolDefinition> settlementNamePools = null,
+        bool guaranteeStartingWildEncounter = false,
+        string startingWildSpawnRegionTag = "",
+        WorldStartingAreaDefinition startingArea = null
     ) =>
         new(
             generationId == default ? new StringName("test_fixture") : generationId,
@@ -62,7 +65,9 @@ internal static class TestWorldGenerationDefinitionFactory
             220,
             280,
             340,
-            false,
+            guaranteeStartingWildEncounter,
+            startingWildSpawnRegionTag,
+            startingArea ?? WorldStartingAreaDefinition.Disabled,
             startingWildSpawnMinDistance,
             startingWildSpawnMaxDistance,
             settlementLibrary ?? Array.Empty<SettlementDefinition>(),

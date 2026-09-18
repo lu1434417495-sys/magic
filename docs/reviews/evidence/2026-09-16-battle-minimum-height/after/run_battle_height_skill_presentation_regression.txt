@@ -1,0 +1,23 @@
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+Vulkan 1.4.341 - Forward+ - Using Device #0: NVIDIA - NVIDIA GeForce RTX 5090 D v2
+
+HUD cast mage_rampart_raise/pillar: 4 -> 7, generation 4 -> 5
+HUD cast mage_fossil_to_mud/lower_single_1: 7 -> 6, generation 6 -> 7
+HUD cast mage_fossil_to_mud/lower_single_1: 6 -> 5, generation 8 -> 9
+HUD cast mage_fossil_to_mud/lower_single_1: 5 -> 4, generation 10 -> 11
+HUD cast mage_fossil_to_mud/lower_single_1: 4 -> 3, generation 12 -> 13
+HUD cast mage_fossil_to_mud/lower_single_1: 3 -> 2, generation 14 -> 15
+HUD cast mage_fossil_to_mud/lower_single_1: 2 -> 1, generation 16 -> 17
+HUD cast mage_fossil_to_mud/lower_single_1: 1 -> 0, generation 18 -> 19
+HUD cast mage_fossil_to_mud/lower_single_1: 0 -> -1, generation 20 -> 21
+HUD cast mage_rampart_raise/pillar: 4 -> 7, generation 24 -> 25
+HUD cast mage_fossil_to_mud/lower_single_1: 7 -> 6, generation 26 -> 27
+HUD cast mage_fossil_to_mud/lower_single_1: 6 -> 5, generation 28 -> 29
+HUD cast mage_fossil_to_mud/lower_single_1: 5 -> 4, generation 30 -> 31
+HUD cast mage_fossil_to_mud/lower_single_1: 4 -> 3, generation 32 -> 33
+HUD cast mage_fossil_to_mud/lower_single_1: 3 -> 2, generation 34 -> 35
+HUD cast mage_fossil_to_mud/lower_single_1: 2 -> 1, generation 36 -> 37
+HUD cast mage_fossil_to_mud/lower_single_1: 1 -> 0, generation 38 -> 39
+HUD cast mage_fossil_to_mud/lower_single_1: 0 -> -1, generation 40 -> 41
+Battle height skill presentation regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0

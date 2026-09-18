@@ -438,7 +438,6 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 BattleAirbornePullRules.CollectLegalDestinations(
                     context?.state,
                     context?.grid_service,
-                    null,
                     actor,
                     target,
                     airbornePullEffect

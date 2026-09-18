@@ -38,7 +38,6 @@ internal static class BattleWindPushRules
     internal static BattleForcedMovePreviewData BuildPreview(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         CombatEffectDefinition effectDefinition,
         IReadOnlyList<StringName> targetUnitIds,
@@ -135,11 +134,13 @@ internal static class BattleWindPushRules
                             toCoord,
                             previewTarget
                         )
-                        || barrierService?.HasUnitBoundaryBarrier(
+                        || BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                            state,
+                            gridService,
                             previewTarget,
                             fromCoord,
                             toCoord
-                        ) == true
+                        )
                         || !gridService.MoveUnit(previewState, previewTarget, toCoord)
                     )
                     {

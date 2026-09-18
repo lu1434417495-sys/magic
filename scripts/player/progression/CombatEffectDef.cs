@@ -65,6 +65,13 @@ public partial class CombatEffectDef : RefCounted
     public int power { get; set; }
 
     [Export]
+    public int status_tick_limit { get; set; }
+    [Export]
+    public int status_source_limit { get; set; }
+    [Export]
+    public StringName status_source_tag { get; set; } = "";
+
+    [Export]
     public int heal_to_hp_percent_floor { get; set; }
 
     [Export]
@@ -584,6 +591,8 @@ public partial class CombatEffectDef : RefCounted
 
     [Export]
     public bool lock_dodge_bonus { get; set; }
+    [Export]
+    public bool incoming_attack_roll_disadvantage { get; set; }
 
     [Export]
     public bool lock_crit { get; set; }

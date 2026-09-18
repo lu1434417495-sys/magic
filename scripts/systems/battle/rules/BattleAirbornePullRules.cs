@@ -93,7 +93,6 @@ internal static class BattleAirbornePullRules
     internal static BattleAirbornePullPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition,
@@ -126,14 +125,19 @@ internal static class BattleAirbornePullRules
             () => BlocksEnemyForcedMove(sourceUnit, targetUnit),
             coord => gridService.CanPlaceUnit(state, targetUnit, coord, ignore_height: true),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(targetUnit, fromCoord, toCoord) == true
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
+                    targetUnit,
+                    fromCoord,
+                    toCoord
+                )
         );
     }
 
     internal static BattleAirbornePullPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitReadView sourceUnit,
         BattleUnitReadView targetUnit,
         CombatEffectDefinition effectDefinition,
@@ -166,18 +170,19 @@ internal static class BattleAirbornePullRules
             () => BlocksEnemyForcedMove(sourceUnit, targetUnit),
             coord => gridService.CanPlaceUnit(state, targetUnit, coord, ignore_height: true),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
                     targetUnit.UnsafeUnitForReadOnlyRules,
                     fromCoord,
                     toCoord
-                ) == true
+                )
         );
     }
 
     internal static IReadOnlyList<Vector2I> CollectLegalDestinations(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDefinition effectDefinition
@@ -200,7 +205,6 @@ internal static class BattleAirbornePullRules
                     BuildPlan(
                         state,
                         gridService,
-                        barrierService,
                         sourceUnit,
                         targetUnit,
                         effectDefinition,

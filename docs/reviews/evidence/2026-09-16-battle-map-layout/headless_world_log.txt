@@ -1,0 +1,10 @@
+
+[1/1] [RUN] tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+World map runtime log dock regression: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+[1/1] [DONE] tests/world_map/runtime/run_world_map_runtime_log_dock_regression.cs - 成功 (20.11s)
+
+Passed: 1
+Failed: 0

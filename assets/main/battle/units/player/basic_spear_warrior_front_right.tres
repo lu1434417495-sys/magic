@@ -1,0 +1,14 @@
+[gd_resource type="AtlasTexture" script_class="BattleUnitSpriteTexture" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/player/basic_spear_warrior_4way.png" id="1_atlas"]
+
+[ext_resource type="Script" path="res://scripts/ui/BattleUnitSpriteTexture.cs" id="2_sprite"]
+
+[resource]
+script = ExtResource("2_sprite")
+atlas = ExtResource("1_atlas")
+region = Rect2(544, 0, 520, 724)
+margin = Rect2(150, 244, 248, 300)
+filter_clip = true
+LeftFootContact = Vector2(313, 937)
+RightFootContact = Vector2(451, 888)

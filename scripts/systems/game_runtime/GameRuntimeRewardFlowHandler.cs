@@ -129,6 +129,9 @@ public sealed class GameRuntimeRewardFlowHandler
             case RuntimeModalKind.Party:
                 CloseDismissibleModal(RuntimeModalKind.Party);
                 return CommandOkTyped();
+            case RuntimeModalKind.QuestJournal:
+                CloseDismissibleModal(RuntimeModalKind.QuestJournal);
+                return CommandOkTyped();
             case RuntimeModalKind.Warehouse:
                 CloseDismissibleModal(RuntimeModalKind.Warehouse);
                 return CommandOkTyped();

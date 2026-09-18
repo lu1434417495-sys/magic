@@ -53,6 +53,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     public ShopWindow stagecoach_service_modal;
     // Dedicated modal for NPC quest offers; driven by RuntimeModalKind.NpcQuestOffer.
     public NpcQuestOfferDialog npc_quest_offer_dialog;
+    public QuestJournalWindow quest_journal_window;
+    public Button quest_button;
     public BountyBoardWindow bounty_board_window;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
@@ -146,11 +148,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
         contingency_setup_window.SetDisplayDefinitions(contentCatalog.GetSkillDefinitionsTyped(), contentCatalog.GetItemDefsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
+        party_management_window.SetIdentityCatalog(contentCatalog.GetProgressionIdentityCatalogTyped());
         party_management_window.SetEquipmentAbilityBindings(
             contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped()
         );
         party_management_window.SetWorldStepProvider(() => _runtime?.GetWorldStep() ?? -1);
-        party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());
 
         ConnectSignals();
         world_map_view.Configure(
@@ -185,7 +187,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
                 DisconnectSignals();
             }
             if (battle_map_panel != null)
+            {
+                battle_map_panel.CancelMovementPlayback();
                 battle_map_panel.SetupRuntimeContext(null, null);
+            }
         }
         finally
         {
@@ -293,8 +298,16 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         BattlePresentationDelta battle_presentation_delta
     )
     {
+        if (!IsBattleMovementPlaying && battle_map_panel != null
+            && battle_presentation_delta?.Movements.Count > 0
+            && battle_map_panel.PlayMovements(battle_presentation_delta.Movements))
+            return;
         RenderFromRuntimeCore(refresh_world, null, battle_presentation_delta);
     }
+
+    internal bool IsBattleMovementPlaying => battle_map_panel?.IsMovementPlaying == true;
+
+    private void OnBattleMovementPlaybackFinished() => RenderFromRuntime(true);
 
     private void RenderFromRuntimeCore(
         bool refresh_world,
@@ -303,6 +316,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     )
     {
         if (_runtime == null)
+            return;
+        // Coalesce refreshes until playback finishes; no live runtime state is
+        // retained by the visual player. The completion event refreshes all facts.
+        if (IsBattleMovementPlaying)
             return;
         // nearbyLimit:0 — RenderFromRuntime only reads status/coords/modal from the
         // view model, never NearbyEncounters/NearbyWorldEvents (those feed the text
@@ -326,6 +343,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (party_button != null)
             party_button.Disabled =
                 _runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen();
+        if (quest_button != null)
+            quest_button.Disabled = _runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen();
 
         if (_runtime_proxy.IsBattleActive())
         {
@@ -422,6 +441,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
                     );
                 }
             }
+            if (!skipBattlePanelRefresh)
+                battle_map_panel.RefreshCurrentHover(battleState);
             _set_battle_loading_overlay(
                 battle_map_panel.IsLoadingBattle(),
                 battle_map_panel.GetLoadingProgress()
@@ -475,17 +496,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         bool changed = _runtime_proxy.Advance((float)delta);
         if (changed)
         {
-            if (_runtime_proxy.IsBattleActive())
-            {
-                RenderFromRuntime(
-                    true,
-                    _runtime_proxy.GetLastAdvanceBattlePresentationDelta()
-                );
-            }
-            else
-            {
-                RenderFromRuntime(true);
-            }
+            RenderFromRuntime(true, _runtime_proxy.GetLastAdvanceBattlePresentationDelta());
         }
         if (_runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen())
         {
@@ -548,6 +559,12 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (key_event.Keycode == Key.P)
         {
             _runtime_proxy.CommandOpenParty();
+            return true;
+        }
+        if (key_event.Keycode == Key.J)
+        {
+            _clear_world_move_hold();
+            _runtime_proxy.CommandOpenQuestJournal();
             return true;
         }
         if (_is_world_settlement_confirm_key(key_event.Keycode))
@@ -814,7 +831,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 
     public void _on_battle_cell_hovered(Vector2I coord)
     {
-        if (_runtime == null || !_runtime_proxy.IsBattleActive())
+        if (_runtime == null || IsBattleMovementPlaying || !_runtime_proxy.IsBattleActive())
             return;
         if (battle_map_panel.IsLoadingBattle())
             return;
@@ -998,6 +1015,18 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandCloseActiveModal();
     }
 
+    private void OnQuestJournalPressed()
+    {
+        if (_runtime == null) return;
+        _clear_world_move_hold();
+        _runtime_proxy.CommandOpenQuestJournal();
+    }
+
+    private void OnQuestJournalClosed()
+    {
+        if (_runtime != null) _runtime_proxy.CommandCloseActiveModal();
+    }
+
     public void _on_bounty_board_window_action_requested(
         string settlement_id,
         string action_id,
@@ -1113,7 +1142,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         ShowContingencySetupWindow(memberId);
         if (party_management_window != null && party_management_window.Visible)
         {
-            party_management_window.SetPartyState(_runtime_proxy.GetPartyState());
+            party_management_window.SetPartyView(_runtime_proxy.GetPartyManagementViewDataTyped());
             party_management_window.SelectMember(memberId);
         }
     }
@@ -1365,6 +1394,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = GetNode<ShopWindow>("ForgeServiceModal");
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
         npc_quest_offer_dialog = GetNode<NpcQuestOfferDialog>("NpcQuestOfferDialog");
+        quest_journal_window = GetNode<QuestJournalWindow>("QuestJournalWindow");
+        quest_button = GetNode<Button>("%QuestButton");
         bounty_board_window = GetNode<BountyBoardWindow>("BountyBoardWindow");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
@@ -1411,6 +1442,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
         npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
         npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
+        quest_journal_window.closed += OnQuestJournalClosed;
+        quest_button.Pressed += OnQuestJournalPressed;
         bounty_board_window.action_requested += _on_bounty_board_window_action_requested;
         bounty_board_window.closed += _on_bounty_board_window_closed;
         character_info_window.closed += _on_character_info_window_closed;
@@ -1447,6 +1480,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         battle_map_panel.battle_resolve_pressed += _on_battle_resolve_pressed;
         battle_map_panel.battle_cycle_variant_pressed += _on_battle_cycle_variant_pressed;
         battle_map_panel.battle_clear_skill_pressed += _on_battle_clear_skill_pressed;
+        battle_map_panel.MovementPlaybackFinished += OnBattleMovementPlaybackFinished;
     }
 
     private void DisconnectSignals()
@@ -1489,6 +1523,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.action_requested -= _on_npc_quest_offer_dialog_action_requested;
             npc_quest_offer_dialog.closed -= _on_npc_quest_offer_dialog_closed;
         }
+        if (quest_journal_window != null) quest_journal_window.closed -= OnQuestJournalClosed;
+        if (quest_button != null) quest_button.Pressed -= OnQuestJournalPressed;
         if (bounty_board_window != null)
         {
             bounty_board_window.action_requested -= _on_bounty_board_window_action_requested;
@@ -1549,6 +1585,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             battle_map_panel.battle_resolve_pressed -= _on_battle_resolve_pressed;
             battle_map_panel.battle_cycle_variant_pressed -= _on_battle_cycle_variant_pressed;
             battle_map_panel.battle_clear_skill_pressed -= _on_battle_clear_skill_pressed;
+            battle_map_panel.MovementPlaybackFinished -= OnBattleMovementPlaybackFinished;
         }
     }
 
@@ -1567,6 +1604,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = null;
         stagecoach_service_modal = null;
         npc_quest_offer_dialog = null;
+        quest_journal_window = null;
+        quest_button = null;
         bounty_board_window = null;
         character_info_window = null;
         party_management_window = null;
@@ -1623,6 +1662,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.ShowDialog(_runtime_proxy.GetNpcQuestOfferWindowDataTyped());
         else
             npc_quest_offer_dialog.HideDialog();
+        if (modalId == "quest_journal")
+            quest_journal_window.ShowWindow(_runtime_proxy.GetQuestJournalWindowDataTyped());
+        else
+            quest_journal_window.HideWindow();
         if (modalId == "bounty_board")
             bounty_board_window.ShowBoard(_runtime_proxy.GetBountyBoardWindowDataTyped());
         else
@@ -1633,7 +1676,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             character_info_window.HideWindow();
         if (modalId == "party")
         {
-            party_management_window.ShowParty(_runtime_proxy.GetPartyState());
+            party_management_window.ShowParty(_runtime_proxy.GetPartyManagementViewDataTyped());
             StringName selectedMemberId = _runtime_proxy.GetPartySelectedMemberId();
             if (selectedMemberId != "")
                 party_management_window.SelectMember(selectedMemberId);

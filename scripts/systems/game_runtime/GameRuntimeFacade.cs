@@ -287,6 +287,11 @@ public sealed partial class GameRuntimeFacade
         using GodotProjectionLease<GDictionary> worldDataLease =
             _game_session.GetWorldDataLease();
         _world_map_data_context.BindRootWorldData(worldDataLease.Value);
+        _world_map_data_context.ConfigureEncounterChallenges(new EncounterChallengeCatalog(
+            _content_catalog.GetBattleEncounterDefinitions(),
+            _content_catalog.GetEncounterRosterDefinitions(),
+            _content_catalog.GetEnemyTemplateDefinitions()
+        ));
         RebuildWildEncounterRosterDefinitionIndex(
             _content_catalog.GetEncounterRosterDefinitions()
         );
@@ -1850,7 +1855,8 @@ public sealed partial class GameRuntimeFacade
             advanceResult.old_step,
             advanceResult.new_step,
             _battle_encounter_definitions,
-            _wild_encounter_roster_definitions
+            _wild_encounter_roster_definitions,
+            _world_map_data_context.GetStartingAreaRules()
         );
         if (encounterGrowthChanged)
             // Growth only changed anchor growth_stage (positions unchanged), so skip
@@ -1905,7 +1911,8 @@ public sealed partial class GameRuntimeFacade
                     encounterAnchor,
                     _world_map_data_context.GetWorldStep(),
                     _battle_encounter_definitions,
-                    _wild_encounter_roster_definitions
+                    _wild_encounter_roster_definitions,
+                    _world_map_data_context.GetStartingAreaRules()
                 ))
                     _world_map_data_context.SyncActiveWorldPayloadFromTypedState();
                 break;

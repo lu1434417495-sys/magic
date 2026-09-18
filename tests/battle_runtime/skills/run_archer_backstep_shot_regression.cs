@@ -163,10 +163,6 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
 
     private void TestSchemaRejectsInvalidSourceRetreatProfiles()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using var invalidDistance = new CombatEffectDef
         {
             effect_type = BattleTypedNames.EffectSourceRetreat,
@@ -174,11 +170,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         };
         using var invalidDistanceProfile = BuildSourceRetreatProfile(invalidDistance);
         var distanceErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            distanceErrors,
-            "invalid_source_retreat_distance",
-            invalidDistanceProfile
-        );
+        distanceErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(invalidDistanceProfile, "invalid_source_retreat_distance"));
         _test.True(
             ErrorsContain(distanceErrors, "source_retreat_distance >= 1"),
             $"0格 source_retreat 必须被 schema 拒绝。errors={string.Join(" | ", distanceErrors)}"
@@ -192,11 +184,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using var delayedProfile = BuildSourceRetreatProfile(validRetreat);
         delayedProfile.casting_time_tu = 10;
         var delayedErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            delayedErrors,
-            "invalid_delayed_source_retreat",
-            delayedProfile
-        );
+        delayedErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(delayedProfile, "invalid_delayed_source_retreat"));
         _test.True(
             ErrorsContain(delayedErrors, "cannot be combined with casting_time_tu"),
             $"需要即时选向的 source_retreat 不得进入读条。errors={string.Join(" | ", delayedErrors)}"
@@ -211,11 +199,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using var windup = new CombatWindupDef();
         windupProfile.windup_profile = windup;
         var windupErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            windupErrors,
-            "invalid_windup_source_retreat",
-            windupProfile
-        );
+        windupErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(windupProfile, "invalid_windup_source_retreat"));
         _test.True(
             ErrorsContain(windupErrors, "or windup_profile"),
             $"source_retreat 不得与蓄力组合。errors={string.Join(" | ", windupErrors)}"
@@ -234,11 +218,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         };
         variantProfile.cast_variants.Add(castVariant);
         var variantErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            variantErrors,
-            "invalid_variant_source_retreat",
-            variantProfile
-        );
+        variantErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(variantProfile, "invalid_variant_source_retreat"));
         _test.True(
             ErrorsContain(variantErrors, "cannot be placed behind cast_variants"),
             $"source_retreat 不得依赖施法变体选向。errors={string.Join(" | ", variantErrors)}"
@@ -252,11 +232,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using var specialProfile = BuildSourceRetreatProfile(specialRetreat);
         specialProfile.random_chain_attack_count = 2;
         var specialErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            specialErrors,
-            "invalid_special_source_retreat",
-            specialProfile
-        );
+        specialErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(specialProfile, "invalid_special_source_retreat"));
         _test.True(
             ErrorsContain(specialErrors, "cannot use special or random-chain resolution"),
             $"随机链不得自动生成后撤方向。errors={string.Join(" | ", specialErrors)}"
@@ -278,12 +254,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
             contingency_automation_profile = contingencyAutomation,
         };
         var automaticErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            automaticErrors,
-            automaticSkill.skill_id,
-            automaticProfile,
-            automaticSkill
-        );
+        automaticErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(automaticProfile, automaticSkill.skill_id, automaticSkill));
         _test.True(
             ErrorsContain(automaticErrors, "cannot be stored in contingency"),
             $"Contingency 不得在无人选向时储存后撤技能。errors={string.Join(" | ", automaticErrors)}"
@@ -302,11 +273,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
         using var duplicateProfile = BuildSourceRetreatProfile(firstDuplicateRetreat);
         duplicateProfile.effect_defs.Add(secondDuplicateRetreat);
         var duplicateErrors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            duplicateErrors,
-            "invalid_duplicate_source_retreat",
-            duplicateProfile
-        );
+        duplicateErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(duplicateProfile, "invalid_duplicate_source_retreat"));
         _test.True(
             ErrorsContain(duplicateErrors, "must appear exactly once"),
             $"一个技能不得声明多个后撤提交。errors={string.Join(" | ", duplicateErrors)}"
@@ -319,12 +286,7 @@ public partial class run_archer_backstep_shot_regression : LifecycleTestSceneTre
             source_retreat_distance = 2,
         };
         var ownerErrors = new GStringArray();
-        validator.AppendEffectValidationErrors(
-            ownerErrors,
-            "invalid_source_retreat_owner",
-            wrongOwner,
-            "combat_profile.effect_defs[0]"
-        );
+        ownerErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(wrongOwner, "invalid_source_retreat_owner"));
         _test.True(
             ErrorsContain(ownerErrors, "only supported on source_retreat"),
             $"后撤距离字段不得挂到其他效果。errors={string.Join(" | ", ownerErrors)}"

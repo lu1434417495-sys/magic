@@ -186,7 +186,7 @@ internal sealed class BattleChargeBridgeService
         {
             return Array.Empty<BattleUnitState>();
         }
-        runtime._ensure_sidecars_ready();
+        runtime.AssertRuntimeAvailable();
         return runtime._skill_orchestrator.CollectUnitsInCoords(effectCoords);
     }
 

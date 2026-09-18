@@ -44,16 +44,8 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
             requires_heavy_weapon = false,
         };
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
 
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            profile.skill_id,
-            profile
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, profile.skill_id));
 
         _test.Eq(
             errors.Count,
@@ -142,7 +134,7 @@ public partial class run_warrior_heavy_blow_windup_regression : LifecycleTestSce
         _test.False(overCapPreview.allowed, "L2 即使体质允许也不能选择 3 挡。");
 
         BattlePreview preview = fixture.Runtime.PreviewCommand(tierTwoCommand);
-        BattleDamagePreviewRangeService.SkillDamagePreview? damage =
+        BattleSkillDamagePreview? damage =
             preview.DamagePreviewTyped;
         _test.True(preview.allowed, "heavy 近战武器的 2 挡预览应允许。");
         _test.True(damage?.HasDamage == true, "2 挡预览应包含伤害范围。");

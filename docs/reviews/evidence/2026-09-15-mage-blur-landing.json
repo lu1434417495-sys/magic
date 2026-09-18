@@ -1,0 +1,185 @@
+{
+  "date": "2026-09-15",
+  "scope": "current_shared_worktree_focused_checks",
+  "head": "49c80870c9a8d8e0f415544b25ed00be2ebb29f8",
+  "production_entries_changed": [
+    "mage_blur"
+  ],
+  "build": {
+    "command": "dotnet build magic.csproj --no-restore",
+    "exit_code": 0,
+    "warnings": 0,
+    "errors": 0
+  },
+  "focused_tests": [
+    {
+      "test": "run_mage_blur_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_mage_blur_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "a570a60e33d3288b9a277fdcd3f92f1e5e549bd53f7ffed9856c3cfe0faa3276",
+      "expected_negative_diagnostic_count": 0
+    },
+    {
+      "test": "run_attack_policy_parity_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_attack_policy_parity_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "4a2c4f38d5e335f6b522de396b13ed00edc793c58c56c95043668333894e6c3f",
+      "expected_negative_diagnostic_count": 0
+    },
+    {
+      "test": "run_battle_status_effect_typed_state_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_status_effect_typed_state_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "5021145a483eebef1d4008c1f1a14325aae43059f8d33e3945204f4f88f9323e",
+      "expected_negative_diagnostic_count": 0
+    },
+    {
+      "test": "run_status_effect_semantics_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_status_effect_semantics_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "f0408c022463561499e2c9ab5c3e034cd3940c19459c863f866928fc6f4fcad8",
+      "expected_negative_diagnostic_count": 0
+    },
+    {
+      "test": "run_fate_attack_formula_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_fate_attack_formula_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "9aa5fec331664179bf34d87622f75863780a19b438638f0805a8ff8d27ec48d3",
+      "expected_negative_diagnostic_count": 0
+    },
+    {
+      "test": "run_battle_ai_mutation_guard_regression",
+      "command": "python tests/run_regression_suite.py --pattern run_battle_ai_mutation_guard_regression --fail-on-output-error",
+      "passed": 1,
+      "failed": 0,
+      "lifecycle": "[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0",
+      "log_sha256": "4c86d884d2a75fe18ddaf7e87f1387f28c676bcdf9a583f49c7f528237db1393",
+      "expected_negative_diagnostic_count": 9
+    }
+  ],
+  "tooling_tests": {
+    "command": "python -m unittest discover -s tests/tooling -p test_skill_power_assessment.py",
+    "passed": 12
+  },
+  "mastery": {
+    "basis": "controlled_assumption",
+    "start_level": 0,
+    "target_level": 5,
+    "curve": [
+      60,
+      100,
+      150,
+      210,
+      280,
+      380,
+      500
+    ],
+    "cumulative_to_5": 800,
+    "pace_sensitivity": [
+      {
+        "direct_points_per_battle": 6,
+        "claimed_rating_per_battle": 2,
+        "total_points_per_battle": 8,
+        "battles_to_level_5": 100
+      },
+      {
+        "direct_points_per_battle": 6,
+        "claimed_rating_per_battle": 4,
+        "total_points_per_battle": 10,
+        "battles_to_level_5": 80
+      },
+      {
+        "direct_points_per_battle": 6,
+        "claimed_rating_per_battle": 6,
+        "total_points_per_battle": 12,
+        "battles_to_level_5": 67
+      },
+      {
+        "direct_points_per_battle": 6,
+        "claimed_rating_per_battle": 0,
+        "total_points_per_battle": 6,
+        "battles_to_level_5": 134
+      },
+      {
+        "direct_points_per_battle": 3,
+        "claimed_rating_per_battle": 2,
+        "total_points_per_battle": 5,
+        "battles_to_level_5": 160
+      },
+      {
+        "direct_points_per_battle": 10,
+        "claimed_rating_per_battle": 4,
+        "total_points_per_battle": 14,
+        "battles_to_level_5": 58
+      }
+    ],
+    "limitations": [
+      "Not a measured per-level event distribution",
+      "Rating requires normal reward application",
+      "No per-battle practice cap or repeated-attacker decay",
+      "Training and quest rewards may accelerate progression"
+    ]
+  },
+  "historical_power_input": {
+    "path": "docs/proposals/battle/skills/mage_blur_assessment/input.json",
+    "current_status": "evidence_stale",
+    "changed_sources": [
+      "data/configs/json/skills/mage_01.json",
+      "scripts/systems/battle/rules/BattleHitResolver.cs"
+    ],
+    "historical_result_preserved": true
+  },
+  "source_sha256": {
+    "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+    "scripts/player/progression/CombatEffectDef.cs": "668a4f2278e84bea4a40462ea74c8219961500edff3d040ec442444b808651fa",
+    "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+    "scripts/systems/battle/_interop/BattleTypedEnums.cs": "573367915e85b6fb0ba835ea0eade6857370bd9a942a90fa53b80cb7725fe605",
+    "scripts/systems/battle/ai/BattleAiDecisionResult.cs": "d0d591f06d7131d5703cd9b6e5144ce8bc70d320f36f6caac8c7a210ce818a77",
+    "scripts/systems/battle/ai/BattleAiGroundSkillActionEvaluator.cs": "07a535be737b51ec8bfac23a9783860f3fb9dd6510b5faa5d692e5adc9a031b7",
+    "scripts/systems/battle/ai/BattleAiScoreInput.cs": "b1285b01d428244231474fc2dce1837bb7fb9d8a24f85d65ae1a907a1a360299",
+    "scripts/systems/battle/ai/BattleAiScoreService.Effects.cs": "7cc7ca25215c3eb3484835f854c46583ecc4631fdaec701dabb93256e8170e15",
+    "scripts/systems/battle/ai/BattleAiScoreService.IncomingDefense.cs": "56040a200a31b435449d51560b89593cf091b346c34e606de113a467333c9d93",
+    "scripts/systems/battle/ai/BattleAiScoreService.cs": "4f135d2229579e026f9a93cf2034a3e4dca4869110fab1e81725b47a3bfad546",
+    "scripts/systems/battle/core/AttackResolutionMetadata.cs": "b56dd12f1e0dd938c1f13313978ccbad8a26c2094a4be3a8d6c12f52bd691f09",
+    "scripts/systems/battle/core/BattleStateReadView.cs": "c7c57962736cd726a5e87abbf66d6a748ae77b9cc855dcdffb568f1899b7f345",
+    "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+    "scripts/systems/battle/rules/BattleDamageResolver.cs": "afaac5aacfe27a6422ab9b7b76f0c0734799469dd8445fbc66e64b33d4bba409",
+    "scripts/systems/battle/rules/BattleHitResolver.cs": "3a4e4baf4462d6b3d3b6cd4c83da4447398176f25ea2d0689774a5562acc08c3",
+    "scripts/systems/battle/rules/BattleIncomingAttackDisadvantageRules.cs": "ff2bc3fe6604dd0fcc97bb5be35ebb6ab9f0798f411a28a4dc2cc4a06bb4e430",
+    "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+    "scripts/systems/battle/rules/IBattleIncomingAttackDisadvantageSink.cs": "242b593799f178d76d2b61ad1be6a24d348be2cba6ffb75b8e36aba2da1b6128",
+    "scripts/systems/battle/runtime/BattleRatingSystem.cs": "39560cce9a73167bf0d67b10dbf4162f8c10f3420ca67d69bb4ec8ad2a9540da",
+    "scripts/systems/battle/runtime/BattleRuntimeModule.cs": "2d01221ae00f067dc054789272a2801fa3823e3b9d75b6c8a12d9c36dfe74667",
+    "scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.IncomingDefense.cs": "b6bbc6116f917a1f83764f50316288b689e3578267534649b9dd2c7300220f59",
+    "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+    "scripts/systems/content/skills/SkillCanonicalJsonSchema.Effects.cs": "b21664f0a26690eb513dc3e1ca422ed7fb913ce40eb16cfd67f66ad1feae76e9",
+    "scripts/systems/content/skills/SkillCombatEffectImportModels.cs": "f6b18ac82fead941feec0d8ad780e9127e1053d458b8cffc761c2280f7d9c6c1",
+    "scripts/systems/content/skills/SkillCombatEffectJsonDtos.cs": "13991b4d2d3365312469a739de3cceddac84edc4025bec196b331a6ae6ce0010",
+    "scripts/systems/content/skills/SkillCombatEffectJsonNormalizer.cs": "c738e389db1b97c07698425f4451941ee00181fbbda6d795b1aa897e8db5130f",
+    "scripts/systems/content/skills/SkillDefinitionCombatProfileValidator.cs": "8e59102fdfbe0f008e5a5a36f16460fd6b592f63e062adbf4a6852684e8fc91a",
+    "scripts/systems/content/skills/SkillDefinitionProjector.cs": "d69ef99ac87bcd722bf95b5c97874da62660202709fc321fd02a4adc5cab6c32",
+    "scripts/systems/content/skills/SkillDiagnosticFixtureProjection.Effects.cs": "16da057abc300b32f1d50d5edda79f601aa21be7b66ed1ad93ec6f0bb64413c7",
+    "scripts/systems/content/skills/SkillRootCombatImportModels.cs": "c217efb09e48812d6d120b01457beb64f71166c39e53fc71463c9ed352a94d6e",
+    "scripts/systems/content/skills/SkillRootCombatImportValueRules.cs": "a330f9677fee37bc82ba133bd41459f87766e1181830efc23239168ccd01f428",
+    "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+    "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+    "tests/battle_runtime/skills/run_mage_blur_regression.cs": "1a795952c51f5bac0e6f53b5b1ae0565758165bb24157c27062ac984bf71b074"
+  },
+  "not_run": [
+    "full_regression_suite",
+    "numeric_battle_simulation",
+    "ci",
+    "native_ui_capture",
+    "clean_checkout_build"
+  ]
+}

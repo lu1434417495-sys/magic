@@ -33,6 +33,10 @@ enemy/BattleSim profile JSON
 
 ## 实现约束
 
+- `BattleAiScoreService.Vulnerability`生成`estimated_vulnerability_follow_up_damage`：比较新状态施加前后，其他各盟友下一激活中一次可支付单体攻击的canonical伤害边际，复用DamageWeight并进入fingerprint、trace与决策克隆，不增加固定status/control收益。目标条件、持续时间、已有易伤、抵消/免疫与估值边界见[状态条件与豁免后易伤](status_vulnerability.md)。紧凑预览的`IncomingBudgetDamage`含豁免后易伤；已有typed致死结果时AI不再用纯豁免数值覆盖它。
+
+- `incoming_attack_roll_disadvantage` 使用 `BattleAiScoreService.IncomingDefense` 生成 `estimated_incoming_attack_damage_relief`：比较下一次敌方行动前有/无新增保护的 canonical 命中概率差，乘既有伤害预算并复用 `DamageWeight`。不增加 status/control 分或技能专用权重，字段进入 score fingerprint 与 detached trace。射程/资源预测及完整伤害分布的估值边界见[承受攻击防护实现](incoming_attack_defense.md)。
+
 - Runtime 和 BattleSim 只消费 `BattleAiScoreProfileDefinition`；`BattleAiScoreProfile` 仅供少量合成诊断 fixture，不是 production authoring API。
 - Enemy brain 与 BattleSim profile 的 strict DTO 共用 `EnemyContentDefinitionProjector.ProjectScoreProfile(...)` 显式投影；authoring 路径不得用反射枚举属性，也不得忽略 `TryWithScalar(...)` 的失败。`TryWithScalar(...)` 只服务 simulation-local typed override。
 - 新增或改名参数时，必须同时检查 JSON DTO/schema、definition 投影、评分消费、`ToDictionary()`/trace 表面以及 tuner `search_space.py`；不能只改 JSON 或只改 scorer。

@@ -110,10 +110,7 @@ public partial class run_mage_gust_of_wind_regression : LifecycleTestSceneTree
         };
         profile.effect_defs.Add(effect);
         var errors = new GStringArray();
-        new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        ).AppendCombatProfileValidationErrors(errors, profile.skill_id, profile);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, profile.skill_id));
         _test.True(ContainsError(errors, "forced_move_max_target_body_size"), "wind_push 缺少体型上限必须被拒绝。");
         _test.True(ContainsError(errors, "requires a saving throw"), "wind_push 缺少豁免必须被拒绝。");
     }

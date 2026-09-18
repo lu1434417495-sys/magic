@@ -43,7 +43,8 @@ internal sealed class BattleBoardEdgeSnapshot
         IEnumerable<int> dropFaceLayerHeights,
         BattleEdgeRenderKind featureRenderKind,
         int featureLayers,
-        int fromHeight
+        int fromHeight,
+        bool blocksMovement
     )
     {
         OriginCoord = originCoord;
@@ -55,6 +56,7 @@ internal sealed class BattleBoardEdgeSnapshot
         FeatureRenderKind = featureRenderKind;
         FeatureLayers = Math.Max(featureLayers, 0);
         FromHeight = fromHeight;
+        BlocksMovement = blocksMovement;
     }
 
     internal Vector2I OriginCoord { get; }
@@ -64,6 +66,7 @@ internal sealed class BattleBoardEdgeSnapshot
     internal BattleEdgeRenderKind FeatureRenderKind { get; }
     internal int FeatureLayers { get; }
     internal int FromHeight { get; }
+    internal bool BlocksMovement { get; }
     internal bool HasDropFace => _dropFaceLayerHeights.Count > 0;
     internal bool HasFeatureFace =>
         FeatureRenderKind == BattleEdgeRenderKind.Wall && FeatureLayers > 0;
@@ -315,7 +318,13 @@ internal sealed class BattleBoardSnapshotBuilder
         var edges = new List<BattleBoardEdgeSnapshot>();
         foreach (BattleEdgeFaceState edge in _edgeService.GetAllEdgeFaces(battleState))
         {
-            if (edge == null || !edge.HasAnyFace())
+            if (edge == null)
+                continue;
+            // Include rising, camera-facing-away cliffs and non-rendering barriers too.
+            // Movement boundaries come from the same edge service as pathfinding.
+            bool blocksMovement = cells.ContainsKey(edge.neighbor_coord)
+                && !_edgeService.IsTraversableBetween(battleState, edge.origin_coord, edge.neighbor_coord);
+            if (!edge.HasAnyFace() && !blocksMovement)
                 continue;
             edges.Add(
                 new BattleBoardEdgeSnapshot(
@@ -325,7 +334,8 @@ internal sealed class BattleBoardSnapshotBuilder
                     edge.drop_face_layer_heights,
                     edge.FeatureRenderKind,
                     edge.feature_layers,
-                    edge.from_height
+                    edge.from_height,
+                    blocksMovement
                 )
             );
         }

@@ -40,6 +40,10 @@ public sealed partial class GameRuntimeFacade : IGameRuntimeRewardFlowPort
             case RuntimeModalKind.Party:
                 ClosePartyManagementModal();
                 break;
+            case RuntimeModalKind.QuestJournal:
+                SetRuntimeActiveModalKind(RuntimeModalKind.None);
+                UpdateStatusInternal("已收起任务日志，返回大地图。");
+                break;
             case RuntimeModalKind.Warehouse:
                 ClosePartyWarehouseModal();
                 break;

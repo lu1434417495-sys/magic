@@ -73,9 +73,17 @@ public partial class BattleMapPanel
         if (skill_grid == null)
             return;
         int slotCount = skill_grid.GetChildCount();
+        var scroll = skill_grid.GetParent<ScrollContainer>();
+        scroll.Visible = slotCount > 0;
         if (slotCount == 0)
+        {
+            scroll.ScrollVertical = 0;
+            scroll.CustomMinimumSize = Vector2.Zero;
             return;
-        float available = (skill_grid.GetParent() as Control)?.Size.X ?? skill_grid.Size.X;
+        }
+        // Reserve scrollbar width even before overflow so the grid does not
+        // oscillate between two and three rows as the scrollbar appears.
+        float available = scroll.Size.X - scroll.GetVScrollBar().GetCombinedMinimumSize().X;
         if (available <= 0.0f)
             return;
         int hSeparation = skill_grid.GetThemeConstant("h_separation");
@@ -84,6 +92,11 @@ public partial class BattleMapPanel
         columns = Mathf.Clamp(columns, 1, slotCount);
         if (skill_grid.Columns != columns)
             skill_grid.Columns = columns;
+        int rows = (slotCount + columns - 1) / columns;
+        int visibleRows = Mathf.Min(rows, 2);
+        scroll.CustomMinimumSize = new Vector2(0,
+            visibleRows * BattleUiTheme.SKILL_SLOT_SIZE()
+            + (visibleRows - 1) * skill_grid.GetThemeConstant("v_separation"));
     }
 
     private Control _create_skill_slot(BattleHudSkillSlotSnapshot slot)

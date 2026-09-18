@@ -14,31 +14,31 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
 
     internal int _get_move_cost_for_unit_target(BattleUnitState unit_state, Vector2I target_coord)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.GetMoveCostForUnitTarget(unit_state, target_coord);
     }
 
     internal int _get_move_path_cost(BattleUnitState unit_state, GVector2IArray anchor_path)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.GetMovePathCost(unit_state, BattleRuntimeModule.ToVector2IList(anchor_path));
     }
 
     internal int _get_status_move_cost_delta(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.GetStatusMoveCostDelta(unit_state);
     }
 
     internal int _get_available_move_points(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.GetAvailableMovePoints(unit_state);
     }
 
     internal bool _is_normal_movement_locked(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.IsNormalMovementLocked(unit_state);
     }
 
@@ -48,7 +48,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._movement_service.HandleMoveCommand(active_unit, command, batch);
     }
 
@@ -59,7 +59,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._movement_service.MoveUnitAlongValidatedPathTyped(
             active_unit,
             BattleRuntimeModule.ToVector2IList(anchor_path),
@@ -74,7 +74,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.SwapUnitPositions(first_unit, second_unit, batch);
     }
 
@@ -85,7 +85,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleForcedMoveContext forced_move_context = default
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.PickForcedMoveCoord(
             unit_state,
             mode,
@@ -101,7 +101,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleForcedMoveContext forced_move_context
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.PickForcedMoveCoord(
             unit_state,
             mode,
@@ -118,7 +118,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleForcedMoveContext forced_move_context = default
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.ScoreForcedMoveCoord(
             unit_state,
             candidate_coord,
@@ -136,7 +136,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
         BattleForcedMoveContext forced_move_context
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.ScoreForcedMoveCoord(
             unit_state,
             candidate_coord,
@@ -148,7 +148,7 @@ internal sealed class BattleMovementCommandService : BattleRuntimeModuleBorrower
 
     internal bool _are_units_adjacent(BattleUnitState first_unit, BattleUnitState second_unit)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.AreUnitsAdjacent(first_unit, second_unit);
     }
 

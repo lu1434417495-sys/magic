@@ -38,10 +38,6 @@ public partial class run_mage_bone_chill_regression : LifecycleTestSceneTree
 
     private void TestExcludedCreatureTagSchemaRejectsEmptyAndDuplicates()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using var profile = new CombatSkillDef
         {
             skill_id = "excluded_creature_tag_schema_probe",
@@ -53,11 +49,7 @@ public partial class run_mage_bone_chill_regression : LifecycleTestSceneTree
             },
         };
         var errors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            "excluded_creature_tag_schema_probe",
-            profile
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, "excluded_creature_tag_schema_probe"));
 
         _test.True(
             ContainsError(

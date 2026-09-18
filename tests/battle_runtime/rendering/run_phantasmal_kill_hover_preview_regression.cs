@@ -89,11 +89,11 @@ public partial class run_phantasmal_kill_hover_preview_regression : LifecycleTes
 
         preview.AddLogLine("POISON_LOG");
         preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
+            new BattleSkillDamagePreview(
                 true,
                 999,
                 999,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+                new List<BattleDamageEffectRange>()
             )
         );
 

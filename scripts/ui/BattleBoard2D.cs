@@ -442,8 +442,18 @@ public partial class BattleBoard2D : Node2D
     {
         if (_pending_snapshot == null)
             return _set_hovered_coord(new Vector2I(-1, -1));
-        return _set_hovered_coord(_viewport_position_to_board_coord(viewport_position));
+        return _set_hovered_coord(ResolveHoverCoord(viewport_position));
     }
+
+    internal Vector2I ResolveHoverCoord(Vector2 viewportPosition)
+    {
+        Vector2 boardPosition = ToLocal(viewportPosition);
+        Vector2I unitCoord = _controller.PickHoveredUnit(boardPosition);
+        return unitCoord != new Vector2I(-1, -1)
+            ? unitCoord : _viewport_position_to_board_coord(viewportPosition);
+    }
+
+    internal void ClearHover() => _set_hovered_coord(new Vector2I(-1, -1));
 
     private bool _set_hovered_coord(Vector2I coord)
     {
@@ -503,7 +513,7 @@ public partial class BattleBoard2D : Node2D
     private float _build_visual_pick_sort_key(int height_value, float plane_anchor_y)
     {
         int clampedHeight = Mathf.Clamp(height_value, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
-        return (float)clampedHeight * 1000000.0f + plane_anchor_y;
+        return plane_anchor_y * (MAX_RENDER_HEIGHT - MIN_RENDER_HEIGHT + 1) + clampedHeight;
     }
 
     private void _fit_to_viewport(bool force_focus = false)

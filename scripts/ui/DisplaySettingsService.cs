@@ -1,9 +1,11 @@
 using Godot;
+using System;
 using System.Collections.Generic;
 
 public sealed class DisplaySettingsService
 {
     internal const string SettingsPath = "user://display_settings.cfg";
+    internal const bool DefaultFullscreen = true;
     internal static readonly Vector2I DefaultWindowedResolution = new(1280, 720);
     internal static readonly IReadOnlyList<Vector2I> CommonResolutions = new Vector2I[]
     {
@@ -19,11 +21,17 @@ public sealed class DisplaySettingsService
     public readonly record struct ResolutionOption(string Label, Vector2I Size);
 
     private string _settingsPath = SettingsPath;
+    private readonly Func<Vector2I> _screenSizeProvider;
 
-    public DisplaySettingsService() { }
+    public DisplaySettingsService() : this(SettingsPath) { }
 
-    public DisplaySettingsService(string settingsPath)
+    public DisplaySettingsService(string settingsPath) : this(
+        settingsPath, () => DisplayServer.ScreenGetSize(DisplayServer.WindowGetCurrentScreen())
+    ) { }
+
+    internal DisplaySettingsService(string settingsPath, Func<Vector2I> screenSizeProvider)
     {
+        _screenSizeProvider = screenSizeProvider ?? throw new ArgumentNullException(nameof(screenSizeProvider));
         Setup(settingsPath);
     }
 
@@ -39,12 +47,22 @@ public sealed class DisplaySettingsService
         {
             options.Add(new ResolutionOption(FormatResolutionLabel(resolution), resolution));
         }
+        Vector2I systemResolution = GetSystemResolution();
+        if (!options.Exists(option => option.Size == systemResolution))
+            options.Add(new ResolutionOption(FormatResolutionLabel(systemResolution), systemResolution));
         return options;
     }
 
     public DisplaySettings GetDefaultSettings()
     {
-        return new DisplaySettings(DefaultWindowedResolution, false);
+        return new DisplaySettings(GetSystemResolution(), DefaultFullscreen);
+    }
+
+    public Vector2I GetSystemResolution()
+    {
+        Vector2I screenSize = _screenSizeProvider();
+        // Headless display servers do not expose a physical screen.
+        return screenSize.X > 0 && screenSize.Y > 0 ? screenSize : DefaultWindowedResolution;
     }
 
     public DisplaySettings LoadSettings()
@@ -61,15 +79,17 @@ public sealed class DisplaySettingsService
         DisplaySettings settings = NormalizeSettings(
             new DisplaySettings(
                 new Vector2I(width, height),
-                ReadBoolSetting(config, "display", "fullscreen", false)
+                ReadBoolSetting(config, "display", "fullscreen", DefaultFullscreen)
             )
         );
         return settings;
     }
 
-    public DisplaySettings LoadAndApply(Window window = null)
+    public DisplaySettings ApplyStartupSettings(Window window = null)
     {
-        return ApplySettings(LoadSettings(), window);
+        // Every launch starts fullscreen at the current monitor's desktop resolution.
+        // Saved windowed settings must not override this startup policy.
+        return ApplySettings(GetDefaultSettings(), window);
     }
 
     public Error SaveSettings(DisplaySettings settings)
@@ -95,22 +115,30 @@ public sealed class DisplaySettingsService
         }
         Vector2I resolution = normalized.Resolution;
         ApplyContentResolution(targetWindow, resolution);
-        targetWindow.Mode = Window.ModeEnum.Windowed;
-        targetWindow.Size = resolution;
         if (normalized.Fullscreen)
         {
             targetWindow.Mode = Window.ModeEnum.Fullscreen;
+        }
+        else
+        {
+            targetWindow.Mode = Window.ModeEnum.Windowed;
+            targetWindow.Size = resolution;
         }
         return normalized;
     }
 
     public DisplaySettings NormalizeSettings(DisplaySettings settings)
     {
-        return new DisplaySettings(NormalizeResolution(settings.Resolution), settings.Fullscreen);
+        return new DisplaySettings(
+            settings.Fullscreen ? GetSystemResolution() : NormalizeResolution(settings.Resolution),
+            settings.Fullscreen
+        );
     }
 
-    private static Vector2I NormalizeResolution(Vector2I candidate)
+    private Vector2I NormalizeResolution(Vector2I candidate)
     {
+        if (candidate == GetSystemResolution())
+            return candidate;
         foreach (Vector2I resolution in CommonResolutions)
         {
             if (resolution == candidate)

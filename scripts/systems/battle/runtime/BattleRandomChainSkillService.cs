@@ -79,11 +79,11 @@ internal sealed class BattleRandomChainSkillService
                     1
                 );
         bool continueOnMiss = combatProfile?.RandomChainContinueOnMiss == true;
-        string skillLabel = _owner._format_skill_variant_label(skillDefinition, castVariantDefinition);
+        string skillLabel = BattleSkillTargetPlanRules._format_skill_variant_label(skillDefinition, castVariantDefinition);
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         while (attemptCount < maxAttempts)
         {
-            List<BattleUnitState> chainPool = BuildRandomChainTargetPool(
+            List<BattleUnitState> chainPool = _targetValidationService.BuildRandomChainTargetPool(
                 active_unit,
                 skillDefinition,
                 castVariantDefinition,
@@ -168,89 +168,6 @@ internal sealed class BattleRandomChainSkillService
             );
         }
         return applied;
-    }
-
-    internal List<BattleUnitState> BuildRandomChainTargetPool(
-        BattleUnitState active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant,
-        IReadOnlyDictionary<StringName, int> chain_hit_counts,
-        int max_hits_per_target
-    )
-    {
-        var chainPool = new List<BattleUnitState>();
-        BattleState state = _owner.RtState();
-        if (state == null)
-        {
-            return chainPool;
-        }
-        foreach (BattleUnitState candidate in state.GetUnitsTyped())
-        {
-            if (
-                candidate == null
-                || candidate == active_unit
-                || !candidate.IsAlive()
-            )
-            {
-                continue;
-            }
-            StringName candidateId = ProgressionDataUtils.to_string_name(
-                candidate.unit_id
-            );
-            if (
-                BattleSkillExecutionOrchestrator.StringNameIsEmpty(candidateId)
-                || (
-                    chain_hit_counts != null
-                    && chain_hit_counts.TryGetValue(candidateId, out int hitCount)
-                    && hitCount >= max_hits_per_target
-                )
-            )
-            {
-                continue;
-            }
-            if (!_targetValidationService._can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
-            {
-                continue;
-            }
-            chainPool.Add(candidate);
-        }
-        return chainPool;
-    }
-
-    internal List<BattleUnitReadView> BuildRandomChainTargetPool(
-        BattleUnitReadView active_unit,
-        SkillDefinition skillDefinition,
-        CombatCastVariantDefinition castVariant,
-        int max_hits_per_target
-    )
-    {
-        var chainPool = new List<BattleUnitReadView>();
-        BattleState state = _owner.RtState();
-        if (state == null || !active_unit.IsValid)
-        {
-            return chainPool;
-        }
-        foreach (BattleUnitReadView candidate in state.AsReadView().AliveUnits())
-        {
-            if (
-                !candidate.IsValid
-                || candidate.UnitId == active_unit.UnitId
-                || BattleSkillExecutionOrchestrator.StringNameIsEmpty(candidate.UnitId)
-            )
-            {
-                continue;
-            }
-            if (max_hits_per_target <= 0)
-            {
-                continue;
-            }
-            if (!_targetValidationService._can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
-            {
-                continue;
-            }
-            chainPool.Add(candidate);
-        }
-        return chainPool;
     }
 
     internal void _shuffle_random_chain_pool(GArray chain_pool)
