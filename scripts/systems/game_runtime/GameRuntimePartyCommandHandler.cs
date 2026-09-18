@@ -92,7 +92,7 @@ public sealed class GameRuntimePartyCommandHandler
             return CommandErrorTyped(
                 string.Format("{0} 当前不在替补列表中。", GetMemberDisplayName(memberId))
             );
-        if (snapshot.ActiveMemberIds.Count >= 4)
+        if (snapshot.ActiveMemberIds.Count >= PartyRosterRules.MaxActiveMemberCount)
             return CommandErrorTyped("上阵人数已达到上限。");
         var activeIds = NormalizeMemberIds(snapshot.ActiveMemberIds);
         var reserveIds = NormalizeMemberIds(snapshot.ReserveMemberIds);

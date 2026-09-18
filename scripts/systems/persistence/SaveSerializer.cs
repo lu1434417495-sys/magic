@@ -60,7 +60,7 @@ public sealed class SaveSerializer
 
     private int _save_version = SaveSchemaVersions.SaveVersion;
     private int _save_index_version = SaveSchemaVersions.SaveIndexVersion;
-    private int _max_active_member_count = SaveSchemaVersions.MaxActiveMemberCount;
+    private int _max_active_member_count = PartyRosterRules.MaxActiveMemberCount;
 
     public void Setup(int saveVersion, int saveIndexVersion, int maxActiveMemberCount)
     {

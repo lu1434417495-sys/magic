@@ -14,7 +14,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
     private const int SaveVersion = SaveSchemaVersions.SaveVersion;
     internal static int CurrentSaveVersion => SaveVersion;
     private const int SaveIndexVersion = SaveSchemaVersions.SaveIndexVersion;
-    private const int MaxActiveMemberCount = SaveSchemaVersions.MaxActiveMemberCount;
+    private const int MaxActiveMemberCount = PartyRosterRules.MaxActiveMemberCount;
     private static readonly int SaveFileCompressionMode = (int)FileAccess.CompressionMode.Zstd;
 
     private static readonly string[] ContentValidationDomainOrder =

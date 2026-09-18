@@ -8,6 +8,8 @@
     { "id": "domain_runtime", "analyzeOutgoingDependencies": true },
     { "id": "battle_runtime_isolated", "analyzeOutgoingDependencies": true },
     { "id": "application", "analyzeOutgoingDependencies": true },
+    { "id": "battle_skill_execution", "analyzeOutgoingDependencies": true },
+    { "id": "presentation_isolated", "analyzeOutgoingDependencies": true },
     { "id": "presentation", "analyzeOutgoingDependencies": true },
     { "id": "composition", "analyzeOutgoingDependencies": true },
     { "id": "infrastructure", "analyzeOutgoingDependencies": true },
@@ -42,6 +44,8 @@
     { "glob": "scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs", "layer": "presentation" },
     { "glob": "scripts/systems/game_runtime/headless/GameTextCommandRunner.cs", "layer": "presentation" },
     { "glob": "scripts/systems/game_runtime/headless/GameTextSnapshotRenderer.cs", "layer": "presentation" },
+    { "glob": "scripts/ui/PartyManagementWindow.cs", "layer": "presentation_isolated" },
+    { "glob": "scripts/ui/PartyManagementWindow.*.cs", "layer": "presentation_isolated" },
     { "glob": "scripts/ui/**/*.cs", "layer": "presentation" },
     { "glob": "scripts/systems/battle/presentation/**/*.cs", "layer": "presentation" },
 
@@ -109,15 +113,10 @@
     { "glob": "scripts/player/progression/**/*.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/equipment/*Def.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/equipment/EquipmentRequirement.cs", "layer": "content_authoring" },
-    { "glob": "scripts/player/warehouse/*Def.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/warehouse/*ContentRegistry.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/warehouse/*ContentValidator.cs", "layer": "content_authoring" },
     { "glob": "scripts/player/warehouse/SkillBookItemFactory.cs", "layer": "content_authoring" },
-    { "glob": "scripts/enemies/actions/**/*.cs", "layer": "content_authoring" },
-    { "glob": "scripts/enemies/*Def.cs", "layer": "content_authoring" },
-    { "glob": "scripts/enemies/EnemyAiAction.cs", "layer": "content_authoring" },
     { "glob": "scripts/enemies/EnemyContentRegistry.cs", "layer": "content_authoring" },
-    { "glob": "scripts/enemies/EnemyContentSeed.cs", "layer": "content_authoring" },
     { "glob": "scripts/systems/content/GameContentCatalog.cs", "layer": "application" },
     { "glob": "scripts/systems/content/**/*.cs", "layer": "content_authoring" },
 
@@ -135,6 +134,7 @@
     { "glob": "scripts/systems/battle/runtime/BattleCommandPreviewService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleCommandPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleSkillPreviewService.cs", "layer": "battle_runtime_isolated" },
+    { "glob": "scripts/systems/battle/runtime/BattleSkillPreviewService.*.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleSkillPreviewRuntimePort.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleGroundEffectService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/BattleGroundEffectCoordService.cs", "layer": "battle_runtime_isolated" },
@@ -144,6 +144,10 @@
     { "glob": "scripts/systems/battle/runtime/BattleAiDecisionBindingService.cs", "layer": "battle_runtime_isolated" },
     { "glob": "scripts/systems/battle/runtime/IBattleAiDecisionBindingRuntimePort.cs", "layer": "battle_runtime_isolated" },
 
+    { "glob": "scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs", "layer": "battle_skill_execution" },
+    { "glob": "scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.*.cs", "layer": "battle_skill_execution" },
+    { "glob": "scripts/systems/battle/runtime/BattleChainDamageService.cs", "layer": "battle_skill_execution" },
+    { "glob": "scripts/systems/battle/runtime/BattleRandomChainSkillService.cs", "layer": "battle_skill_execution" },
     { "glob": "scripts/systems/battle/runtime/**/*.cs", "layer": "application" },
 
     { "glob": "scripts/player/equipment/*Rules.cs", "layer": "domain_runtime" },
@@ -205,38 +209,53 @@
   ],
   "denyRules": [
     {
+      "id": "preview-to-skill-execution",
+      "fromLayers": ["battle_runtime_isolated"],
+      "toLayers": ["battle_skill_execution"]
+    },
+    {
+      "id": "isolated-presentation-to-composition",
+      "fromLayers": ["presentation_isolated"],
+      "toLayers": ["composition"]
+    },
+    {
       "id": "production-to-nonproduction",
       "fromLayers": [
         "content_authoring", "content_definition", "domain_state", "domain_runtime",
         "battle_runtime_isolated",
-        "application", "presentation", "composition", "infrastructure"
+        "application", "battle_skill_execution", "presentation", "presentation_isolated", "composition", "infrastructure"
       ],
       "toLayers": ["tests", "tooling"]
     },
     {
       "id": "battle-isolated-to-hub",
       "fromLayers": ["battle_runtime_isolated"],
-      "toLayers": ["composition", "content_authoring", "presentation"]
+      "toLayers": ["composition", "content_authoring", "presentation", "presentation_isolated"]
     },
     {
       "id": "content-definition-to-runtime",
       "fromLayers": ["content_definition"],
-      "toLayers": ["domain_runtime", "application", "presentation", "composition"]
+      "toLayers": ["domain_runtime", "application", "battle_skill_execution", "presentation", "presentation_isolated", "composition"]
     },
     {
       "id": "authoring-to-runtime",
       "fromLayers": ["content_authoring"],
-      "toLayers": ["domain_runtime", "application", "presentation", "composition"]
+      "toLayers": ["domain_runtime", "application", "battle_skill_execution", "presentation", "presentation_isolated", "composition"]
+    },
+    {
+      "id": "domain-state-to-upper-layer",
+      "fromLayers": ["domain_state"],
+      "toLayers": ["battle_runtime_isolated", "application", "battle_skill_execution", "presentation", "presentation_isolated", "composition"]
     },
     {
       "id": "domain-runtime-to-upper-layer",
       "fromLayers": ["domain_runtime"],
-      "toLayers": ["content_authoring", "presentation", "composition"]
+      "toLayers": ["battle_runtime_isolated", "application", "battle_skill_execution", "content_authoring", "presentation", "presentation_isolated", "composition"]
     },
     {
       "id": "application-to-view-or-root",
-      "fromLayers": ["application"],
-      "toLayers": ["content_authoring", "presentation"]
+      "fromLayers": ["application", "battle_skill_execution"],
+      "toLayers": ["content_authoring", "presentation", "presentation_isolated"]
     }
   ]
 }

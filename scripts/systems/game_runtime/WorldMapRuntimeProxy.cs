@@ -758,4 +758,7 @@ internal sealed class WorldMapRuntimeProxy
             RuntimeCommandCode.RuntimeUnavailable
         );
     }
+    internal PartyManagementViewData GetPartyManagementViewDataTyped() =>
+        PartyManagementViewBuilder.Capture(GetPartyState(), GetCharacterManagement());
+
 }

@@ -22,6 +22,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         try
         {
             await TestWindowUsesBoundedReadableSize();
+            await TestWindowSnapshotIsDetached();
             await TestLeaderToReserveEmitsRosterBeforeLeader();
             await TestMemberDetailsTolerateMissingSkillAndOccupiedSlots();
             await TestMemberDetailsUseSkillDefinitionSnapshot();
@@ -98,8 +99,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             );
             window.SetItemDefs(content.Items);
             window.SetTraitDefs(content.Traits);
-            window.SetCharacterManagement(manager);
-            window.ShowParty(partyState);
+            window.ShowParty(PartyManagementViewBuilder.Capture(partyState, manager));
             await ProcessFrames(1);
             _test.True(window.SelectMember("hero"), "测试应能选中装备五件凤凰的成员。");
             await ProcessFrames(1);
@@ -162,8 +162,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             window.SetSkillDefinitions(content.Skills);
             window.SetEquipmentAbilityBindings(content.EquipmentAbilityBindings);
             window.SetWorldStepProvider(() => 27);
-            window.SetCharacterManagement(manager);
-            window.ShowParty(partyState);
+            window.ShowParty(PartyManagementViewBuilder.Capture(partyState, manager));
             await ProcessFrames(1);
             _test.True(window.SelectMember("hero"), "测试应能选中装备四件龙鳞的成员。");
             await ProcessFrames(1);
@@ -191,7 +190,8 @@ public partial class run_party_management_window_regression : LifecycleTestScene
                     UsedCount = 1,
                 }
             );
-            window.RefreshView();
+            window.SetPartyView(PartyManagementViewBuilder.Capture(partyState, manager));
+            window.SelectMember("hero");
             await ProcessFrames(1);
 
             equipmentText = window.equipment_label.Text;
@@ -221,8 +221,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
                 content.IdentityCatalog,
                 content.GearSets
             );
-            window.SetCharacterManagement(manager);
-            window.ShowParty(twoPieceParty);
+            window.ShowParty(PartyManagementViewBuilder.Capture(twoPieceParty, manager));
             await ProcessFrames(1);
             _test.True(window.SelectMember("hero"), "测试应能选中装备两件龙鳞的成员。");
             await ProcessFrames(1);
@@ -283,7 +282,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
     {
         Root.Size = new Vector2I(1920, 1080);
         PartyManagementWindow window = await CreateWindow(new Vector2(1920, 1080));
-        window.ShowParty(BuildPartyState(new[] { new StringName("hero") }));
+        window.ShowParty(PartyManagementViewBuilder.Capture(BuildPartyState(new[] { new StringName("hero") })));
         await ProcessFrames(1);
 
         Control panel = window.GetNode<Control>("%Panel");
@@ -298,7 +297,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
 
         Root.Size = new Vector2I(1000, 700);
         window = await CreateWindow(new Vector2(1000, 700));
-        window.ShowParty(BuildPartyState(new[] { new StringName("hero") }));
+        window.ShowParty(PartyManagementViewBuilder.Capture(BuildPartyState(new[] { new StringName("hero") })));
         await ProcessFrames(1);
 
         panel = window.GetNode<Control>("%Panel");
@@ -308,6 +307,44 @@ public partial class run_party_management_window_regression : LifecycleTestScene
 
         await DisposeNode(window);
         Root.Size = new Vector2I(1280, 720);
+    }
+
+    private async Task TestWindowSnapshotIsDetached()
+    {
+        PartyManagementWindow window = await CreateWindow();
+        try
+        {
+            PartyState party = BuildPartyState(new[] { new StringName("hero") });
+            PartyMemberState hero = party.GetMemberState("hero");
+            hero.display_name = "snapshot-before";
+            party.active_member_ids.Add("");
+            PartyManagementViewData view = PartyManagementViewBuilder.Capture(party);
+            _test.Eq(view.ActiveMemberIds.Count, 1,
+                "The presentation boundary must preserve the existing empty-ID filtering.");
+            _test.False(ReferenceEquals(view.Members["hero"].DetachedMember, hero),
+                "A presentation snapshot must not retain a canonical party member.");
+            _test.False(ReferenceEquals(view.Members["hero"].DetachedMember.progression, hero.progression),
+                "A presentation snapshot must detach nested progression state.");
+            _test.False(ReferenceEquals(view.Members["hero"].DetachedMember.equipment_state, hero.equipment_state),
+                "A presentation snapshot must detach nested equipment state.");
+            window.ShowParty(view);
+            window.SelectMember("hero");
+            hero.display_name = "canonical-after";
+            window.RefreshView();
+            _test.True(window.title_label.Text.Contains("snapshot-before"),
+                "Rendering an existing snapshot must not read later canonical mutations.");
+            view.Members["hero"].DetachedMember.display_name = "presentation-only";
+            _test.Eq(hero.display_name, "canonical-after",
+                "Mutating detached presentation data must not mutate the canonical member.");
+            window.SetPartyView(PartyManagementViewBuilder.Capture(party));
+            window.SelectMember("hero");
+            _test.True(window.title_label.Text.Contains("canonical-after"),
+                "Publishing a fresh snapshot must update the displayed member.");
+        }
+        finally
+        {
+            await DisposeNode(window);
+        }
     }
 
     private async Task TestLeaderToReserveEmitsRosterBeforeLeader()
@@ -336,13 +373,15 @@ public partial class run_party_management_window_regression : LifecycleTestScene
             leaderPayloads.Add(memberId);
         };
 
-        window.ShowParty(partyState);
+        window.ShowParty(PartyManagementViewBuilder.Capture(partyState));
         await ProcessFrames(1);
         _test.True(window.SelectMember("leader"), "测试应能选中当前队长。");
         window._on_move_to_reserve_button_pressed();
         await ProcessFrames(1);
 
         AssertStringList(eventOrder, new[] { "roster", "leader" }, "队长移入替补时应先发 roster_change，再发 leader_change。");
+        _test.True(partyState.active_member_ids.Contains("leader"), "窗口编队操作只发出请求，不直接修改真实队伍。");
+        _test.Eq(partyState.leader_member_id, new StringName("leader"), "窗口切换队长不直接写入真实队伍。");
         _test.Eq(leaderPayloads.Count, 1, "队长移入替补应只发一次 leader_change。");
         if (leaderPayloads.Count > 0)
             _test.Eq(leaderPayloads[0], new StringName("ally"), "队长移入替补后应选择剩余上阵成员为新队长。");
@@ -394,7 +433,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         partyState.reserve_member_ids = new StringNameList();
         partyState.SetMemberState(hero);
 
-        window.ShowParty(partyState);
+        window.ShowParty(PartyManagementViewBuilder.Capture(partyState));
         await ProcessFrames(1);
         _test.True(window.SelectMember("hero"), "测试应能选中主角。");
         await ProcessFrames(1);
@@ -421,8 +460,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
         hero.progression.unit_base_attributes.SetAttributeValue("strength", 15);
         var manager = new CharacterManagementModule();
         manager.setup(partyState);
-        window.SetCharacterManagement(manager);
-        window.ShowParty(partyState);
+        window.ShowParty(PartyManagementViewBuilder.Capture(partyState, manager));
         await ProcessFrames(1);
         _test.True(window.SelectMember("hero"), "测试应能选中主角。");
         await ProcessFrames(1);
@@ -471,7 +509,7 @@ public partial class run_party_management_window_regression : LifecycleTestScene
                 [skillId] = BuildWindowSkillDefinition(skillId),
             }
         );
-        window.ShowParty(partyState);
+        window.ShowParty(PartyManagementViewBuilder.Capture(partyState));
         await ProcessFrames(1);
         _test.True(window.SelectMember("hero"), "测试应能选中带有 DTO 技能的主角。");
         await ProcessFrames(1);

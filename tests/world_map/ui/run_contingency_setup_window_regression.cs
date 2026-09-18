@@ -41,7 +41,7 @@ public partial class run_contingency_setup_window_regression : LifecycleTestScen
         var requested = new List<StringName>();
         window.contingency_setup_requested += memberId => requested.Add(memberId);
 
-        window.ShowParty(partyState);
+        window.ShowParty(PartyManagementViewBuilder.Capture(partyState));
         await ProcessFrames(1);
         Button button = window.GetNodeOrNull<Button>("%ContingencySetupButton");
         _test.True(button != null, "PartyManagementWindow should expose ContingencySetupButton.");

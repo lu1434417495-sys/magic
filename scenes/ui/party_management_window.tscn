@@ -84,7 +84,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 autowrap_mode = 3
-text = "查看成员属性、装备、技能和职业。"
+text = "查看人物档案、种族、职业、技能、装备、特性和成就。"
 
 [node name="CloseButton" type="Button" parent="CenterContainer/Panel/MarginContainer/Content/Header"]
 theme_type_variation = &"ChronicleQuiet"
@@ -188,6 +188,7 @@ current_tab = 0
 
 [node name="概览" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
 layout_mode = 2
+horizontal_scroll_mode = 0
 
 [node name="OverviewLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/概览"]
 unique_name_in_owner = true
@@ -202,6 +203,7 @@ text = "详情"
 
 [node name="属性" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
 layout_mode = 2
+horizontal_scroll_mode = 0
 
 [node name="AttributesLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/属性"]
 unique_name_in_owner = true
@@ -214,22 +216,39 @@ scroll_active = false
 fit_content = true
 text = "属性"
 
-[node name="装备" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+[node name="种族" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
 layout_mode = 2
+horizontal_scroll_mode = 0
 
-[node name="EquipmentLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备"]
+[node name="RaceLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/种族"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-bbcode_enabled = true
+bbcode_enabled = false
 scroll_active = false
 fit_content = true
-text = "装备"
+text = "种族"
+
+[node name="职业" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="ProfessionsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/职业"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "职业"
 
 [node name="技能" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
 layout_mode = 2
+horizontal_scroll_mode = 0
 
 [node name="SkillsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/技能"]
 unique_name_in_owner = true
@@ -242,10 +261,26 @@ scroll_active = false
 fit_content = true
 text = "技能"
 
-[node name="职业" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+[node name="装备" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
 layout_mode = 2
+horizontal_scroll_mode = 0
 
-[node name="ProfessionsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/职业"]
+[node name="EquipmentLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/装备"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_active = false
+fit_content = true
+text = "装备"
+
+[node name="特性" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="TraitsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/特性"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2
@@ -254,7 +289,21 @@ size_flags_vertical = 3
 bbcode_enabled = false
 scroll_active = false
 fit_content = true
-text = "职业"
+text = "特性"
+
+[node name="成就" type="ScrollContainer" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="AchievementsLabel" type="RichTextLabel" parent="CenterContainer/Panel/MarginContainer/Content/Body/DetailsTabs/成就"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = false
+scroll_active = false
+fit_content = true
+text = "成就"
 
 [node name="StatusTitle" type="Label" parent="CenterContainer/Panel/MarginContainer/Content"]
 theme_type_variation = &"ChronicleSection"

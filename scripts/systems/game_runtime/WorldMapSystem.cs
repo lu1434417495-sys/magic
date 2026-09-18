@@ -146,11 +146,11 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         party_management_window.SetSkillDefinitions(contentCatalog.GetSkillDefinitionsTyped());
         contingency_setup_window.SetDisplayDefinitions(contentCatalog.GetSkillDefinitionsTyped(), contentCatalog.GetItemDefsTyped());
         party_management_window.SetProfessionDefs(contentCatalog.GetProfessionDefsTyped());
+        party_management_window.SetIdentityCatalog(contentCatalog.GetProgressionIdentityCatalogTyped());
         party_management_window.SetEquipmentAbilityBindings(
             contentCatalog.GetEquipmentAbilityBindingDefinitionsTyped()
         );
         party_management_window.SetWorldStepProvider(() => _runtime?.GetWorldStep() ?? -1);
-        party_management_window.SetCharacterManagement(_runtime_proxy.GetCharacterManagement());
 
         ConnectSignals();
         world_map_view.Configure(
@@ -1113,7 +1113,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         ShowContingencySetupWindow(memberId);
         if (party_management_window != null && party_management_window.Visible)
         {
-            party_management_window.SetPartyState(_runtime_proxy.GetPartyState());
+            party_management_window.SetPartyView(_runtime_proxy.GetPartyManagementViewDataTyped());
             party_management_window.SelectMember(memberId);
         }
     }
@@ -1633,7 +1633,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             character_info_window.HideWindow();
         if (modalId == "party")
         {
-            party_management_window.ShowParty(_runtime_proxy.GetPartyState());
+            party_management_window.ShowParty(_runtime_proxy.GetPartyManagementViewDataTyped());
             StringName selectedMemberId = _runtime_proxy.GetPartySelectedMemberId();
             if (selectedMemberId != "")
                 party_management_window.SelectMember(selectedMemberId);
