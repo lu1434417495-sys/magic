@@ -1919,11 +1919,11 @@ public sealed class BattleHudAdapter : IDisposable
         BattlePreview selectedSkillPreview
     )
     {
-        BattleDamagePreviewRangeService.SkillDamagePreview? damagePreview =
+        BattleSkillDamagePreview? damagePreview =
             selectedSkillPreview?.DamagePreviewTyped;
         if (!damagePreview.HasValue || !damagePreview.Value.HasDamage)
             return DamagePreviewSummary.Empty;
-        BattleDamagePreviewRangeService.SkillDamagePreview value = damagePreview.Value;
+        BattleSkillDamagePreview value = damagePreview.Value;
         return new DamagePreviewSummary(
             true,
             value.MinDamage,

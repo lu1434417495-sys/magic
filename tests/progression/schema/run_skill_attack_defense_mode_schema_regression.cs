@@ -50,7 +50,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
         invalidBase.attack_defense_mode = "reflex";
         string baseErrors = FormatErrors(Validate(invalidBase));
         _test.True(
-            baseErrors.Contains("unsupported attack_defense_mode reflex"),
+            baseErrors.Contains("combat_profile/attack_defense_mode: Business string is not registered by this field's closed import rule."),
             $"Unknown base attack_defense_mode should fail schema validation. errors={baseErrors}"
         );
 
@@ -65,7 +65,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
         string overrideErrors = FormatErrors(Validate(invalidOverride));
         _test.True(
             overrideErrors.Contains(
-                "level override 2.attack_defense_mode uses unsupported value reflex"
+                "combat_profile/level_overrides/2/attack_defense_mode: Attack defense mode is not registered by the skill import contract."
             ),
             $"Unknown level attack_defense_mode should fail schema validation. errors={overrideErrors}"
         );
@@ -151,15 +151,7 @@ public partial class run_skill_attack_defense_mode_schema_regression : Lifecycle
     private static GStringArray Validate(CombatSkillDef profile)
     {
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            "attack_defense_schema_probe",
-            profile
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, "attack_defense_schema_probe"));
         return errors;
     }
 

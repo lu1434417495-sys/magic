@@ -315,7 +315,6 @@ public class BattleSpecialSkillResolver
                 BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
                     RtState(),
                     _runtime.GetGridService(),
-                    layeredBarrierService,
                     active_unit,
                     target_unit
                 );
@@ -488,7 +487,6 @@ public class BattleSpecialSkillResolver
         BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
             state,
             gridService,
-            _runtime._layered_barrier_service,
             activeUnit,
             targetUnit
         );
@@ -1173,7 +1171,6 @@ public class BattleSpecialSkillResolver
         BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
             state,
             gridService,
-            barrierService,
             sourceUnit,
             targetUnit,
             effectDefinition,

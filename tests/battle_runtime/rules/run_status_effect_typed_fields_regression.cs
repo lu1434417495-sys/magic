@@ -18,8 +18,6 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
     }
     private void TestEffectSchemaRejectsLegacyLockGuardParam()
     {
-        using var registry = new SkillContentRegistry(loadDefaultContent: false);
-        var errors = new GStringArray();
         var effectDef = TestResourceOwnership.Own(
             new CombatEffectDef
             {
@@ -30,16 +28,13 @@ public partial class run_status_effect_typed_fields_regression : LifecycleTestSc
             "StatusEffectTypedFields.legacy-lock-guard-effect"
         );
 
-        registry.AppendEffectValidationErrors(
-            errors,
-            "lock_guard_schema_contract",
+        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(
             effectDef,
-            "test_effect"
+            "lock_guard_schema_contract"
         );
 
         _test.True(
-            ContainsFragment(errors, "params.lock_guard")
-            && ContainsFragment(errors, "CombatEffectDef.lock_guard"),
+            ContainsFragment(errors, "payload/lock_guard: Unknown effect payload member."),
             $"params.lock_guard should be rejected in favor of CombatEffectDef.lock_guard. errors={FormatErrors(errors)}"
         );
     }

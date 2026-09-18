@@ -29,19 +29,13 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
 
     private void TestFixedRepeatSchema()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef invalidCount = new()
         {
             effect_type = "fixed_repeat_attack",
             fixed_attack_count = 1,
         };
         GStringArray errors = new();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "invalid_fixed_repeat",
-            invalidCount,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidCount, "invalid_fixed_repeat"));
         _test.True(
             string.Join(" | ", errors).Contains("fixed_attack_count >= 2"),
             "fixed_repeat_attack 必须拒绝不足两段的配置。"
@@ -55,12 +49,7 @@ public partial class run_warrior_double_strike_regression : LifecycleTestSceneTr
             dice_sides = 4,
         };
         errors.Clear();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "misplaced_fixed_count",
-            misplacedCount,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(misplacedCount, "misplaced_fixed_count"));
         _test.True(
             string.Join(" | ", errors).Contains(
                 "fixed_attack_count is only supported on fixed_repeat_attack"

@@ -1,3 +1,4 @@
+using static BattleSkillTargetPlanRules;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -11,13 +12,6 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 // Pure physical split: same class, no behavior change. See BattleSkillExecutionOrchestrator.cs.
 internal sealed partial class BattleSkillExecutionOrchestrator
 {
-
-    internal static List<Vector2I> SortCoordsTyped(IEnumerable<Vector2I> coords)
-    {
-        var result = new List<Vector2I>(coords ?? Array.Empty<Vector2I>());
-        result.Sort((a, b) => a.Y == b.Y ? a.X.CompareTo(b.X) : a.Y.CompareTo(b.Y));
-        return result;
-    }
 
     private static GStringNameArray ToStringNameArray(IEnumerable<StringName> src)
     {
@@ -205,8 +199,4 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         return ProgressionDataUtils.to_string_name(dictionary[(long)key]);
     }
 
-    internal static bool StringNameIsEmpty(StringName value)
-    {
-        return value == null || value.ToString().Length == 0;
-    }
 }

@@ -24,7 +24,7 @@ public class BattlePreview
     private readonly ReadOnlyCollection<BattleStatusContributionPreviewData>
         _statusContributionPreviewsView;
     private BattleSaveBranchPreviewData _saveBranchPreview;
-    private BattleDamagePreviewRangeService.SkillDamagePreview? _damagePreview;
+    private BattleSkillDamagePreview? _damagePreview;
     private BattleFatePreviewData _fatePreview;
     private BattleEquipmentAbilityCommandPreviewResult _equipmentAbilityPreview;
     private BattleTerrainContactPreviewData _terrainContactPreview;
@@ -86,7 +86,7 @@ public class BattlePreview
     internal IReadOnlyList<string> LogLinesTyped => _logLinesView;
     internal IReadOnlyList<BattleStatusContributionPreviewData>
         StatusContributionPreviewsTyped => _statusContributionPreviewsView;
-    internal BattleDamagePreviewRangeService.SkillDamagePreview? DamagePreviewTyped =>
+    internal BattleSkillDamagePreview? DamagePreviewTyped =>
         CloneDamagePreview(_damagePreview);
     internal BattleFatePreviewData FatePreviewTyped => _fatePreview ?? hit_preview?.FatePreview;
     internal BattleSaveBranchPreviewData SaveBranchPreviewTyped => _saveBranchPreview;
@@ -296,7 +296,7 @@ public class BattlePreview
         _logLines.Insert(index, value ?? "");
     }
 
-    internal void SetDamagePreview(BattleDamagePreviewRangeService.SkillDamagePreview? value)
+    internal void SetDamagePreview(BattleSkillDamagePreview? value)
     {
         _damagePreview = CloneDamagePreview(value);
     }
@@ -378,22 +378,22 @@ public class BattlePreview
         _positionSwapPreview = null;
     }
 
-    private static BattleDamagePreviewRangeService.SkillDamagePreview? CloneDamagePreview(
-        BattleDamagePreviewRangeService.SkillDamagePreview? value
+    private static BattleSkillDamagePreview? CloneDamagePreview(
+        BattleSkillDamagePreview? value
     )
     {
         if (!value.HasValue)
         {
             return null;
         }
-        BattleDamagePreviewRangeService.SkillDamagePreview preview = value.Value;
-        return new BattleDamagePreviewRangeService.SkillDamagePreview(
+        BattleSkillDamagePreview preview = value.Value;
+        return new BattleSkillDamagePreview(
             preview.HasDamage,
             preview.MinDamage,
             preview.MaxDamage,
-            new List<BattleDamagePreviewRangeService.DamageEffectRange>(
+            new List<BattleDamageEffectRange>(
                 preview.DamageRanges
-                    ?? System.Array.Empty<BattleDamagePreviewRangeService.DamageEffectRange>()
+                    ?? System.Array.Empty<BattleDamageEffectRange>()
             )
         );
     }

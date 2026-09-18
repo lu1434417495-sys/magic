@@ -862,7 +862,12 @@ internal sealed class BattleUnitFactory
         }
         if (us.GetKnownActiveSkillsViewTyped().Count == 0)
         {
-            us.SetKnownActiveSkillIds(_pick_default_enemy_skill_ids());
+            us.SetKnownActiveSkillIds(
+                BattleEnemyDefaultSkillRules.PickDefaultSkillIds(
+                    BasicAttackSkillId,
+                    GetSkillDefinitionIndex()
+                )
+            );
             foreach (var s in us.GetKnownActiveSkillsViewTyped())
                 us.SetKnownSkillLevelTyped(s, 1);
         }
@@ -870,40 +875,6 @@ internal sealed class BattleUnitFactory
         _ensure_enemy_basic_attack_affordability(us);
         _sync_enemy_unlocked_resources(us);
         return us;
-    }
-
-    private StringNameList _pick_default_enemy_skill_ids()
-    {
-        var pre = new StringNameList
-        {
-            "warrior_heavy_strike",
-            "warrior_combo_strike",
-            "warrior_guard_break",
-        };
-        if (BasicAttackSkillId != "")
-            pre.Insert(0, BasicAttackSkillId);
-        foreach (var p in pre)
-            if (_is_valid_enemy_skill(_skill_definition_from_runtime(p)))
-                return new StringNameList { p };
-        var sortedSkillIds = new List<StringName>(GetSkillDefinitionIndex().Keys);
-        sortedSkillIds.Sort((left, right) => string.CompareOrdinal(left.ToString(), right.ToString()));
-        foreach (var sid in sortedSkillIds)
-        {
-            if (_is_valid_enemy_skill(_skill_definition_from_runtime(sid)))
-                return new StringNameList { sid };
-        }
-        return new StringNameList();
-    }
-
-    private bool _is_valid_enemy_skill(SkillDefinition skillDefinition)
-    {
-        CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
-        return skillDefinition != null
-            && skillDefinition.SkillTypeKind == SkillTypeKind.Active
-            && skillDefinition.CanUseInCombat()
-            && combatProfile != null
-            && combatProfile.TargetModeKind == BattleTargetMode.Unit
-            && BattleTargetTeamRules.IsEnemyFilter(combatProfile.TargetTeamFilter);
     }
 
     private void _filter_skills_by_equipment_requirements(BattleUnitState us)

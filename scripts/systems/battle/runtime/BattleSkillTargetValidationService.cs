@@ -10,8 +10,7 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 internal sealed class BattleSkillTargetValidationService
 {
     private WeakReference<BattleRuntimeModule> _runtimeRef;
-    private BattleSkillExecutionOrchestrator _owner;
-    private BattleRandomChainSkillService _randomChainSkillService;
+    private Func<BattleUnitState, StringName, int> _getScopedSkillLevel;
 
     private BattleRuntimeModule _runtime
     {
@@ -29,20 +28,17 @@ internal sealed class BattleSkillTargetValidationService
 
     internal void Setup(
         BattleRuntimeModule runtime,
-        BattleSkillExecutionOrchestrator owner,
-        BattleRandomChainSkillService randomChainSkillService
+        Func<BattleUnitState, StringName, int> getScopedSkillLevel
     )
     {
         _runtime = runtime;
-        _owner = owner;
-        _randomChainSkillService = randomChainSkillService;
+        _getScopedSkillLevel = getScopedSkillLevel;
     }
 
     internal void DisposeRuntime()
     {
         _runtime = null;
-        _owner = null;
-        _randomChainSkillService = null;
+        _getScopedSkillLevel = null;
     }
 
     internal BattleUnitSkillValidationResult _validate_unit_skill_targets_result(
@@ -53,7 +49,7 @@ internal sealed class BattleSkillTargetValidationService
         bool requireAp = true
     )
     {
-        BattleState state = _owner.RtState();
+        BattleState state = Runtime?._state;
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             state == null
@@ -68,7 +64,7 @@ internal sealed class BattleSkillTargetValidationService
 
         bool allowRepeat = combatProfile.AllowRepeatTarget;
         GStringNameArray targetUnitIds = _normalize_target_unit_ids(command, allowRepeat);
-        int skillLevel = _owner._get_unit_skill_level(
+        int skillLevel = _getScopedSkillLevel(
             active_unit,
             skillDefinition.SkillId
         );
@@ -94,7 +90,7 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.MaxHitsPerTarget,
                 1
             );
-            List<BattleUnitState> randomChainPool = _randomChainSkillService.BuildRandomChainTargetPool(
+            List<BattleUnitState> randomChainPool = BuildRandomChainTargetPool(
                 active_unit,
                 skillDefinition,
                 cast_variant,
@@ -225,7 +221,7 @@ internal sealed class BattleSkillTargetValidationService
                 targetUnits,
                 skillLevel
             ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
-        List<Vector2I> previewCoords = BattleSkillExecutionOrchestrator.SortCoordsTyped(collectedTargetCoords.TargetCoords);
+        List<Vector2I> previewCoords = BattleSkillTargetPlanRules.SortCoordsTyped(collectedTargetCoords.TargetCoords);
         AppendVaultDestinationPreviewCoord(
             previewCoords,
             active_unit,
@@ -234,7 +230,7 @@ internal sealed class BattleSkillTargetValidationService
             cast_variant
         );
         return BattleUnitSkillValidationResult.AllowedResult(
-            BattleSkillExecutionOrchestrator.ToStringNameList(targetUnitIds),
+            new List<StringName>(targetUnitIds),
             targetUnits,
             null,
             previewCoords
@@ -248,7 +244,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
-        BattleState state = _owner.RtState();
+        BattleState state = Runtime?._state;
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             state == null
@@ -286,7 +282,7 @@ internal sealed class BattleSkillTargetValidationService
                 combatProfile.MaxHitsPerTarget,
                 1
             );
-            List<BattleUnitReadView> randomChainPool = _randomChainSkillService.BuildRandomChainTargetPool(
+            List<BattleUnitReadView> randomChainPool = BuildRandomChainTargetPool(
                 active_unit,
                 skillDefinition,
                 cast_variant,
@@ -419,7 +415,7 @@ internal sealed class BattleSkillTargetValidationService
                 targetUnits,
                 skillLevel
             ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
-        List<Vector2I> previewCoords = BattleSkillExecutionOrchestrator.SortCoordsTyped(collectedTargetCoords.TargetCoords);
+        List<Vector2I> previewCoords = BattleSkillTargetPlanRules.SortCoordsTyped(collectedTargetCoords.TargetCoords);
         AppendVaultDestinationPreviewCoord(
             previewCoords,
             active_unit,
@@ -428,7 +424,7 @@ internal sealed class BattleSkillTargetValidationService
             cast_variant
         );
         return BattleUnitSkillPreviewValidationResult.AllowedResult(
-            BattleSkillExecutionOrchestrator.ToStringNameList(targetUnitIds),
+            new List<StringName>(targetUnitIds),
             targetUnits,
             null,
             previewCoords
@@ -444,7 +440,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -500,9 +496,8 @@ internal sealed class BattleSkillTargetValidationService
         if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
             return "连续直线攻击必须选择一个敌方首目标。";
         BattleSequentialLineHitPlan plan = BattleSequentialLineHitRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnits[0],
             skillDefinition
@@ -519,7 +514,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -536,9 +531,8 @@ internal sealed class BattleSkillTargetValidationService
         if (targetUnits == null || targetUnits.Count != 1 || targetUnits[0] == null)
             return "空中牵引必须选择一个单位目标。";
         BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnits[0],
             effect,
@@ -556,7 +550,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -628,12 +622,11 @@ internal sealed class BattleSkillTargetValidationService
         {
             return "连续直线攻击必须选择一个敌方首目标。";
         }
-        BattleUnitState sourceUnit = _owner.RtState()?.GetAliveUnit(activeUnit.UnitId);
-        BattleUnitState targetUnit = _owner.RtState()?.GetAliveUnit(targetUnits[0].UnitId);
+        BattleUnitState sourceUnit = Runtime?._state?.GetAliveUnit(activeUnit.UnitId);
+        BattleUnitState targetUnit = Runtime?._state?.GetAliveUnit(targetUnits[0].UnitId);
         BattleSequentialLineHitPlan plan = BattleSequentialLineHitRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             sourceUnit,
             targetUnit,
             skillDefinition
@@ -650,7 +643,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         IReadOnlyList<CombatEffectDefinition> effectDefinitions =
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -673,9 +666,8 @@ internal sealed class BattleSkillTargetValidationService
             return "空中牵引必须选择一个单位目标。";
         }
         BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnits[0],
             effect,
@@ -698,7 +690,7 @@ internal sealed class BattleSkillTargetValidationService
         StringName singleTargetId = ProgressionDataUtils.to_string_name(
             command.target_unit_id
         );
-        if (!BattleSkillExecutionOrchestrator.StringNameIsEmpty(singleTargetId))
+        if (!BattleSkillTargetPlanRules.StringNameIsEmpty(singleTargetId))
         {
             seenIds.Add(singleTargetId);
             targetUnitIds.Add(singleTargetId);
@@ -707,7 +699,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             StringName targetUnitId = ProgressionDataUtils.to_string_name(targetUnitIdValue);
             if (
-                BattleSkillExecutionOrchestrator.StringNameIsEmpty(targetUnitId)
+                BattleSkillTargetPlanRules.StringNameIsEmpty(targetUnitId)
                 || (!allow_repeat && seenIds.Contains(targetUnitId))
             )
             {
@@ -721,7 +713,7 @@ internal sealed class BattleSkillTargetValidationService
 
     internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)
     {
-        BattleState state = _owner.RtState();
+        BattleState state = Runtime?._state;
         if (state == null)
         {
             return (GStringNameArray)target_unit_ids.Duplicate();
@@ -782,7 +774,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        CombatSkillResourceCosts costs = _owner._get_effective_skill_resource_costs(
+        CombatSkillResourceCosts costs = Runtime._skill_turn_resolver.GetEffectiveSkillResourceCosts(
             active_unit,
             skillDefinition
         );
@@ -795,7 +787,7 @@ internal sealed class BattleSkillTargetValidationService
         }
         bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
         if (
-            !_owner._is_unit_valid_for_effect(
+            !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                 active_unit,
                 target_unit,
                 combatProfile.TargetTeamFilter,
@@ -835,7 +827,7 @@ internal sealed class BattleSkillTargetValidationService
         if (
             gridService == null
             || gridService.GetDistanceBetweenUnits(active_unit, target_unit)
-                > _owner._get_effective_skill_range(active_unit, skillDefinition)
+                > Runtime._get_effective_skill_range(active_unit, skillDefinition)
         )
         {
             return false;
@@ -861,7 +853,7 @@ internal sealed class BattleSkillTargetValidationService
         {
             return false;
         }
-        CombatSkillResourceCosts costs = _owner._get_effective_skill_resource_costs(
+        CombatSkillResourceCosts costs = Runtime._skill_turn_resolver.GetEffectiveSkillResourceCosts(
             active_unit,
             skillDefinition
         );
@@ -871,7 +863,7 @@ internal sealed class BattleSkillTargetValidationService
         }
         bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, cast_variant);
         if (
-            !_owner._is_unit_valid_for_effect(
+            !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                 active_unit,
                 target_unit,
                 combatProfile.TargetTeamFilter,
@@ -911,7 +903,7 @@ internal sealed class BattleSkillTargetValidationService
         if (
             gridService == null
             || gridService.GetDistanceBetweenUnits(active_unit, target_unit)
-                > _owner._get_effective_skill_range(active_unit, skillDefinition)
+                > Runtime._get_effective_skill_range(active_unit, skillDefinition)
         )
         {
             return false;
@@ -968,7 +960,7 @@ internal sealed class BattleSkillTargetValidationService
 
         bool sawRelevantEffect = false;
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -977,10 +969,10 @@ internal sealed class BattleSkillTargetValidationService
         {
             if (
                 effectDefinition == null
-                || !_owner._is_unit_valid_for_effect(
+                || !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                     activeUnit,
                     targetUnit,
-                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    BattleSkillTargetPlanRules.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
                     allowDeadTargets
                 )
             )
@@ -1016,7 +1008,7 @@ internal sealed class BattleSkillTargetValidationService
 
         bool sawRelevantEffect = false;
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1025,10 +1017,10 @@ internal sealed class BattleSkillTargetValidationService
         {
             if (
                 effectDefinition == null
-                || !_owner._is_unit_valid_for_effect(
+                || !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                     activeUnit,
                     targetUnit,
-                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    BattleSkillTargetPlanRules.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
                     allowDeadTargets
                 )
             )
@@ -1084,7 +1076,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1093,9 +1085,8 @@ internal sealed class BattleSkillTargetValidationService
         if (effect == null)
             return "";
         BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnit
         );
@@ -1110,7 +1101,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         CombatEffectDefinition effect = BattlePositionSwapRules.FindEffect(
-            _owner.CollectUnitSkillEffectDefinitions(
+            Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1119,9 +1110,8 @@ internal sealed class BattleSkillTargetValidationService
         if (effect == null)
             return "";
         BattlePositionSwapPlan plan = BattlePositionSwapRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnit
         );
@@ -1191,13 +1181,13 @@ internal sealed class BattleSkillTargetValidationService
         }
         StringName skillId = skillDefinition?.SkillId ?? new StringName("");
         if (
-            _owner._is_black_crown_seal_skill(skillId)
-            && !_owner._is_black_crown_seal_target_eligible(active_unit, target_unit)
+            Runtime._is_black_crown_seal_skill(skillId)
+            && !Runtime._is_black_crown_seal_target_eligible(active_unit, target_unit)
         )
         {
             return "黑冠封印只能对 boss 施放。";
         }
-        if (_owner._is_doom_shift_skill(skillId))
+        if (Runtime._is_doom_shift_skill(skillId))
         {
             if (target_unit == null || active_unit == null)
             {
@@ -1209,15 +1199,15 @@ internal sealed class BattleSkillTargetValidationService
             }
         }
         if (
-            _owner._is_crown_break_skill(skillId)
-            && !_owner._is_crown_break_target_eligible(active_unit, target_unit)
+            Runtime._is_crown_break_skill(skillId)
+            && !Runtime._is_crown_break_target_eligible(active_unit, target_unit)
         )
         {
             return "折冠只能对已被黑星烙印的 elite / boss 施放。";
         }
         if (
-            _owner._is_doom_sentence_skill(skillId)
-            && !_owner._is_doom_sentence_target_eligible(active_unit, target_unit)
+            Runtime._is_doom_sentence_skill(skillId)
+            && !Runtime._is_doom_sentence_target_eligible(active_unit, target_unit)
         )
         {
             return "厄命宣判只能对 elite / boss 施放。";
@@ -1290,17 +1280,17 @@ internal sealed class BattleSkillTargetValidationService
             return targetStatusRequirementMessage;
         }
         StringName skillId = skillDefinition?.SkillId ?? new StringName("");
-        if (_owner._is_black_crown_seal_skill(skillId))
+        if (Runtime._is_black_crown_seal_skill(skillId))
         {
             if (
-                !_owner._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                !BattleSkillTargetPlanRules._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
                 || !target_unit.IsBossTarget
             )
             {
                 return "黑冠封印只能对 boss 施放。";
             }
         }
-        if (_owner._is_doom_shift_skill(skillId))
+        if (Runtime._is_doom_shift_skill(skillId))
         {
             if (!target_unit.IsValid || !active_unit.IsValid)
             {
@@ -1311,20 +1301,20 @@ internal sealed class BattleSkillTargetValidationService
                 return "断命换位不能以自己为目标。";
             }
         }
-        if (_owner._is_crown_break_skill(skillId))
+        if (Runtime._is_crown_break_skill(skillId))
         {
             if (
-                !_owner._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                !BattleSkillTargetPlanRules._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
                 || !target_unit.HasStatusEffect("black_star_brand_elite")
             )
             {
                 return "折冠只能对已被黑星烙印的 elite / boss 施放。";
             }
         }
-        if (_owner._is_doom_sentence_skill(skillId))
+        if (Runtime._is_doom_sentence_skill(skillId))
         {
             if (
-                !_owner._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
+                !BattleSkillTargetPlanRules._is_unit_valid_for_effect(active_unit, target_unit, BattleTypedNames.TargetFilterEnemy)
                 || !target_unit.IsEliteOrBossTarget
             )
             {
@@ -1333,7 +1323,6 @@ internal sealed class BattleSkillTargetValidationService
         }
         return "";
     }
-
 
     private string GetVaultBehindTargetValidationMessage(
         BattleUnitState activeUnit,
@@ -1345,9 +1334,8 @@ internal sealed class BattleSkillTargetValidationService
         if (!HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit))
             return "";
         BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnit
         );
@@ -1364,9 +1352,8 @@ internal sealed class BattleSkillTargetValidationService
         if (!HasVaultBehindTargetEffect(skillDefinition, castVariant, activeUnit))
             return "";
         BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnit
         );
@@ -1380,7 +1367,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1400,7 +1387,7 @@ internal sealed class BattleSkillTargetValidationService
     )
     {
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1429,9 +1416,8 @@ internal sealed class BattleSkillTargetValidationService
         )
             return;
         BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnits[0]
         );
@@ -1459,9 +1445,8 @@ internal sealed class BattleSkillTargetValidationService
         )
             return;
         BattleVaultBehindTargetPlan plan = BattleVaultBehindTargetRules.BuildPlan(
-            _owner.RtState(),
+            Runtime?._state,
             Runtime?.GetGridService(),
-            Runtime?._layered_barrier_service,
             activeUnit,
             targetUnits[0]
         );
@@ -1487,7 +1472,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatEffectDefinition firstFailedRequirement = null;
         bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1497,10 +1482,10 @@ internal sealed class BattleSkillTargetValidationService
             if (effectDefinition == null)
                 continue;
             if (
-                !_owner._is_unit_valid_for_effect(
+                !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                     activeUnit,
                     targetUnit,
-                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    BattleSkillTargetPlanRules.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
                     allowDeadTargets
                 )
             )
@@ -1546,7 +1531,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatEffectDefinition firstFailedRequirement = null;
         bool allowDeadTargets = SkillAllowsDeadUnitTargets(skillDefinition, castVariant);
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 castVariant,
                 activeUnit
@@ -1556,10 +1541,10 @@ internal sealed class BattleSkillTargetValidationService
             if (effectDefinition == null)
                 continue;
             if (
-                !_owner._is_unit_valid_for_effect(
+                !BattleSkillTargetPlanRules._is_unit_valid_for_effect(
                     activeUnit,
                     targetUnit,
-                    _owner.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
+                    BattleSkillTargetPlanRules.ResolveEffectTargetFilter(skillDefinition, effectDefinition),
                     allowDeadTargets
                 )
             )
@@ -1697,7 +1682,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             combatProfile == null
-            || !_owner._is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
+            || !BattleSkillTargetPlanRules._is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
         )
         {
             return "";
@@ -1745,7 +1730,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatSkillDefinition combatProfile = skillDefinition?.CombatProfile;
         if (
             combatProfile == null
-            || !_owner._is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
+            || !BattleSkillTargetPlanRules._is_unit_valid_for_effect(activeUnit, targetUnit, combatProfile.TargetTeamFilter)
         )
         {
             return "";
@@ -1790,7 +1775,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
-        BattleState state = _owner.RtState();
+        BattleState state = Runtime?._state;
         if (state == null || target_unit == null || skillDefinition == null)
         {
             return "";
@@ -1801,7 +1786,7 @@ internal sealed class BattleSkillTargetValidationService
             return "";
         }
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 cast_variant,
                 active_unit
@@ -1845,7 +1830,7 @@ internal sealed class BattleSkillTargetValidationService
         CombatCastVariantDefinition cast_variant = null
     )
     {
-        BattleState state = _owner.RtState();
+        BattleState state = Runtime?._state;
         if (state == null || !target_unit.IsValid || skillDefinition == null)
         {
             return "";
@@ -1856,7 +1841,7 @@ internal sealed class BattleSkillTargetValidationService
             return "";
         }
         foreach (
-            CombatEffectDefinition effectDefinition in _owner.CollectUnitSkillEffectDefinitions(
+            CombatEffectDefinition effectDefinition in Runtime._skill_resolution_rules.CollectUnitSkillEffectDefinitions(
                 skillDefinition,
                 cast_variant,
                 active_unit
@@ -1893,5 +1878,86 @@ internal sealed class BattleSkillTargetValidationService
         return "";
     }
 
+    internal List<BattleUnitState> BuildRandomChainTargetPool(
+        BattleUnitState active_unit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        IReadOnlyDictionary<StringName, int> chain_hit_counts,
+        int max_hits_per_target
+    )
+    {
+        var chainPool = new List<BattleUnitState>();
+        BattleState state = Runtime?._state;
+        if (state == null)
+        {
+            return chainPool;
+        }
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
+        {
+            if (
+                candidate == null
+                || candidate == active_unit
+                || !candidate.IsAlive()
+            )
+            {
+                continue;
+            }
+            StringName candidateId = ProgressionDataUtils.to_string_name(
+                candidate.unit_id
+            );
+            if (
+                BattleSkillTargetPlanRules.StringNameIsEmpty(candidateId)
+                || (
+                    chain_hit_counts != null
+                    && chain_hit_counts.TryGetValue(candidateId, out int hitCount)
+                    && hitCount >= max_hits_per_target
+                )
+            )
+            {
+                continue;
+            }
+            if (!_can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
+            {
+                continue;
+            }
+            chainPool.Add(candidate);
+        }
+        return chainPool;
+    }
 
+    internal List<BattleUnitReadView> BuildRandomChainTargetPool(
+        BattleUnitReadView active_unit,
+        SkillDefinition skillDefinition,
+        CombatCastVariantDefinition castVariant,
+        int max_hits_per_target
+    )
+    {
+        var chainPool = new List<BattleUnitReadView>();
+        BattleState state = Runtime?._state;
+        if (state == null || !active_unit.IsValid)
+        {
+            return chainPool;
+        }
+        foreach (BattleUnitReadView candidate in state.AsReadView().AliveUnits())
+        {
+            if (
+                !candidate.IsValid
+                || candidate.UnitId == active_unit.UnitId
+                || BattleSkillTargetPlanRules.StringNameIsEmpty(candidate.UnitId)
+            )
+            {
+                continue;
+            }
+            if (max_hits_per_target <= 0)
+            {
+                continue;
+            }
+            if (!_can_skill_target_unit(active_unit, candidate, skillDefinition, false, castVariant))
+            {
+                continue;
+            }
+            chainPool.Add(candidate);
+        }
+        return chainPool;
+    }
 }

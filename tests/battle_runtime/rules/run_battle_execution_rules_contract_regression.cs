@@ -54,7 +54,6 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
 
     private void TestSkillSchemaRejectsPromotedExecuteParamsInLegacyPayload()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "execute",
@@ -81,18 +80,16 @@ public partial class run_battle_execution_rules_contract_regression : LifecycleT
                 ["non_lethal_damage_ratio_percent"] = 30,
             },
         };
-        var errors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_execute_payload",
-            effect,
-            "test_effect"
-        );
+        Godot.Collections.Array<string> errors =
+            TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(
+                effect,
+                "legacy_execute_payload"
+            );
 
         string formattedErrors = string.Join(" | ", errors);
         _test.True(
-            formattedErrors.Contains("execute must not use params payload"),
-            $"execute 旧 params payload 应被 SkillContentRegistry 静态拒绝。 errors={formattedErrors}"
+            formattedErrors.Contains("payload/min_hp_after_damage: Unknown effect payload member."),
+            $"execute 旧 params payload 应在技能导入边界被拒绝。 errors={formattedErrors}"
         );
     }
 

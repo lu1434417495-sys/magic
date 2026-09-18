@@ -133,7 +133,7 @@ internal sealed class BattleTargetCollectionService
             bool collectedAny = false;
             Vector2I areaDirection =
                 sourceCoord != MissingCoord ? areaCenter - sourceCoord : Vector2I.Zero;
-            areaDirection = ResolveAreaDirection(combatProfile, areaDirection);
+            areaDirection = BattleAreaDirectionRules.ResolveAreaDirection(combatProfile, areaDirection);
             foreach (
                 Vector2I effectCoord in GridGetAreaCoords(
                     gridService,
@@ -228,7 +228,7 @@ internal sealed class BattleTargetCollectionService
             bool collectedAny = false;
             Vector2I areaDirection =
                 sourceCoord != MissingCoord ? areaCenter - sourceCoord : Vector2I.Zero;
-            areaDirection = ResolveAreaDirection(combatProfile, areaDirection);
+            areaDirection = BattleAreaDirectionRules.ResolveAreaDirection(combatProfile, areaDirection);
             foreach (
                 Vector2I effectCoord in GridGetAreaCoords(
                     gridService,
@@ -450,24 +450,5 @@ internal sealed class BattleTargetCollectionService
             coords.Add(coord);
         }
         return coords;
-    }
-
-    internal static Vector2I ResolveAreaDirection(
-        CombatSkillDefinition combatProfile,
-        Vector2I targetVector
-    )
-    {
-        if (
-            combatProfile?.AreaDirectionModeKind
-            != CombatAreaDirectionMode.TargetVectorPerpendicular
-        )
-        {
-            return targetVector;
-        }
-        if (targetVector == Vector2I.Zero)
-        {
-            return Vector2I.Zero;
-        }
-        return new Vector2I(-targetVector.Y, targetVector.X);
     }
 }

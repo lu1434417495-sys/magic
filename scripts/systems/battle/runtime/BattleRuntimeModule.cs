@@ -386,6 +386,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _ai_query_action_score_input_callback = _aiDecisionBindingService.BuildAiQueryActionScoreInput;
         _ai_movement_blocked_callback = _aiDecisionBindingService.IsAiMovementBlocked;
         _ai_skill_cast_block_reason_callback = GetSkillCastBlockReason;
+        BindRuntimeSidecars();
     }
 
     internal void setup(
@@ -459,17 +460,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _aiDecisionBindingService.ClearAiActionPlans();
         ClearLastStartFailure();
         _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
-        _terrain_effect_system.Setup(this);
-        _delayed_area_effect_system.Setup(this);
-        BindEquipmentRulePorts();
-        _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
-        _skill_outcome_committer.Setup(this);
         _skill_mastery_service.Setup(_basicAttackSkillId);
-        _battle_rating_system.Setup(this, _skill_mastery_service);
-         _unit_factory.Setup(this);
-        _moduleBorrowers.ChargeBridge.Setup(this);
-        _charge_resolver.Setup(_moduleBorrowers.ChargeBridge, _skill_mastery_service);
-        _repeat_attack_resolver.Setup(this, _skill_mastery_service);
         _skill_mastery_service.Clear();
         _fate_runtime.Setup(
             _characterGateway,
@@ -478,22 +469,8 @@ public sealed partial class BattleRuntimeModule : IDisposable
             _find_unit_by_member_id,
             GetSkillDefinitionTyped
         );
-        _change_equipment_resolver.Setup(this);
-        _loot_resolver.Setup(this);
-        _skill_turn_resolver.Setup(this);
-        _metrics_collector.Setup(this);
-        _shield_service.Setup(this);
-        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
-        _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
-        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
-        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
-        _moduleBorrowers.TimelineBridge.Setup(this);
-        _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
-        _skill_orchestrator.Setup(this);
-        _casting_time_service.Setup(this);
-        _moduleBorrowers.Setup(this);
-        EnsureReactionRuntimeReady();
+        BindRuntimeSidecars();
+        BindEquipmentRulePorts();
         _setup_special_profile_runtime();
         CompleteContentCatalogRebind();
     }
@@ -653,7 +630,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
             ClearRuntimeBattleStateReference();
             return new BattleState();
         }
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         BattleStartUnitRosterMaterialization typedUnits =
             unitRoster?.ConsumeForStart() ?? default;
         var partyState =
@@ -1030,7 +1007,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     public BattleEventBatch advance(int tick_count)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         BattleEventBatch batch = _new_batch();
         if (_state == null || _state.PhaseKind == BattlePhaseKind.BattleEnded)
             return batch;
@@ -1265,7 +1242,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     private BattleEventBatch IssueCommandCore(BattleCommand command)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         var batch = _new_batch();
         if (_state == null || command == null)
             return batch;
@@ -1481,7 +1458,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         PromotionCommitRequest selection
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         BattleEventBatch batch = _new_batch();
         if (_state == null || _characterGateway == null)
             return batch;
@@ -1569,7 +1546,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         }
         if (_state != null)
         {
-            _ensure_sidecars_ready();
+            AssertRuntimeAvailable();
             EnsureCounterattackUnitOwnersInitialized();
             _contingency_system.ResetForBattle(_characterGateway?.GetPartyState(), _state);
         }
@@ -1683,7 +1660,16 @@ public sealed partial class BattleRuntimeModule : IDisposable
     public bool IsUnitFollowUpLocked(BattleUnitState unit_state) =>
         _has_status(unit_state, STATUS_CROWN_BREAK_BROKEN_HAND);
 
-    internal void _ensure_sidecars_ready()
+    internal int RuntimeSidecarBindingGeneration { get; private set; }
+
+    internal void AssertRuntimeAvailable()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (RuntimeSidecarBindingGeneration == 0)
+            throw new InvalidOperationException("Battle runtime services have not been composed.");
+    }
+
+    private void BindRuntimeSidecars()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _terrain_effect_system.Setup(this);
@@ -1691,7 +1677,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.Setup(this);
         _battle_rating_system.Setup(this, _skill_mastery_service);
-         _unit_factory.Setup(this);
+        _unit_factory.Setup(this);
         _moduleBorrowers.ChargeBridge.Setup(this);
         _charge_resolver.Setup(_moduleBorrowers.ChargeBridge, _skill_mastery_service);
         _repeat_attack_resolver.Setup(this, _skill_mastery_service);
@@ -1702,15 +1688,14 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _shield_service.Setup(this);
         _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
         _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
-        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
-        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
+        // Bind the timeline bridge before its consumer, including constructor-time composition.
         _moduleBorrowers.TimelineBridge.Setup(this);
         _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
         _skill_orchestrator.Setup(this);
         _casting_time_service.Setup(this);
         _moduleBorrowers.Setup(this);
         EnsureReactionRuntimeReady();
+        RuntimeSidecarBindingGeneration++;
     }
 
     internal WarehouseState _get_party_backpack_state(PartyState party_state)
@@ -1723,7 +1708,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal IReadOnlyList<Vector2I> GetUnitReachableMoveCoordsTyped(BattleUnitState unit_state)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _movement_service.GetUnitReachableMoveCoords(unit_state);
     }
 
@@ -1870,20 +1855,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
                 _find_unit_by_member_id,
                 GetSkillDefinitionTyped
             );
-        _change_equipment_resolver.Setup(this);
-        _loot_resolver.Setup(this);
-        _skill_turn_resolver.Setup(this);
-        _metrics_collector.Setup(this);
-        _shield_service.Setup(this);
-        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
-        _layered_barrier_service.Setup(this, _barrierProfileIndex);
-        // bridge 的绑定在此就地保证：Borrower.Setup 经 IsBoundTo 幂等，
-        // 因此即便 FinishSetup 尚未跑过（_ensure_sidecars_ready 早于它的路径），
-        // driver 拿到的也是已绑定的端口，而不是静默 no-op 的空壳。
-        _moduleBorrowers.TimelineBridge.Setup(this);
-        _timeline_driver.Setup(_moduleBorrowers.TimelineBridge);
-        _skill_orchestrator.Setup(this);
-        _casting_time_service.Setup(this);
+        BindRuntimeSidecars();
         BindEquipmentRulePorts();
     }
 
@@ -2622,6 +2594,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         ArmReactionRuntimeForBoundBattle();
         _battleCacheEpoch = _battleCacheEpoch == long.MaxValue ? 1 : _battleCacheEpoch + 1;
         _runtime_services.BeginBattle(_battleCacheEpoch);
+        _runtime_services.SetupRuntimeSidecars(this, _contingencyBridgeService);
     }
 
     private void StopReactionRuntimeForBattleTransition()
@@ -2662,7 +2635,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _skill_orchestrator._handle_skill_command(active_unit, command, batch);
     }
 
@@ -2672,7 +2645,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattlePreview preview
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _skill_orchestrator._preview_skill_command(active_unit, command, preview);
     }
 
@@ -2683,7 +2656,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         AttackEffectResolutionResult result
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _skill_orchestrator.AppendDamageResultLogLines(
             batch,
             subject_label,
@@ -2694,13 +2667,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal GStringNameArray _normalize_target_unit_ids(BattleCommand command)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator._normalize_target_unit_ids(command, false);
     }
 
     internal GStringNameArray _sort_target_unit_ids_for_execution(GStringNameArray target_unit_ids)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator._sort_target_unit_ids_for_execution(target_unit_ids);
     }
 
@@ -2712,7 +2685,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         bool require_ap = true
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator.GetUnitSkillTargetAffordance(
             active_unit,
             target_unit,
@@ -2727,7 +2700,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         StringName terrain_effect_id
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator._unit_stands_on_terrain_effect(unit_state, terrain_effect_id);
     }
 
@@ -2738,7 +2711,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         CombatCastVariantDefinition castVariant = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator._get_unit_skill_target_validation_message(
             active_unit,
             target_unit,
@@ -2754,7 +2727,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.ResolveGroundSpellControlAfterCostResult(
             active_unit,
             skillDefinition,
@@ -2769,7 +2742,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.ResolveUnitSpellControlAfterCostResult(
             active_unit,
             skillDefinition,
@@ -2891,13 +2864,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void _initialize_unit_trait_hooks()
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _timeline_driver.InitializeUnitTraitHooks();
     }
 
     internal GVector2IArray _collect_dict_vector2i_keys(GDictionary values)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         var coords = new List<Vector2I>();
         if (values == null)
         {
@@ -2912,19 +2885,19 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal int _get_unit_skill_level(BattleUnitState unit_state, StringName skill_id)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _skill_orchestrator._get_unit_skill_level(unit_state, skill_id);
     }
 
     internal void _end_active_turn(BattleEventBatch batch)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _timeline_driver.EndActiveTurn(batch);
     }
 
     internal void _handle_adjacent_ally_defeat(BattleUnitState defeated_unit)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _special_skill_resolver.HandleAdjacentAllyDefeat(defeated_unit);
     }
 
@@ -2933,13 +2906,13 @@ public sealed partial class BattleRuntimeModule : IDisposable
         BattleEventBatch batch = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _special_skill_resolver.HandleLowLuckRelicAllyDefeat(defeated_unit, batch);
     }
 
     internal void _activate_next_ready_unit(BattleEventBatch batch)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _timeline_driver.ActivateNextReadyUnit(batch);
     }
 
@@ -3092,7 +3065,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
 
     internal void _sort_ready_unit_ids_by_action_priority()
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _timeline_driver.SortReadyUnitIdsByActionPriority();
     }
 
@@ -3101,25 +3074,25 @@ public sealed partial class BattleRuntimeModule : IDisposable
         StringName right_unit_id
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _timeline_driver.IsLeftReadyUnitHigherPriority(left_unit_id, right_unit_id);
     }
 
     internal int _get_unit_turn_order_attribute(BattleUnitState unit_state, StringName attribute_id)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _timeline_driver.GetUnitTurnOrderAttribute(unit_state, attribute_id);
     }
 
     internal int _get_unit_turn_order_action_points(BattleUnitState unit_state)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _timeline_driver.GetUnitTurnOrderActionPoints(unit_state);
     }
 
     internal GStringNameArray _get_units_in_order()
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _timeline_driver.GetUnitsInOrder();
     }
 
@@ -3182,7 +3155,6 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _equipment_ability_runtime_service.Setup(this, _damage_resolver);
         _attack_check_policy_service.Setup(
             _hit_resolver,
-            _terrain_effect_system,
             _equipment_ability_runtime_service.AttackCheckQuery
         );
         _damage_resolver.SetEquipmentAbilityPorts(

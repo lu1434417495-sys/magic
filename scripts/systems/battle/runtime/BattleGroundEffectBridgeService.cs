@@ -395,7 +395,7 @@ internal sealed class BattleGroundEffectBridgeService
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<BattleUnitState> targetUnits
     ) =>
-        _runtime?._skill_orchestrator?.BuildUnitEffectTargetPlan(
+        BattleSkillTargetPlanRules.BuildUnitEffectTargetPlan(
             sourceUnit,
             skillDefinition,
             effectDefinitions,
@@ -411,7 +411,7 @@ internal sealed class BattleGroundEffectBridgeService
         IReadOnlyList<CombatEffectDefinition> effectDefinitions,
         IReadOnlyList<BattleUnitReadView> targetUnits
     ) =>
-        _runtime?._skill_orchestrator?.BuildUnitEffectTargetPlan(
+        BattleSkillTargetPlanRules.BuildUnitEffectTargetPlan(
             sourceUnit,
             skillDefinition,
             effectDefinitions,

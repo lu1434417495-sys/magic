@@ -48,7 +48,7 @@ public partial class run_combat_projectile_kind_schema_regression : LifecycleTes
         invalidBase.projectile_kind = "laser";
         string baseErrors = FormatErrors(Validate(invalidBase));
         _test.True(
-            baseErrors.Contains("unsupported projectile_kind laser"),
+            baseErrors.Contains("combat_profile/projectile_kind: Business string is not registered by this field's closed import rule."),
             $"未知 projectile_kind 必须在加载期失败。errors={baseErrors}"
         );
 
@@ -56,7 +56,7 @@ public partial class run_combat_projectile_kind_schema_regression : LifecycleTes
         emptyBase.projectile_kind = "";
         string emptyErrors = FormatErrors(Validate(emptyBase));
         _test.True(
-            emptyErrors.Contains("unsupported projectile_kind"),
+            emptyErrors.Contains("combat_profile/projectile_kind: Business string is not registered by this field's closed import rule."),
             $"技能级空 projectile_kind 不得被当成继承。errors={emptyErrors}"
         );
 
@@ -70,7 +70,7 @@ public partial class run_combat_projectile_kind_schema_regression : LifecycleTes
         );
         string variantErrors = FormatErrors(Validate(invalidVariant));
         _test.True(
-            variantErrors.Contains("unsupported projectile_kind_override laser"),
+            variantErrors.Contains("cast_variants/0/projectile_kind_override: Business string is not registered by this field's closed import rule."),
             $"未知 projectile_kind_override 必须在加载期失败。errors={variantErrors}"
         );
     }
@@ -154,15 +154,7 @@ public partial class run_combat_projectile_kind_schema_regression : LifecycleTes
     private static GStringArray Validate(CombatSkillDef profile)
     {
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        validator.AppendCombatProfileValidationErrors(
-            errors,
-            "projectile_schema_probe",
-            profile
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, "projectile_schema_probe"));
         return errors;
     }
 

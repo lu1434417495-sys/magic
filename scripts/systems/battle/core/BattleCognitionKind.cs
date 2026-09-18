@@ -32,7 +32,4 @@ internal static class BattleCognitionContentRules
         kind is BattleCognitionKind.Mindless
             or BattleCognitionKind.Instinctive
             or BattleCognitionKind.Sapient;
-
-    internal static string ValidValueLabel() =>
-        "mindless, instinctive, sapient";
 }

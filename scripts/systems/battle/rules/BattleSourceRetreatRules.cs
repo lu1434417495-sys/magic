@@ -109,7 +109,6 @@ internal static class BattleSourceRetreatRules
     internal static BattleSourceRetreatPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
         Vector2I direction,
@@ -139,18 +138,19 @@ internal static class BattleSourceRetreatRules
                     toCoord
                 ),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
                     sourceUnit,
                     fromCoord,
                     toCoord
-                ) == true
+                )
         );
     }
 
     internal static BattleSourceRetreatPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitReadView sourceUnit,
         Vector2I targetCoord,
         Vector2I direction,
@@ -180,11 +180,13 @@ internal static class BattleSourceRetreatRules
                     toCoord
                 ),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
                     sourceUnit.UnsafeUnitForReadOnlyRules,
                     fromCoord,
                     toCoord
-                ) == true
+                )
         );
     }
 

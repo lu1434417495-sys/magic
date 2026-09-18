@@ -15,7 +15,6 @@ internal static class BattleVaultBehindTargetRules
     internal static BattleVaultBehindTargetPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit
     )
@@ -31,7 +30,6 @@ internal static class BattleVaultBehindTargetRules
         return BuildPlanCore(
             state,
             gridService,
-            barrierService,
             sourceUnit,
             sourceUnit.GetAnchorCoord(),
             sourceUnit.GetFootprintSize(),
@@ -43,7 +41,6 @@ internal static class BattleVaultBehindTargetRules
     internal static BattleVaultBehindTargetPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitReadView sourceUnit,
         BattleUnitReadView targetUnit
     )
@@ -59,7 +56,6 @@ internal static class BattleVaultBehindTargetRules
         return BuildPlanCore(
             state,
             gridService,
-            barrierService,
             sourceUnit.UnsafeUnitForReadOnlyRules,
             sourceUnit.Coord,
             sourceUnit.FootprintSize,
@@ -71,7 +67,6 @@ internal static class BattleVaultBehindTargetRules
     private static BattleVaultBehindTargetPlan BuildPlanCore(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         Vector2I sourceCoord,
         Vector2I sourceFootprint,
@@ -102,10 +97,19 @@ internal static class BattleVaultBehindTargetRules
             return BattleVaultBehindTargetPlan.Denied("墙体或高差阻挡了越肩路径。");
 
         if (
-            barrierService != null
-            && (
-                barrierService.HasUnitBoundaryBarrier(sourceUnit, sourceCoord, targetCoord)
-                || barrierService.HasUnitBoundaryBarrier(sourceUnit, targetCoord, destination)
+            BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                state,
+                gridService,
+                sourceUnit,
+                sourceCoord,
+                targetCoord
+            )
+            || BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                state,
+                gridService,
+                sourceUnit,
+                targetCoord,
+                destination
             )
         )
             return BattleVaultBehindTargetPlan.Denied("屏障阻挡了越肩路径。");

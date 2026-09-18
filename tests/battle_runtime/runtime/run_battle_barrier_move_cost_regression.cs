@@ -89,7 +89,14 @@ public partial class run_battle_barrier_move_cost_regression : LifecycleTestScen
             unit_id = activeUnit.unit_id,
             target_coord = new Vector2I(3, 2),
         };
-        runtime._movement_service.HandleMoveCommand(activeUnit, command, new BattleEventBatch());
+        using var batch = new BattleEventBatch();
+        runtime._movement_service.HandleMoveCommand(activeUnit, command, batch);
+
+        _test.Eq(batch.Movements.Count, 1, "被屏障中断的普通移动仍应发布已走过的路径。");
+        _test.Eq(batch.Movements[0].Path.Count, 2, "只播放起点到屏障前的一格。");
+        _test.Eq(batch.Movements[0].Path[0], origin, "播放从原位置开始。");
+        _test.Eq(batch.Movements[0].Path[1], new Vector2I(5, 2),
+            "路径不包含未走过的目标格或屏障放逐落点。");
 
         _test.Eq(activeUnit.GetCurrentMovePoints(), movePointsBefore - 1, "屏障前已抵达一格时，只应扣除已抵达锚点的移动力。");
         _test.True(activeUnit.GetAnchorCoord() != new Vector2I(3, 2), "紫色层放逐应中断移动，不能抵达原目标。");

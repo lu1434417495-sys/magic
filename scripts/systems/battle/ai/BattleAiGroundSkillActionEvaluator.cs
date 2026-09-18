@@ -653,7 +653,7 @@ internal sealed class BattleAiGroundSkillActionEvaluator
             Vector2I direction = context.unit_state != null
                 ? targetCoord - context.unit_state.GetAnchorCoord()
                 : Vector2I.Zero;
-            direction = BattleTargetCollectionService.ResolveAreaDirection(
+            direction = BattleAreaDirectionRules.ResolveAreaDirection(
                 combatProfile,
                 direction
             );

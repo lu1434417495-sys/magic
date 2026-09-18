@@ -317,11 +317,7 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
 
     private void TestSchemaRejectsInvalidReactionProfiles()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        AssertValidReactionProfileAccepted(validator);
+        AssertValidReactionProfileAccepted();
 
         var cases = new (
             string Id,
@@ -362,7 +358,7 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
             (
                 "save_ability_invalid",
                 (_, reaction) => reaction.save_ability = "luck",
-                "uses unsupported save_ability luck."
+                "skill.dto.spell_reaction.save_ability.unknown {skill}/combat_profile/spell_reaction_profile/save_ability: Business string is not registered by this field's closed import rule."
             ),
             (
                 "save_tag_empty",
@@ -421,7 +417,6 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         )
         {
             AssertReactionProfileRejected(
-                validator,
                 caseId,
                 mutate,
                 expectedSuffix
@@ -1073,7 +1068,7 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         return false;
     }
 
-    private void AssertValidReactionProfileAccepted(SkillCombatProfileValidator validator)
+    private void AssertValidReactionProfileAccepted()
     {
         const string skillId = "valid_spell_reaction_baseline";
         BuildValidReactionValidationFixture(
@@ -1083,7 +1078,7 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
             out SkillDef skillDef
         );
         var errors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(errors, skillId, profile, skillDef);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, skillId, skillDef));
         _test.Eq(
             errors.Count,
             0,
@@ -1092,7 +1087,6 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
     }
 
     private void AssertReactionProfileRejected(
-        SkillCombatProfileValidator validator,
         string caseId,
         Action<CombatSkillDef, CombatSpellReactionDef> mutate,
         string expectedSuffix
@@ -1107,9 +1101,11 @@ public partial class run_archer_disrupting_arrow_regression : LifecycleTestScene
         );
         mutate(profile, reaction);
         var errors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(errors, skillId, profile, skillDef);
-        string expected =
-            $"Skill {skillId} combat_profile.spell_reaction_profile {expectedSuffix}";
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, skillId, skillDef));
+        // 闭集取值在 strict DTO 边界就被拒绝，诊断是完整的 import 诊断而非 validator 后缀。
+        string expected = expectedSuffix.StartsWith("skill.dto.", StringComparison.Ordinal)
+            ? expectedSuffix.Replace("{skill}", skillId)
+            : $"Skill {skillId} combat_profile.spell_reaction_profile {expectedSuffix}";
         _test.Eq(
             errors.Count,
             1,

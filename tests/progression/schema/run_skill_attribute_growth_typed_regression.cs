@@ -22,20 +22,17 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
 
     private void TestAttributeGrowthSchemaValidation()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
-
         SkillDef validSkill = BuildGrowthSchemaSkill(
             "valid_growth_schema_skill",
             "intermediate",
             new GDictionary { ["agility"] = 90, ["perception"] = 30 }
         );
-        GStringArray validErrors = new();
-        registry.AppendAttributeGrowthValidationErrors(
-            validErrors,
-            validSkill.skill_id,
-            validSkill
+        GStringArray validErrors = ValidateAttributeGrowth(validSkill);
+        _test.Eq(
+            validErrors.Count,
+            0,
+            $"合法属性进度配置应通过正式技能校验。 errors={string.Join(" | ", validErrors)}"
         );
-        _test.Eq(validErrors.Count, 0, "合法属性进度配置应通过 SkillContentRegistry 校验。");
 
         SkillDef invalidTotalSkill = BuildGrowthSchemaSkill(
             "invalid_total_growth_schema_skill",
@@ -43,7 +40,6 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             new GDictionary { ["agility"] = 120 }
         );
         AssertHasValidationError(
-            registry,
             invalidTotalSkill,
             "Skill invalid_total_growth_schema_skill attribute_growth_progress total must equal 180 for growth_tier advanced.",
             "advanced 技能属性进度总和必须等于 180。"
@@ -55,7 +51,6 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             new GDictionary { ["hp_max"] = 60 }
         );
         AssertHasValidationError(
-            registry,
             invalidAttributeSkill,
             "Skill invalid_attribute_growth_schema_skill attribute_growth_progress references invalid attribute hp_max.",
             "属性进度配置只能引用六项基础属性。"
@@ -71,10 +66,9 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             "StringName key 不应进入 SkillDef typed attribute-growth 业务态。"
         );
         AssertHasValidationError(
-            registry,
             stringNameKeySkill,
-            "Skill string_name_key_growth_schema_skill attribute_growth_progress key agility must be a non-empty String.",
-            "attribute_growth_progress 旧 StringName key 应被 SkillContentRegistry 静态拒绝。"
+            "skill.fixture.invalid_input string_name_key_growth_schema_skill/attribute_growth_progress/agility: Map entries must use Variant.String keys.",
+            "attribute_growth_progress 旧 StringName key 应在技能导入边界被拒绝。"
         );
 
         SkillDef nonStringKeySkill = BuildGrowthSchemaSkill(
@@ -83,10 +77,9 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             new GDictionary { [123] = 60 }
         );
         AssertHasValidationError(
-            registry,
             nonStringKeySkill,
-            "Skill non_string_key_growth_schema_skill attribute_growth_progress key 123 must be a non-empty String.",
-            "attribute_growth_progress 非 String key 应被 SkillContentRegistry 静态拒绝。"
+            "skill.fixture.invalid_input non_string_key_growth_schema_skill/attribute_growth_progress: Map entries must use Variant.String keys.",
+            "attribute_growth_progress 非 String key 应在技能导入边界被拒绝。"
         );
 
         SkillDef emptyStringKeySkill = BuildGrowthSchemaSkill(
@@ -95,10 +88,9 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             new GDictionary { [""] = 60 }
         );
         AssertHasValidationError(
-            registry,
             emptyStringKeySkill,
-            "Skill empty_string_key_growth_schema_skill attribute_growth_progress key  must be a non-empty String.",
-            "attribute_growth_progress 空字符串 key 应被 SkillContentRegistry 静态拒绝。"
+            "skill.dto.id.invalid_snake_case empty_string_key_growth_schema_skill/attribute_growth_progress/: Content ID must be canonical lower snake_case ASCII.",
+            "attribute_growth_progress 空字符串 key 应在技能导入边界被拒绝。"
         );
 
         SkillDef nonIntAmountSkill = BuildGrowthSchemaSkill(
@@ -107,9 +99,8 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
             new GDictionary { ["agility"] = "60" }
         );
         AssertHasValidationError(
-            registry,
             nonIntAmountSkill,
-            "Skill non_int_growth_schema_skill attribute_growth_progress for agility must be a positive int.",
+            "skill.fixture.invalid_input non_int_growth_schema_skill/attribute_growth_progress/agility: Map entries must use Int32 integer values.",
             "attribute_growth_progress value 应拒绝字符串数字。"
         );
     }
@@ -185,15 +176,49 @@ public partial class run_skill_attribute_growth_typed_regression : LifecycleTest
         return skill;
     }
 
+    /// <summary>
+    /// 经生产 fixture 投影与 SkillImportModelValidator 校验，只保留成长配置引入的报错：
+    /// 同一技能清空 growth_tier / attribute_growth_progress 后已有的报错会被扣除。
+    /// </summary>
+    private static GStringArray ValidateAttributeGrowth(SkillDef skill)
+    {
+        StringName growthTier = skill.growth_tier;
+        // getter 返回的是 SkillDef 内部投影，setter 会原地清空它，必须先深拷贝再恢复。
+        using GDictionary growthProgress = skill.attribute_growth_progress.Duplicate(true);
+        GStringArray baseline;
+        using (var emptyProgress = new GDictionary())
+        {
+            skill.growth_tier = "";
+            skill.attribute_growth_progress = emptyProgress;
+            try
+            {
+                baseline = TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
+                    skill,
+                    skill.skill_id.ToString()
+                );
+            }
+            finally
+            {
+                skill.growth_tier = growthTier;
+                skill.attribute_growth_progress = growthProgress;
+            }
+        }
+        GStringArray errors = TestSkillDefinitionProjection.ValidateSyntheticSkillFixture(
+            skill,
+            skill.skill_id.ToString()
+        );
+        foreach (string message in baseline)
+            errors.Remove(message);
+        return errors;
+    }
+
     private void AssertHasValidationError(
-        SkillContentRegistry registry,
         SkillDef skill,
         string expectedFragment,
         string message
     )
     {
-        GStringArray errors = new();
-        registry.AppendAttributeGrowthValidationErrors(errors, skill.skill_id, skill);
+        GStringArray errors = ValidateAttributeGrowth(skill);
         foreach (string error in errors)
         {
             if ((error ?? "").Contains(expectedFragment))

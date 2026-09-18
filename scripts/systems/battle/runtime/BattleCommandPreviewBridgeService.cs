@@ -13,7 +13,7 @@ internal sealed class BattleCommandPreviewBridgeService
         IBattleCommandPreviewRuntimePort
 {
     void IBattleCommandPreviewRuntimePort.EnsureSidecarsReady() =>
-        _runtime?._ensure_sidecars_ready();
+        _runtime?.AssertRuntimeAvailable();
 
     BattleState IBattleCommandPreviewRuntimePort.GetBattleState() => _runtime?._state;
 

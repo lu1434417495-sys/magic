@@ -139,11 +139,7 @@ public partial class run_dynamic_move_capacity_skill_range_regression : Lifecycl
     private static GStringArray Validate(CombatSkillDef profile)
     {
         var errors = new GStringArray();
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
-        validator.AppendCombatProfileValidationErrors(errors, profile.skill_id, profile);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, profile.skill_id));
         return errors;
     }
 

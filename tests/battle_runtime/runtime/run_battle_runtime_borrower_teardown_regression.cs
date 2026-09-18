@@ -41,6 +41,7 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         try
         {
             ContentFixture content = LoadContentFixture();
+            TestQueriesDoNotRebindServices(content);
             TestContentRebindClearsAiBorrowers(content);
             TestStateRebindClearsAiPlanAndDecisionContext(content);
             TestEquipmentAbilityServiceDisposeRequiresExplicitRebind();
@@ -96,6 +97,41 @@ public partial class run_battle_runtime_borrower_teardown_regression : Lifecycle
         {
             runtime.Dispose();
         }
+    }
+
+    private void TestQueriesDoNotRebindServices(ContentFixture content)
+    {
+        var runtime = new BattleRuntimeModule();
+        try
+        {
+            SetupRuntime(runtime, content);
+            runtime.SetupStateForTests(BuildState(out BattleUnitState actor));
+            int generation = runtime.RuntimeSidecarBindingGeneration;
+            for (int index = 0; index < 16; index++)
+                runtime.GetUnitReachableMoveCoordsTyped(actor);
+            _test.Eq(runtime.RuntimeSidecarBindingGeneration, generation,
+                "Repeated movement queries must not recompose the runtime service graph.");
+
+            runtime.ConfigureDamageResolverForTests(new BattleDamageResolver());
+            _test.True(runtime.RuntimeSidecarBindingGeneration > generation,
+                "Replacing a runtime dependency must explicitly rebind its consumers.");
+            generation = runtime.RuntimeSidecarBindingGeneration;
+            runtime.SetupStateForTests(BuildState(out actor));
+            runtime.GetUnitReachableMoveCoordsTyped(actor);
+            _test.True(runtime.HasRuntimeSidecarBindings,
+                "Changing battle state must preserve usable runtime services.");
+            _test.Eq(runtime.RuntimeSidecarBindingGeneration, generation,
+                "Changing battle state must not rebuild the module dependency graph.");
+        }
+        finally
+        {
+            runtime.Dispose();
+        }
+
+        bool rejected = false;
+        try { runtime.GetUnitReachableMoveCoordsTyped(null); }
+        catch (ObjectDisposedException) { rejected = true; }
+        _test.True(rejected, "A query must not resurrect disposed runtime services.");
     }
 
     private void TestStateRebindClearsAiPlanAndDecisionContext(ContentFixture content)

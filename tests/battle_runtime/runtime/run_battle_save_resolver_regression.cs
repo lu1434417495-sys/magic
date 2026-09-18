@@ -184,7 +184,6 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         _test.Eq(result.RollTotal, 13, "Control save roll total should include control_save_bonus.");
         _test.False(result.Success, "Raised but still below-DC control save should fail.");
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -192,15 +191,10 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             @params = new Godot.Collections.Dictionary { ["control_save_bonus"] = 1 },
         };
         var errors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_control_save_bonus",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_control_save_bonus"));
         AssertValidationError(
             errors,
-            "Skill legacy_control_save_bonus effect test_effect params.control_save_bonus is unsupported; use CombatEffectDef.control_save_bonus.",
+            "skill.fixture.invalid_input legacy_control_save_bonus/combat_profile/effect_defs/0/payload/control_save_bonus: Unknown effect payload member.",
             "旧 params.control_save_bonus 应命中自身 typed-field 迁移诊断。"
         );
     }
@@ -322,7 +316,6 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             "Legacy params.save_advantage_tags 不应继续让目标使用 advantage save。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -336,7 +329,7 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
             },
         };
         var errors = new Godot.Collections.Array<string>();
-        registry.AppendEffectValidationErrors(errors, "legacy_save_tags", effect, "test_effect");
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_save_tags"));
         _test.Eq(
             errors.Count,
             4,
@@ -344,22 +337,22 @@ public partial class run_battle_save_resolver_regression : LifecycleTestSceneTre
         );
         AssertValidationError(
             errors,
-            "Skill legacy_save_tags effect test_effect params.save_advantage_tags is unsupported; use CombatEffectDef.save_advantage_tags.",
+            "skill.fixture.invalid_input legacy_save_tags/combat_profile/effect_defs/0/payload/save_advantage_tags: Unknown effect payload member.",
             "旧 save_advantage_tags 应命中自身迁移诊断。"
         );
         AssertValidationError(
             errors,
-            "Skill legacy_save_tags effect test_effect params.save_disadvantage_tags is unsupported; use CombatEffectDef.save_disadvantage_tags.",
+            "skill.fixture.invalid_input legacy_save_tags/combat_profile/effect_defs/0/payload/save_disadvantage_tags: Unknown effect payload member.",
             "旧 save_disadvantage_tags 应命中自身迁移诊断。"
         );
         AssertValidationError(
             errors,
-            "Skill legacy_save_tags effect test_effect params.save_immunity_tags is unsupported; use CombatEffectDef.save_immunity_tags.",
+            "skill.fixture.invalid_input legacy_save_tags/combat_profile/effect_defs/0/payload/save_immunity_tags: Unknown effect payload member.",
             "旧 save_immunity_tags 应命中自身迁移诊断。"
         );
         AssertValidationError(
             errors,
-            "Skill legacy_save_tags effect test_effect params.save_tags is unsupported; use CombatEffectDef.save_advantage_tags/save_disadvantage_tags/save_immunity_tags.",
+            "skill.fixture.invalid_input legacy_save_tags/combat_profile/effect_defs/0/payload/save_tags: Unknown effect payload member.",
             "旧聚合 save_tags 应命中三个 typed tag 字段的迁移诊断。"
         );
     }

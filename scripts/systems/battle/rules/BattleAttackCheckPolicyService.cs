@@ -13,24 +13,20 @@ internal class BattleAttackCheckPolicyService
 
     private const int RepeatAttackPreviewStageGuard = 32;
     private BattleHitResolver _hitResolver;
-    private BattleTerrainEffectSystem _terrainEffectSystem;
     private IBattleEquipmentAttackCheckQuery _equipmentAttackCheckQuery;
 
     internal void Setup(
         BattleHitResolver hit_resolver,
-        BattleTerrainEffectSystem terrain_effect_system,
         IBattleEquipmentAttackCheckQuery equipmentAttackCheckQuery = null
     )
     {
         _hitResolver = hit_resolver;
-        _terrainEffectSystem = terrain_effect_system;
         _equipmentAttackCheckQuery = equipmentAttackCheckQuery;
     }
 
     internal void Dispose()
     {
         _hitResolver = null;
-        _terrainEffectSystem = null;
         _equipmentAttackCheckQuery = null;
     }
 

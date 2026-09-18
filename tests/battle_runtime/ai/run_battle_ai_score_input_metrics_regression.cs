@@ -849,7 +849,6 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
             "意志穿透护盾增伤应投影为 typed target_has_shield 条件。"
         );
 
-        using (var registry = new SkillContentRegistry(loadDefaultContent: false))
         using (var invalidEffect = new CombatEffectDef
         {
             effect_type = "damage",
@@ -859,16 +858,11 @@ public partial class run_battle_ai_score_input_metrics_regression : LifecycleTes
         })
         {
             var errors = new Godot.Collections.Array<string>();
-            registry.AppendEffectValidationErrors(
-                errors,
-                "invalid_bonus_condition_probe",
-                invalidEffect,
-                "effect_defs[0]"
-            );
+            errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(invalidEffect, "invalid_bonus_condition_probe"));
             string formattedErrors = string.Join(" | ", errors);
             _test.True(
                 formattedErrors.Contains(
-                    "uses unsupported bonus_condition unsupported_bonus_condition_probe"
+                    "effect_defs/0/bonus_condition: Value is not registered by the closed combat effect contract."
                 ),
                 $"未知 bonus_condition 必须在 schema 边界被拒绝。 errors={formattedErrors}"
             );

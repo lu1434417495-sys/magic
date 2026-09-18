@@ -63,7 +63,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed passive_reduction 字段必须驱动正式减伤。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -71,15 +70,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             @params = new GDictionary { ["passive_reduction"] = 3 },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_passive_reduction",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_passive_reduction"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_passive_reduction effect test_effect params.passive_reduction is unsupported; use CombatEffectDef.passive_reduction."
+            "skill.fixture.invalid_input legacy_passive_reduction/combat_profile/effect_defs/0/payload/passive_reduction: Unknown effect payload member."
         );
     }
 
@@ -133,7 +127,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed lock_dodge_bonus 字段必须继续压制 dodge AC 组件。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -141,15 +134,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             @params = new GDictionary { ["lock_dodge_bonus"] = true },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_lock_dodge_bonus",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_lock_dodge_bonus"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_lock_dodge_bonus effect test_effect params.lock_dodge_bonus is unsupported; use CombatEffectDef.lock_dodge_bonus."
+            "skill.fixture.invalid_input legacy_lock_dodge_bonus/combat_profile/effect_defs/0/payload/lock_dodge_bonus: Unknown effect payload member."
         );
     }
 
@@ -219,7 +207,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
 
     private void TestStatusAttackRollPenaltyUsesFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -227,15 +214,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             @params = new GDictionary { ["attack_roll_penalty"] = 6 },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_status_attack_roll_penalty",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_status_attack_roll_penalty"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_status_attack_roll_penalty effect test_effect params.attack_roll_penalty is unsupported; use CombatEffectDef.attack_roll_penalty."
+            "skill.fixture.invalid_input legacy_status_attack_roll_penalty/combat_profile/effect_defs/0/payload/attack_roll_penalty: Unknown effect payload member."
         );
     }
 
@@ -285,7 +267,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed dispellable_beneficial_magic 字段应驱动正式 beneficial dispel 语义。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -299,24 +280,18 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_dispel_flags",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_dispel_flags"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_dispel_flags effect test_effect params.undispellable is unsupported; use CombatEffectDef.undispellable.",
-            "Skill legacy_dispel_flags effect test_effect params.dispellable_magic is unsupported; use CombatEffectDef.dispellable_magic.",
-            "Skill legacy_dispel_flags effect test_effect params.dispellable_harmful_magic is unsupported; use CombatEffectDef.dispellable_harmful_magic.",
-            "Skill legacy_dispel_flags effect test_effect params.dispellable_beneficial_magic is unsupported; use CombatEffectDef.dispellable_beneficial_magic."
+            "skill.fixture.invalid_input legacy_dispel_flags/combat_profile/effect_defs/0/payload/undispellable: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_dispel_flags/combat_profile/effect_defs/0/payload/dispellable_magic: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_dispel_flags/combat_profile/effect_defs/0/payload/dispellable_harmful_magic: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_dispel_flags/combat_profile/effect_defs/0/payload/dispellable_beneficial_magic: Unknown effect payload member."
         );
     }
 
     private void TestStatusDurationAndTickIntervalUseFormalFieldSchema()
     {
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -329,17 +304,12 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_status_duration_tick",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_status_duration_tick"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_status_duration_tick effect test_effect params.duration is unsupported; use CombatEffectDef.duration_tu.",
-            "Skill legacy_status_duration_tick effect test_effect params.duration_tu is unsupported; use CombatEffectDef.duration_tu.",
-            "Skill legacy_status_duration_tick effect test_effect params.tick_interval_tu is unsupported; use CombatEffectDef.tick_interval_tu."
+            "skill.fixture.invalid_input legacy_status_duration_tick/combat_profile/effect_defs/0/payload/duration: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_status_duration_tick/combat_profile/effect_defs/0/payload/duration_tu: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_status_duration_tick/combat_profile/effect_defs/0/payload/tick_interval_tu: Unknown effect payload member."
         );
     }
 
@@ -397,7 +367,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed mitigation_tier 字段必须继续记录到伤害事件。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -411,18 +380,13 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_mitigation_tier",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_mitigation_tier"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_mitigation_tier effect test_effect params.mitigation_tier is unsupported; use CombatEffectDef.mitigation_tier.",
-            "Skill legacy_mitigation_tier status effect in test_effect params.damage_tag is unsupported; use CombatEffectDef.damage_tag.",
-            "Skill legacy_mitigation_tier status effect in test_effect params.damage_tags is unsupported; use CombatEffectDef.damage_tags.",
-            "Skill legacy_mitigation_tier status effect in test_effect params.damage_category is unsupported; use CombatEffectDef.damage_category."
+            "skill.fixture.invalid_input legacy_mitigation_tier/combat_profile/effect_defs/0/payload/mitigation_tier: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_mitigation_tier/combat_profile/effect_defs/0/payload/damage_tag: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_mitigation_tier/combat_profile/effect_defs/0/payload/damage_tags: Unknown effect payload member.",
+            "skill.fixture.invalid_input legacy_mitigation_tier/combat_profile/effect_defs/0/payload/damage_category: Unknown effect payload member."
         );
     }
 
@@ -504,7 +468,6 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             "typed control_save_bonus 应提高二次豁免并阻止 secondary_hit 的正式伤害。"
         );
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         using CombatEffectDef effect = new()
         {
             effect_type = "status",
@@ -512,15 +475,10 @@ public partial class run_battle_rule_status_param_schema_regression : LifecycleT
             @params = new GDictionary { ["secondary_hit_save_bonus"] = 3 },
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(
-            errors,
-            "legacy_secondary_hit_save_bonus",
-            effect,
-            "test_effect"
-        );
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(effect, "legacy_secondary_hit_save_bonus"));
         AssertOnlyValidationErrors(
             errors,
-            "Skill legacy_secondary_hit_save_bonus effect test_effect params.secondary_hit_save_bonus is unsupported; use CombatEffectDef.control_save_bonus."
+            "skill.fixture.invalid_input legacy_secondary_hit_save_bonus/combat_profile/effect_defs/0/payload/secondary_hit_save_bonus: Unknown effect payload member."
         );
     }
 

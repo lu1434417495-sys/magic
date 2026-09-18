@@ -23,6 +23,14 @@ public sealed class BattleEffectiveTraitProjection
 
     public static BattleEffectiveTraitProjection Empty => new();
 
+    internal IReadOnlyList<BattleEffectiveTraitInstanceReadView> GetInstancesReadView()
+    {
+        var result = new List<BattleEffectiveTraitInstanceReadView>(_effectiveTraitInstances.Count);
+        foreach (BattleEffectiveTraitInstanceState instance in _effectiveTraitInstances)
+            result.Add(BattleEffectiveTraitInstanceReadView.FromState(instance));
+        return result.AsReadOnly();
+    }
+
     internal void ApplyTo(BattleUnitState unit) =>
         unit?.ReplaceEffectiveTraitsTyped(_effectiveTraitInstances);
 

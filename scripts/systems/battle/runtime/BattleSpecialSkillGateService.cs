@@ -20,7 +20,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.ApplyOnKillGainResourcesEffects(
             source_unit,
             defeated_unit,
@@ -41,7 +41,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         bool attack_succeeded = false
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.ApplyUnitSkillSpecialEffectsResult(
             active_unit,
             target_unit,
@@ -106,7 +106,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         StringName previous_body_size_category = default
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.SetRuntimeStatusEffect(
             unit_state,
             status_id,
@@ -169,7 +169,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         GDictionary @params = null
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.SetRuntimeDebuffStatusEffect(
             unit_state,
             status_id,
@@ -191,7 +191,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         StringName previous_body_size_category = default
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.SetRuntimeBodySizeOverrideStatusEffect(
             unit_state,
             status_id,
@@ -213,7 +213,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         GDictionary @params = null
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.SetRuntimeSourceStatusEffect(
             unit_state,
             status_id,
@@ -237,7 +237,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         GDictionary @params = null
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.SetRuntimeBarrierStatusEffect(
             unit_state,
             status_id,
@@ -254,55 +254,55 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
 
     internal void _clear_black_star_brand_statuses(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.ClearBlackStarBrandStatuses(unit_state);
     }
 
     internal bool _is_black_star_brand_elite_target(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBlackStarBrandEliteTarget(unit_state);
     }
 
     internal bool _is_elite_or_boss_target(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsEliteOrBossTarget(unit_state);
     }
 
     internal bool _is_boss_target(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBossTarget(unit_state);
     }
 
     internal bool _is_black_star_brand_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBlackStarBrandSkill(skill_id);
     }
 
     internal bool _is_black_contract_push_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBlackContractPushSkill(skill_id);
     }
 
     internal bool _is_doom_shift_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsDoomShiftSkill(skill_id);
     }
 
     internal bool _is_black_crown_seal_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBlackCrownSealSkill(skill_id);
     }
 
     internal void _clear_crown_break_seal_statuses(BattleUnitState unit_state)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.ClearCrownBreakSealStatuses(unit_state);
     }
 
@@ -311,13 +311,13 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         BattleUnitState target_unit
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsCrownBreakTargetEligible(active_unit, target_unit);
     }
 
     internal bool _is_crown_break_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsCrownBreakSkill(skill_id);
     }
 
@@ -326,7 +326,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         BattleUnitState target_unit
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsDoomSentenceTargetEligible(active_unit, target_unit);
     }
 
@@ -335,7 +335,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         BattleUnitState target_unit
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsBlackCrownSealTargetEligible(
             active_unit,
             target_unit
@@ -344,13 +344,13 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
 
     internal bool _is_doom_sentence_skill(StringName skill_id)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.IsDoomSentenceSkill(skill_id);
     }
 
     internal bool _blocks_enemy_forced_move(BattleUnitState source_unit, BattleUnitState target_unit)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._special_skill_resolver.BlocksEnemyForcedMove(source_unit, target_unit);
     }
 
@@ -362,7 +362,7 @@ internal sealed class BattleSpecialSkillGateService : BattleRuntimeModuleBorrowe
         BattleEventBatch batch = null
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._special_skill_resolver.RecordVajraBodyMasteryFromIncomingDamageTyped(
             sourceUnit,
             targetUnit,

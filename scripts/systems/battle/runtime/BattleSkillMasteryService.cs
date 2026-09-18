@@ -7,12 +7,9 @@ using GDictionary = Godot.Collections.Dictionary;
 internal sealed class BattleSkillMasteryService : IDisposable
 {
     private static readonly StringName BattleRatingSourceType = "battle_rating";
-    private static readonly StringName BowTrainingSkillId = "bow_training";
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
     private static readonly StringName StatusVajraBody = "vajra_body";
-    private static readonly StringName SwordTrainingSkillId = "sword_training";
-    private static readonly StringName UnarmedTrainingSkillId = "unarmed_training";
     private static readonly StringName VajraBodySkillId = "vajra_body";
     private static readonly StringName WarriorGuardSkillId = "warrior_guard";
     private static readonly StringName MasterySourceHeavyHitTaken = "heavy_hit_taken";
@@ -253,38 +250,9 @@ internal sealed class BattleSkillMasteryService : IDisposable
             : normalizedSkillId;
     }
 
-    internal static bool IsWeaponTrainingSkillId(StringName skillId)
-    {
-        StringName normalizedSkillId =
-            ProgressionDataUtils.to_string_name(skillId);
-        return normalizedSkillId == SwordTrainingSkillId
-            || normalizedSkillId == BowTrainingSkillId
-            || normalizedSkillId == UnarmedTrainingSkillId;
-    }
-
     internal StringName ResolveWeaponTrainingSkillId(
         BattleUnitState sourceUnit
-    )
-    {
-        if (sourceUnit == null)
-            return new StringName("");
-        BattleWeaponProjectionValues weaponProjection =
-            sourceUnit.GetWeaponProjectionReadViewTyped().Values;
-        var weaponFamily = ProgressionDataUtils.to_string_name(weaponProjection.Family);
-        if (weaponFamily == "sword")
-            return SwordTrainingSkillId;
-        if (weaponFamily == "bow")
-            return BowTrainingSkillId;
-        if (weaponFamily == "unarmed")
-            return UnarmedTrainingSkillId;
-        var weaponKind = ProgressionDataUtils.to_string_name(weaponProjection.ProfileKind);
-        if (
-            weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Unarmed)
-            || weaponKind == BattleUnitState.ToStringName(BattleWeaponProfileKind.Natural)
-        )
-            return UnarmedTrainingSkillId;
-        return new StringName("");
-    }
+    ) => BattleWeaponTrainingRules.ResolveWeaponTrainingSkillId(sourceUnit);
 
     internal BattleSkillMasteryGrant
         BuildCounterattackWeaponTrainingMasteryGrant(
@@ -305,7 +273,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
             || targetUnit == null
             || !result.Applied
             || sourceUnit.source_member_id == new StringName("")
-            || !IsWeaponTrainingSkillId(masterySkillId)
+            || !BattleWeaponTrainingRules.IsWeaponTrainingSkillId(masterySkillId)
         )
         {
             return null;

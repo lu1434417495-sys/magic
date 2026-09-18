@@ -36,13 +36,11 @@ internal static class BattlePositionSwapRules
     internal static BattlePositionSwapPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit
     ) => BuildPlan(
         state,
         gridService,
-        barrierService,
         (BattleUnitReadView)sourceUnit,
         (BattleUnitReadView)targetUnit
     );
@@ -50,7 +48,6 @@ internal static class BattlePositionSwapRules
     internal static BattlePositionSwapPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitReadView sourceUnit,
         BattleUnitReadView targetUnit
     )
@@ -109,16 +106,20 @@ internal static class BattlePositionSwapRules
             return BattlePositionSwapPlan.Denied("对方原位置没有足够的完整落脚空间。");
 
         if (
-            barrierService?.HasUnitBoundaryBarrier(
+            BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                state,
+                gridService,
                 sourceUnit.UnsafeUnitForReadOnlyRules,
                 sourceFrom,
                 targetFrom
-            ) == true
-            || barrierService?.HasUnitBoundaryBarrier(
+            )
+            || BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                state,
+                gridService,
                 targetUnit.UnsafeUnitForReadOnlyRules,
                 targetFrom,
                 sourceFrom
-            ) == true
+            )
         )
             return BattlePositionSwapPlan.Denied("墙体或屏障阻止了位置交换。");
 

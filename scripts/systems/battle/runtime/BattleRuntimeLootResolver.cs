@@ -234,9 +234,9 @@ internal class BattleRuntimeLootResolver
     {
         if (killerUnit == null || killerUnit.source_member_id == "" || _runtime == null)
             return 0;
-        if (_runtime.GetCharacterGatewayTyped() is not CharacterManagementModule characterGateway)
-            return 0;
-        PartyMemberState memberState = characterGateway.GetMemberState(killerUnit.source_member_id);
+        PartyMemberState memberState = _runtime
+            .GetCharacterGatewayTyped()
+            ?.GetMemberState(killerUnit.source_member_id);
         if (memberState == null)
             return 0;
         return Mathf.Clamp(memberState.GetEffectiveLuck(), -6, 5);

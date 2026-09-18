@@ -1,3 +1,4 @@
+using static BattleSkillTargetPlanRules;
 using System;
 using System.Collections.Generic;
 using Godot;
@@ -41,11 +42,10 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         runtime._moduleBorrowers.SkillPreviewBridge.Setup(runtime);
         _skillPreviewService.Setup(
             runtime._moduleBorrowers.SkillPreviewBridge,
-            this,
             _targetValidationService
         );
-        _targetValidationService.Setup(runtime, this, _randomChainSkillService);
-        _chainDamageService.Setup(runtime, this, _skillPreviewService);
+        _targetValidationService.Setup(runtime, _get_unit_skill_level);
+        _chainDamageService.Setup(runtime, this);
         _randomChainSkillService.Setup(runtime, this, _targetValidationService);
     }
 
@@ -70,7 +70,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         string target_display_name,
         AttackEffectResolutionResult result
     ) =>
-        _skillPreviewService.AppendDamageResultLogLines(
+        Runtime?._report_formatter?.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -160,21 +160,6 @@ internal sealed partial class BattleSkillExecutionOrchestrator
             batch,
             skill_subject,
             castVariantDefinition
-        );
-
-    internal BattlePreparedChainDamage BuildPreparedChainPreviewPlan(
-        BattleUnitReadView sourceUnit,
-        BattleUnitReadView primaryTarget,
-        SkillDefinition skillDefinition,
-        IReadOnlyList<CombatEffectDefinition> effectDefinitions,
-        bool backlashTriggered
-    ) =>
-        _chainDamageService.BuildPreparedPreviewPlan(
-            sourceUnit,
-            primaryTarget,
-            skillDefinition,
-            effectDefinitions,
-            backlashTriggered
         );
 
     // ============================================================
@@ -1045,7 +1030,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         }
 
         IReadOnlyList<Vector2I> targetCoords = validation.TargetCoords ?? Array.Empty<Vector2I>();
-        GroundEffectBarrierClipContext barrierClip = PreviewGroundEffectBarrierClipContext(
+        BattleGroundEffectBarrierClipContext barrierClip = _skillPreviewService.PreviewGroundEffectBarrierClipContext(
             new BattleUnitReadView(activeUnit),
             skillDefinition,
             castVariantDefinition,
@@ -1470,7 +1455,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
         {
             return false;
         }
-        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
+        BattleGroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             activeUnit,
             skillDefinition,
             castVariantDefinition,
@@ -2012,7 +1997,7 @@ internal sealed partial class BattleSkillExecutionOrchestrator
                 batch
             );
         }
-        GroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
+        BattleGroundEffectBarrierClipContext barrierClip = ResolveGroundEffectBarrierClipContext(
             active_unit,
             skillDefinition,
             castVariantDefinition,

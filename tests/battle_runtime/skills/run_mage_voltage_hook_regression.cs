@@ -83,10 +83,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
 
     private void TestSchemaRejectsInvalidAirbornePull()
     {
-        var validator = new SkillCombatProfileValidator(
-            new SkillDamageEffectValidator(),
-            new SkillExecuteEffectValidator()
-        );
         using var invalid = new CombatEffectDef
         {
             effect_type = "forced_move",
@@ -108,7 +104,7 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         };
         profile.effect_defs.Add(invalid);
         var errors = new GStringArray();
-        validator.AppendCombatProfileValidationErrors(errors, profile.skill_id, profile);
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticCombatProfileFixture(profile, profile.skill_id));
         _test.True(ContainsError(errors, "forced_move_max_target_body_size"), $"体型上限5必须被内容校验拒绝。errors={string.Join(" | ", errors)}");
         _test.True(ContainsError(errors, "required_target_status_id"), $"未声明感电前置必须被内容校验拒绝。errors={string.Join(" | ", errors)}");
         _test.True(ContainsError(errors, "direct_effect"), $"airborne_pull 不得进入AC攻击检定。errors={string.Join(" | ", errors)}");
@@ -128,7 +124,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         BattleAirbornePullPlan highToLow = BattleAirbornePullRules.BuildPlan(
             fixture.State,
             fixture.Runtime.GetGridService(),
-            fixture.Runtime._layered_barrier_service,
             caster,
             target,
             effect,
@@ -141,7 +136,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         BattleAirbornePullPlan lowToHigh = BattleAirbornePullRules.BuildPlan(
             fixture.State,
             fixture.Runtime.GetGridService(),
-            fixture.Runtime._layered_barrier_service,
             new BattleUnitReadView(caster),
             new BattleUnitReadView(target),
             effect,
@@ -151,7 +145,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         BattleAirbornePullPlan diagonalPlan = BattleAirbornePullRules.BuildPlan(
                 fixture.State,
                 fixture.Runtime.GetGridService(),
-                fixture.Runtime._layered_barrier_service,
                 caster,
                 target,
                 effect,
@@ -165,7 +158,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
             BattleAirbornePullRules.BuildPlan(
                 fixture.State,
                 fixture.Runtime.GetGridService(),
-                fixture.Runtime._layered_barrier_service,
                 caster,
                 target,
                 effect,
@@ -179,7 +171,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
             BattleAirbornePullRules.BuildPlan(
                 fixture.State,
                 fixture.Runtime.GetGridService(),
-                fixture.Runtime._layered_barrier_service,
                 caster,
                 target,
                 effect,
@@ -306,7 +297,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         BattleAirbornePullPlan plan = BattleAirbornePullRules.BuildPlan(
             fixture.State,
             fixture.Runtime.GetGridService(),
-            fixture.Runtime._layered_barrier_service,
             caster,
             target,
             FindPull(skill, 5),
@@ -680,7 +670,6 @@ public partial class run_mage_voltage_hook_regression : LifecycleTestSceneTree
         public BattleUnitState GetRuntimeBattleUnitById(StringName id) => _fixture.State.GetUnit(id);
         public BattleState GetBattleState() => _fixture.State;
         public BattleGridService GetBattleGridService() => _fixture.Runtime.GetGridService();
-        public BattleLayeredBarrierService GetBattleLayeredBarrierService() => _fixture.Runtime._layered_barrier_service;
         public ISkillCatalog GetSkillCatalog() => _catalog;
         public IReadOnlyDictionary<StringName, EquipmentAbilityBindingDefinition> GetEquipmentAbilityBindings() => EmptyBindings;
         public int GetBattleWorldStep() => 0;

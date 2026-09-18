@@ -135,7 +135,6 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
 
     private void TestSchemaRejectsMalformedMovementContact()
     {
-        using var registry = new SkillContentRegistry(loadDefaultContent: false);
         var malformed = new CombatEffectDef
         {
             effect_type = "terrain_effect",
@@ -147,7 +146,7 @@ public partial class run_archer_tripwire_arrow_regression : LifecycleTestSceneTr
             tick_interval_tu = 5,
         };
         var errors = new GStringArray();
-        registry.AppendEffectValidationErrors(errors, SkillId, malformed, "malformed");
+        errors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(malformed, SkillId));
         _test.True(
             errors.Any(error => error.Contains("terrain_effective_trigger_count")),
             "零有效阻挡次数必须在内容加载期失败。"

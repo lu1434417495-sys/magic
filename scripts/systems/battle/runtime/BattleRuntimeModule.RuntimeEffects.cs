@@ -22,7 +22,7 @@ public sealed partial class BattleRuntimeModule
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.ApplyGroundPrecastSpecialEffects(
             active_unit,
             skillDefinition,
@@ -38,7 +38,7 @@ public sealed partial class BattleRuntimeModule
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.ApplyGroundJumpRelocation(
             active_unit,
             target_coords ?? Array.Empty<Vector2I>(),
@@ -54,7 +54,7 @@ public sealed partial class BattleRuntimeModule
         CombatCastVariantDefinition castVariantDefinition = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         if (source_coord == default)
             source_coord = new Vector2I(-1, -1);
         return _ground_effect_service.BuildGroundEffectCoords(
@@ -74,7 +74,7 @@ public sealed partial class BattleRuntimeModule
         CombatCastVariantDefinition castVariantDefinition = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         if (source_coord == default)
             source_coord = new Vector2I(-1, -1);
         return _ground_effect_service.BuildGroundEffectCoords(
@@ -92,7 +92,7 @@ public sealed partial class BattleRuntimeModule
         BattleUnitState active_unit = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundUnitEffectDefinitions(
             skillDefinition,
             castVariantDefinition,
@@ -106,7 +106,7 @@ public sealed partial class BattleRuntimeModule
         BattleUnitReadView active_unit
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundUnitEffectDefinitions(
             skillDefinition,
             castVariantDefinition,
@@ -120,7 +120,7 @@ public sealed partial class BattleRuntimeModule
         BattleUnitState active_unit = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundTerrainEffectDefinitions(
             skillDefinition,
             castVariantDefinition,
@@ -134,7 +134,7 @@ public sealed partial class BattleRuntimeModule
         BattleUnitReadView active_unit
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundTerrainEffectDefinitions(
             skillDefinition,
             castVariantDefinition,
@@ -149,7 +149,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<Vector2I> effectCoords
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundPreviewUnitIds(
             sourceUnit,
             skillDefinition,
@@ -165,7 +165,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<Vector2I> effectCoords
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.CollectGroundPreviewUnitIds(
             sourceUnit,
             skillDefinition,
@@ -185,7 +185,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<Vector2I> contingency_effect_coords = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         IReadOnlyList<CombatEffectDefinition> resolvedEffects =
             effectDefinitions
                 ?? Array.Empty<CombatEffectDefinition>();
@@ -228,7 +228,7 @@ public sealed partial class BattleRuntimeModule
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._apply_ground_terrain_effects_result(
             source_unit,
             skillDefinition,
@@ -240,7 +240,7 @@ public sealed partial class BattleRuntimeModule
 
     internal bool _reconcile_water_topology(GVector2IArray effect_coords, BattleEventBatch batch)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.ReconcileWaterTopology(ToVector2IList(effect_coords), batch);
     }
 
@@ -252,7 +252,7 @@ public sealed partial class BattleRuntimeModule
         Dictionary<long, int> shield_roll_context = null
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _shield_service.ApplyUnitShieldEffectsResult(
             source_unit,
             target_unit,
@@ -271,7 +271,7 @@ public sealed partial class BattleRuntimeModule
         StringName shield_source_skill_id
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _shield_service._write_unit_shield(
             target_unit,
             shield_hp,
@@ -284,7 +284,7 @@ public sealed partial class BattleRuntimeModule
 
     internal int _roll_battle_effect_die(int dice_sides)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _shield_service._roll_battle_effect_die(dice_sides);
     }
 
@@ -294,8 +294,8 @@ public sealed partial class BattleRuntimeModule
         StringName target_team_filter
     )
     {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_unit_valid_for_effect(
+        AssertRuntimeAvailable();
+        return BattleSkillTargetPlanRules._is_unit_valid_for_effect(
             source_unit,
             target_unit,
             target_team_filter
@@ -308,8 +308,8 @@ public sealed partial class BattleRuntimeModule
         StringName target_team_filter
     )
     {
-        _ensure_sidecars_ready();
-        return _skill_orchestrator._is_unit_valid_for_effect(
+        AssertRuntimeAvailable();
+        return BattleSkillTargetPlanRules._is_unit_valid_for_effect(
             source_unit,
             target_unit,
             target_team_filter
@@ -318,7 +318,7 @@ public sealed partial class BattleRuntimeModule
 
     internal StringName _build_terrain_effect_instance_id(StringName effect_id)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._build_terrain_effect_instance_id(effect_id);
     }
 
@@ -547,7 +547,7 @@ public sealed partial class BattleRuntimeModule
         BattleCommand command
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._validate_ground_skill_command_result(
             active_unit,
             skillDefinition,
@@ -563,7 +563,7 @@ public sealed partial class BattleRuntimeModule
         BattleCommand command
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._validate_ground_skill_command_result(
             active_unit,
             skillDefinition,
@@ -579,7 +579,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<Vector2I> target_coords
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.GetGroundSpecialEffectValidationMessage(
             active_unit,
             skillDefinition,
@@ -595,7 +595,7 @@ public sealed partial class BattleRuntimeModule
         IReadOnlyList<Vector2I> target_coords
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service.GetGroundSpecialEffectValidationMessage(
             active_unit,
             skillDefinition,
@@ -609,7 +609,7 @@ public sealed partial class BattleRuntimeModule
         GVector2IArray target_coords
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._validate_target_coords_shape(
             CombatSkillTargetingContentRules.ToFootprintPattern(footprint_pattern),
             target_coords
@@ -618,7 +618,7 @@ public sealed partial class BattleRuntimeModule
 
     internal GVector2IArray _normalize_target_coords(BattleCommand command)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _ground_effect_service._normalize_target_coords(command);
     }
 
@@ -692,7 +692,7 @@ public sealed partial class BattleRuntimeModule
         BattleEventBatch batch
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _attackActionCoordinator.BeginReactionBoundary(batch);
     }
 
@@ -703,13 +703,13 @@ public sealed partial class BattleRuntimeModule
         BattleAttackDeliveryKind deliveryKind
     )
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         return _attackActionCoordinator.BeginLogicalAttack(deliveryKind);
     }
 
     internal void RequireActiveReactionBatch(BattleEventBatch batch)
     {
-        _ensure_sidecars_ready();
+        AssertRuntimeAvailable();
         _attackActionCoordinator.RequireActiveRootBatch(batch);
     }
 

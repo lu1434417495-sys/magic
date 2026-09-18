@@ -42,22 +42,6 @@ internal readonly record struct BattleBarrierPassageResult(bool Applied, bool St
 {
 }
 
-internal readonly record struct BattleBarrierCoordClipResult(
-    IReadOnlyList<Vector2I> AllowedCoords,
-    IReadOnlyList<Vector2I> BlockedCoords
-)
-{
-}
-
-internal readonly record struct BattleGroundEffectBarrierClipResult(
-    BattleBarrierCoordClipResult UnitEffects,
-    BattleBarrierCoordClipResult TerrainEffects,
-    IReadOnlyList<Vector2I> VisibleCoords,
-    bool Applied
-)
-{
-}
-
 internal readonly record struct BattleLayeredBarrierApplyResult(
     bool Applied,
     StringName BarrierInstanceId,
@@ -300,66 +284,25 @@ internal class BattleBarrierService
         BattleUnitState unitState,
         Vector2I fromCoord,
         Vector2I toCoord
-    )
-    {
-        var runtime = _ResolveRuntime();
-        if (
-            runtime == null
-            || runtime._state == null
-            || unitState == null
-        )
-            return false;
-        foreach (StringName barrierKey in _SortedBarrierKeys())
-        {
-            if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
-                continue;
-            if (_IsBarrierCreator(unitState, barrier))
-                continue;
-            var transition = BattleBarrierGeometryService.ClassifyFootprintTransition(
-                runtime._grid_service.GetFootprintCoords(
-                    fromCoord,
-                    unitState.GetFootprintSize()
-                ),
-                runtime._grid_service.GetFootprintCoords(
-                    toCoord,
-                    unitState.GetFootprintSize()
-                ),
-                _GetBarrierCoords(barrier)
-            );
-            if (transition.CrossesBoundary)
-                return true;
-        }
-        return false;
-    }
+    ) =>
+        BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+            _GetBattleState(),
+            _ResolveRuntime()?._grid_service,
+            unitState,
+            fromCoord,
+            toCoord
+        );
 
     internal bool HasActiveBarrierBoundaryBetween(
         Vector2I fromCoord,
         Vector2I toCoord
-    )
-    {
-        var runtime = _ResolveRuntime();
-        if (runtime?._state == null)
-            return false;
-        foreach (StringName barrierKey in _SortedBarrierKeys())
-        {
-            if (
-                !TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier)
-                || _GetActiveLayer(barrier) == null
-            )
-            {
-                continue;
-            }
-            BattleBarrierFootprintTransition transition =
-                BattleBarrierGeometryService.ClassifyFootprintTransition(
-                    new[] { fromCoord },
-                    new[] { toCoord },
-                    _GetBarrierCoords(barrier)
-                );
-            if (transition.CrossesBoundary)
-                return true;
-        }
-        return false;
-    }
+    ) =>
+        BattleBarrierBoundaryRules.HasActiveBarrierBoundaryBetween(
+            _GetBattleState(),
+            _ResolveRuntime()?._grid_service,
+            fromCoord,
+            toCoord
+        );
 
     internal BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
         BattleUnitState sourceUnit,
@@ -1265,15 +1208,8 @@ internal class BattleBarrierService
         return null;
     }
 
-    private BattleBarrierLayerState _GetActiveLayer(BattleBarrierInstanceState barrier)
-    {
-        foreach (BattleBarrierLayerState layer in barrier?.GetLayersTyped() ?? new List<BattleBarrierLayerState>())
-        {
-            if (layer != null && !layer.Broken)
-                return layer;
-        }
-        return null;
-    }
+    private static BattleBarrierLayerState _GetActiveLayer(BattleBarrierInstanceState barrier) =>
+        BattleBarrierBoundaryRules.GetActiveLayer(barrier);
 
     private bool _ProjectedEffectCrossesBarrier(
         Vector2I sourceCoord,
@@ -1293,39 +1229,17 @@ internal class BattleBarrierService
         return BattleBarrierGeometryService.CoordInsideBarrier(coord, _GetBarrierCoords(barrier));
     }
 
-    private List<Vector2I> _GetBarrierCoords(BattleBarrierInstanceState barrier)
-    {
-        var coords = new List<Vector2I>();
-        var runtime = _ResolveRuntime();
-        if (
-            runtime == null
-            || runtime._state == null
-            || barrier == null
-            || barrier.IsEmpty
-        )
-            return coords;
-        var radius = Mathf.Max(barrier.RadiusCells, 0);
-        foreach (
-            Vector2I coord in runtime._grid_service.GetAreaCoords(
-                runtime._state,
-                barrier.AnchorCoord,
-                barrier.AreaPattern,
-                radius,
-                Vector2I.Zero
-            )
-        )
-        {
-            coords.Add(coord);
-        }
-        return coords;
-    }
+    private List<Vector2I> _GetBarrierCoords(BattleBarrierInstanceState barrier) =>
+        BattleBarrierBoundaryRules.GetBarrierCoords(
+            _GetBattleState(),
+            _ResolveRuntime()?._grid_service,
+            barrier
+        );
 
-    private bool _IsBarrierCreator(BattleUnitState unitState, BattleBarrierInstanceState barrier)
-    {
-        return unitState != null
-            && barrier != null
-            && unitState.unit_id == barrier.SourceUnitId;
-    }
+    private static bool _IsBarrierCreator(
+        BattleUnitState unitState,
+        BattleBarrierInstanceState barrier
+    ) => BattleBarrierBoundaryRules.IsBarrierCreator(unitState, barrier);
 
     private bool TryReadBarrier(StringName barrierKey, out BattleBarrierInstanceState barrier)
     {

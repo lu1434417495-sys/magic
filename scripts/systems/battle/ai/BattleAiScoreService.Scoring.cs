@@ -1144,7 +1144,7 @@ public partial class BattleAiScoreService
     }
 
     private static int EstimateDamageFromPreview(
-        BattleDamagePreviewRangeService.SkillDamagePreview damagePreview
+        BattleSkillDamagePreview damagePreview
     )
     {
         if (!damagePreview.HasDamage)

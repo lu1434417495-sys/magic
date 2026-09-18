@@ -47,7 +47,6 @@ internal static class BattleApproachAttackRules
     internal static BattleApproachAttackPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDefinition skillDefinition,
@@ -102,18 +101,19 @@ internal static class BattleApproachAttackRules
                     toCoord
                 ),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
                     sourceUnit,
                     fromCoord,
                     toCoord
-                ) == true
+                )
         );
     }
 
     internal static BattleApproachAttackPlan BuildPlan(
         BattleState state,
         BattleGridService gridService,
-        BattleLayeredBarrierService barrierService,
         BattleUnitReadView sourceUnit,
         BattleUnitReadView targetUnit,
         SkillDefinition skillDefinition,
@@ -169,11 +169,13 @@ internal static class BattleApproachAttackRules
                     toCoord
                 ),
             (fromCoord, toCoord) =>
-                barrierService?.HasUnitBoundaryBarrier(
+                BattleBarrierBoundaryRules.HasUnitBoundaryBarrier(
+                    state,
+                    gridService,
                     sourceUnit.UnsafeUnitForReadOnlyRules,
                     fromCoord,
                     toCoord
-                ) == true
+                )
         );
     }
 

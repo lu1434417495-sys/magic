@@ -10,7 +10,7 @@ internal sealed class BattleContingencyBridgeService
 
     internal BattleContingencySystem GetContingencySystemTyped()
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._contingency_system;
     }
 
@@ -31,7 +31,7 @@ internal sealed class BattleContingencyBridgeService
         StringName sourceEventId
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         if (targetUnit == null)
             return;
         BattleEffectOrigin origin = _runtime.CurrentEffectOriginForContingency;
@@ -82,7 +82,7 @@ internal sealed class BattleContingencyBridgeService
         IReadOnlyList<Vector2I> areaCells = null
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._contingency_system.OnHookFact(
             ContingencyHookFact.SpellAffected(
                 sourceEventId,
@@ -104,7 +104,7 @@ internal sealed class BattleContingencyBridgeService
         StringName sourceEventId
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         if (unitState == null || previousCoord == currentCoord)
             return;
         _runtime._contingency_system.OnHookFact(
@@ -120,7 +120,7 @@ internal sealed class BattleContingencyBridgeService
 
     internal bool ExecuteAutoCast(AutoCastRequest request, BattleEventBatch batch)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         ArgumentNullException.ThrowIfNull(batch);
         _runtime.RequireActiveReactionBatch(batch);
         if (request?.IsValid != true || _runtime._state == null)
@@ -171,13 +171,13 @@ internal sealed class BattleContingencyBridgeService
         ContingencyFrozenTriggerFacts facts
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._contingency_system.ResolveStoredSpellTargetsForRelease(context, facts);
     }
 
     internal void OnBattleConfirmed(BattleEventBatch batch)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         ArgumentNullException.ThrowIfNull(batch);
         _runtime._contingency_system.OnBattleConfirmed(batch);
         _runtime._contingency_system.ExecuteQueuedReleaseContexts(
@@ -188,7 +188,7 @@ internal sealed class BattleContingencyBridgeService
 
     internal void OnOwnerTurnStarted(BattleUnitState ownerUnit, BattleEventBatch batch = null)
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._contingency_system.OnOwnerTurnStarted(ownerUnit, batch);
     }
 
@@ -197,7 +197,7 @@ internal sealed class BattleContingencyBridgeService
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._contingency_system.ExecuteQueuedReleaseContexts(
             facts ?? ContingencyFrozenTriggerFacts.Empty,
             batch
@@ -209,7 +209,7 @@ internal sealed class BattleContingencyBridgeService
         BattleEventBatch batch
     )
     {
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         return _runtime._contingency_system.ExecuteNextSequentialAutoCastForOwner(
             ownerUnit?.unit_id ?? "",
             batch
@@ -220,7 +220,7 @@ internal sealed class BattleContingencyBridgeService
     {
         if (unitState == null)
             return;
-        _runtime._ensure_sidecars_ready();
+        _runtime.AssertRuntimeAvailable();
         _runtime._unit_factory.RefreshBattleUnit(unitState);
     }
 

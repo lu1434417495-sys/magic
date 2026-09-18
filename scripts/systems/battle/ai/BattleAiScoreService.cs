@@ -1302,7 +1302,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             }
             else
             {
-                targetEffects = BattleSkillExecutionOrchestrator.BuildDirectionalPiercingEffects(
+                targetEffects = BattleDirectionalPiercingRules.BuildDirectionalPiercingEffects(
                         effectDefinitions,
                         directionalBaseDamagePercent / 100.0
                             * BattleDirectionalPiercingRules.GetExpectedDecayMultiplier(
@@ -1318,7 +1318,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             }
             if (repeatAttackEffect != null)
             {
-                targetEffects = BattleRepeatAttackResolver.BuildRepeatAttackPreviewEffects(
+                targetEffects = BattleRepeatAttackEffectRules.BuildPreviewEffects(
                     targetEffects,
                     repeatAttackEffect,
                     repeatAttackStageCount

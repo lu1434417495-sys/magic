@@ -124,11 +124,11 @@ public partial class run_battle_ai_score_execute_regression : LifecycleTestScene
             HitChanceBasisPoints = 10000,
         });
         preview.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
+            new BattleSkillDamagePreview(
                 true,
                 999,
                 999,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+                new List<BattleDamageEffectRange>()
             )
         );
         BattleAiScoreInput score = fixture.ScoreService.BuildSkillScoreInput(

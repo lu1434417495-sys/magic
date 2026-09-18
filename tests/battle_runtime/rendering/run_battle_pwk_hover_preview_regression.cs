@@ -250,11 +250,11 @@ public partial class run_battle_pwk_hover_preview_regression : LifecycleTestScen
     {
         preview?.AddLogLine("POISON_LOG");
         preview?.SetDamagePreview(
-            new BattleDamagePreviewRangeService.SkillDamagePreview(
+            new BattleSkillDamagePreview(
                 true,
                 999,
                 999,
-                new List<BattleDamagePreviewRangeService.DamageEffectRange>()
+                new List<BattleDamageEffectRange>()
             )
         );
     }

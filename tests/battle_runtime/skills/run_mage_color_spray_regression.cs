@@ -144,14 +144,8 @@ public partial class run_mage_color_spray_regression : LifecycleTestSceneTree
         };
         damage.save_failure_status_outcomes.Add(outcome);
 
-        using SkillContentRegistry registry = new(loadDefaultContent: false);
         GStringArray validErrors = new();
-        registry.AppendEffectValidationErrors(
-            validErrors,
-            "weighted_status_probe",
-            damage,
-            "test_effect"
-        );
+        validErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(damage, "weighted_status_probe"));
         _test.Eq(validErrors.Count, 0, $"合法加权失败状态池应通过内容校验：{string.Join(" | ", validErrors)}");
 
         CombatEffectDefinition projected = CombatEffectDefinition.FromDiagnosticFixture(
@@ -165,12 +159,7 @@ public partial class run_mage_color_spray_regression : LifecycleTestSceneTree
 
         damage.save_failure_status_id = "legacy_static_status";
         GStringArray conflictErrors = new();
-        registry.AppendEffectValidationErrors(
-            conflictErrors,
-            "weighted_status_conflict",
-            damage,
-            "test_effect"
-        );
+        conflictErrors.AddRange(TestSkillDefinitionProjection.ValidateSyntheticEffectFixture(damage, "weighted_status_conflict"));
         _test.True(
             conflictErrors.Any(error => error.Contains("cannot combine save_failure_status_id")),
             "静态失败状态与随机池并存必须被拒绝。"

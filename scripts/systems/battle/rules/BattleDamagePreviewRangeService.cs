@@ -6,43 +6,12 @@ public static class BattleDamagePreviewRangeService
 {
     private static readonly StringName DamageEffectType = "damage";
 
-    public readonly record struct DiceRange(
-        int DiceCount,
-        int DiceSides,
-        int DiceBonus,
-        int MinDamage,
-        int MaxDamage
-    )
-    {
-        public static DiceRange Empty => new(0, 0, 0, 0, 0);
-    }
-
     private readonly record struct PreviewWeaponDice(int DiceCount, int DiceSides, int FlatBonus)
     {
         public static PreviewWeaponDice Empty => new(0, 0, 0);
     }
 
-    public readonly record struct DamageEffectRange(
-        int EffectIndex,
-        int Power,
-        bool AddWeaponDice,
-        int MinDamage,
-        int MaxDamage,
-        DiceRange SkillDiceRange,
-        DiceRange WeaponDiceRange
-    );
-
-    public readonly record struct SkillDamagePreview(
-        bool HasDamage,
-        int MinDamage,
-        int MaxDamage,
-        IReadOnlyList<DamageEffectRange> DamageRanges
-    )
-    {
-        public string SummaryText => FormatDamageRangeText(this);
-    }
-
-    public static SkillDamagePreview BuildSkillDamagePreview(
+    public static BattleSkillDamagePreview BuildSkillDamagePreview(
         BattleUnitState sourceUnit,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
@@ -52,7 +21,7 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    internal static SkillDamagePreview BuildSkillDamagePreview(
+    internal static BattleSkillDamagePreview BuildSkillDamagePreview(
         BattleUnitReadView sourceUnit,
         IEnumerable<CombatEffectDefinition> effectDefinitions
     )
@@ -62,12 +31,12 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    private static SkillDamagePreview BuildSkillDamagePreview(
+    private static BattleSkillDamagePreview BuildSkillDamagePreview(
         IEnumerable<CombatEffectDefinition> effectDefinitions,
-        Func<CombatEffectDefinition, DamageEffectRange> rangeBuilder
+        Func<CombatEffectDefinition, BattleDamageEffectRange> rangeBuilder
     )
     {
-        var damageRanges = new List<DamageEffectRange>();
+        var damageRanges = new List<BattleDamageEffectRange>();
         int minDamage = 0;
         int maxDamage = 0;
 
@@ -84,7 +53,7 @@ public static class BattleDamagePreviewRangeService
                     effectIndex++;
                     continue;
                 }
-                DamageEffectRange effectRange = rangeBuilder(effectDefinition) with
+                BattleDamageEffectRange effectRange = rangeBuilder(effectDefinition) with
                 {
                     EffectIndex = effectIndex,
                 };
@@ -95,7 +64,7 @@ public static class BattleDamagePreviewRangeService
             }
         }
 
-        return new SkillDamagePreview(
+        return new BattleSkillDamagePreview(
             damageRanges.Count > 0,
             minDamage,
             maxDamage,
@@ -103,34 +72,21 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    public static string FormatDamageRangeText(SkillDamagePreview preview) =>
-        FormatDamageRangeText(preview.HasDamage, preview.MinDamage, preview.MaxDamage);
+    public static string FormatDamageRangeText(BattleSkillDamagePreview preview) =>
+        preview.SummaryText;
 
-    private static string FormatDamageRangeText(bool hasDamage, int minDamage, int maxDamage)
-    {
-        if (!hasDamage)
-        {
-            return "";
-        }
-        if (minDamage == maxDamage)
-        {
-            return $"伤害 {minDamage}";
-        }
-        return $"伤害 {minDamage}-{maxDamage}";
-    }
-
-    private static DamageEffectRange BuildDamageEffectRange(
+    private static BattleDamageEffectRange BuildDamageEffectRange(
         BattleUnitState sourceUnit,
         CombatEffectDefinition effectDefinition,
         int effectIndex
     )
     {
         int power = Mathf.Max(effectDefinition?.Power ?? 0, 0);
-        DiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
+        BattleDamageDiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
         bool addWeaponDice = ShouldAddWeaponDice(effectDefinition);
-        DiceRange weaponDiceRange = addWeaponDice
+        BattleDamageDiceRange weaponDiceRange = addWeaponDice
             ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
-            : DiceRange.Empty;
+            : BattleDamageDiceRange.Empty;
         int effectMinDamage = ApplyPreResistanceMultiplier(
             power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage,
             effectDefinition.PreResistanceDamageMultiplier
@@ -140,7 +96,7 @@ public static class BattleDamagePreviewRangeService
             effectDefinition.PreResistanceDamageMultiplier
         );
 
-        return new DamageEffectRange(
+        return new BattleDamageEffectRange(
             effectIndex,
             power,
             addWeaponDice,
@@ -151,18 +107,18 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    private static DamageEffectRange BuildDamageEffectRange(
+    private static BattleDamageEffectRange BuildDamageEffectRange(
         BattleUnitReadView sourceUnit,
         CombatEffectDefinition effectDefinition,
         int effectIndex
     )
     {
         int power = Mathf.Max(effectDefinition?.Power ?? 0, 0);
-        DiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
+        BattleDamageDiceRange skillDiceRange = BuildSkillDiceRange(effectDefinition);
         bool addWeaponDice = ShouldAddWeaponDice(effectDefinition);
-        DiceRange weaponDiceRange = addWeaponDice
+        BattleDamageDiceRange weaponDiceRange = addWeaponDice
             ? BuildWeaponDiceRange(sourceUnit, effectDefinition.WeaponDiceMultiplier)
-            : DiceRange.Empty;
+            : BattleDamageDiceRange.Empty;
         int effectMinDamage = ApplyPreResistanceMultiplier(
             power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage,
             effectDefinition.PreResistanceDamageMultiplier
@@ -172,7 +128,7 @@ public static class BattleDamagePreviewRangeService
             effectDefinition.PreResistanceDamageMultiplier
         );
 
-        return new DamageEffectRange(
+        return new BattleDamageEffectRange(
             effectIndex,
             power,
             addWeaponDice,
@@ -183,11 +139,11 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    private static DiceRange BuildSkillDiceRange(CombatEffectDefinition effectDefinition)
+    private static BattleDamageDiceRange BuildSkillDiceRange(CombatEffectDefinition effectDefinition)
     {
         if (effectDefinition == null)
         {
-            return DiceRange.Empty;
+            return BattleDamageDiceRange.Empty;
         }
         int diceCount = Mathf.Max(effectDefinition.DiceCount, 0);
         int diceSides = Mathf.Max(effectDefinition.DiceSides, 0);
@@ -195,7 +151,7 @@ public static class BattleDamagePreviewRangeService
         return BuildDiceRange(diceCount, diceSides, diceBonus);
     }
 
-    private static DiceRange BuildWeaponDiceRange(
+    private static BattleDamageDiceRange BuildWeaponDiceRange(
         BattleUnitState sourceUnit,
         int weaponDiceMultiplier
     )
@@ -203,7 +159,7 @@ public static class BattleDamagePreviewRangeService
         PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == PreviewWeaponDice.Empty)
         {
-            return DiceRange.Empty;
+            return BattleDamageDiceRange.Empty;
         }
         return BuildDiceRange(
             SaturatingMultiply(dice.DiceCount, weaponDiceMultiplier),
@@ -212,7 +168,7 @@ public static class BattleDamagePreviewRangeService
         );
     }
 
-    private static DiceRange BuildWeaponDiceRange(
+    private static BattleDamageDiceRange BuildWeaponDiceRange(
         BattleUnitReadView sourceUnit,
         int weaponDiceMultiplier
     )
@@ -220,7 +176,7 @@ public static class BattleDamagePreviewRangeService
         PreviewWeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == PreviewWeaponDice.Empty)
         {
-            return DiceRange.Empty;
+            return BattleDamageDiceRange.Empty;
         }
         return BuildDiceRange(
             SaturatingMultiply(dice.DiceCount, weaponDiceMultiplier),
@@ -248,13 +204,13 @@ public static class BattleDamagePreviewRangeService
             0
         );
 
-    private static DiceRange BuildDiceRange(int diceCount, int diceSides, int diceBonus)
+    private static BattleDamageDiceRange BuildDiceRange(int diceCount, int diceSides, int diceBonus)
     {
         if (diceCount <= 0 || diceSides <= 0)
         {
-            return DiceRange.Empty;
+            return BattleDamageDiceRange.Empty;
         }
-        return new DiceRange(
+        return new BattleDamageDiceRange(
             diceCount,
             diceSides,
             diceBonus,

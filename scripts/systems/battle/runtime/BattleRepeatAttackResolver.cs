@@ -6,42 +6,11 @@ using GArray = Godot.Collections.Array;
 
 internal sealed class BattleRepeatAttackResolver
 {
-    private const int REPEAT_ATTACK_STAGE_GUARD = 32;
+    private const int REPEAT_ATTACK_STAGE_GUARD = BattleRepeatAttackEffectRules.StageGuard;
     private const int DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT = 3;
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
 
     private static readonly StringName DamageEffect = "damage";
-    private readonly record struct RepeatAttackRuntimeParameters(
-        bool StopOnMiss,
-        bool StopOnTargetDown,
-        int FollowUpDamageMultiplierPercent
-    )
-    {
-        public static RepeatAttackRuntimeParameters FromEffect(
-            CombatEffectDefinition effectDefinition
-        )
-        {
-            return new RepeatAttackRuntimeParameters(
-                effectDefinition?.StopOnMiss ?? true,
-                effectDefinition?.StopOnTargetDown ?? true,
-                effectDefinition?.FollowUpDamageMultiplierPercent ?? 100
-            );
-        }
-
-        public int GetStageDamagePercent(int stageIndex)
-        {
-            // 按段整数复合,除以 100 时向下截断(50% → 25% → 12%),符合
-            // DnD 取整惯例且各段结果可精确复现。
-            int percent = 100;
-            for (int stage = 0; stage < stageIndex; stage++)
-            {
-                percent = percent * FollowUpDamageMultiplierPercent / 100;
-            }
-            return percent;
-        }
-
-    }
-
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private WeakReference<BattleSkillMasteryService> _masteryRecorderRef;
 
@@ -118,8 +87,8 @@ internal sealed class BattleRepeatAttackResolver
         int stageLimit = isFixedRepeat
             ? Math.Clamp(repeat_attack_effect.FixedAttackCount, 1, REPEAT_ATTACK_STAGE_GUARD)
             : REPEAT_ATTACK_STAGE_GUARD;
-        RepeatAttackRuntimeParameters repeatParameters =
-            RepeatAttackRuntimeParameters.FromEffect(repeat_attack_effect);
+        BattleRepeatAttackEffectRules.RuntimeParameters repeatParameters =
+            BattleRepeatAttackEffectRules.RuntimeParameters.FromEffect(repeat_attack_effect);
 
         while (stageIndex < stageLimit && target_unit.IsAlive())
         {
@@ -346,56 +315,7 @@ internal sealed class BattleRepeatAttackResolver
         IEnumerable<CombatEffectDefinition> effect_definitions
     )
     {
-        return CollectRepeatAttackBaseEffectsTyped(effect_definitions);
-    }
-
-    private static List<CombatEffectDefinition> CollectRepeatAttackBaseEffectsTyped(
-        IEnumerable<CombatEffectDefinition> effectDefinitions
-    )
-    {
-        var stagedEffects = new List<CombatEffectDefinition>();
-        foreach (
-            CombatEffectDefinition effectDefinition in
-                effectDefinitions ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (
-                effectDefinition != null
-                && BattleTypedNames.IsUnitPayloadEffect(effectDefinition.EffectKind)
-            )
-            {
-                stagedEffects.Add(effectDefinition);
-            }
-        }
-        return stagedEffects;
-    }
-
-    internal static List<CombatEffectDefinition> BuildRepeatAttackPreviewEffects(
-        IEnumerable<CombatEffectDefinition> effectDefinitions,
-        CombatEffectDefinition repeatAttackEffect,
-        int stageCount
-    )
-    {
-        var result = new List<CombatEffectDefinition>();
-        if (repeatAttackEffect == null || stageCount <= 0)
-        {
-            return result;
-        }
-        List<CombatEffectDefinition> baseEffects =
-            CollectRepeatAttackBaseEffectsTyped(effectDefinitions);
-        RepeatAttackRuntimeParameters parameters =
-            RepeatAttackRuntimeParameters.FromEffect(repeatAttackEffect);
-        int normalizedStageCount = Math.Clamp(stageCount, 1, REPEAT_ATTACK_STAGE_GUARD);
-        for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
-        {
-            result.AddRange(
-                BuildRepeatAttackStageEffects(
-                    baseEffects,
-                    parameters.GetStageDamagePercent(stageIndex)
-                )
-            );
-        }
-        return result;
+        return BattleRepeatAttackEffectRules.CollectBaseEffects(effect_definitions);
     }
 
     private BattleRepeatAttackStageSpec BuildRuntimeStageSpec(
@@ -1013,7 +933,7 @@ internal sealed class BattleRepeatAttackResolver
         int stage_index
     )
     {
-        return RepeatAttackRuntimeParameters
+        return BattleRepeatAttackEffectRules.RuntimeParameters
             .FromEffect(repeat_attack_effect)
             .GetStageDamagePercent(stage_index);
     }
@@ -1024,38 +944,7 @@ internal sealed class BattleRepeatAttackResolver
         int damage_percent
     )
     {
-        return BuildRepeatAttackStageEffects(base_effects, damage_percent);
-    }
-
-    private static List<CombatEffectDefinition> BuildRepeatAttackStageEffects(
-        IEnumerable<CombatEffectDefinition> baseEffects,
-        int damagePercent
-    )
-    {
-        var stagedEffects = new List<CombatEffectDefinition>();
-        foreach (
-            CombatEffectDefinition effectDefinition in
-                baseEffects ?? Array.Empty<CombatEffectDefinition>()
-        )
-        {
-            if (effectDefinition == null)
-            {
-                continue;
-            }
-            CombatEffectDefinition stageEffect = effectDefinition;
-            if (
-                stageEffect.EffectKind == BattleEffectKind.Damage
-                && damagePercent != 100
-            )
-            {
-                // 整数百分比只在交给伤害管线的边界处转一次浮点。
-                stageEffect = stageEffect.WithPreResistanceDamageMultiplier(
-                    damagePercent / 100.0
-                );
-            }
-            stagedEffects.Add(stageEffect);
-        }
-        return stagedEffects;
+        return BattleRepeatAttackEffectRules.BuildStageEffects(base_effects, damage_percent);
     }
 
     internal string _format_runtime_multiplier(double multiplier)
