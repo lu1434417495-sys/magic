@@ -44,19 +44,27 @@ public partial class BattleMapPanel
         _status_badge_row.Visible = badgeCount > 0;
         if (badgeCount == 0)
             return;
-        foreach (BattleHudStatusEffectSnapshot status in statuses)
+        var visibleStatuses = statuses.Where(status => status != null).ToArray();
+        foreach (BattleHudStatusEffectSnapshot status in visibleStatuses.Take(2))
         {
-            if (status == null)
-                continue;
             _status_badge_row.AddChild(
                 _create_fate_badge(
                     new BattleHudFateBadgeSnapshot(
-                        FormatStatusBadgeText(status),
+                        (string.IsNullOrEmpty(status.Label) ? status.StatusId : status.Label)
+                            + (status.Stacks > 1 ? $"×{status.Stacks}" : ""),
                         new StringName(status.IsDebuff ? "danger" : "calm"),
-                        status.TooltipText
-                    )
+                        $"{FormatStatusBadgeText(status)}\n{status.TooltipText}"
+                    ),
+                    compact: true
                 )
             );
+        }
+        if (visibleStatuses.Length > 2)
+        {
+            _status_badge_row.AddChild(_create_fate_badge(new BattleHudFateBadgeSnapshot(
+                $"+{visibleStatuses.Length - 2}", "gate",
+                string.Join("\n", visibleStatuses.Skip(2).Select(status =>
+                    $"{FormatStatusBadgeText(status)}\n{status.TooltipText}"))), compact: true));
         }
     }
 
@@ -212,7 +220,7 @@ public partial class BattleMapPanel
         return chip;
     }
 
-    private Control _create_fate_badge(BattleHudFateBadgeSnapshot badge)
+    private Control _create_fate_badge(BattleHudFateBadgeSnapshot badge, bool compact = false)
     {
         var panel = new PanelContainer
         {
@@ -225,13 +233,20 @@ public partial class BattleMapPanel
         );
 
         var margin = new MarginContainer();
-        margin.AddThemeConstantOverride("margin_left", 10);
-        margin.AddThemeConstantOverride("margin_top", 4);
-        margin.AddThemeConstantOverride("margin_right", 10);
-        margin.AddThemeConstantOverride("margin_bottom", 4);
+        margin.AddThemeConstantOverride("margin_left", compact ? 4 : 10);
+        margin.AddThemeConstantOverride("margin_top", compact ? 2 : 4);
+        margin.AddThemeConstantOverride("margin_right", compact ? 4 : 10);
+        margin.AddThemeConstantOverride("margin_bottom", compact ? 2 : 4);
         panel.AddChild(margin);
 
         var label = new Label { Text = badge?.Text ?? "" };
+        if (compact)
+        {
+            label.CustomMinimumSize = new Vector2(44, 0);
+            label.ClipText = true;
+            label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+            label.HorizontalAlignment = HorizontalAlignment.Center;
+        }
         label.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_LABEL());
         label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
         margin.AddChild(label);

@@ -39,6 +39,7 @@ public class BattleBoardRenderProfile
 {
     internal const int MinimumHeight = BattleCellState.MinRuntimeHeight;
     internal const int MaximumHeight = BattleCellState.MaxRuntimeHeight;
+    internal static readonly Color BackgroundColor = new(43f / 255f, 68f / 255f, 71f / 255f);
     private static readonly StringName TerrainProfileDefault = "default";
     private static readonly StringName TerrainProfileCanyon = "canyon";
     private static readonly StringName TerrainProfileNarrowAssault = "narrow_assault";

@@ -27,7 +27,7 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
     private const string BarrierKeys =
         "barrier_instance_id|profile_id|display_name|source_unit_id|source_skill_id|anchor_coord|radius_cells|area_pattern|remaining_tu|current_layer_id|current_layer_name|active_layer_count|broken_layer_count|total_layer_count|broken_layer_names|summary_text";
     private const string HoverTargetKeys =
-        "unit_id|name|glyph|portrait_key|primary_color|edge_color|hp_current|hp_max|mp_current|mp_max|mp_visible|stamina_current|stamina_max|aura_current|aura_max|aura_visible|ap_current|ap_max|is_enemy|is_self|status_effects";
+        "unit_id|name|glyph|portrait_key|primary_color|edge_color|hp_current|hp_max|mp_current|mp_max|mp_visible|stamina_current|stamina_max|aura_current|aura_max|aura_visible|ap_current|ap_max|is_enemy|is_self|status_effects|resources|attributes_text";
 
     private readonly TestHarness _test = new();
 
@@ -768,7 +768,9 @@ public partial class run_battle_hud_typed_projection_regression : LifecycleTestS
         );
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
 
-        _test.True(panel.barrier_status_label?.Visible == true, "panel should show the active barrier HUD line.");
+        _test.False(panel.barrier_status_label?.Visible == true, "紧凑 HUD 的屏障详情不常驻占用地图空间。");
+        _test.True(panel.skill_panel.TooltipText.Contains("当前 橙色层", StringComparison.Ordinal),
+            "屏障完整状态应能从技能栏悬停说明读取。");
         _test.True(panel.barrier_status_label?.Text.Contains("当前 橙色层", StringComparison.Ordinal) == true, "panel should render the current barrier layer.");
 
         TextureRect disabledIcon = FindDisabledSkillIcon(panel.skill_grid);

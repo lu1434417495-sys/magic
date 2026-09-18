@@ -1,0 +1,67 @@
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+Vulkan 1.4.341 - Forward+ - Using Device #0: NVIDIA - NVIDIA GeForce RTX 5090 D v2
+
+HUD cast mage_rampart_raise/pillar: 4 -> 7, generation 4 -> 5
+HUD cast mage_fossil_to_mud/lower_single_1: 7 -> 6, generation 6 -> 7
+HUD cast mage_fossil_to_mud/lower_single_1: 6 -> 5, generation 8 -> 9
+HUD cast mage_fossil_to_mud/lower_single_1: 5 -> 4, generation 10 -> 11
+HUD cast mage_fossil_to_mud/lower_single_1: 4 -> 3, generation 12 -> 13
+HUD cast mage_fossil_to_mud/lower_single_1: 3 -> 3, generation 14 -> 16
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 6 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 3→2 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: mage_fossil_to_mud/lower_single_1: 从界面施法应改变真实地形高度。 | actual=3 expected=2
+ERROR: [test] Battle height skill presentation regression: 技能提交后不手动刷新，棋盘拾取锚点应已更新到新高度。
+ERROR: [test] Battle height skill presentation regression: 正式输入后的实际地面必须处于新高度。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 True。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 2→1 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: 外围高度 4 必须完整画到基底 0：缺失 1→0 层岩壁，方向 False。
+ERROR: [test] Battle height skill presentation regression: Height skill presentation: System.InvalidOperationException: Terrain skill did not execute.
+   at run_battle_height_skill_presentation_regression.CastThroughHud(StringName skillId, StringName variantId, Int32 expectedHeight) in E:\game\magic\tests\world_map\runtime\run_battle_height_skill_presentation_regression.cs:line 208
+   at run_battle_height_skill_presentation_regression.Run() in E:\game\magic\tests\world_map\runtime\run_battle_height_skill_presentation_regression.cs:line 67
+Battle height skill presentation regression: FAIL
+[lifecycle] shutdown-report reason=TestComplete requested=1 effective=1 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0

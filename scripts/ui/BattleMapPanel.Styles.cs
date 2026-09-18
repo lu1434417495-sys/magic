@@ -33,6 +33,8 @@ public partial class BattleMapPanel
     {
         label.AddThemeFontSizeOverride("font_size", BattleUiTheme.FONT_BODY());
         label.AddThemeColorOverride("font_color", BattleUiTheme.TEXT_PRIMARY());
+        label.AddThemeColorOverride("font_outline_color", Colors.Black);
+        label.AddThemeConstantOverride("outline_size", 3);
     }
 
     private static StyleBoxFlat _build_panel_style(

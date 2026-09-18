@@ -51,6 +51,7 @@ public partial class RuntimeLogDock : PanelContainer
     private int _feed_entry_count;
     private string _feed_last_entry_key = "";
     private bool _is_collapsed;
+    private bool _battle_presentation;
     private int _opacity_level_index;
 
     private readonly record struct DisplayLogEntry(string Key, string Text);
@@ -80,24 +81,49 @@ public partial class RuntimeLogDock : PanelContainer
 
     public float GetCollapsedHeight()
     {
-        return CollapsedPanelHeight;
+        return _battle_presentation ? 36.0f : CollapsedPanelHeight;
     }
 
     public float GetPreferredHeight(float available_height, float min_height)
     {
-        return _is_collapsed ? CollapsedPanelHeight : Mathf.Max(available_height, min_height);
+        return _is_collapsed ? GetCollapsedHeight() : Mathf.Max(available_height, min_height);
     }
 
     private void _toggle_collapsed()
     {
         _is_collapsed = !_is_collapsed;
-        meta_label.Visible = !_is_collapsed;
-        log_output.Visible = !_is_collapsed;
-        collapse_button.Text = _is_collapsed
-            ? CollapseButtonTextCollapsed
-            : CollapseButtonTextExpanded;
+        _refresh_collapsed_presentation();
         EmitSignal(SignalName.panel_layout_changed);
     }
+
+    private void _set_battle_presentation(bool battle)
+    {
+        if (_battle_presentation == battle)
+            return;
+        _battle_presentation = battle;
+        if (battle) _is_collapsed = true;
+        _refresh_collapsed_presentation();
+        EmitSignal(SignalName.panel_layout_changed);
+    }
+
+    private void _refresh_collapsed_presentation()
+    {
+        bool compact = _battle_presentation && _is_collapsed;
+        meta_label.Visible = !_is_collapsed;
+        log_output.Visible = !_is_collapsed;
+        title_label.Visible = !compact;
+        opacity_button.Visible = !compact;
+        collapse_button.Text = compact ? "日志" : _is_collapsed
+            ? CollapseButtonTextCollapsed
+            : CollapseButtonTextExpanded;
+        collapse_button.TooltipText = _is_collapsed ? "展开完整日志" : "收起日志";
+        ApplyLayoutScale(1.0f);
+        // Container minimum sizes settle after visibility/theme changes. Ask the
+        // host to apply the compact rectangle again once that layout has settled.
+        CallDeferred(MethodName._notify_layout_changed);
+    }
+
+    private void _notify_layout_changed() => EmitSignal(SignalName.panel_layout_changed);
 
     private void _cycle_opacity()
     {
@@ -113,6 +139,7 @@ public partial class RuntimeLogDock : PanelContainer
         string status_text = ""
     )
     {
+        _set_battle_presentation(false);
         log_snapshot ??= new Dictionary<string, object>(StringComparer.Ordinal);
         List<DisplayLogEntry> displayEntries = _build_runtime_log_entries(
             PlainList(log_snapshot, "entries")
@@ -141,6 +168,7 @@ public partial class RuntimeLogDock : PanelContainer
 
     public void ShowBattleLogs(BattleState battle_state)
     {
+        _set_battle_presentation(true);
         if (battle_state == null)
         {
             _sync_entries(
@@ -177,29 +205,32 @@ public partial class RuntimeLogDock : PanelContainer
 
     public Vector2 GetDesignPanelSize()
     {
-        return new Vector2(LockedPanelWidth, DesignPanelHeight);
+        return _battle_presentation && _is_collapsed
+            ? new Vector2(72.0f, 36.0f)
+            : new Vector2(LockedPanelWidth, DesignPanelHeight);
     }
 
     public void ApplyLayoutScale(float layout_scale)
     {
         float safeScale = Mathf.Max(layout_scale, 0.25f);
+        bool compact = _battle_presentation && _is_collapsed;
         if (margin != null)
         {
             margin.AddThemeConstantOverride(
                 "margin_left",
-                Mathf.RoundToInt(DesignMarginLeft * safeScale)
+                Mathf.RoundToInt((compact ? 6 : DesignMarginLeft) * safeScale)
             );
             margin.AddThemeConstantOverride(
                 "margin_top",
-                Mathf.RoundToInt(DesignMarginTop * safeScale)
+                Mathf.RoundToInt((compact ? 4 : DesignMarginTop) * safeScale)
             );
             margin.AddThemeConstantOverride(
                 "margin_right",
-                Mathf.RoundToInt(DesignMarginRight * safeScale)
+                Mathf.RoundToInt((compact ? 6 : DesignMarginRight) * safeScale)
             );
             margin.AddThemeConstantOverride(
                 "margin_bottom",
-                Mathf.RoundToInt(DesignMarginBottom * safeScale)
+                Mathf.RoundToInt((compact ? 4 : DesignMarginBottom) * safeScale)
             );
         }
         if (layout != null)

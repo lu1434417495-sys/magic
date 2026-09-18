@@ -426,6 +426,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
                     );
                 }
             }
+            if (!skipBattlePanelRefresh)
+                battle_map_panel.RefreshCurrentHover(battleState);
             _set_battle_loading_overlay(
                 battle_map_panel.IsLoadingBattle(),
                 battle_map_panel.GetLoadingProgress()

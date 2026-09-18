@@ -25,7 +25,9 @@ internal sealed record BattleHoverTargetUnitSnapshot(
     int ApMax,
     bool IsEnemy,
     bool IsSelf,
-    IReadOnlyList<BattleHudStatusEffectSnapshot> StatusEffects = null
+    IReadOnlyList<BattleHudStatusEffectSnapshot> StatusEffects = null,
+    BattleHudResourceInfoSnapshot Resources = null,
+    string AttributesText = ""
 ) : IBattlePresentationSnapshotValue
 {
     public IReadOnlyDictionary<string, object> CanonicalFacts =>
@@ -53,7 +55,9 @@ internal sealed record BattleHoverTargetUnitSnapshot(
             (
                 "status_effects",
                 (object)StatusEffects ?? Array.Empty<BattleHudStatusEffectSnapshot>()
-            )
+            ),
+            ("resources", (object)Resources ?? BattlePresentationPayload.Empty),
+            ("attributes_text", AttributesText ?? "")
         );
 }
 

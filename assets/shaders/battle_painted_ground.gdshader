@@ -35,10 +35,14 @@ void fragment() {
     float bank = smoothstep(0.14, 0.44, water_field);
     paint = mix(paint, paint * vec3(0.62, 0.72, 0.68), bank * 0.48);
     float wet = smoothstep(0.43, 0.55, water_field);
-    vec3 water = mix(vec3(0.30,0.55,0.52), vec3(0.13,0.34,0.36), smoothstep(0.53, 1.0, water_field));
-    water += (texture(TEXTURE, p / 3.5 + vec2(TIME * 0.001, 0)).rgb - vec3(0.65)) * 0.16;
+    // Only deep_water uses the top encoding. Ordinary water stays a visible,
+    // sandy turquoise ford; the dark blue basin identifies special movement terrain.
+    float deep = step(0.96, center.r);
+    vec3 water = mix(vec3(0.34,0.64,0.59), vec3(0.055,0.19,0.29), deep);
+    water = mix(water, paint, (1.0 - deep) * 0.18);
+    water += (texture(TEXTURE, p / 3.5 + vec2(TIME * 0.001, 0)).rgb - vec3(0.65)) * mix(0.12, 0.045, deep);
     float ripple = pow(0.5 + 0.5 * sin(p.x * 28.0 + p.y * 37.0 + noise(p * 4.0) * 7.0 - TIME * 0.7), 16.0);
-    water += vec3(0.13,0.20,0.18) * ripple * (0.3 + grain * 0.7);
+    water += vec3(0.13,0.20,0.18) * ripple * (0.3 + grain * 0.7) * mix(1.0, 0.45, deep);
     float foam = smoothstep(0.43, 0.49, water_field) * (1.0 - smoothstep(0.49,0.57,water_field));
     paint = mix(paint, water, wet);
     paint = mix(paint, vec3(0.73,0.79,0.67), foam * (0.22 + grain * 0.35));

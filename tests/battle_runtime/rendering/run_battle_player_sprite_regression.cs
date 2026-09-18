@@ -49,6 +49,8 @@ public partial class run_battle_player_sprite_regression : LifecycleTestSceneTre
                     Root.Size = size;
                     board.SetViewportSize(size);
                     await Frames(8);
+                    foreach (string kind in new[] { "warrior", "mage", "archer" })
+                        AssertSprite(board, kind);
                     await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                     using Image capture = Root.GetTexture().GetImage();
                     _test.Eq(capture.SavePng(System.IO.Path.Combine(captureDirectory,
@@ -72,7 +74,23 @@ public partial class run_battle_player_sprite_regression : LifecycleTestSceneTre
             warrior.battle_sprite_asset_id = "battle.unit.enemy.wolf";
             _test.Eq(builder.Build(state).GetUnit("warrior").BattleSpriteAssetId,
                 new StringName("battle.unit.enemy.wolf"), "Explicit artwork wins over loadout defaults.");
-            await AssertDirectionalSprites(board, state, builder, captureDirectory);
+            await AssertDirectionalSprites(board, state, builder, captureDirectory,
+                new[] { "warrior", "mage", "archer" });
+            await AssertDirectionalSprites(board, state, builder, captureDirectory,
+                new[] { "spear_warrior", "shield_warrior", "warlock" });
+            await AssertDirectionalSprites(board, state, builder, captureDirectory,
+                new[] { "assassin", "berserker", "knight" });
+            var grid = new BattleGridService();
+            foreach (int height in new[] { -2, 3, 0 })
+            {
+                foreach (string unitId in new[] { "warrior", "mage", "archer" })
+                    _test.True(grid.SetHeightOffset(state, state.GetUnit(unitId).GetAnchorCoord(), height),
+                        "The grounding fixture can lower and raise occupied terrain.");
+                board.Configure(builder.Build(state), new Vector2I(4, 3));
+                await Frames(2);
+                foreach (string unitId in new[] { "warrior", "mage", "archer" })
+                    AssertSprite(board, unitId);
+            }
         }
         catch (Exception exception)
         {
@@ -106,36 +124,59 @@ public partial class run_battle_player_sprite_regression : LifecycleTestSceneTre
             image.GetHeight() / 2).A > 0.9f, "Sprite has transparent surroundings and an opaque body.");
         _test.True(token.GetNode<Control>("HealthBarRoot").Position.Y < sprite.Position.Y,
             "Health bar stays above the character's body.");
+        AssertGroundContact(board, token, sprite, image);
+    }
+
+    private void AssertGroundContact(BattleBoard2D board, Node2D token, Sprite2D sprite, Image image)
+    {
+        _test.True(sprite.Texture is BattleUnitSpriteTexture,
+            "Player artwork carries authored sole contacts instead of a silhouette-bottom pivot.");
+        if (sprite.Texture is not BattleUnitSpriteTexture artwork)
+            return;
+        foreach (Vector2 contact in new[] { artwork.LeftFootContact, artwork.RightFootContact })
+        {
+            Vector2I pixel = (Vector2I)(contact - artwork.Margin.Position).Round();
+            _test.True(pixel.X >= 0 && pixel.Y >= 0 && pixel.X < image.GetWidth()
+                && pixel.Y < image.GetHeight() && image.GetPixelv(pixel).A >= 0.5f,
+                $"{artwork.ResourcePath}: each authored contact must touch an opaque boot sole.");
+        }
+        Vector2 leftSole = sprite.ToGlobal(artwork.LeftFootContact - artwork.GetSize() * 0.5f);
+        Vector2 rightSole = sprite.ToGlobal(artwork.RightFootContact - artwork.GetSize() * 0.5f);
+        Vector2I coord = token.GetMeta("board_coord").AsVector2I();
+        Vector2 ground = board.CoordToViewportPosition(coord);
+        _test.True(((leftSole + rightSole) * 0.5f).DistanceTo(ground) < 1,
+            $"{artwork.ResourcePath}: the midpoint of both visible soles must coincide with the cell surface.");
+        BattleUnitTokenDecoration decoration = token.GetNode<BattleUnitTokenDecoration>("UnitDecoration");
+        _test.True(decoration.ToGlobal(decoration.GroundAnchor).DistanceTo(ground) < 1,
+            "The ground decoration and the actual cell surface share the same anchor.");
+        _test.True(decoration.ShowFootContacts
+            && decoration.ToGlobal(decoration.LeftFootContact).DistanceTo(leftSole) < 1
+            && decoration.ToGlobal(decoration.RightFootContact).DistanceTo(rightSole) < 1,
+            "Each boot sole has a contact shadow at its rendered ground position.");
     }
 
     private async Task AssertDirectionalSprites(BattleBoard2D board, BattleState state,
-        BattleBoardSnapshotBuilder builder, string captureDirectory)
+        BattleBoardSnapshotBuilder builder, string captureDirectory, string[] kinds)
     {
-        string[] kinds = { "warrior", "mage", "archer" };
         StringName[] unitIds = { "warrior", "mage", "archer" };
         foreach (string direction in new[] { "front_left", "front_right", "back_left", "back_right" })
         {
-            foreach (string kind in kinds)
-                state.GetUnit(kind).battle_sprite_asset_id = $"battle.unit.player.{kind}.{direction}";
+            for (int i = 0; i < unitIds.Length; i++)
+                state.GetUnit(unitIds[i]).battle_sprite_asset_id = $"battle.unit.player.{kinds[i]}.{direction}";
             board.RefreshUnits(builder.BuildUnitUpdate(state, unitIds));
             await Frames(2);
-            foreach (string kind in kinds)
+            foreach (StringName unitId in unitIds)
             {
-                AssertSprite(board, kind);
-                Node2D token = board.unit_layer.GetNode<Node2D>(kind);
+                AssertSprite(board, unitId.ToString());
+                Node2D token = board.unit_layer.GetNode<Node2D>(unitId.ToString());
                 Sprite2D sprite = token.GetNode<Sprite2D>("UnitSprite");
                 Texture2D texture = sprite.Texture;
                 _test.True(texture is AtlasTexture,
                     "Each authored direction resolves a single atlas frame on the actual board.");
                 _test.True(ReferenceEquals(texture, EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(
-                    state.GetUnit(kind).battle_sprite_asset_id)), "Direction asset delta reaches the sprite.");
+                    state.GetUnit(unitId).battle_sprite_asset_id)), "Direction asset delta reaches the sprite.");
                 _test.Eq(texture.GetSize(), new Vector2(768, 1024),
                     "Directional frames expose the same logical canvas.");
-                Vector2 displayedFoot = sprite.Position
-                    + (new Vector2(384, 940) - texture.GetSize() * 0.5f) * sprite.Scale;
-                _test.True(displayedFoot.DistanceTo(new Vector2(0,
-                    -BattleBoardRenderProfile.DEFAULT_UNIT_ANCHOR_BIAS().Y)) < 1,
-                    "The shared directional foot pivot stays on the ground ring after each delta.");
             }
             if (string.IsNullOrEmpty(captureDirectory) || DisplayServer.GetName() == "headless")
                 continue;
@@ -145,10 +186,12 @@ public partial class run_battle_player_sprite_regression : LifecycleTestSceneTre
                 Root.Size = size;
                 board.SetViewportSize(size);
                 await Frames(8);
+                foreach (StringName unitId in unitIds)
+                    AssertSprite(board, unitId.ToString());
                 await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                 using Image capture = Root.GetTexture().GetImage();
                 _test.Eq(capture.SavePng(System.IO.Path.Combine(captureDirectory,
-                    $"battle_players_{direction}_{size.X}x{size.Y}.png")), Error.Ok,
+                    $"battle_players_{kinds[0]}_{direction}_{size.X}x{size.Y}.png")), Error.Ok,
                     "Directional sprite native screenshot saves.");
             }
         }

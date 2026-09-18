@@ -39,6 +39,8 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
 
     private async Task TestRuntimeLogDockReusesSameWindowForWorldAndBattle()
     {
+        new DisplaySettingsService().ApplySettings(new(new Vector2I(1280, 720), false), Root);
+        await ProcessFrames(3);
         Error createError = (Error)_gameSession.StartNewGame(TestConfigPath);
         _test.Eq(createError, Error.Ok, "runtime log dock 回归前置：应能创建测试世界。");
         if (createError != Error.Ok)
@@ -155,6 +157,27 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
         _test.True(runtimeLogDock.meta_label.Text.Contains("战斗记录"), "进入战斗后共享日志窗口元信息应切到战斗记录摘要。");
         _test.True(runtimeLogDock.meta_label.TooltipText.Contains("log_entries="), "战斗日志元信息提示应披露记录数量。");
         _test.True(runtimeLogDock.meta_label.TooltipText.Contains("text_budget="), "战斗日志元信息提示应披露文本占用。");
+        _test.True(runtimeLogDock.IsCollapsed(), "进入战斗应把世界态展开的日志收成小入口。");
+        _test.True(runtimeLogDock.Size.X <= 96 && runtimeLogDock.Size.Y <= 40,
+            $"战斗日志默认只占用紧凑按钮空间，actual={runtimeLogDock.Size}。");
+        for (int frame = 0; frame < 60 && worldMap.battle_map_panel.IsLoadingBattle(); frame++)
+            await ProcessFrames(1);
+        _test.False(worldMap.battle_map_panel.IsLoadingBattle(), "点击日志前战场应完成揭示。");
+        var input = new E2eInputDriver(this, new E2eWait(this));
+        _test.Eq(runtime.GetActiveModalId(), "battle_start_confirm", "进入战斗应先等待玩家确认。");
+        await input.ClickAsync(worldMap.submap_entry_window.confirm_button);
+        await ProcessFrames(3);
+        _test.False(worldMap.submap_entry_window.Visible, "确认进入后应关闭入场弹窗。");
+        await input.ClickAsync(runtimeLogDock.collapse_button);
+        await ProcessFrames(2);
+        _test.False(runtimeLogDock.IsCollapsed(),
+            $"真实点击日志入口应展开完整记录；hover={Root.GuiGetHoveredControl()?.GetPath()}。");
+        _test.True(runtimeLogDock.log_output.IsVisibleInTree(), "展开后应能查看战斗日志正文。");
+        _test.True(runtimeLogDock.Size.X >= 400, "展开日志应恢复可读宽度。");
+        await input.ClickAsync(runtimeLogDock.collapse_button);
+        await ProcessFrames(2);
+        _test.True(runtimeLogDock.IsCollapsed() && runtimeLogDock.Size.X <= 96,
+            $"收起后应恢复紧凑入口：collapsed={runtimeLogDock.IsCollapsed()} size={runtimeLogDock.Size}。");
         if (mapViewport != null)
         {
             Rect2 battleViewportRect = mapViewport.GetGlobalRect();
@@ -169,6 +192,17 @@ public partial class run_world_map_runtime_log_dock_regression : LifecycleTestSc
             );
         }
 
+        string captureDirectory = OS.GetEnvironment("MAGIC_BATTLE_HUD_CAPTURE_DIR");
+        if (!string.IsNullOrEmpty(captureDirectory) && DisplayServer.GetName() != "headless")
+        {
+            new DisplaySettingsService().ApplySettings(new(new Vector2I(3840, 2160), false), Root);
+            await ProcessFrames(10);
+            System.IO.Directory.CreateDirectory(captureDirectory);
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            using Image capture = Root.GetTexture().GetImage();
+            _test.Eq(capture.SavePng(System.IO.Path.Combine(captureDirectory,
+                "battle_live_3840x2160.png")), Error.Ok, "实际战斗场景截图应保存成功。");
+        }
         await DisposeNode(worldMap);
     }
 

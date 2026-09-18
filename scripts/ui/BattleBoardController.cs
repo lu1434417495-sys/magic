@@ -24,11 +24,11 @@ public sealed partial class BattleBoardController : IDisposable
 
     // 单位身上的信息层(血条、名字)用"绝对 z"(ZAsRelative=false)钉到固定高层。
     // token 在 y_sort 的 UnitLayer 里,相对 z 会被 y-sort 扁平化吃掉(Control 子节点尤甚),
-    // 导致血条被自己/邻近单位的贴图盖住;绝对 z 直接跳到所有贴图之上、仅低于目标高亮(1300)。
-    private const int UNIT_OVERLAY_ABSOLUTE_Z = 1200;
+    // 导致血条被自己/邻近单位的贴图盖住;绝对 z 直接跳到所有贴图之上、仅低于目标高亮。
+    private const int UNIT_OVERLAY_ABSOLUTE_Z = 4094;
     private const int PROP_LAYER_Z = 0;
     private const int UNIT_LAYER_Z = 0;
-    private const int TARGET_HIGHLIGHT_LAYER_Z = 1300;
+    private const int TARGET_HIGHLIGHT_LAYER_Z = 4095;
     private static readonly Vector2 UNIT_GLYPH_LABEL_SIZE = new(64.0f, 56.0f);
     private const float UNIT_SPRITE_TILE_WIDTH_RATIO = 0.95f;
     private const float UNIT_SPRITE_MAX_HEIGHT_TO_TILE_WIDTH = 0.8f;
@@ -351,6 +351,7 @@ public sealed partial class BattleBoardController : IDisposable
         _tileset_cache.Clear();
         _unitNodesById.Clear();
         _unitSpriteVisibleRects.Clear();
+        _unitSpriteHitMasks.Clear();
         _input_layer = null;
         _top_layers.Clear();
         _edge_drop_east_layers.Clear();
@@ -680,13 +681,21 @@ public sealed partial class BattleBoardController : IDisposable
         token.SetMeta("sort_depth", renderDepth);
         token.SetMeta("board_coord", unit_state.AnchorCoord);
         Texture2D spriteTexture = _resolve_unit_sprite_texture(unit_state);
+        BattleUnitSpriteTexture artwork = spriteTexture as BattleUnitSpriteTexture;
+        Vector2 groundAnchor = new(0, -_get_unit_anchor_bias().Y);
+        float contactScale = artwork != null ? GetUnitSpriteScale(artwork) : 0;
         token.AddChild(new BattleUnitTokenDecoration
         {
             Name = "UnitDecoration",
             FactionColor = _get_unit_color(unit_state),
-            GroundAnchor = new Vector2(0, -_get_unit_anchor_bias().Y),
+            GroundAnchor = groundAnchor,
             IsActive = unit_state.UnitId == _snapshot?.ActiveUnitId,
             ShowMedallion = spriteTexture == null,
+            ShowFootContacts = artwork != null,
+            LeftFootContact = artwork != null
+                ? groundAnchor + (artwork.LeftFootContact - artwork.GroundAnchor) * contactScale : Vector2.Zero,
+            RightFootContact = artwork != null
+                ? groundAnchor + (artwork.RightFootContact - artwork.GroundAnchor) * contactScale : Vector2.Zero,
             ZIndex = -1,
         });
         if (spriteTexture != null)
@@ -746,7 +755,7 @@ public sealed partial class BattleBoardController : IDisposable
         if (textureSize.X <= 0.0f || textureSize.Y <= 0.0f)
             return;
         float spriteScale = GetUnitSpriteScale(spriteTexture);
-        Rect2I visibleRect = GetUnitSpriteVisibleRect(spriteTexture);
+        Vector2 groundAnchor = GetUnitSpriteGroundAnchor(spriteTexture);
         var sprite = new Sprite2D
         {
             Name = "UnitSprite",
@@ -754,10 +763,8 @@ public sealed partial class BattleBoardController : IDisposable
             TextureFilter = CanvasItem.TextureFilterEnum.LinearWithMipmaps,
             Centered = true,
             Scale = Vector2.One * spriteScale,
-            Position = new Vector2(
-                (textureSize.X * 0.5f - (visibleRect.Position.X + visibleRect.Size.X * 0.5f)) * spriteScale,
-                groundY + (textureSize.Y * 0.5f - visibleRect.End.Y) * spriteScale
-            ),
+            Position = new Vector2(0, groundY)
+                + (textureSize * 0.5f - groundAnchor) * spriteScale,
             ZIndex = 0,
         };
         token.AddChild(sprite);
@@ -769,6 +776,14 @@ public sealed partial class BattleBoardController : IDisposable
         return assetId == ""
             ? null
             : EngineAssetAccess.ResolveContentAssetBorrowed<Texture2D>(assetId);
+    }
+
+    private Vector2 GetUnitSpriteGroundAnchor(Texture2D texture)
+    {
+        if (texture is BattleUnitSpriteTexture artwork)
+            return artwork.GroundAnchor;
+        Rect2I bounds = GetUnitSpriteVisibleRect(texture);
+        return new Vector2(bounds.Position.X + bounds.Size.X * 0.5f, bounds.End.Y);
     }
 
     private Rect2I GetUnitSpriteVisibleRect(Texture2D texture)
@@ -786,11 +801,13 @@ public sealed partial class BattleBoardController : IDisposable
         int width = image.GetWidth();
         int height = image.GetHeight();
         int minX = width, minY = height, maxX = -1, maxY = -1;
+        var opaquePixels = new System.Collections.BitArray(width * height);
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {
             if (pixels[(y * width + x) * 4 + 3] < 128)
                 continue;
+            opaquePixels[y * width + x] = true;
             minX = Math.Min(minX, x);
             minY = Math.Min(minY, y);
             maxX = Math.Max(maxX, x);
@@ -810,6 +827,10 @@ public sealed partial class BattleBoardController : IDisposable
                 Mathf.RoundToInt(atlas.Margin.Position.Y));
         }
         _unitSpriteVisibleRects[texture] = bounds;
+        Vector2I margin = texture is AtlasTexture sourceAtlas
+            ? new Vector2I(Mathf.RoundToInt(sourceAtlas.Margin.Position.X),
+                Mathf.RoundToInt(sourceAtlas.Margin.Position.Y)) : Vector2I.Zero;
+        _unitSpriteHitMasks[texture] = new(new(width, height), margin, opaquePixels);
         return bounds;
     }
 
@@ -818,7 +839,8 @@ public sealed partial class BattleBoardController : IDisposable
     {
         float groundY = -_get_unit_anchor_bias().Y;
         float spriteScale = GetUnitSpriteScale(spriteTexture);
-        return groundY - GetUnitSpriteVisibleRect(spriteTexture).Size.Y * spriteScale;
+        return groundY + (GetUnitSpriteVisibleRect(spriteTexture).Position.Y
+            - GetUnitSpriteGroundAnchor(spriteTexture).Y) * spriteScale;
     }
 
     private float GetUnitSpriteScale(Texture2D texture)
@@ -954,7 +976,11 @@ public sealed partial class BattleBoardController : IDisposable
         ClearLayers(_marker_layers, failures);
     }
 
-    private void _clear_marker_layers() => ClearLayers(_marker_layers, null);
+    private void _clear_marker_layers()
+    {
+        ClearPaintedMarkers();
+        ClearLayers(_marker_layers, null);
+    }
 
     private void _detach_tilesets_from_layers(List<Exception> failures)
     {
@@ -1216,6 +1242,7 @@ public sealed partial class BattleBoardController : IDisposable
         if (heightIndex < 0 || heightIndex >= _marker_layers.Count)
             return;
         _marker_layers[heightIndex]?.SetCell(coord, source_id, Vector2I.Zero, 0);
+        SetPaintedMarker(coord, source_id);
     }
 
     private Vector2[] _build_target_highlight_polygon(float scale)
@@ -1492,14 +1519,11 @@ public sealed partial class BattleBoardController : IDisposable
     private Vector2 _get_cell_plane_position(Vector2I coord) =>
         _input_layer == null ? Vector2.Zero : _input_layer.MapToLocal(coord);
 
-    // 单位/道具的层级深度只按"高度分档"(height×stride + 偏移),不再叠加随屏幕 Y
-    // 增长的 planeY 项。这样动态对象与地形高度层正确交织:更高一级的前方地形/南墙
-    // 会盖住单位;而同高度的多个单位/道具靠 Unit/PropLayer 自身的 y_sort 按真实 Y
-    // 排前后(逐格 planeY 一旦写进 ZIndex 会压过 y_sort,反而让单位恒压地形)。
+    // Actors and vegetation must use the same ground-depth bands as the painted
+    // terrain. Height-only Z would let a rear terrace cover foreground sprites.
     private int _get_cell_render_depth(Vector2I coord, int height_value)
     {
-        int clampedHeight = Mathf.Clamp(height_value, MIN_RENDER_HEIGHT, MAX_RENDER_HEIGHT);
-        return clampedHeight * LAYER_Z_STRIDE + DYNAMIC_LAYER_Z_OFFSET;
+        return GetCellDrawDepth(coord) + DYNAMIC_LAYER_Z_OFFSET;
     }
 
     private static int _height_to_layer_index(int height) =>

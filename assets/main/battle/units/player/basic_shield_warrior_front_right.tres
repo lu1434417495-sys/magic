@@ -1,0 +1,14 @@
+[gd_resource type="AtlasTexture" script_class="BattleUnitSpriteTexture" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/main/battle/units/player/basic_shield_warrior_4way.png" id="1_atlas"]
+
+[ext_resource type="Script" path="res://scripts/ui/BattleUnitSpriteTexture.cs" id="2_sprite"]
+
+[resource]
+script = ExtResource("2_sprite")
+atlas = ExtResource("1_atlas")
+region = Rect2(544, 39, 526, 685)
+margin = Rect2(90, 282, 242, 339)
+filter_clip = true
+LeftFootContact = Vector2(236, 937)
+RightFootContact = Vector2(463, 879)

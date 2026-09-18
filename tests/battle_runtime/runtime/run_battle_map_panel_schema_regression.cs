@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 public partial class run_battle_map_panel_schema_regression : LifecycleTestSceneTree
@@ -17,6 +18,7 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         {
             await TestBattleMapPanelAppliesFormalSnapshot();
             await TestScaledViewportAndSkillHitTargets();
+            await TestMapFirstHudLayout();
             await TestEquipmentModalReceivesClicksAboveLaterHud();
             await TestBattleMapPanelAppliesCommandDock();
             await TestBattleMapPanelViewportControlsAndFateRow();
@@ -279,7 +281,9 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
         _test.True(statusRow.Visible, "focus_unit 有状态效果时 StatusBadgeRow 应可见。");
         _test.Eq(statusRow.GetChildCount(), 2, "StatusBadgeRow 应为每个状态效果渲染一个徽章。");
         var firstBadgeLabel = statusRow.GetChild(0).GetChild(0).GetChild<Label>(0);
-        _test.Eq(firstBadgeLabel.Text, "中毒×2 30TU", "状态徽章应拼接 label×层数 + 剩余TU。");
+        _test.Eq(firstBadgeLabel.Text, "中毒×2", "常驻状态徽章应保留名称与层数。");
+        _test.True(statusRow.GetChild<Control>(0).TooltipText.Contains("30TU"),
+            "状态剩余时间应保留在悬停详情中。");
 
         panel._apply_snapshot(BuildSnapshot(roundBadge: new BattleHudRoundBadgeSnapshot("TU 13", "READY 1")));
         await ToSignal(this, SceneTree.SignalName.ProcessFrame);
@@ -478,7 +482,8 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             Vector2 scale = Root.GetStretchTransform().Scale;
             _test.True(Mathf.Abs(map.Size.X - host.Size.X * scale.X) <= 1, "地图渲染宽度应使用物理像素。");
             _test.True(Mathf.Abs(panel.map_viewport_container.GetGlobalRect().Size.X - host.Size.X) <= 1, "地图显示和鼠标命中范围应与逻辑宿主一致。");
-            _test.True(panel.map_frame.GetGlobalRect().End.Y <= panel.bottom_panel.GlobalPosition.Y, "操作区不得覆盖地图可点击范围。");
+            _test.True(panel.map_frame.GetGlobalRect().Size.IsEqualApprox(panel.Size),
+                "地图应铺满整个战斗面板，HUD 独立拦截输入。");
             BattleUnitState ally = BattleTestFixture.BuildUnit("scaled_ally", "player", Vector2I.Zero);
             BattleUnitState enemy = BattleTestFixture.BuildUnit("scaled_enemy", "enemy", new Vector2I(2, 0));
             using (BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
@@ -509,5 +514,140 @@ public partial class run_battle_map_panel_schema_regression : LifecycleTestScene
             Root.ContentScaleSize = originalContentSize;
             Root.Size = originalSize;
         }
+    }
+
+    private async System.Threading.Tasks.Task TestMapFirstHudLayout()
+    {
+        Vector2I originalSize = Root.Size;
+        Vector2I originalContentSize = Root.ContentScaleSize;
+        Window.ContentScaleModeEnum originalMode = Root.ContentScaleMode;
+        var panel = BattleMapPanelScene.Instantiate<BattleMapPanel>();
+        try
+        {
+            Root.AddChild(panel);
+            BattleUnitState ally = BattleTestFixture.BuildUnit("layout_ally", "player", new(4, 5));
+            ally.display_name = "艾琳";
+            ally.battle_sprite_asset_id = "battle.unit.player.warrior";
+            var enemies = new List<BattleUnitState>();
+            foreach (Vector2I coord in new[] { new Vector2I(7, 3), new(9, 4), new(8, 6) })
+            {
+                var enemy = BattleTestFixture.BuildUnit($"layout_enemy_{enemies.Count}", "enemy", coord);
+                enemy.battle_sprite_asset_id = "battle.unit.enemy.wolf";
+                enemies.Add(enemy);
+            }
+            using BattleTestFixture fixture = BattleTestFixture.CreateFlatBattle(
+                "map_first_layout", new(13, 9), new[] { ally }, enemies);
+            for (int x = 0; x < 13; x++)
+            for (int y = 0; y < 9; y++)
+            {
+                BattleCellState cell = fixture.State.GetCell(new(x, y));
+                if (x >= 10 || y < 2) cell.SetBaseHeight(1);
+                if (x == 6 && y > 4) cell.SetTerrain("shallow_water");
+                if (x == 2 && y < 5) cell.SetTerrain("forest");
+            }
+            fixture.State.RebuildCellColumns();
+            fixture.State.MarkRuntimeEdgesDirty();
+
+            var wait = new E2eWait(this);
+            var input = new E2eInputDriver(this, wait);
+            int boardMousePresses = 0;
+            panel.map_viewport_container.GuiInput += @event =>
+            {
+                if (@event is InputEventMouseButton { Pressed: true }) boardMousePresses++;
+            };
+            int selectedIndex = -1;
+            panel.battle_skill_slot_selected += index => selectedIndex = index;
+            foreach (Vector2I size in new[] { new Vector2I(1280, 720), new(3840, 2160) })
+            {
+                new DisplaySettingsService().ApplySettings(new(size, false), Root);
+                panel.ShowBattle(fixture.State, ally.GetAnchorCoord(), "", "", "",
+                    Array.Empty<Vector2I>(), Array.Empty<Vector2I>(), 0, Array.Empty<StringName>(), "");
+                await wait.FramesAsync(8);
+                panel._apply_snapshot(BuildMapFirstSnapshot(20, 2));
+                await wait.FramesAsync(8);
+                Rect2 boardRect = panel.map_frame.GetGlobalRect();
+                Vector2I pixels = panel.map_viewport_container.GetNode<SubViewport>("MapSubViewport").Size;
+                _test.True(boardRect.Size.IsEqualApprox(panel.Size), "地图渲染应铺满窗口。");
+                _test.True(panel.bottom_panel.Size.Y <= 224,
+                    $"常用技能和角色资源不得占满屏幕下半部：{panel.bottom_panel.Size}。");
+                Vector2 focusPosition = panel.map_viewport_container.GetGlobalTransform()
+                    * panel._battle_board.CoordToViewportPosition(ally.GetAnchorCoord());
+                _test.True(focusPosition.Y < panel.bottom_panel.GlobalPosition.Y,
+                    "当前行动单位的落点应位于操作栏上方。");
+                _test.True(panel.hp_bar.GetGlobalRect().Encloses(panel.hp_value_label.GetGlobalRect()),
+                    "资源数值应叠在资源条内，不能单独增加一行高度。");
+                _test.False(panel.clear_skill_button.Visible, "未选技能时不显示取消按钮。");
+                _test.False(panel.prev_variant_button.Visible, "没有变体时不显示变体按钮。");
+                await CaptureMapFirstHud(size);
+
+                panel._apply_snapshot(BuildMapFirstSnapshot(36, 12));
+                await wait.FramesAsync(8);
+                _test.Eq(panel.map_frame.GetGlobalRect(), boardRect,
+                    "技能、状态数量变化不得改变地图显示边界。");
+                _test.Eq(panel.map_viewport_container.GetNode<SubViewport>("MapSubViewport").Size, pixels,
+                    "展开内容不得改变棋盘物理像素尺寸或重设相机。");
+                _test.True(panel.bottom_panel.Size.Y <= 224,
+                    $"大量技能和状态应在固定区域内查看：{panel.bottom_panel.Size}。");
+                var scroll = panel.GetNode<ScrollContainer>("%SkillScroll");
+                _test.True(scroll.GetVScrollBar().Visible, "超过两行的技能应可以滚动查看。");
+                int beforeHudClick = boardMousePresses;
+                float beforeZoom = panel._battle_board.GetCameraZoom();
+                for (int i = 0; i < 12; i++) await input.ClickAsync(scroll, MouseButton.WheelDown);
+                _test.True(scroll.ScrollVertical > 0, "真实滚轮应滚动技能区。");
+                _test.Eq(panel._battle_board.GetCameraZoom(), beforeZoom, "技能区滚轮不得缩放棋盘。");
+                var lastSlot = panel.skill_grid.GetChild<Control>(35);
+                var button = lastSlot.FindChildren("*", "Control", true, false)
+                    .OfType<BattleSkillSlotButton>().Single();
+                await input.ClickAsync(button);
+                _test.Eq(selectedIndex, 35, "滚动后仍应能点击末行技能并提交原索引。");
+                _test.Eq(boardMousePresses, beforeHudClick, "技能点击和滚轮不得穿透到全屏棋盘。");
+
+                var statuses = panel.GetNode<HFlowContainer>(
+                    "HudRoot/BottomPanel/BottomBand/UnitCard/CardLayout/InfoColumn/StatusBadgeRow");
+                _test.True(statuses.GetChildCount() <= 3, "多状态不得持续增高角色面板。");
+                _test.True(statuses.GetChild<Control>(2).TooltipText.Contains("状态11"),
+                    "折叠的状态仍应能通过悬停阅读完整信息。");
+                panel._apply_snapshot(BuildSnapshot());
+                await wait.FramesAsync(5);
+                _test.False(scroll.Visible, "空技能集应收起技能滚动区。");
+                _test.Eq(scroll.ScrollVertical, 0, "清空技能后应清除旧滚动位置。");
+                panel.HideBattle();
+            }
+        }
+        finally
+        {
+            panel.QueueFree();
+            await ToSignal(this, SignalName.ProcessFrame);
+            Root.ContentScaleMode = originalMode;
+            Root.ContentScaleSize = originalContentSize;
+            Root.Size = originalSize;
+        }
+    }
+
+    private static BattleHudSnapshot BuildMapFirstSnapshot(int skillCount, int statusCount)
+    {
+        string[] iconKeys = { "warrior_heavy_strike", "warrior_shield_bash", "warrior_war_cry",
+            "warrior_aura_slash", "warrior_combo_strike", "warrior_sweeping_slash" };
+        var slots = Enumerable.Range(0, skillCount).Select(index => new BattleHudSkillSlotSnapshot(
+            index, false, displayName: $"技能 {index + 1}", shortName: "技能",
+            iconKey: iconKeys[index % iconKeys.Length], accentColor: Colors.Goldenrod));
+        var statuses = Enumerable.Range(0, statusCount).Select(index => new BattleHudStatusEffectSnapshot(
+            $"status_{index}", $"状态{index}", 1, 30, index % 2 == 0, $"状态{index}的完整说明")).ToArray();
+        return BuildSnapshot(roundBadge: new("TU 12", "READY 3"),
+            focusUnit: new("艾琳", "战士", EmptyResourceInfo(), "战", "", Colors.SlateGray,
+                Colors.Black, Colors.Goldenrod, 146, 180, 84, 100, 75, 100, 20, 50,
+                2, 2, 3, 5, BattleHudReactionBudgetSnapshot.Hidden, statuses),
+            hintText: "点选技能或移动；Enter 结束行动", skillSlots: slots);
+    }
+
+    private async System.Threading.Tasks.Task CaptureMapFirstHud(Vector2I size)
+    {
+        string directory = OS.GetEnvironment("MAGIC_BATTLE_HUD_CAPTURE_DIR");
+        if (string.IsNullOrEmpty(directory) || DisplayServer.GetName() == "headless") return;
+        System.IO.Directory.CreateDirectory(directory);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        using Image capture = Root.GetTexture().GetImage();
+        _test.Eq(capture.SavePng(System.IO.Path.Combine(directory,
+            $"battle_hud_{size.X}x{size.Y}.png")), Error.Ok, "原生战斗 HUD 截图应保存成功。");
     }
 }
