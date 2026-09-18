@@ -1,0 +1,1570 @@
+{
+  "kind": "controlled_production_resolver_analysis",
+  "source_rows": [
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 3,
+      "direct_average_roll_hp": 14,
+      "Power": 2,
+      "Stacks": 1,
+      "DurationTu": 80,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 60
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 5,
+      "direct_average_roll_hp": 18,
+      "Power": 2,
+      "Stacks": 1,
+      "DurationTu": 100,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 60
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 7,
+      "direct_average_roll_hp": 21,
+      "Power": 3,
+      "Stacks": 1,
+      "DurationTu": 120,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 60
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 3,
+      "direct_average_roll_hp": 21,
+      "Power": 1,
+      "Stacks": 1,
+      "DurationTu": 40,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 100
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 5,
+      "direct_average_roll_hp": 25,
+      "Power": 2,
+      "Stacks": 1,
+      "DurationTu": 60,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 100
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 7,
+      "direct_average_roll_hp": 28,
+      "Power": 3,
+      "Stacks": 1,
+      "DurationTu": 80,
+      "TickIntervalTu": 10,
+      "damage_tag": "",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 1,
+      "mp": 100
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 3,
+      "direct_average_roll_hp": 19,
+      "Power": 1,
+      "Stacks": 1,
+      "DurationTu": 20,
+      "TickIntervalTu": 10,
+      "damage_tag": "fire",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 2,
+      "mp": 70
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 5,
+      "direct_average_roll_hp": 23,
+      "Power": 2,
+      "Stacks": 1,
+      "DurationTu": 20,
+      "TickIntervalTu": 10,
+      "damage_tag": "fire",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 2,
+      "mp": 70
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 7,
+      "direct_average_roll_hp": 27,
+      "Power": 2,
+      "Stacks": 1,
+      "DurationTu": 30,
+      "TickIntervalTu": 10,
+      "damage_tag": "fire",
+      "TimelineDamageDiceCount": 0,
+      "TimelineDamageDiceSides": 0,
+      "ap": 2,
+      "mp": 70
+    }
+  ],
+  "natural_total_rows": [
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 3,
+      "total_natural_hp": 16
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 5,
+      "total_natural_hp": 20
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 7,
+      "total_natural_hp": 36
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 3,
+      "total_natural_hp": 4
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 5,
+      "total_natural_hp": 12
+    },
+    {
+      "skill": "mage_fireball",
+      "level": 7,
+      "total_natural_hp": 24
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 3,
+      "total_natural_hp": 2
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 5,
+      "total_natural_hp": 4
+    },
+    {
+      "skill": "mage_burning_hands",
+      "level": 7,
+      "total_natural_hp": 6
+    }
+  ],
+  "burst_rows": [
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 8,
+      "HpDamage": 16,
+      "first_due_tu": 10,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 30,
+      "last_due_tu": 50
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 8,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 50,
+      "last_due_tu": 70
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 8,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 8,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 8,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 8,
+      "HpDamage": 16,
+      "first_due_tu": 10,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 30,
+      "last_due_tu": 50
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 8,
+      "HpDamage": 16,
+      "first_due_tu": 30,
+      "last_due_tu": 100
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 8,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 50,
+      "last_due_tu": 70
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 8,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 8,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 100
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 8,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 100
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 8,
+      "HpDamage": 24,
+      "first_due_tu": 10,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 6,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 30,
+      "last_due_tu": 50
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 6,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 6,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 6,
+      "TickCount": 8,
+      "HpDamage": 24,
+      "first_due_tu": 30,
+      "last_due_tu": 100
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 12,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 50,
+      "last_due_tu": 70
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 12,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 12,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 50,
+      "last_due_tu": 100
+    },
+    {
+      "source": "mage_cinder_bolt",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 12,
+      "TickCount": 8,
+      "HpDamage": 24,
+      "first_due_tu": 50,
+      "last_due_tu": 120
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 3,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 2,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 2,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 2,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 2,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 30,
+      "last_due_tu": 50
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 4,
+      "HpDamage": 8,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 8,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 50,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 8,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 50,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 8,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 50,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 8,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 50,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 10,
+      "last_due_tu": 40
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 10,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 8,
+      "HpDamage": 24,
+      "first_due_tu": 10,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 6,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 30,
+      "last_due_tu": 50
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 6,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 30,
+      "last_due_tu": 60
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 6,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 6,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "first_due_tu": 30,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 12,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "first_due_tu": 50,
+      "last_due_tu": 70
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 12,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 12,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_fireball",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 12,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "first_due_tu": 50,
+      "last_due_tu": 80
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 2,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 3,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 2,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 2,
+      "HpDamage": 4,
+      "first_due_tu": 10,
+      "last_due_tu": 20
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 5,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 0,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 3,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 5,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 0,
+      "molten_level": 7,
+      "natural_damage_so_far": 0,
+      "TickCount": 3,
+      "HpDamage": 6,
+      "first_due_tu": 10,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 0,
+      "natural_damage_so_far": 4,
+      "TickCount": 1,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 3,
+      "natural_damage_so_far": 4,
+      "TickCount": 1,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 5,
+      "natural_damage_so_far": 4,
+      "TickCount": 1,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 20,
+      "molten_level": 7,
+      "natural_damage_so_far": 4,
+      "TickCount": 1,
+      "HpDamage": 2,
+      "first_due_tu": 30,
+      "last_due_tu": 30
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 0,
+      "natural_damage_so_far": 6,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 3,
+      "natural_damage_so_far": 6,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 5,
+      "natural_damage_so_far": 6,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    },
+    {
+      "source": "mage_burning_hands",
+      "source_level": 7,
+      "at_tu": 40,
+      "molten_level": 7,
+      "natural_damage_so_far": 6,
+      "TickCount": 0,
+      "HpDamage": 0,
+      "first_due_tu": null,
+      "last_due_tu": null
+    }
+  ],
+  "mixed_rows": [
+    {
+      "weak_fireball_added": false,
+      "molten_level": 0,
+      "TickCount": 3,
+      "HpDamage": 9,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": false,
+      "molten_level": 3,
+      "TickCount": 4,
+      "HpDamage": 12,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": false,
+      "molten_level": 5,
+      "TickCount": 6,
+      "HpDamage": 18,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": false,
+      "molten_level": 7,
+      "TickCount": 8,
+      "HpDamage": 24,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": true,
+      "molten_level": 0,
+      "TickCount": 3,
+      "HpDamage": 3,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": true,
+      "molten_level": 3,
+      "TickCount": 4,
+      "HpDamage": 4,
+      "SourceCount": 1
+    },
+    {
+      "weak_fireball_added": true,
+      "molten_level": 5,
+      "TickCount": 6,
+      "HpDamage": 12,
+      "SourceCount": 2
+    },
+    {
+      "weak_fireball_added": true,
+      "molten_level": 7,
+      "TickCount": 8,
+      "HpDamage": 16,
+      "SourceCount": 2
+    }
+  ],
+  "sequence_rows": [
+    {
+      "policy": "wait",
+      "damage_before_second_action": 26,
+      "second_action_damage": 0,
+      "total_ap": 1,
+      "total_mp": 60,
+      "damage_at_40": 26,
+      "damage_at_80": 34,
+      "damage_at_160": 38,
+      "damage_at_320": 38
+    },
+    {
+      "policy": "molten",
+      "damage_before_second_action": 26,
+      "second_action_damage": 12,
+      "total_ap": 2,
+      "total_mp": 78,
+      "damage_at_40": 38,
+      "damage_at_80": 38,
+      "damage_at_160": 38,
+      "damage_at_320": 38
+    },
+    {
+      "policy": "cinder",
+      "damage_before_second_action": 26,
+      "second_action_damage": 18,
+      "total_ap": 2,
+      "total_mp": 120,
+      "damage_at_40": 44,
+      "damage_at_80": 52,
+      "damage_at_160": 64,
+      "damage_at_320": 64
+    },
+    {
+      "policy": "bone",
+      "damage_before_second_action": 26,
+      "second_action_damage": 5,
+      "total_ap": 2,
+      "total_mp": 75,
+      "damage_at_40": 31,
+      "damage_at_80": 39,
+      "damage_at_160": 43,
+      "damage_at_320": 43
+    }
+  ],
+  "alternative_rows": [
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 3,
+      "ap": 1,
+      "mp": 60,
+      "dice_count": 4,
+      "dice_sides": 6,
+      "conditional_average_roll_hp": 14
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 5,
+      "ap": 1,
+      "mp": 60,
+      "dice_count": 5,
+      "dice_sides": 6,
+      "conditional_average_roll_hp": 18
+    },
+    {
+      "skill": "mage_cinder_bolt",
+      "level": 7,
+      "ap": 1,
+      "mp": 60,
+      "dice_count": 6,
+      "dice_sides": 6,
+      "conditional_average_roll_hp": 21
+    },
+    {
+      "skill": "mage_bone_chill",
+      "level": 3,
+      "ap": 1,
+      "mp": 15,
+      "dice_count": 2,
+      "dice_sides": 4,
+      "conditional_average_roll_hp": 5
+    },
+    {
+      "skill": "mage_bone_chill",
+      "level": 5,
+      "ap": 1,
+      "mp": 15,
+      "dice_count": 2,
+      "dice_sides": 4,
+      "conditional_average_roll_hp": 5
+    },
+    {
+      "skill": "mage_bone_chill",
+      "level": 7,
+      "ap": 1,
+      "mp": 15,
+      "dice_count": 3,
+      "dice_sides": 4,
+      "conditional_average_roll_hp": 8
+    }
+  ],
+  "kill_rows": [
+    {
+      "policy": "wait",
+      "initial_snapshot_tu": 40,
+      "initial_hp": 10,
+      "defeated": true,
+      "defeat_tu": 90,
+      "hypothetical_enemy_activations_before_defeat": 2
+    },
+    {
+      "policy": "molten",
+      "initial_snapshot_tu": 40,
+      "initial_hp": 10,
+      "defeated": true,
+      "defeat_tu": 40,
+      "hypothetical_enemy_activations_before_defeat": 0
+    },
+    {
+      "policy": "cinder",
+      "initial_snapshot_tu": 40,
+      "initial_hp": 10,
+      "defeated": true,
+      "defeat_tu": 40,
+      "hypothetical_enemy_activations_before_defeat": 0
+    },
+    {
+      "policy": "bone",
+      "initial_snapshot_tu": 40,
+      "initial_hp": 10,
+      "defeated": true,
+      "defeat_tu": 70,
+      "hypothetical_enemy_activations_before_defeat": 1
+    }
+  ],
+  "assumptions": [
+    "One target; successful source application; no miss/critical/fumble; saves forced to fail for fire setup.",
+    "HP1000, no equipment, no resistance/shield; average dice mode uses engine integer rounding.",
+    "0TU means immediate second action or ally follow-up; 40TU is one ordinary activation later.",
+    "Sequence costs are recorded from definitions; effects are resolved directly without command hit checks or MP payments. Every sequence fits the same 160MP no-recovery budget.",
+    "Kill probe starts from a controlled 10HP snapshot at 40TU; enemy activations at 45/85TU are an explicit scenario, not AI simulation.",
+    "No production values changed; not a battle win-rate calibration."
+  ]
+}

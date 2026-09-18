@@ -1,0 +1,2119 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "proposal_l0_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l0_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 34.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l0_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 39.375
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l1_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l1_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 34.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l1_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 39.375
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l2_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l2_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 34.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l2_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 39.375
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l3_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l3_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 49.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l3_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l4_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l4_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 49.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l4_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 49.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l6_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l6_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 49.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l6_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l7_one_target_stacks_0",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l7_one_target_stacks_1",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 65.625
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l7_one_target_stacks_3",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 70.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l0_repeat_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": []
+    },
+    {
+      "id": "old_l0_old_direct_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_repeat_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "old_l5_old_direct_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 5,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l7_repeat_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": []
+    },
+    {
+      "id": "old_l7_old_direct_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 5,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_all_targets_maximum",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 3, 3].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 70.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_six_stacks_still_capped",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [6, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_one_target_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 1; valid burning stacks at this cast: [1].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 18.375
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_one_preparation_save_fails_half",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [1, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 0.5 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 48.5625
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_all_save_success",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 1; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 36.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_all_save_failure",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [3, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 73.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "proposal_l5_30tu_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "proposal_l5_20tu_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "proposal_l5_80tu_short",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 75,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "proposal_l0_cannot_afford",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "0b9036bc84f9b8edd17906963700f592feb518cd6e573094faf0d78b303e9a48",
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "scripts/player/progression/SkillDefinition.cs": "f0af15acbcf0dc12511809c3feaf3f1bd7cf44ac3f2591b20f0925f3717bce1c",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "23eb0539386b9b6a1396712ff6a4b73830e863d63880bf4372c8d6bcc10c299c",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "77c5799531afb96b54095fe02bebf959434c565a956910486e40438f865bdd26",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "939d7a77d2c6c68a8dbe40f14ac7bd021b1a097ef614487ff199fb2c7a3fbe8f",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "b7077137c5f636af8b628ba4d4e04e7b6fa4be6032304e634771cc74cc2e5364",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/ai/BattleAiScoreService.Scoring.cs": "4f261a62a8b10d0a37573245723fef120cd5160d757b360a50f24d2267db71da",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_input.py": "71efb2eeb30dbac9c4b46bc51163a23aeca1195c00af3e71a2a760f65b241dd6"
+      },
+      "assumptions": [
+        "Proposed target-status bonus dice are NOT implemented. Actual enemies: 3; valid burning stacks at this cast: [0, 0, 0].",
+        "One D6 per valid target burning stack, cap three per target. Existing burning damage is excluded because this proposal neither consumes nor refreshes it.",
+        "D6 mean 3.5; save success probability 0.5; partial save halves damage; ignores integer rounding, equipment, criticals, mitigation, death and overkill.",
+        "Preparation probability 1.0 is an explicit assumption. Preparation AP/MP belongs to the source skill and is additional team expenditure.",
+        "Every repeat-cast probe is unprepared; no burning is silently renewed between casts. Each action costs two AP and has zero casting time.",
+        "Old-skill cases show only direct damage: its separately saved, source-scoped burning is excluded, so this comparison is not old/new total damage superiority.",
+        "Area radius never supplies automatic extra targets; counted targets are held fixed."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 70,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    }
+  ]
+}

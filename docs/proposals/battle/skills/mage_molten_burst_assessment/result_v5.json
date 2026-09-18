@@ -1,0 +1,3087 @@
+{
+  "status": "arithmetic_only",
+  "baseline_version": "2026-09-15.1",
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "cases": [
+    {
+      "id": "window_l0_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l0_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l0_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l0_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 90,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l0_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l1_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l1_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l1_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l1_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 90,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l1_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l2_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l2_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l2_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l2_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 90,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l2_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 125,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l3_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l3_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l3_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l3_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 90,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l3_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l4_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l4_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l4_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l4_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l4_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l5_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 110,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l5_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 110,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l5_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 110,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l5_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 110,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l5_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 110,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l6_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 115,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l6_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 115,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l6_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 115,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l6_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 115,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l6_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 115,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l7_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l7_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l7_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l7_h320_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "window_l7_h320_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    }
+  ]
+}

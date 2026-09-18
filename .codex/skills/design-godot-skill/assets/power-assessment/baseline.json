@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "baseline_version": "2026-09-15.1",
+  "verified_on": "2026-09-15",
+  "reference_turn_tu": 40,
+  "tu_step": 5,
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "source_sha256": {
+    "scripts/player/progression/ActionCadenceContentRules.cs": "26f750175d95fa33674381ab63c294d848809f9e150149aefa64331e2135ab0f",
+    "scripts/systems/battle/core/BattleUnitActionClockState.cs": "58c98b548bcbb308128ebb2dd7ffe6d07b37c39a796421eaaa8d9a260eaebfbf",
+    "scripts/systems/battle/core/BattleUnitCooldownState.cs": "db36b90c4f98ef0d39a3133912d00ff648815207cf91d5c0d59f1ea66608e86e",
+    "scripts/systems/battle/runtime/BattleTimelineDriver.cs": "9f2bb5297c9f68396678629d9a5a13c0be06900dc072e57969daa5a99e13a180",
+    "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf"
+  },
+  "probe_axes": {
+    "caster_interval_tu": [
+      40,
+      30,
+      20
+    ],
+    "threat_interval_tu": [
+      40,
+      30,
+      20
+    ],
+    "threat_count": [
+      1,
+      3
+    ],
+    "horizon_tu": [
+      80,
+      160,
+      320
+    ],
+    "ordinary_hit_probability": [
+      0.35,
+      0.6,
+      0.85
+    ],
+    "phase_policy": "Check an early phase (5 TU) and a late phase (full interval); split cast-first and threat-first ties."
+  },
+  "anchor_policy": "Reuse 1-3 reviewed same-role, same-stage anchor packets. Pin scenario, candidate level, canonical effect evidence and dependencies. Missing role envelope means uncalibrated, not balanced."
+}

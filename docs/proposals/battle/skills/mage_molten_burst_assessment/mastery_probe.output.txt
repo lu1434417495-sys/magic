@@ -1,0 +1,11 @@
+
+[1/1] [RUN] tests/progression/schema/run_molten_burst_design_probe.cs
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+
+Proposed cumulative gates: 60,160,320,560,900; production skill content unchanged.
+Molten burst design mastery probe: PASS
+[lifecycle] shutdown-report reason=TestComplete requested=0 effective=0 phase=QuitRequested barrier_skipped=False duplicates=0 failures=0 legacy_debt=0
+[1/1] [DONE] tests/progression/schema/run_molten_burst_design_probe.cs - 成功 (17.37s)
+
+Passed: 1
+Failed: 0

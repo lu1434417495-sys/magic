@@ -1,0 +1,2245 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "window_l0_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l0_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l0_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l0_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l0_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l1_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l1_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l1_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l1_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l1_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l2_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l2_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l2_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l2_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l2_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 35,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l3_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l3_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l3_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l3_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l3_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l4_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l4_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l4_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l4_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l4_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l5_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l5_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l5_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l5_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l5_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l6_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l6_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l6_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l6_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l6_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l7_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l7_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l7_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l7_h320_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "window_l7_h320_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "5559f35255e11505ef69bba1c2707e383a6f944fe9d126c2dbb64255395e6f68",
+        "data/configs/json/skills/mage_02.json": "8fb9715b91e16f1ce063952732b6d21ae2879080439c6bc1e9669e7351818f39",
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+        "scripts/systems/battle/core/BattleStatusSourceContributionState.cs": "fe265a080f3d44ae3cbf96c4a5bf6cab4029ac29691319429f2957871cc4230d",
+        "scripts/systems/battle/core/BattleStatusEffectState.cs": "b067a7480b41779dcec6fedc5af856400b8bf50e59832a01c8a298cafc084eac",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "96a0074f0b3d67e0831d44ec090019968ce82dd8c2137a08b36a0d8090cd196e",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/simulation/run_molten_window_design_analysis.cs": "3a9257169dd59c4b035768c65012d91e1ae8c6ed96e135fd15958515e6c2581c",
+        "tests/shared/BattleTestFixture.cs": "9609fc0c5dc46f23a5b86a5b2cf4cb26de93db9ebe23b5227073af27c53fa0cb",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/window_sources_v5.json": "dbe6405749eed239763802e87a4ab2e384329e16dc103bdad3e1df871e744a79",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision5.py": "5a54c10e7971f508956cbdde9e1c52404a92cb63eaa3e2eb509977177324cec6"
+      },
+      "assumptions": [
+        "The window effect is proposed, not implemented. Immediate HP comes separately from natural source forecasts; this card records zero INCREMENTAL LIFETIME damage.",
+        "At most one paid finisher; no refill, new fire, healing, dispel, death, mitigation change or overkill. Source and team AP/MP are recorded separately by the explicit source scenarios.",
+        "D_ref=6 is the pre-existing diagnostic comparison unit, not a calibrated role price. Do not use zero lifetime HP to erase the conditional earlier-kill benefit.",
+        "160MP here is a fixed remaining caster pool. It is not a normal character stat or a free preparation budget. Actual per-caster preparation affordability is in window_sources_v5.json."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    }
+  ]
+}

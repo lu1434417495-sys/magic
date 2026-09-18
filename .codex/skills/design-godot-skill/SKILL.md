@@ -7,15 +7,25 @@ description: Design, audit, repair, or refactor combat skill content for this Go
 
 ## Purpose
 
-Use this skill to design combat skills in the progression and battle systems. A normal skill is a `SkillDef` resource in `data/configs/skills/` with a `CombatSkillDef` profile and one or more `CombatEffectDef` entries. Some high-complexity skills use `special_resolution_profile_id` and typed runtime/profile code instead of executable `effect_defs`.
+Use this skill to design combat skills in the progression and battle systems. Production authoring is family JSON under `data/configs/json/skills/`, imported into immutable `SkillDefinition` graphs. Resource-shaped `SkillDef`/`CombatSkillDef`/`CombatEffectDef` classes remain diagnostic fixtures, not production authoring truth. Some high-complexity skills use `special_resolution_profile_id` and typed runtime/profile code instead of executable `effect_defs`.
 
 ## Operating Modes
 
-- For an existing skill optimization or refactor, preview first unless the user explicitly asks for direct implementation. Inspect the resource and relevant runtime/test context, present the proposed field-level changes, then wait for confirmation before editing `.tres`, scripts, docs, or tests.
+- For an existing skill optimization or refactor, preview first unless the user explicitly asks for direct implementation. Inspect the definition and relevant runtime/test context, present the proposed field-level changes, then wait for confirmation before editing skill JSON or implementing that redesign. A request to build assessment tooling or authoring guidance authorizes those artifacts without approving a pending gameplay redesign.
 - For an existing invalid or nonconforming skill, run repair mode first: identify whether the problem is schema validation, runtime support, stale description, missing test coverage, AI/HUD mismatch, role/balance weakness, or unsupported compatibility assumptions. Propose the smallest coherent fix before redesigning the skill.
 - For a new skill or an already-approved change, implement directly once the role, targeting, level rewards, mastery, and validation path are clear. Ask only for decisions that cannot be safely inferred.
 - For a new closed mode, effect type, resource kind, damage category, target selector, save tag, or parameter family, identify the enum/typed rule utility or typed DTO owner before editing resources.
-- For a batch audit, inventory first and classify findings as schema errors, runtime gaps, content-quality candidates, or unverified design questions. Do not bulk-rewrite `.tres` files from heuristic findings.
+- For a batch audit, inventory production JSON first and classify findings as schema errors, runtime gaps, content-quality candidates, or unverified design questions. Do not bulk-rewrite content from heuristic findings.
+
+## Skill Power Assessment
+
+For strength, cost, duration, cooldown or growth-payoff judgments, use [the skill power assessment mechanism](../../../docs/content/skills/skill_power_assessment.md). Load the target and 1–3 relevant reviewed role anchors; reuse fixed scenarios and pinned rule facts. Do not rescan all skills or reopen every battle system for each judgment. Reopen only changed dependencies or owners of a new/unsupported mechanic.
+
+Use `scripts/assess_skill_power.py assets/power-assessment/blur-example.json` from this skill directory (or the repository-root command in the reference) for a reproducible example. It checks a bounded source fingerprint list and computes instant-action timing, finite budgets and event-based marginal effects; it does not reimplement battle formulas or assert balance PASS. Cached evidence must declare dependencies and assumptions. Missing role calibration remains uncalibrated.
+
+Always distinguish single-cast payoff, quantized recast cycle, finite-horizon payoff and separate AP/MP/stamina/aura costs. Compute actual affected events and refresh overlap; do not infer power from raw TU or `growth_tier`, or count prevented and disabled versions of the same attack twice. Recalculate the combined result when multiple axes change.
+
+Include a mastery pace card before declaring the design complete: starting level, per-level and cumulative costs, target battles to the progression gate, qualifying fact and deduplication unit, reward per event, per-level event frequency, and independent rating/training/quest sources. Label assumed frequencies; verify level thresholds through `ProgressionService`. Do not retain an old mastery curve merely because the new trigger parses, or equate zero direct cast mastery with zero global rating rewards. Follow section 11 of the assessment mechanism.
 
 ## Load Repo Context
 
@@ -23,7 +33,7 @@ Use this skill to design combat skills in the progression and battle systems. A 
 2. For most combat-skill work, start from CU-13, CU-14, CU-15, and CU-16. Add CU-19 for regressions, CU-20 for enemy/AI coupling, and CU-21 for headless/text command surfaces only when needed.
 3. Use actual source as the field authority. `project_context_units.md` is not a schema reference.
 
-Minimum source read set by task:
+The following table is an owner navigation map, not a requirement to reload every listed file for each numeric iteration. Production JSON/parser/Definition owners override legacy Resource examples. Reuse verified assessment records while their dependencies remain current.
 
 | Task | Read |
 |------|------|
@@ -34,7 +44,7 @@ Minimum source read set by task:
 | Targeting, areas, cast variants | `BattleTypedEnums.cs`, `CombatSkillTargetingContentRules.cs`, `CombatTargetTeamContentRules.cs`, `BattleSkillResolutionRules.cs`, relevant battle selection/runtime tests |
 | Bow/weapon range skills | `BattleRangeService.cs`, `CombatSkillDef.cs`, `BattleRuntimeSkillTurnResolver.cs`, equipment/weapon projection rules, and similar bow or weapon-range skills |
 | New or unusual effect behavior | `BattleTypedEnums.cs`, `SkillContentRegistry.AppendEffectValidationErrors`, `BattleSkillResolutionRules.cs`, and the runtime resolver that would execute the effect |
-| Batch existing-skill audit | Run `scripts/audit_skill_content.py`, then read `references/existing-skill-quality-audit.md`, the production validator, candidate resources, and their current consumers |
+| Batch existing-skill audit | Read `references/existing-skill-quality-audit.md`, inventory `data/configs/json/skills/` with its file-local templates, then inspect the production validator and candidate consumers. The legacy TRES inventory script does not cover production JSON. |
 | Cross-path effect landing | Read `references/cross-path-effect-landing.md`, then inspect every applicable producer/consumer in the matrix before choosing an owner |
 | Mastery changes | `BattleSkillMasteryService.cs`, `BattleRuntimeModule.cs`, `SkillContentRegistry.cs`, mastery regressions |
 | Weapon-gated skills | `CombatSkillDef.cs`, `BattleRuntimeSkillTurnResolver.cs`, equipment/weapon projection rules, weapon dice regressions |
@@ -52,13 +62,7 @@ When previewing or repairing an existing skill, include:
 - Validation plan and concrete regression commands.
 - Open decisions that require user approval.
 
-For a repository-wide inventory, run:
-
-```powershell
-python .codex/skills/design-godot-skill/scripts/audit_skill_content.py --repo-root . --summary-only
-```
-
-Rerun without `--summary-only` only when candidate paths are needed. The script reports candidates, not approved fixes. Follow [references/existing-skill-quality-audit.md](references/existing-skill-quality-audit.md) before editing any candidate.
+Repository-wide inventory belongs only to a requested batch audit or explicit baseline refresh. The old `scripts/audit_skill_content.py` scans removed TRES authoring and its zero results are not production evidence. For individual power assessments follow the bounded workflow above. Follow [references/existing-skill-quality-audit.md](references/existing-skill-quality-audit.md) before editing an audit candidate.
 
 ## Design Checklist
 
@@ -69,14 +73,14 @@ Decide before writing config:
 - Targeting: `target_mode`, `target_team_filter`, `target_selection_mode`, `selection_order_mode`, range source, `range_value`, `area_pattern`, `area_value`, target counts, repeat-target rules, and optional cast variants. For bow and weapon-range skills, treat equipped weapon range as the default source.
 - Effect chain: direct `effect_defs`, `passive_effect_defs`, `cast_variants[*].effect_defs`, or a special profile. Do not use `effect_defs` as executable truth for a special-profile skill unless the current manifest/runtime explicitly allows it.
 - Level caps and rewards: non-core max, approved static non-core/absolute-max pair, dynamic max fields if any, per-driver-level max table or breakpoints when relevant, mastery curve coverage, cost/range/area/target-count/attack/casting changes in `level_overrides`, effect unlock windows, cast variant unlocks, and description config changes.
-- Mastery: trigger mode, amount mode, and whether runtime result facts currently support the desired trigger.
+- Mastery: trigger mode, amount mode, supporting runtime facts, deduplication and zero-reward cases; jointly assess the curve and expected battle count including independent progression sources.
 - Core-selection / level-trigger growth: `growth_tier`, `attribute_growth_progress`, total tier budget from `AttributeGrowthContentRules`, base attribute distribution, and per-attribute application/capping rules from `AttributeGrowthService`. For normal static-cap skills, the non-core cap is the core-selection point: a 3 -> 5 skill can enter the core/promotion chain at level 3. The submitted promotion path then locks the trigger, applies `attribute_growth_progress` once, and unlocks the effective max to the absolute `max_level`; do not wait until level 5/7/9/10 to grant this growth.
 - AI and enemy coupling: whether enemies need action definitions, brain hints, score profiles, or roster/template changes.
 
 ## Authoring Rules
 
-- Use the C# resource classes and `SkillContentRegistry` validation as the source of truth. If this skill's schema reference disagrees with code, trust code and update the reference.
-- If the user questions timing, caps, range, resources, or growth behavior, re-open the relevant C# owner and regression before answering or editing. Treat this skill and its reference as navigation only.
+- Use the strict JSON DTO/parser, `SkillImportModelValidator`, immutable Definition validators and effective runtime getters as the source of truth. Resource-shaped classes are diagnostic fixtures. If this skill's schema reference disagrees with code, trust code and update the reference.
+- If the user questions timing, caps, range, resources, or growth behavior, verify the relevant pinned assessment facts. If the dependency changed or the fact is missing, re-open that C# owner and regression; do not restart a system-wide audit. Treat unverified reference prose as navigation only.
 - `level_overrides` keys are integer levels in `.tres` dictionaries, for example `3: { "stamina_cost": 20 }`. Do not use string keys there. `level_description_configs` uses string keys such as `"3"`.
 - To discover supported fields, read exported properties and typed getters in the resource class, then read the corresponding `SkillContentRegistry` validation branch. Do not copy a full field list from this skill.
 - To discover supported `level_overrides` keys, read `CombatSkillDef.GetEffective*` methods and the `combatProfile.level_overrides` validation loop in `SkillContentRegistry`.
@@ -127,4 +131,6 @@ After authoring or code changes:
 - `references/skill-config-schema.md` - Schema owner map, source-reading commands, stable pitfalls, and `.tres` examples. It is not a complete field list.
 - `references/existing-skill-quality-audit.md` - Batch-audit classification, evidence, and approval boundaries.
 - `references/cross-path-effect-landing.md` - Producer/consumer matrix for new effect kinds and shared battle mechanics.
-- `scripts/audit_skill_content.py` - Read-only static inventory that surfaces review candidates without modifying resources.
+- [Skill power assessment](../../../docs/content/skills/skill_power_assessment.md) - Fixed probes, marginal effects, local anchors, evidence freshness, and interpretation limits.
+- `scripts/assess_skill_power.py` - Bounded arithmetic assessment; example and pinned timing rules under `assets/power-assessment/`.
+- `scripts/audit_skill_content.py` - Legacy TRES inventory; not valid for the current production JSON catalog.

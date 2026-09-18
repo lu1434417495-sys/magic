@@ -1,0 +1,1453 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "recommended_l0_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 180,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l1_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 180,
+      "costs": {
+        "ap": 1,
+        "mp": 55,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l2_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 80,
+      "cooldown_tu": 180,
+      "costs": {
+        "ap": 1,
+        "mp": 55,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l3_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 80,
+      "cooldown_tu": 160,
+      "costs": {
+        "ap": 1,
+        "mp": 55,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l4_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 80,
+      "cooldown_tu": 160,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l5_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 160,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l6_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 50,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l0_solo",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 180,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 1,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_solo",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 1,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_low_hit",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.35，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.275 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.275
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_high_hit",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.85，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=1.275 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 1.275
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_fast_threats",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 20,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_late_phase",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 30,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_short_fight",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_medium_fight",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_one_cast_budget",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 45 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 45,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_fast_caster_30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_fast_caster_20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_same_tu_cast_first",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。",
+        "敌人从 t=0 起行动；同 TU 先施法。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 0,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_same_tu_threat_first",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。",
+        "敌人从 t=0 起行动；同 TU 先受攻击。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "threat_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 0,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_redundant_disadvantage",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "攻击者已带劣势，新增同类劣势不叠加，每事件边际收益为零。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "recommended_l7_bypass_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "全部伤害绕过普通命中检定（豁免、直接伤害或强制命中）；仍按同一尝试时刻记录，每事件新增防护边际收益为零。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "long_option_l7_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 240,
+      "costs": {
+        "ap": 1,
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "long_option_l7_solo",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 240,
+      "costs": {
+        "ap": 1,
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 1,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "long_option_l7_short_fight",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 240,
+      "costs": {
+        "ap": 1,
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "withdrawn_cheap_long_l7_center",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。",
+        "历史撤回候选，仅为过高覆盖的算术对照，不是批准方案或平衡锚点。"
+      ],
+      "duration_tu": 180,
+      "cooldown_tu": 150,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ]
+    },
+    {
+      "id": "current_ac_l0_single_cast",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "当前 AC+2；仅在普通 AC 阈值范围内且无幸运/暴击/保底或其他判定变化时，假设命中率 p 从 0.60 降到 0.50，命中固定造成 10 HP，每事件减少 1 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施，但本例只允许施放一次。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。",
+        "只比较一次施法，禁止用最早冷却刷新政策浪费旧技能资源来制造候选优势。"
+      ],
+      "duration_tu": 60,
+      "cooldown_tu": 15,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 1
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "current_ac_l7_single_cast",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "当前 AC+6；仅在普通 AC 阈值范围内且无幸运/暴击/保底或其他判定变化时，假设命中率 p 从 0.60 降到 0.30，命中固定造成 10 HP，每事件减少 3 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施，但本例只允许施放一次。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。",
+        "只比较一次施法，禁止用最早冷却刷新政策浪费旧技能资源来制造候选优势。"
+      ],
+      "duration_tu": 120,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 1,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 3
+          }
+        }
+      ],
+      "max_casts": 1
+    },
+    {
+      "id": "recommended_l7_single_cast",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "ded6ed22735f5846f657a77fcea58c376a3c87be94837a59698200d10facca48",
+        "scripts/systems/battle/rules/BattleHitResolver.cs": "b05b06c8435594284f7e2a45dcfed30873a1b4de5c122531f4bd9fea00895b70",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733"
+      },
+      "assumptions": [
+        "受控算术假设，不是 canonical preview、实测伤害或已校准平衡锚点。",
+        "普通独立 D20，无幸运/暴击/天然结果额外收益、优势、其他劣势或命中保底变化；命中率 p=0.6，命中固定造成 10 HP，候选劣势的每事件边际减伤=(p-p*p)*10=2.4 HP。",
+        "敌人始终存活并按固定相位攻击施法者；不考虑转火、移动、击杀、驱散与控制。该假设只用于隔离抗集火能力。",
+        "施法者 t=0 即时自施，之后每次激活至多施放一次，能支付时按最早合法时刻复施，但本例只允许施放一次。固定 120 MP，无恢复，施法者每 AP 的另选输出假定为 6 HP；防护和输出分别报告。"
+      ],
+      "duration_tu": 100,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 1,
+        "mp": 45,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 1,
+        "resource_budget": {
+          "mp": 120,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {},
+      "streams": [
+        {
+          "id": "attack_attempts",
+          "count": 3,
+          "interval_tu": 30,
+          "first_event_tu": 5,
+          "marginal_per_event": {
+            "damage_prevented_hp": 2.4
+          }
+        }
+      ],
+      "max_casts": 1
+    }
+  ]
+}

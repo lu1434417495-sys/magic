@@ -1,0 +1,1567 @@
+{
+  "status": "arithmetic_only",
+  "baseline_version": "2026-09-15.1",
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "cases": [
+    {
+      "id": "l0_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l1_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l2_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l3_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l4_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l6_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_h160_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_h160_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l0_h160_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 90,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 90,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_h160_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l5_h160_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 142,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_h80_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_h320_t40",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_h160_t20",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "l7_h160_t30",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 60,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 60,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 1
+      },
+      "resource_remaining": {
+        "mp": 144,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 6,
+      "balance_verdict": "requires_role_anchor_comparison"
+    }
+  ]
+}

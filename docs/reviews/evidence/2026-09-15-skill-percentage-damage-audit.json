@@ -1,0 +1,3879 @@
+{
+  "date": "2026-09-15",
+  "method": "Static production JSON inventory, file-local templates, and damage-owner source review. Unique skill IDs; levels/effects deduplicated. Not a runtime validation or exhaustive scan of equipment/special-profile injected multipliers.",
+  "files": 29,
+  "unique_skills": 706,
+  "fifty_percent_description_count": 9,
+  "fifty_percent_promises_implemented_among_these_nine": 0,
+  "generic_percentage_bonus_source_count": 64,
+  "generic_counts": {
+    "archer_pre_aim": 2,
+    "marked": 50,
+    "attack_up": 9,
+    "conditional_damage_ratio": 2,
+    "target_damage_multiplier": 1
+  },
+  "fifty_percent_description_skills": [
+    {
+      "skill_id": "archer_heartseeker",
+      "name": "追心箭",
+      "file": "data/configs/json/skills/archer_01.json",
+      "line": 1760,
+      "description": "若目标已带有 标记，本次伤害改为 150%；若因此击杀，则返还 1 点 stamina。",
+      "combat_profile": {
+        "skill_id": "archer_heartseeker",
+        "range_value": 5,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 12,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "stamina_cost": 1,
+        "attack_roll_bonus": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "template": {
+        "max_level": 3
+      }
+    },
+    {
+      "skill_id": "archer_hunting_grid",
+      "name": "狩猎网阵",
+      "file": "data/configs/json/skills/archer_01.json",
+      "line": 2182,
+      "description": "在区域内撒布索绳与短箭；敌人首次离开区域时再受一次 50% 伤害并获得 断筋。",
+      "combat_profile": {
+        "skill_id": "archer_hunting_grid",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 3,
+        "cooldown_tu": 20,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "power": 6,
+            "payload": {},
+            "damage_tag": "physical_pierce"
+          }
+        ],
+        "area_value": 2,
+        "aura_cost": 1,
+        "projectile_kind": "current_weapon"
+      },
+      "template": {
+        "max_level": 3
+      }
+    },
+    {
+      "skill_id": "mage_arcane_echo",
+      "name": "奥术回响",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 1234,
+      "description": "令下一个单体法术以50%威力再触发一次，适合配合高价值点杀术。",
+      "combat_profile": {
+        "skill_id": "mage_arcane_echo",
+        "target_team_filter": "ally",
+        "range_value": 0,
+        "area_pattern": "self",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 15,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_roll_bonus_up"
+          }
+        ],
+        "level_overrides": {
+          "3": {},
+          "5": {
+            "cooldown_tu": 10
+          },
+          "7": {}
+        },
+        "mastery_trigger_mode": "effect_applied",
+        "delivery_categories": [
+          "spell"
+        ],
+        "target_selection_mode": "self"
+      },
+      "template": {
+        "max_level": 7
+      }
+    },
+    {
+      "skill_id": "mage_cold_snap",
+      "name": "霜爆回响",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 4754,
+      "description": "若区域内存在带寒蚀的敌人，则对其追加一次50%碎裂伤害。",
+      "combat_profile": {
+        "skill_id": "mage_cold_snap",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "freeze",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "constitution",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "slow",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "template": {
+        "max_level": 7
+      }
+    },
+    {
+      "skill_id": "mage_molten_burst",
+      "name": "熔爆术",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 1125,
+      "description": "对已带灼烧的敌人追加一次50%火焰余震，适合作为火系中段爆发点。",
+      "combat_profile": {
+        "skill_id": "mage_molten_burst",
+        "target_mode": "ground",
+        "range_value": 4,
+        "area_pattern": "radius",
+        "ap_cost": 2,
+        "mp_cost": 80,
+        "cooldown_tu": 10,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 0,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 4,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 5,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 6,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 7,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 7,
+            "payload": {},
+            "damage_tag": "fire",
+            "dice_count": 8,
+            "dice_sides": 6,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          },
+          {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "burning",
+            "tick_interval_tu": 10,
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "agility",
+            "save_tag": "magic"
+          }
+        ],
+        "level_overrides": {
+          "3": {
+            "range_value": 5
+          },
+          "5": {
+            "cooldown_tu": 5,
+            "range_value": 5
+          },
+          "7": {
+            "area_value": 2
+          }
+        },
+        "area_value": 1,
+        "delivery_categories": [
+          "spell"
+        ]
+      },
+      "template": {
+        "max_level": 7
+      }
+    },
+    {
+      "skill_id": "warrior_blood_mark",
+      "name": "血纹标记",
+      "file": "data/configs/json/skills/warrior_02.json",
+      "line": 376,
+      "description": "目标受到流血伤害+50%。",
+      "combat_profile": {
+        "skill_id": "warrior_blood_mark",
+        "range_value": 2,
+        "cooldown_tu": 80,
+        "level_overrides": {
+          "2": {
+            "stamina_cost": 12
+          }
+        },
+        "stamina_cost": 18
+      },
+      "template": {
+        "max_level": 3
+      }
+    },
+    {
+      "skill_id": "warrior_cliff_heavy_strike",
+      "name": "断崖重击",
+      "file": "data/configs/json/skills/warrior_03.json",
+      "line": 436,
+      "description": "目标身后障碍/边缘额外50%伤害。",
+      "combat_profile": {
+        "skill_id": "warrior_cliff_heavy_strike",
+        "cooldown_tu": 80,
+        "effect_defs": [
+          {
+            "effect_type": "damage",
+            "max_skill_level": 4,
+            "payload": {},
+            "dice_count": 1,
+            "dice_sides": 10,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 5,
+            "max_skill_level": 7,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 6,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          },
+          {
+            "effect_type": "damage",
+            "min_skill_level": 8,
+            "payload": {},
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "stamina_cost": 26
+          }
+        },
+        "stamina_cost": 32,
+        "attack_roll_bonus": -1
+      },
+      "template": {
+        "max_level": 9
+      }
+    },
+    {
+      "skill_id": "warrior_qi_empower_strike",
+      "name": "斗气强化攻击",
+      "file": "data/configs/json/skills/warrior_10.json",
+      "line": 202,
+      "description": "下一击伤害+50%附带穿透。",
+      "combat_profile": {
+        "skill_id": "warrior_qi_empower_strike",
+        "range_value": 0,
+        "cooldown_tu": 20,
+        "level_overrides": {
+          "3": {
+            "aura_cost": 18
+          }
+        },
+        "aura_cost": 22
+      },
+      "template": {
+        "max_level": 7
+      }
+    },
+    {
+      "skill_id": "warrior_tiger_god_possession",
+      "name": "虎神附体",
+      "file": "data/configs/json/skills/warrior_14.json",
+      "line": 1315,
+      "description": "攻击+20%，移动+1，流血伤害+50%。",
+      "combat_profile": {
+        "skill_id": "warrior_tiger_god_possession",
+        "range_value": 0,
+        "cooldown_tu": 160,
+        "effect_defs": [
+          {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        ],
+        "level_overrides": {
+          "5": {
+            "aura_cost": 45
+          }
+        },
+        "aura_cost": 55
+      },
+      "template": {
+        "max_level": 9
+      }
+    }
+  ],
+  "generic_percentage_bonus_sources": [
+    {
+      "skill_id": "archer_highground_claim",
+      "name": "抢高位",
+      "file": "data/configs/json/skills/archer_01.json",
+      "line": 1830,
+      "description": "向指定高低差合法格位移动最多 3 格；若落点为高地，额外获得 预瞄。",
+      "hits": [
+        {
+          "kind": "archer_pre_aim",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "archer_pre_aim"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "archer_skirmish_step",
+      "name": "游击步",
+      "file": "data/configs/json/skills/archer_01.json",
+      "line": 3099,
+      "description": "向更安全的位置立即位移最多 2 格，并获得 预瞄，是弓箭手的基础转线手段。",
+      "hits": [
+        {
+          "kind": "archer_pre_aim",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "archer_pre_aim"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_apocalypse_word",
+      "name": "终焉言灵",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 265,
+      "description": "死灵系高阶斩杀技，对低生命目标有显著伤害提升，适合作为大招收尾。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_arcane_cataclysm",
+      "name": "奥能崩解",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 958,
+      "description": "奥术系高阶领域爆发，命中的敌人统一获得奥术脆弱，方便后续整队压制。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_arcane_turret",
+      "name": "奥术炮台",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 1903,
+      "description": "固定炮台型召唤物，优先攻击带奥术脆弱的目标。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_banshee_wail",
+      "name": "女妖哀嚎",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 2808,
+      "description": "近距离群体压制，命中的敌人获得失衡，并优先后退。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_black_flame",
+      "name": "冥火术",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 3055,
+      "description": "施加不可被普通净化立刻清除的暗焰灼烧，对高回复敌人特别克制。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_boulder_throw",
+      "name": "巨岩投射",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 3751,
+      "description": "朴素但扎实的土石高伤单体技，命中后附带小幅击退。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_comet_drop",
+      "name": "焰星坠",
+      "file": "data/configs/json/skills/mage_01.json",
+      "line": 5608,
+      "description": "高阶落点爆破技，中心敌人额外承受+25%伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_confusion_wave",
+      "name": "乱心波",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 259,
+      "description": "扇形精神扰动，命中的敌人在接下来60TU内优先攻击最近目标或失去最佳技能选择。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_crystal_pike",
+      "name": "晶簇突刺",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 925,
+      "description": "在落点形成高密度水晶刺群，对冰冻目标追加一次碎裂伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_crystal_sentinel",
+      "name": "晶盾守卫",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 1175,
+      "description": "召唤偏护卫型的水晶构装体，可为相邻友军提供减伤。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_death_mark",
+      "name": "死兆印记",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 1417,
+      "description": "纯功能收割印记，目标生命越低，承受的法术伤害越高。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "max_skill_level": 0,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/1",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 1,
+            "max_skill_level": 2,
+            "power": 1,
+            "duration_tu": 60,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/2",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/3",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/4",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_death_reap",
+      "name": "死亡收割",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 1608,
+      "description": "高耗魔单体收割技，击杀目标后返还AP与免费移动额度。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/8",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_dispel_wave",
+      "name": "驱散波",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 2446,
+      "description": "同时清理敌方增益与友方减益，是中后期泛用解场技。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_ether_pull",
+      "name": "以太牵引",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 3603,
+      "description": "轻伤并把目标拉近或推远1格，用于把敌人拖进不利地形。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_fault_line",
+      "name": "地裂线",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 3822,
+      "description": "沿直线撕开地面，命中的敌人获得失衡，可与远程集火配合。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_fear_whisper",
+      "name": "惊惧耳语",
+      "file": "data/configs/json/skills/mage_02.json",
+      "line": 4072,
+      "description": "命中后使目标后退1格并命中-10%，适合拆近战突脸节奏。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_glitter_dust",
+      "name": "炫尘术",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 1046,
+      "description": "扬起闪耀粉尘，命中敌人使其blinded，并揭示隐身或潜伏单位。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_gravity_sink",
+      "name": "重压塌陷",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 1785,
+      "description": "以重力挤压区域，命中敌人移动力-1，并更容易被战士冲锋定住。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_hallucinatory_field",
+      "name": "蜃景场",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 2496,
+      "description": "制造大范围蜃景，区域内敌人命中-15%，移动成本+1，扰乱AI路径选择。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_life_drain",
+      "name": "生命虹吸",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 3999,
+      "description": "造成伤害并按比例回复自身生命，是法师少数能自我续航的术式。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_living_meteor",
+      "name": "活化陨核",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 4202,
+      "description": "召出会缓慢滚动的熔核，沿途对敌人造成火土混合伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_mana_burst",
+      "name": "法涌爆裂",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 4654,
+      "description": "纯奥术单体爆发，若自身处于咏唱则本次不消耗冷却。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_mana_leech",
+      "name": "蚀法孢子",
+      "file": "data/configs/json/skills/mage_03.json",
+      "line": 5053,
+      "description": "召唤会吸取敌方法力与法盾的小型孢子体，主打消耗战。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_memory_spike",
+      "name": "记忆针刺",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 4,
+      "description": "干扰咒式记忆，目标下一次技能消耗+1。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_mirror_shard",
+      "name": "棱镜碎反",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 737,
+      "description": "命中后可对与其相邻的另一目标折射一次60%奥术伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_mud_wave",
+      "name": "泥潮术",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 1378,
+      "description": "向前推送泥流，若前方已有mud地格则范围+1。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_obsidian_shards",
+      "name": "黑曜石碎群",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 1832,
+      "description": "对护甲型单位更有效，若目标带有armor_break则额外追加一次40%割裂伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_phantasmal_blade",
+      "name": "幻刃诱杀",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 2620,
+      "description": "若目标已blinded或staggered，则本次改为140%伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_phantom_cage",
+      "name": "幻牢术",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 3074,
+      "description": "把目标封在幻象牢笼里，目标获得rooted并失去反击资格。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_phase_beam",
+      "name": "相位射线",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 3292,
+      "description": "穿透直线法术，若路径上存在召唤物或掩体则优先无视其阻挡。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_prism_spray",
+      "name": "棱镜喷射",
+      "file": "data/configs/json/skills/mage_04.json",
+      "line": 4300,
+      "description": "扇形混合伤害技，随机附带blinded、奥脆或感电之一。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_quicksand",
+      "name": "流沙陷区",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 761,
+      "description": "生成小型流沙区；敌人首次进入时立即停止移动并获得 寒蚀 或 浸湿 中的任一软控标签。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_runic_golem",
+      "name": "符文傀儡",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 1599,
+      "description": "较硬的召唤前排；适合给法师争取安全施法位。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_runic_trap",
+      "name": "符印陷阱",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 1856,
+      "description": "在指定地格布置奥术印记；被触发时爆发奥术伤害并施加 奥脆。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_sandstorm",
+      "name": "沙暴术",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 2113,
+      "description": "低伤高扰乱法术；区域内敌人获得 blinded，远程单位尤其难受。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_seal_of_binding",
+      "name": "束缚印",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 2601,
+      "description": "在目标身上刻下奥术符印；目标下一个位移或冲锋类动作会直接失败。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_searing_orb",
+      "name": "灼热法珠",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 2820,
+      "description": "轻量范围技；中心目标若已 寒蚀，则本次额外触发一次 40% 爆燃伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_shadow_bolt",
+      "name": "暗蚀飞弹",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 3062,
+      "description": "死灵系基础点杀术；命中后施加 奥脆。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_shadow_double",
+      "name": "阴影分身",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 3266,
+      "description": "复制施法者的上一个单体技能一次低配版本，适合作为节奏延伸器。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_silence_orb",
+      "name": "寂声法球",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 3672,
+      "description": "区域内敌方施法类技能命中 -20%，并更难触发高阶连锁。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_categories": [
+              "mental_attack"
+            ],
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "illusion"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_soul_cage",
+      "name": "灵魂囚笼",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 4743,
+      "description": "禁止目标在 120 TU 内获得治疗或复活类收益；对精英和首领战很有价值。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_soul_chain",
+      "name": "魂锁术",
+      "file": "data/configs/json/skills/mage_05.json",
+      "line": 4946,
+      "description": "连接直线上的至多 2 名敌人；其中一人受伤时另一人承受部分牵连伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_spellbreaker",
+      "name": "裂咒术",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 907,
+      "description": "拆除目标身上的一个增益或法盾；对带护盾的施法敌人压制力很强。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_starfall_gate",
+      "name": "星门陨落",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 1386,
+      "description": "以短暂星门投放奥术碎星；若目标带有 奥脆，则额外返还 1 点 mp。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_stone_spike",
+      "name": "岩刺术",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 1871,
+      "description": "沿直线突起石刺；对被 rooted 或站在 mud 中的目标额外伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_terra_pulse",
+      "name": "地脉脉冲",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 3676,
+      "description": "以自身为中心扩散地脉震波；可把靠近的敌人推出关键格位。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_time_dilate",
+      "name": "缓时术",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 4404,
+      "description": "让目标时间流速迟缓；移动力 -1、命中 -10%，持续 120 TU。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_void_spike",
+      "name": "虚蚀尖刺",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 4800,
+      "description": "奥术与虚无混合的穿刺线伤；对法盾和召唤物有额外克制。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "mage_warding_skull",
+      "name": "守望颅骨",
+      "file": "data/configs/json/skills/mage_06.json",
+      "line": 5230,
+      "description": "侦测型召唤物；揭示潜行单位，并在敌人接近时发射诅咒光束。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/5",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 3,
+            "max_skill_level": 4,
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/6",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 5,
+            "max_skill_level": 6,
+            "power": 2,
+            "duration_tu": 100,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        },
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/7",
+          "effect": {
+            "effect_type": "status",
+            "min_skill_level": 7,
+            "power": 3,
+            "duration_tu": 120,
+            "payload": {},
+            "effect_target_team_filter": "enemy",
+            "status_id": "marked",
+            "save_dc_mode": "caster_spell",
+            "save_dc_source_ability": "intelligence",
+            "save_ability": "willpower",
+            "save_tag": "magic"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_berserk",
+      "name": "狂暴",
+      "file": "data/configs/json/skills/warrior_02.json",
+      "line": 4,
+      "description": "进入狂暴状态，大幅提升攻击力但防御下降。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 3,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_focus_mark",
+      "name": "集火标记",
+      "file": "data/configs/json/skills/warrior_06.json",
+      "line": 4,
+      "description": "标记目标，使其受到更多伤害。",
+      "hits": [
+        {
+          "kind": "marked",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "marked"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_frenzy_mode",
+      "name": "狂暴",
+      "file": "data/configs/json/skills/warrior_06.json",
+      "line": 364,
+      "description": "攻击大幅提升但防御降低。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_scale_crack",
+      "name": "鳞纹开裂",
+      "file": "data/configs/json/skills/warrior_11.json",
+      "line": 379,
+      "description": "牺牲部分生命，大幅提升攻击力。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_scale_crack_open",
+      "name": "鳞纹开裂",
+      "file": "data/configs/json/skills/warrior_11.json",
+      "line": 420,
+      "description": "牺牲8%HP获得攻击和控制抗性提升。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_star_blade_final_judge",
+      "name": "星刃终裁",
+      "file": "data/configs/json/skills/warrior_13.json",
+      "line": 696,
+      "description": "若目标带有3个以上减益，造成320%伤害；否则造成基础伤害+固定威能，并附加虚弱和减速。星刃流派终式。",
+      "hits": [
+        {
+          "kind": "conditional_damage_ratio",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "damage",
+            "max_skill_level": 5,
+            "power": 8,
+            "payload": {},
+            "damage_ratio_percent": 320,
+            "dice_count": 2,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "bonus_condition": "target_debuff_count"
+          }
+        },
+        {
+          "kind": "conditional_damage_ratio",
+          "pointer": "/combat_profile/effect_defs/1",
+          "effect": {
+            "effect_type": "damage",
+            "min_skill_level": 6,
+            "power": 12,
+            "payload": {},
+            "damage_ratio_percent": 320,
+            "dice_count": 3,
+            "dice_sides": 8,
+            "add_weapon_dice": true,
+            "requires_weapon": true,
+            "use_weapon_physical_damage_tag": true,
+            "bonus_condition": "target_debuff_count"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_tactical_command",
+      "name": "战术指令",
+      "file": "data/configs/json/skills/warrior_14.json",
+      "line": 291,
+      "description": "指定一名友军，提升其下次攻击的命中与伤害。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/1",
+          "effect": {
+            "effect_type": "status",
+            "power": 1,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_tiger_god_possession",
+      "name": "虎神附体",
+      "file": "data/configs/json/skills/warrior_14.json",
+      "line": 1315,
+      "description": "攻击+20%，移动+1，流血伤害+50%。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 60,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_vanguard_pardon",
+      "name": "先锋赦令",
+      "file": "data/configs/json/skills/warrior_15.json",
+      "line": 537,
+      "description": "赦令友军全力进攻，提升伤害但降低防御。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_vanguard_pardon_skill",
+      "name": "先锋赦令",
+      "file": "data/configs/json/skills/warrior_15.json",
+      "line": 579,
+      "description": "目标伤害+25%但防御-15%。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 40,
+            "payload": {},
+            "effect_target_team_filter": "ally",
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_war_cry_v2",
+      "name": "战吼",
+      "file": "data/configs/json/skills/warrior_15.json",
+      "line": 883,
+      "description": "鼓舞周围友军，提升攻击力。",
+      "hits": [
+        {
+          "kind": "attack_up",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "status",
+            "power": 2,
+            "duration_tu": 80,
+            "payload": {},
+            "status_id": "attack_up"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "warrior_will_penetrate",
+      "name": "意志穿透",
+      "file": "data/configs/json/skills/warrior_15.json",
+      "line": 1369,
+      "description": "对护盾目标额外造成伤害。",
+      "hits": [
+        {
+          "kind": "conditional_damage_ratio",
+          "pointer": "/combat_profile/effect_defs/2",
+          "effect": {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_ratio_percent": 140,
+            "damage_tag": "force",
+            "dice_count": 1,
+            "dice_sides": 8,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "bonus_condition": "target_has_shield"
+          }
+        }
+      ]
+    },
+    {
+      "skill_id": "weapon_sword_starfell_starfall",
+      "name": "星坠",
+      "file": "data/configs/json/skills/weapon_01.json",
+      "line": 1382,
+      "description": "装备技能。需要你施加的星尘总数≥5，施放后消耗5层（优先扣除层数最多的目标）。选择地面目标，对半径2格内敌方造成3D6力场与3D6火焰伤害；目标进行agility DC16豁免，成功则伤害减半；建筑和非魔法构造物受到双倍伤害；群星之末来源每场战斗1次。",
+      "hits": [
+        {
+          "kind": "target_damage_multiplier",
+          "pointer": "/combat_profile/effect_defs/0",
+          "effect": {
+            "effect_type": "damage",
+            "payload": {},
+            "damage_tag": "force",
+            "dice_count": 3,
+            "dice_sides": 6,
+            "effect_categories": [
+              "force_effect"
+            ],
+            "save_dc": 16,
+            "save_ability": "agility",
+            "save_partial_on_success": true,
+            "save_tag": "magic",
+            "extra_damage_segments": [
+              {
+                "damage_tag": "fire",
+                "dice_count": 3,
+                "dice_sides": 6
+              }
+            ],
+            "target_damage_multiplier_rules": [
+              {
+                "any_creature_type_tags": [
+                  "building"
+                ],
+                "multiplier_percent": 200
+              },
+              {
+                "any_creature_type_tags": [
+                  "construct"
+                ],
+                "excluded_creature_type_tags": [
+                  "magical",
+                  "building"
+                ],
+                "multiplier_percent": 200
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "source_sha256": {
+    "data/configs/json/skills/archer_01.json": "043c48ff741b6c89b79487c527747411f26319eed146e14d643d586385fb16c6",
+    "data/configs/json/skills/equipment_dragon_scale.json": "a6e713bcad9eaea720e7aa122c39384148450820620c9994c8b83c6d67c1ef13",
+    "data/configs/json/skills/generated_stage3_ember_orb.json": "eb20661171f7620307e179f1e3f2c55ffc0aefc5d923ed9d7cf594ebf6033e2f",
+    "data/configs/json/skills/generated_stage3_force_needle.json": "9fad1aa191a33e729e892a690398482c04ebaa13ff6bd874fef265276c9da2ea",
+    "data/configs/json/skills/generated_stage3_reserve_comet.json": "fbc17d32c974d9ed2a06cfd07fc19430d5efe53b2ce1bf6c0d69ececf794abfa",
+    "data/configs/json/skills/mage_01.json": "5f95d6a283894bbea7e5efcf971fd107981ed66cd93e79ef0df7afea0fa0cbbe",
+    "data/configs/json/skills/mage_02.json": "120f55c75f856224bb7d0b598509fbb5a2119d49c1b10e9499ba762590f3fcb3",
+    "data/configs/json/skills/mage_03.json": "8cd77ffc358c607b024dde1a75668bf359346e2e2fed0e9fadad10d3b1fba1c9",
+    "data/configs/json/skills/mage_04.json": "b405a6d141e2321c8922b8f13240a297a520bf935adbcb6b052ad7837320d690",
+    "data/configs/json/skills/mage_05.json": "a55a40f57d1209ad2afc9c201c67e8080722e0f53bf53cdd0c1f32a85250db66",
+    "data/configs/json/skills/mage_06.json": "002f280a7012e039345447fd2fb32b11c42b2708076024a51695931dbe9c4fbb",
+    "data/configs/json/skills/misc_01.json": "5cd6f5d0917f66bbf673c6e3e365665f51067668dbc54c5109ad17ad17a3caf6",
+    "data/configs/json/skills/misc_02.json": "97ef4e884664b67b8b14c8d23bd48060b0d6991b5fb906dbb006db18ec743dfe",
+    "data/configs/json/skills/warrior_01.json": "1b08ef7fcd8d3c6a5daa714050d45b01789bba97204f1741ba649cbef961af21",
+    "data/configs/json/skills/warrior_02.json": "aedd6defa077efbfe6410611e0c1f33c19a2811d2279399ca616add50a76e5c3",
+    "data/configs/json/skills/warrior_03.json": "ae03d56a9e4eb18c4d6ac8681d7d2754fe0e80e1849fb78e3c2edc94307e423c",
+    "data/configs/json/skills/warrior_04.json": "b64c1630c94f9abeb0bdf34f55ecf2413019b116c0674a519caf762d25a06d7b",
+    "data/configs/json/skills/warrior_05.json": "a80b9e6a5f0aa1e9c0e11c1769bba8a9a49dc94742b51eaa30e2b6c61e88ad4e",
+    "data/configs/json/skills/warrior_06.json": "6db65e4c3d71054db59cb226f8f1ffdb0a44938ee1eda7256506bc95b0452b95",
+    "data/configs/json/skills/warrior_07.json": "a24da8a210102f9cba8ccabe9cbfd9fead1d5f68c4a2866bd4d14bd03a8fb1cb",
+    "data/configs/json/skills/warrior_08.json": "46a00831c0cd2d0e0a80cf2bec13b2dd1385b5b31017ce5fb875bf3996ed75b0",
+    "data/configs/json/skills/warrior_09.json": "eff6db0d160f26636bec8fe5323502dca13406079d450df2bd4acd898cbc4e2c",
+    "data/configs/json/skills/warrior_10.json": "8c76739091ee12fbfa0993042fe07f3a6ba258a32fb988d8e6b2c437677337c5",
+    "data/configs/json/skills/warrior_11.json": "afa2d86276aa0201f106abcf88a1d91d65b54cffe85515462fad6e4ff75b0d87",
+    "data/configs/json/skills/warrior_12.json": "4cb50512a7ad636035f332dbca1e1c7c79778e1a91cb1e5573f93689fd07f46d",
+    "data/configs/json/skills/warrior_13.json": "56f492bfa8642a6f661a69dae3708d2d4b20e0c3fd57e8338cdccb1c2c2660a3",
+    "data/configs/json/skills/warrior_14.json": "af3fbd0d8cda6fa63afeb45f6c49009f52e87580647414164add53e5c61c0d02",
+    "data/configs/json/skills/warrior_15.json": "8c5261d95c534b4c7bd282f540e909a1a3dc68b155d8fc77b08e358a38b9bbd3",
+    "data/configs/json/skills/weapon_01.json": "2f5b39a67c896d88792edefaa45caa57114df1902ea04d0c816bbbf0182cb9ce",
+    "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+    "scripts/systems/battle/rules/BattleDamageResolver.DtoHelpers.cs": "0c90d2f91dd5b8e912d9f38c1e5dbdea6598806dd2da86f1c538aacc98bdc0f0",
+    "scripts/systems/battle/rules/BattleDamageResolver.Effects.cs": "0f6b462fc83e57f2f9c08afef2071550a6064e165e63025aabb080567d39966f",
+    "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6"
+  }
+}

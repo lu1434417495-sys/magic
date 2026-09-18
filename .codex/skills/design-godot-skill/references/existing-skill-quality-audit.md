@@ -2,12 +2,12 @@
 
 ## Audit Sequence
 
-1. Run the static inventory script for breadth.
+1. For an explicitly requested batch audit, inventory production JSON entries and file-local templates. The old TRES script does not cover current content. For a single-skill power judgment, use the bounded [power assessment mechanism](../../../../docs/content/skills/skill_power_assessment.md) instead of a full inventory.
 2. Run the production resource validator for schema truth.
 3. Group candidates by pattern without editing.
 4. Exclude training, equipment-granted, race, profession, internal, dynamic, and special-profile cases individually.
 5. Read the resource, current typed owner, runtime consumer, AI path, descriptions, and focused tests for each remaining candidate.
-6. Present a field-level preview and wait for approval before changing existing `.tres` content unless direct implementation was already authorized.
+6. Present a field-level preview and wait for approval before changing existing skill JSON unless direct implementation was already authorized.
 
 ## Finding Classes
 

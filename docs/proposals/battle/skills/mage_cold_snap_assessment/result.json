@@ -1,0 +1,1829 @@
+{
+  "status": "arithmetic_only",
+  "baseline_version": "2026-09-15.1",
+  "calibration": "Timing verified against current owners. Probe scenarios and marginal effects are controlled assumptions, not calibrated role balance envelopes.",
+  "cases": [
+    {
+      "id": "candidate_l0_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 90,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 6.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 18.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.525,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l1_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L1; range 4; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 6.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 18.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.5653846153846154,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l2_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L2; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 6.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 18.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.5653846153846154,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l3_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L3; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.1875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 27.5625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8480769230769231,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l4_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L4; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.1875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 27.5625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8480769230769231,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.1875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 27.5625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.8480769230769231,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l6_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L6; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.1875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 27.5625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.91875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l7_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 100,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 12.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.225,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l0_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        120
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 240,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 140,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 10.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.45,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 160,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 130,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 30,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 94.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l7_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 160,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 126.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 21.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.05,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_solo_unprepared",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 1 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 2.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.2423076923076923,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_solo_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 1 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 3.9375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 11.8125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.36346153846153845,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_three_unprepared",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 47.25,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 7.875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 23.625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7269230769230769,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_three_chilled",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 3 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 70.875,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 70.875,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 11.8125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 35.4375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.0903846153846153,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_all_save",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 1; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 6.125,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 18.375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.5653846153846154,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l5_all_fail_save",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 95,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 73.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 12.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 36.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.1307692307692307,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l0_short_unprepared",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 90,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.45,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l7_half_window_unprepared",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 80,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 80,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0,
+        80
+      ],
+      "cast_count": 2,
+      "stop_reason": "horizon",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 120,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 4
+      },
+      "resource_remaining": {
+        "mp": 40,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 126.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 21.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 1.05,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 24,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "candidate_l0_insufficient_mp",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 120,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 120,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [],
+      "cast_count": 0,
+      "stop_reason": "insufficient_mp",
+      "first_failed_cast_tu": 0,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 0,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 0
+      },
+      "resource_remaining": {
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 0.0,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": null,
+        "damage_prevented_hp": null,
+        "effective_healing_hp": null,
+        "enemy_ap_denied": null,
+        "ally_ap_gained": null,
+        "safe_move_cells": null
+      },
+      "foregone_alternative_damage_hp": 0,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "old_l0_damage_only",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 5.25,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 15.75,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.39375,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "old_l5_damage_only",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L5; range 5; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 7D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 55.125,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 9.1875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 27.5625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.6890625,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    },
+    {
+      "id": "old_l7_damage_only",
+      "basis": "controlled_assumption",
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "policy": "instant; at most one cast/activation; earliest legal recast; no regeneration",
+      "same_tu_order": "cast_first",
+      "actual_cycle_tu": 40,
+      "duration_in_reference_turns": 0.0,
+      "ideal_cycle_coverage": 0.0,
+      "gap_per_ideal_cycle_tu": 40,
+      "refresh_overlap_tu": 0,
+      "cast_times_tu": [
+        0
+      ],
+      "cast_count": 1,
+      "stop_reason": "cast_limit",
+      "first_failed_cast_tu": null,
+      "covered_tu": 0,
+      "horizon_coverage": 0.0,
+      "spent": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0,
+        "ap": 2
+      },
+      "resource_remaining": {
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "single_cast_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "single_cast_streams": [],
+      "horizon_marginal": {
+        "damage_dealt_hp": 63.0,
+        "damage_prevented_hp": 0,
+        "effective_healing_hp": 0,
+        "enemy_ap_denied": 0,
+        "ally_ap_gained": 0,
+        "safe_move_cells": 0
+      },
+      "streams": [],
+      "hp_lanes_in_reference_actions": {
+        "damage_dealt_hp": 10.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0
+      },
+      "metric_per_ap": {
+        "damage_dealt_hp": 31.5,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "metric_per_mp": {
+        "damage_dealt_hp": 0.7875,
+        "damage_prevented_hp": 0.0,
+        "effective_healing_hp": 0.0,
+        "enemy_ap_denied": 0.0,
+        "ally_ap_gained": 0.0,
+        "safe_move_cells": 0.0
+      },
+      "foregone_alternative_damage_hp": 12,
+      "balance_verdict": "requires_role_anchor_comparison"
+    }
+  ]
+}

@@ -1,0 +1,1153 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "candidate_l0_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 36.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l1_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L1; range 4; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 36.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l2_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L2; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 36.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l3_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L3; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l4_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L4; range 5; radius 1; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l6_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L6; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l7_three_targets_one_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 73.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l0_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": []
+    },
+    {
+      "id": "candidate_l5_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": []
+    },
+    {
+      "id": "candidate_l7_unprepared_repeat",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": []
+    },
+    {
+      "id": "candidate_l5_solo_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 1 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 15.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_solo_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 1 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 23.625
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_three_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 47.25
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_three_chilled",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 3 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 70.875
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_all_save",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 1; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 36.75
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l5_all_fail_save",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 2; 3 actual enemies; 1 already have bone_chill at this cast.",
+        "Base 6D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 65,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 73.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "candidate_l0_short_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": []
+    },
+    {
+      "id": "candidate_l7_half_window_unprepared",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 2,
+        "mp": 60,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": []
+    },
+    {
+      "id": "candidate_l0_insufficient_mp",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 120,
+      "costs": {
+        "ap": 2,
+        "mp": 70,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 60,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "old_l0_damage_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L0; range 4; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 4D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 10,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 31.5
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "old_l5_damage_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L5; range 5; radius 1; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 7D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 5,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 55.125
+      },
+      "streams": [],
+      "max_casts": 1
+    },
+    {
+      "id": "old_l7_damage_only",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_01.json": "20372bffd14893e10ef479ca98d03dfc67cd1f77f974a8fe6943ff5513234c69",
+        "scripts/systems/battle/rules/BattleDamageBonusConditionRules.cs": "59fba764e1feebbfc43497e1fab8cf637fc68c219dba4eb373cdae6f4ebe98b6",
+        "scripts/systems/battle/rules/BattleDamageResolver.SaveBranch.cs": "775325b6354d4a0505f18d7b64e47ccf1e0eb1b5af93e1b772c1cc02257cbf79",
+        "scripts/systems/battle/rules/BattleDamageResolver.DamageOutcome.cs": "39e157c3f4861537f78422c6fdf7e4e083d200ccf46d45429c4cd135819d0ae3",
+        "scripts/systems/battle/rules/BattleDamageResolver.Preview.cs": "e86cb1c54eecd5a959edd62ca5c68e7fcfc8056ee9d5bd7e7f67b36e10d0f744",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "2168e41989d089e002c2d9dd205be0abc4d2320b9d03c3690130f444f691ba9b",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "scripts/systems/progression/SkillEffectiveMaxLevelRules.cs": "fcd8ff46f7a452de8c561223c9b05454b540ce0361cf85499958c07d78ed5733",
+        "docs/proposals/battle/skills/mage_cold_snap_assessment/build_input.py": "0bb61f0bfea376605d506442bbef625a5c4989c1580ee2091cb28dabfa681f8b"
+      },
+      "assumptions": [
+        "L7; range 5; radius 2; 3 actual enemies; 0 already have bone_chill at this cast.",
+        "Base 8D6; chilled targets only use proposed 150% pre-mitigation multiplier; save success probability 0.5; success halves damage.",
+        "Ignores integer rounding, resistance, mitigation, equipment, overkill, death and geometry. Fractional HP is author arithmetic, not engine expected damage.",
+        "Existing bone_chill preparation is external to this single-cast probe. Its AP, MP, hit chance and status expiry must be assessed separately.",
+        "Multi-cast probes contain no chilled target; they never assume a 60-TU debuff survives until recast or is freely reapplied.",
+        "No slow, AP denial or healing suppression is added to this skill's payoff. Source skill's suppression remains separate.",
+        "CURRENT production comparator; its separate slow effect is intentionally unpriced here, so damage-only comparison cannot prove net dominance."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 5,
+      "costs": {
+        "ap": 2,
+        "mp": 80,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "on_cast": {
+        "damage_dealt_hp": 63.0
+      },
+      "streams": [],
+      "max_casts": 1
+    }
+  ]
+}

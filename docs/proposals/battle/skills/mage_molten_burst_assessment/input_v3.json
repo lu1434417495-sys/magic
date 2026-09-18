@@ -1,0 +1,985 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "l0_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l1_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l2_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l3_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l4_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l6_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_h160_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l0_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l0_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l0_h160_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l0_h160_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 80,
+      "costs": {
+        "ap": 1,
+        "mp": 20,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_h160_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l5_h160_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 18,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_h80_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 80,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_h320_t40",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 320,
+        "caster_interval_tu": 40,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_h160_t20",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 20,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    },
+    {
+      "id": "l7_h160_t30",
+      "basis": "controlled_assumption",
+      "source_sha256": {
+        "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+        "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+        "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+        "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+        "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+        "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+        "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+        "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+        "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+        "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423"
+      },
+      "assumptions": [
+        "One paid cast, one already burning enemy; no regeneration, new fire application, expiry removal, death, overkill, changed mitigation, or movement.",
+        "on_cast damage_dealt_hp=0 denotes INCREMENTAL LIFETIME damage relative to letting the same finite burns run. It is not zero immediate damage. Immediate HP and 80/160/320TU conservation are recorded separately by the production C# probe.",
+        "Preparation is already sunk: C# fixture source A power2/80TU, B power3/60TU, both every10TU; no assertion that this synthetic pair is a normal player build. Source AP/MP must be included separately when comparing complete team combos.",
+        "MP pool is fixed at160 for every level. D_ref=6 and alternative6HP/AP are comparison probes, not a calibrated skill-power price.",
+        "Time-to-kill and saved enemy actions are conditional benefits, not assigned a made-up occurrence probability or added to lifetime damage."
+      ],
+      "duration_tu": 0,
+      "cooldown_tu": 40,
+      "costs": {
+        "ap": 1,
+        "mp": 16,
+        "stamina": 0,
+        "aura": 0
+      },
+      "scenario": {
+        "horizon_tu": 160,
+        "caster_interval_tu": 30,
+        "ap_per_activation": 2,
+        "resource_budget": {
+          "mp": 160,
+          "stamina": 0,
+          "aura": 0
+        },
+        "reference_action_damage_hp": 6,
+        "alternative_damage_per_ap": 6,
+        "same_tu_order": "cast_first"
+      },
+      "max_casts": 1,
+      "on_cast": {
+        "damage_dealt_hp": 0
+      },
+      "streams": []
+    }
+  ]
+}
