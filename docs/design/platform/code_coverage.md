@@ -1,7 +1,7 @@
 # Godot C# 代码覆盖率
 
 > 状态：当前实现真相
-> 更新日期：2026-07-28
+> 更新日期：2026-09-14
 
 ## 正式入口
 
@@ -19,7 +19,9 @@ python tests/run_coverage_suite.py --jobs 8 -- --pattern counterattack
 
 默认报告写入 `artifacts/coverage/coverage.cobertura.xml`。该目录是本地生成物，不进入 Git。
 
-CI 使用同一入口执行 strict full suite，并在任务结束后上传 `production-code-coverage` artifact；CI 不再另跑一轮重复的无覆盖率 full suite。
+CI 使用同一入口执行 strict full suite。排序后的正式测试清单按 `--shard-index 0..3 --shard-count 4` 轮流分配到四个隔离 job，每项只执行一次；各组保留相同的 simulation / benchmark / E2E 排除规则、超时、错误输出和生命周期检查。`--list` 显示当前分组，未传分组参数时仍执行原完整清单。
+
+每组上传独立 Cobertura；所有组成功后，`Build and Headless Smoke` 必需检查用 `dotnet-coverage merge` 合并四份报告，复用 `parse_coverage_summary` 校验 production 分母，再上传 `production-code-coverage` artifact。任一组失败、缺失报告或合并失败都会阻止该检查通过。
 
 ## 采集边界
 

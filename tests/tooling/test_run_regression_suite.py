@@ -20,6 +20,34 @@ sys.modules[SPEC.name] = runner
 SPEC.loader.exec_module(runner)
 
 
+class RegressionSuiteShardingTests(unittest.TestCase):
+	def test_shards_cover_every_test_exactly_once_in_stable_order(self) -> None:
+		tests = [f"test_{index:03}.cs" for index in range(535)]
+		shards = [runner.select_test_shard(tests, index, 4) for index in range(4)]
+		flattened = [test for shard in shards for test in shard]
+		self.assertCountEqual(tests, flattened)
+		self.assertEqual(len(tests), len(set(flattened)))
+		self.assertLessEqual(max(map(len, shards)) - min(map(len, shards)), 1)
+		for shard in shards:
+			self.assertEqual(shard, sorted(shard))
+		self.assertEqual(shards, [runner.select_test_shard(tests, index, 4) for index in range(4)])
+
+	def test_single_shard_preserves_the_existing_test_selection(self) -> None:
+		tests = ["a.cs", "b.cs"]
+		self.assertEqual(tests, runner.select_test_shard(tests, 0, 1))
+		self.assertEqual([], runner.select_test_shard([], 0, 1))
+
+	def test_small_selection_does_not_duplicate_tests_across_shards(self) -> None:
+		shards = [runner.select_test_shard(["a.cs", "b.cs"], index, 4) for index in range(4)]
+		self.assertCountEqual(["a.cs", "b.cs"], [test for shard in shards for test in shard])
+		self.assertEqual(2, sum(not shard for shard in shards))
+
+	def test_invalid_shard_selection_is_rejected(self) -> None:
+		for index, count in ((0, 0), (0, -1), (-1, 4), (4, 4)):
+			with self.subTest(index=index, count=count), self.assertRaises(ValueError):
+				runner.select_test_shard(["a.cs"], index, count)
+
+
 class RegressionSuiteOutputGateTests(unittest.TestCase):
 	def test_parser_rejects_removed_finalizer_retry_option(self) -> None:
 		with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
