@@ -407,6 +407,11 @@ public partial class GameSession
         RefreshProgressionRuntimeState(progression);
 
         EquipStartingWeaponForSkill(memberState, randomStartingSkillDefinition);
+        EquipStartingItem(
+            memberState,
+            GetGameplayConfigurationTyped().NewGameParty.StartingBodyArmorItemId,
+            EquipmentSlotKind.Body
+        );
         return memberState;
     }
 
@@ -482,28 +487,35 @@ public partial class GameSession
         SkillDefinition skillDefinition
     )
     {
-        if (member_state?.equipment_state == null)
-            return;
         StringName itemId = ResolveStartingWeaponItemIdForSkill(skillDefinition);
-        // FirstValidStartingWeaponItemId 已经保证返回值存在且是武器，这里不再重复判定；
-        // 重复判定一旦命中只会让新角色空手开局且毫无痕迹。
+        EquipStartingItem(member_state, itemId, EquipmentSlotKind.MainHand);
+    }
+
+    private void EquipStartingItem(
+        PartyMemberState memberState,
+        StringName itemId,
+        EquipmentSlotKind slotKind
+    )
+    {
+        if (memberState?.equipment_state == null)
+            return;
+        // 起始装备的引用和槽位由配置跨域校验保证有效。
         ItemDefinition itemDefinition = GetItemDefsTyped()[itemId];
         StringName instanceId = AllocateEquipmentInstanceId();
         if (instanceId == "")
         {
             throw new InvalidOperationException(
-                $"Could not allocate an equipment instance id for the starting weapon {itemId}."
+                $"Could not allocate an equipment instance id for the starting equipment {itemId}."
             );
         }
         EquipmentInstanceState equipmentInstance = EquipmentInstanceState.CreateInstance(
             itemId,
             instanceId
         );
-        IReadOnlyList<StringName> occupiedSlots = itemDefinition.GetFinalOccupiedSlotIdsTyped(
-            EquipmentRules.ToStringName(EquipmentSlotKind.MainHand)
-        );
-        member_state.equipment_state.SetEquippedEntry(
-            EquipmentRules.ToStringName(EquipmentSlotKind.MainHand),
+        StringName slotId = EquipmentRules.ToStringName(slotKind);
+        IReadOnlyList<StringName> occupiedSlots = itemDefinition.GetFinalOccupiedSlotIdsTyped(slotId);
+        memberState.equipment_state.SetEquippedEntry(
+            slotId,
             itemId,
             occupiedSlots,
             equipmentInstance

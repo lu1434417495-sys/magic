@@ -22,6 +22,7 @@
       "brain_id": "melee_aggressor",
       "cognition_kind": "sapient",
       "creature_level": 2,
+      "challenge_rating": 2,
       "damage_resistances": {},
       "display_name": "\u8725\u8734\u4EBA",
       "drop_entries": [

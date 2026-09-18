@@ -22,6 +22,7 @@
       "brain_id": "ranged_controller",
       "cognition_kind": "instinctive",
       "creature_level": 3,
+      "challenge_rating": 4,
       "damage_resistances": {
         "fire": "double",
         "physical_pierce": "half"

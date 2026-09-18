@@ -50,6 +50,7 @@ public sealed class WorldMapSpawnSystem
     private long _mapSeed;
     private WorldGenerationDefinition _generationDefinition;
     private WorldMapGridSystem _gridSystem;
+    private WorldStartingAreaRules _startingAreaRules;
     private readonly Dictionary<string, FacilityDefinition> _facilityLibraryById = new(
         StringComparer.Ordinal
     );
@@ -318,7 +319,8 @@ public sealed class WorldMapSpawnSystem
 
     internal WorldBuildData BuildWorldTyped(
         WorldGenerationDefinition generationDefinition,
-        WorldMapGridSystem grid_system
+        WorldMapGridSystem grid_system,
+        EncounterChallengeCatalog challenges = null
     )
     {
         _generationDefinition = generationDefinition;
@@ -333,6 +335,9 @@ public sealed class WorldMapSpawnSystem
         List<SettlementInstanceData> settlements = GenerateSettlements();
         SettlementInstanceData playerStartSettlement = FindPlayerStartSettlement(settlements);
         Vector2I playerStartCoord = ResolvePlayerStartCoord(playerStartSettlement);
+        _startingAreaRules = new WorldStartingAreaRules(
+            generationDefinition.StartingArea, playerStartCoord, challenges
+        );
         List<WorldNpcInstanceData> worldNpcs = GenerateWorldNpcs(settlements);
         List<EncounterAnchorData> encounterAnchors = GenerateEncounterAnchors(
             settlements,
@@ -1514,9 +1519,44 @@ public sealed class WorldMapSpawnSystem
                 }
             }
         }
-        EnsureStartingWildEncounter(encounterAnchors, placementContext, playerStartCoord);
         EnsureDefaultSettlementEncounter(encounterAnchors, placementContext);
+        ConstrainStartingAreaEncounters(encounterAnchors, placementContext);
+        EnsureStartingWildEncounter(encounterAnchors, placementContext, playerStartCoord);
         return encounterAnchors;
+    }
+
+    private void ConstrainStartingAreaEncounters(
+        List<EncounterAnchorData> anchors,
+        WildSpawnPlacementContext placementContext
+    )
+    {
+        for (int index = anchors.Count - 1; index >= 0; index--)
+        {
+            EncounterAnchorData anchor = anchors[index];
+            if (_startingAreaRules.Allows(anchor.world_coord, anchor.encounter_profile_id, anchor.growth_stage))
+                continue;
+            bool settlement = anchor.encounter_kind == EncounterKindSettlement;
+            var candidates = _resolvedWildSpawnRules.Where(rule =>
+            {
+                StringName profile = settlement ? rule.SettlementEncounterProfileId : rule.EncounterProfileId;
+                return profile != ""
+                    && !placementContext.IsTooCloseToSettlement(anchor.world_coord, rule.MinDistanceToSettlement)
+                    && _startingAreaRules.Allows(anchor.world_coord, profile, 0);
+            }).ToList();
+            if (candidates.Count == 0)
+            {
+                anchors.RemoveAt(index);
+                continue;
+            }
+            WildSpawnRuleDefinition replacement = candidates[_rng.RandiRange(0, candidates.Count - 1)];
+            anchors[index] = BuildEncounterAnchor(
+                anchor.entity_id,
+                settlement ? replacement.SettlementEncounterDisplayName : replacement.MonsterName,
+                anchor.world_coord, replacement.VisionRange, replacement.RegionTag,
+                anchor.encounter_kind,
+                settlement ? replacement.SettlementEncounterProfileId : replacement.EncounterProfileId
+            );
+        }
     }
 
     private List<EncounterAnchorData> GenerateProceduralEncounterAnchors(
@@ -1583,8 +1623,15 @@ public sealed class WorldMapSpawnSystem
             return;
         if (_resolvedWildSpawnRules.Count == 0)
             return;
-        Vector2I playerChunkCoord = _gridSystem.GetChunkCoord(playerStartCoord);
-        WildSpawnRuleDefinition rule = ResolveWildSpawnRuleForChunkY(playerChunkCoord.Y);
+        WildSpawnRuleDefinition rule = null;
+        foreach (WildSpawnRuleDefinition candidate in _resolvedWildSpawnRules)
+        {
+            if (string.Equals(candidate.RegionTag, _generationDefinition.StartingWildSpawnRegionTag, StringComparison.Ordinal))
+            {
+                rule = candidate;
+                break;
+            }
+        }
         if (rule == null)
             return;
         int minDistance = Math.Max(
@@ -1598,7 +1645,7 @@ public sealed class WorldMapSpawnSystem
             ),
             minDistance
         );
-        if (HasStartingEncounterInRange(encounterAnchors, playerStartCoord, maxDistance))
+        if (HasNearbyStartingEncounter(encounterAnchors, playerStartCoord, maxDistance))
             return;
         Vector2I spawnCoord = FindStartingWildCoord(
             playerStartCoord,
@@ -1616,9 +1663,11 @@ public sealed class WorldMapSpawnSystem
             );
             return;
         }
+        if (!_startingAreaRules.Allows(spawnCoord, rule.EncounterProfileId, 0))
+            throw new InvalidOperationException("Guaranteed starting encounter exceeds starting_area.max_challenge_rating.");
         encounterAnchors.Add(
             BuildEncounterAnchor(
-                new StringName($"wild_{encounterAnchors.Count + 1}"),
+                new StringName("wild_starting"),
                 rule.MonsterName,
                 spawnCoord,
                 rule.VisionRange,
@@ -1629,15 +1678,16 @@ public sealed class WorldMapSpawnSystem
         );
     }
 
-    private static bool HasStartingEncounterInRange(
-        IEnumerable<EncounterAnchorData> encounterAnchors,
+    private static bool HasNearbyStartingEncounter(
+        List<EncounterAnchorData> encounterAnchors,
         Vector2I playerStartCoord,
         int maxDistance
     )
     {
-        foreach (EncounterAnchorData encounterAnchor in encounterAnchors)
+        for (int index = 0; index < encounterAnchors.Count; index++)
         {
-            if (encounterAnchor == null)
+            EncounterAnchorData encounterAnchor = encounterAnchors[index];
+            if (encounterAnchor == null || encounterAnchor.encounter_kind != EncounterKindSingle)
                 continue;
             Vector2I delta = encounterAnchor.world_coord - playerStartCoord;
             if (Math.Abs(delta.X) + Math.Abs(delta.Y) <= maxDistance)

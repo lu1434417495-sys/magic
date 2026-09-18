@@ -81,7 +81,7 @@ internal static class EnemyContentDefinitionProjector
         return new EnemyTemplateDefinition(
             source.TemplateId, source.DisplayName, source.BattleSpriteAssetId,
             source.BrainId, source.InitialStateId, source.EnemyCount, source.BodySize,
-            source.CreatureLevel, source.HitDieSides,
+            source.CreatureLevel, source.ChallengeRating, source.HitDieSides,
             BattleCognitionContentRules.ToKind(source.CognitionKind), tags,
             Names(source.SaveAdvantageTags), Names(source.SaveDisadvantageTags),
             Names(source.SaveImmunityTags), NameDictionary(source.DamageResistances),

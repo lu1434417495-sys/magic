@@ -146,6 +146,8 @@ internal static class WorldJsonImport
                 dto.WorldStrongholdSpacingCells,
                 dto.MetropolisSpacingCells,
                 dto.GuaranteeStartingWildEncounter,
+                Trim(dto.StartingWildSpawnRegionTag),
+                new WorldStartingAreaImportModel(Vector(dto.StartingArea.Size), dto.StartingArea.MaxChallengeRating),
                 dto.StartingWildSpawnMinDistance,
                 dto.StartingWildSpawnMaxDistance,
                 dto.SettlementLibrary.Select(Settlement).ToArray(),
@@ -286,6 +288,13 @@ internal static class WorldJsonImport
         var diagnostics = new List<ContentJsonDiagnostic>();
         RequireText(context, diagnostics, import.GenerationId, "/generation_id", id: true);
         RequirePositiveVector(context, diagnostics, import.WorldSizeInChunks, "/world_size_in_chunks");
+        RequireNonNegativeVector(context, diagnostics, import.StartingArea.Size, "/starting_area/size");
+        if ((import.StartingArea.Size.X == 0) != (import.StartingArea.Size.Y == 0))
+            Range(context, diagnostics, "/starting_area/size");
+        if (!double.IsFinite(import.StartingArea.MaxChallengeRating) || import.StartingArea.MaxChallengeRating < 0)
+            Range(context, diagnostics, "/starting_area/max_challenge_rating");
+        if (import.GuaranteeStartingWildEncounter)
+            RequireText(context, diagnostics, import.StartingWildSpawnRegionTag, "/starting_wild_spawn_region_tag", id: true);
         RequirePositiveVector(context, diagnostics, import.ChunkSize, "/chunk_size");
         RequireNonNegativeVector(context, diagnostics, import.PlayerStartCoord, "/player_start_coord");
         RequireNonNegative(context, diagnostics, import.PlayerVisionRange, "/player_vision_range");

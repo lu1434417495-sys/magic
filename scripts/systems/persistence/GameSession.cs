@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -1513,7 +1513,10 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         var spawnSystem = new WorldMapSpawnSystem();
         WorldMapSpawnSystem.WorldBuildData worldBuild = spawnSystem.BuildWorldTyped(
             generation_definition,
-            gridSystem
+            gridSystem,
+            new EncounterChallengeCatalog(
+                GetBattleEncounterDefinitions(), GetEncounterRosterDefinitions(), GetEnemyTemplateDefinitions()
+            )
         );
         Dictionary<string, object> worldData =
             WorldMapSpawnProjection.BuildSnapshotPlain(worldBuild);
@@ -1633,7 +1636,7 @@ public partial class GameSession : Node, IApplicationShutdownParticipant, IDispo
         IReadOnlyList<string> contingencyContentErrors =
             ContingencyContentValidator.ValidateAllSetupsForSaveLoad(
                 decodedPartyState,
-                GetContentCatalogTyped()
+                GetContentCatalogTyped()?.GetSkillDefinitionsTyped()
             );
         if (contingencyContentErrors.Count > 0)
         {

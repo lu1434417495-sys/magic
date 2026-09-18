@@ -22,6 +22,7 @@
       "brain_id": "dragon_tyrant",
       "cognition_kind": "sapient",
       "creature_level": 10,
+      "challenge_rating": 10,
       "damage_resistances": {
         "fire": "immune",
         "freeze": "double"

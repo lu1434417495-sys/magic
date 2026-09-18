@@ -346,6 +346,8 @@ public partial class run_world_map_content_validator_typed_regression : Lifecycl
             source.WorldStrongholdSpacingCells,
             source.MetropolisSpacingCells,
             source.GuaranteeStartingWildEncounter,
+            source.StartingWildSpawnRegionTag,
+            source.StartingArea,
             source.StartingWildSpawnMinDistance,
             source.StartingWildSpawnMaxDistance,
             source.SettlementLibrary,

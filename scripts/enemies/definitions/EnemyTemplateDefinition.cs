@@ -123,6 +123,7 @@ internal sealed class EnemyTemplateDefinition
         int enemyCount,
         int bodySize,
         int creatureLevel,
+        double challengeRating,
         int hitDieSides,
         BattleCognitionKind cognitionKind,
         IReadOnlyList<StringName> tags,
@@ -154,6 +155,9 @@ internal sealed class EnemyTemplateDefinition
         EnemyCount = enemyCount;
         BodySize = bodySize;
         CreatureLevel = creatureLevel;
+        if (!double.IsFinite(challengeRating) || challengeRating < 0)
+            throw new ArgumentOutOfRangeException(nameof(challengeRating));
+        ChallengeRating = challengeRating;
         HitDieSides = hitDieSides;
         CognitionKind = cognitionKind;
         Tags = EnemyDefinitionCollections.FreezeList(tags);
@@ -185,6 +189,7 @@ internal sealed class EnemyTemplateDefinition
     internal int EnemyCount { get; }
     internal int BodySize { get; }
     internal int CreatureLevel { get; }
+    internal double ChallengeRating { get; }
     internal int HitDieSides { get; }
     internal BattleCognitionKind CognitionKind { get; }
     internal IReadOnlyList<StringName> Tags { get; }

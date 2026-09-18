@@ -124,6 +124,10 @@
         "brain_id": {
           "type": "string"
         },
+        "challenge_rating": {
+          "type": "number",
+          "description": "Authored challenge rating of one creature, independent of creature_level and encounter count; finite and \u003E= 0."
+        },
         "cognition_kind": {
           "type": "string"
         },
@@ -214,6 +218,7 @@
         "battle_sprite_asset_id",
         "body_size",
         "brain_id",
+        "challenge_rating",
         "cognition_kind",
         "creature_level",
         "damage_resistances",
@@ -278,6 +283,10 @@
         },
         "brain_id": {
           "type": "string"
+        },
+        "challenge_rating": {
+          "type": "number",
+          "description": "Authored challenge rating of one creature, independent of creature_level and encounter count; finite and \u003E= 0."
         },
         "cognition_kind": {
           "type": "string"
@@ -400,6 +409,10 @@
         },
         "brain_id": {
           "type": "string"
+        },
+        "challenge_rating": {
+          "type": "number",
+          "description": "Authored challenge rating of one creature, independent of creature_level and encounter count; finite and \u003E= 0."
         },
         "cognition_kind": {
           "type": "string"

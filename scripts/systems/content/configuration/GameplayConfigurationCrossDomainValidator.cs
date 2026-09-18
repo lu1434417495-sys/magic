@@ -61,6 +61,16 @@ internal static class GameplayConfigurationCrossDomainValidator
         foreach (NewGameStartingWeaponRuleDefinition rule in party.StartingWeaponRules)
             RequireWeapon(errors, items, rule.ItemId, "starting weapon rule");
         RequireWeapon(errors, items, party.StartingWeaponFallbackItemId, "starting weapon fallback");
+        if (
+            !items.TryGetValue(party.StartingBodyArmorItemId, out ItemDefinition? startingArmor)
+            || startingArmor?.IsArmor() != true
+            || !startingArmor.GetEquipmentSlotIdsTyped().Contains(
+                EquipmentRules.ToStringName(EquipmentSlotKind.Body)
+            )
+        )
+            errors.Add(
+                $"Gameplay configuration starting body armor references missing/non-body-armor item {party.StartingBodyArmorItemId}."
+            );
 
         RequireSkill(
             errors,

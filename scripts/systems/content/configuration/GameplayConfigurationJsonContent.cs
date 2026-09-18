@@ -239,6 +239,7 @@ internal sealed class NewGamePartyJsonDto
     [JsonPropertyName("members"), JsonRequired] public IReadOnlyList<NewGameMemberJsonDto> Members { get; init; } = Array.Empty<NewGameMemberJsonDto>();
     [JsonPropertyName("starting_weapon_rules"), JsonRequired] public IReadOnlyList<NewGameStartingWeaponRuleJsonDto> StartingWeaponRules { get; init; } = Array.Empty<NewGameStartingWeaponRuleJsonDto>();
     [JsonPropertyName("starting_weapon_fallback_item_id"), JsonRequired] public string StartingWeaponFallbackItemId { get; init; } = "";
+    [JsonPropertyName("starting_body_armor_item_id"), JsonRequired] public string StartingBodyArmorItemId { get; init; } = "";
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -402,6 +403,7 @@ internal static class GameplayConfigurationJsonValidator
             for (int j = 0; j < rule.RequiredSkillTagsAny.Count; j++) RequireId(context, diagnostics, rule.RequiredSkillTagsAny[j], $"{pointer}/required_skill_tags_any/{j}");
         }
         RequireId(context, diagnostics, party.StartingWeaponFallbackItemId, "/new_game_party/starting_weapon_fallback_item_id");
+        RequireId(context, diagnostics, party.StartingBodyArmorItemId, "/new_game_party/starting_body_armor_item_id");
         RequireId(
             context,
             diagnostics,
@@ -564,7 +566,8 @@ internal sealed class GameplayConfigurationContentRegistry
                 Array.AsReadOnly(rule.RequiredSkillTagsAny.Select(x => new StringName(x)).ToArray()),
                 rule.ItemId
             )).ToArray(),
-            party.StartingWeaponFallbackItemId
+            party.StartingWeaponFallbackItemId,
+            party.StartingBodyArmorItemId
         );
         SkillGenerationBattleSimFixtureJsonDto skillFixture = dto.SkillGenerationBattleSim;
         EquipmentGenerationBattleSimFixtureJsonDto equipmentFixture = dto.EquipmentGenerationBattleSim;

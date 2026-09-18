@@ -22,6 +22,7 @@
       "brain_id": "ranged_suppressor",
       "cognition_kind": "instinctive",
       "creature_level": 5,
+      "challenge_rating": 5,
       "damage_resistances": {
         "fire": "double",
         "physical_pierce": "half"

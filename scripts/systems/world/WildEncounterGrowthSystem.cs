@@ -8,7 +8,8 @@ public sealed class WildEncounterGrowthSystem
         int old_step,
         int new_step,
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
-        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters,
+        WorldStartingAreaRules startingArea = default
     )
     {
         if (
@@ -60,6 +61,9 @@ public sealed class WildEncounterGrowthSystem
 
             var maxStage = roster.GetMaxStage();
             var nextStage = Mathf.Min(encounter.growth_stage + stageGain, maxStage);
+            nextStage = startingArea.LimitGrowthStage(encounter.world_coord, encounter.encounter_profile_id, nextStage);
+            if (nextStage < 0)
+                continue;
             if (nextStage == encounter.growth_stage)
             {
                 continue;
@@ -74,7 +78,8 @@ public sealed class WildEncounterGrowthSystem
         EncounterAnchorData encounter_anchor,
         int world_step,
         IReadOnlyDictionary<StringName, BattleEncounterDefinition> battleEncounters,
-        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDefinition> encounterRosters,
+        WorldStartingAreaRules startingArea = default
     )
     {
         if (
@@ -112,7 +117,13 @@ public sealed class WildEncounterGrowthSystem
         }
 
         var initialStage = Mathf.Max(roster.InitialStage, 0);
-        encounter_anchor.growth_stage = Mathf.Max(encounter_anchor.growth_stage - 1, initialStage);
+        int nextStage = startingArea.LimitGrowthStage(
+            encounter_anchor.world_coord, encounter_anchor.encounter_profile_id,
+            Mathf.Max(encounter_anchor.growth_stage - 1, initialStage)
+        );
+        if (nextStage < 0)
+            return false;
+        encounter_anchor.growth_stage = nextStage;
         encounter_anchor.suppressed_until_step = Mathf.Max(
             encounter_anchor.suppressed_until_step,
             Mathf.Max(world_step, 0)

@@ -221,7 +221,8 @@
           { "required_skill_tags_any": ["priest", "faith", "heal"], "item_id": "watchman_mace" },
           { "required_skill_tags_any": ["warrior", "melee", "shield"], "item_id": "steel_longsword" }
         ],
-        "starting_weapon_fallback_item_id": "steel_longsword"
+        "starting_weapon_fallback_item_id": "steel_longsword",
+        "starting_body_armor_item_id": "leather_jerkin"
       },
       "battle_skill_roles": {
         "basic_attack_skill_id": "basic_attack"

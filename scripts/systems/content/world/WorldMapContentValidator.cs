@@ -52,6 +52,11 @@ public class WorldMapContentValidator
 
         Vector2I worldSizeInChunks = definition.WorldSizeInChunks;
         Vector2I chunkSize = definition.ChunkSize;
+        WorldStartingAreaDefinition startingArea = definition.StartingArea;
+        if (startingArea.Size.X < 0 || startingArea.Size.Y < 0
+            || (startingArea.Size.X == 0) != (startingArea.Size.Y == 0)
+            || !double.IsFinite(startingArea.MaxChallengeRating) || startingArea.MaxChallengeRating < 0)
+            errors.Add($"World generation config {label} has invalid starting_area.");
         if (worldSizeInChunks.X <= 0 || worldSizeInChunks.Y <= 0)
         {
             errors.Add(
@@ -367,6 +372,16 @@ public class WorldMapContentValidator
             generationDefinition.ProceduralGenerationEnabled
             || generationDefinition.GuaranteeStartingWildEncounter;
         var verticalBands = new HashSet<WorldVerticalBandKind>();
+        int startingRuleCount = 0;
+        foreach (WildSpawnRuleDefinition rule in rules)
+        {
+            if (string.Equals(rule.RegionTag, generationDefinition.StartingWildSpawnRegionTag, StringComparison.Ordinal))
+                startingRuleCount++;
+        }
+        if (generationDefinition.GuaranteeStartingWildEncounter && startingRuleCount != 1)
+        {
+            errors.Add($"World generation config {label} starting_wild_spawn_region_tag must reference exactly one wild spawn rule.");
+        }
         foreach (WildSpawnRuleDefinition rule in rules)
         {
             string regionTag = (rule.RegionTag ?? string.Empty).Trim();

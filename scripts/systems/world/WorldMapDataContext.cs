@@ -23,6 +23,16 @@ public sealed class WorldMapDataContext
     public string active_map_display_name = "";
     public WorldGenerationDefinition active_generation_definition;
     private WorldGenerationDefinition _rootGenerationDefinition;
+    private EncounterChallengeCatalog _encounterChallenges;
+
+    internal void ConfigureEncounterChallenges(EncounterChallengeCatalog challenges) =>
+        _encounterChallenges = challenges;
+
+    internal WorldStartingAreaRules GetStartingAreaRules() => new(
+        active_generation_definition?.StartingArea,
+        _activeRuntimeData.PlayerStartCoord,
+        _encounterChallenges
+    );
     private readonly Dictionary<Vector2I, WorldMapEventData> _worldEventByCoord = new();
     private readonly Dictionary<string, WorldGenerationDefinition> _submapGenerationDefinitions =
         new(StringComparer.Ordinal);
@@ -65,6 +75,7 @@ public sealed class WorldMapDataContext
         active_map_display_name = "";
         active_generation_definition = null;
         _rootGenerationDefinition = null;
+        _encounterChallenges = null;
         _worldEventByCoord.Clear();
         _submapGenerationDefinitions.Clear();
         _settlementByCoord.Clear();
@@ -448,6 +459,8 @@ public sealed class WorldMapDataContext
     {
         if (
             _activeRuntimeData == null
+            || encounterAnchor == null
+            || !GetStartingAreaRules().Allows(encounterAnchor.world_coord, encounterAnchor.encounter_profile_id, encounterAnchor.growth_stage)
             || !_activeRuntimeData.TryAddEncounterAnchor(encounterAnchor)
         )
         {
@@ -672,7 +685,7 @@ public sealed class WorldMapDataContext
         var gg = new WorldMapGridSystem();
         gg.Setup(generationDefinition.WorldSizeInChunks, generationDefinition.ChunkSize);
         var ss = new WorldMapSpawnSystem();
-        WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(generationDefinition, gg);
+        WorldMapSpawnSystem.WorldBuildData swd = ss.BuildWorldTyped(generationDefinition, gg, _encounterChallenges);
         submapEntry["world_data"] = RuntimePlainPayload.ProjectDictionaryInto(
             submapEntryLease,
             WorldMapSpawnProjection.BuildSnapshotPlain(swd),

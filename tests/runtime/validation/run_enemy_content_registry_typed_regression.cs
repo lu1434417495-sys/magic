@@ -16,6 +16,7 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
         TestClosedActionSpec();
         TestClosedActionImportRejections();
         TestSharedWolfEncounterBehavior();
+        TestChallengeRatingImport();
         RequestTestExit(_test.Finish("Enemy JSON content registry regression"));
     }
 
@@ -182,6 +183,35 @@ public partial class run_enemy_content_registry_typed_regression : LifecycleTest
         _test.Eq(definition.GetActionBaseScore("unknown"), 173, "未知 action 应回退到 skill score。");
         _test.Eq(definition.GetBucketPriority("pressure"), 176, "bucket priority 应通过 typed lookup 保真。");
         _test.Eq(definition.GetBucketPriority("unknown"), 175, "未知 bucket 应回退到默认优先级。");
+    }
+
+    private void TestChallengeRatingImport()
+    {
+        ContentJsonSourceText source = new GodotContentJsonSourceReader()
+            .ReadUtf8Documents(EnemyContentJsonDomains.TemplateDirectory).First();
+        var document = System.Text.Json.Nodes.JsonNode.Parse(source.Utf8Json);
+        var entry = document["entries"][0].AsObject();
+        entry["creature_level"] = 20;
+        entry["challenge_rating"] = 0.5;
+        ContentImportBatch<EnemyTemplateJsonDto> Import() => EnemyContentJsonAuthoringDomains
+            .CreateTemplateDescriptor("res://tests/fixtures/challenge_rating", new FakeSourceReader(
+                new ContentJsonSourceText("challenge_rating.json", document.ToJsonString())
+            )).Import();
+        var valid = Import();
+        _test.Eq(valid.Entries.Count, 1, "挑战等级应支持独立的小数配置。");
+        if (valid.Entries.Count == 1)
+        {
+            var definition = EnemyContentDefinitionProjector.ProjectTemplate(valid.Entries[0].Import,
+                GameSessionTestFactory.GetProcessSnapshot().Items);
+            _test.Eq(definition.ChallengeRating, 0.5d, "挑战等级不能由生物等级推算或覆盖。");
+            _test.Eq(definition.CreatureLevel, 20, "新增挑战等级不应更改原生物等级。");
+        }
+        entry["challenge_rating"] = -1;
+        var negative = Import();
+        _test.Eq(negative.Entries.Count, 0, "负数挑战等级必须拒绝。");
+        _test.True(negative.Diagnostics.Any(d => d.JsonPointer.Contains("challenge_rating")), "拒绝应定位挑战等级字段。");
+        entry.Remove("challenge_rating");
+        _test.Eq(Import().Entries.Count, 0, "缺少挑战等级不得默认为生物等级或零。");
     }
 
     private void TestCodeOwnedJsonDiscoveryAndImmutableProjection()

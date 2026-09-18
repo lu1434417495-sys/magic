@@ -146,6 +146,8 @@ internal static partial class EnemyContentImportValidator
             Add(diagnostics, context, EnemyContentImportRules.ValueOutOfRange, "enemy_count must be >= 1.", "/enemy_count");
         if (import.CreatureLevel < 0)
             Add(diagnostics, context, EnemyContentImportRules.ValueOutOfRange, "creature_level must be >= 0.", "/creature_level");
+        if (!double.IsFinite(import.ChallengeRating) || import.ChallengeRating < 0)
+            Add(diagnostics, context, EnemyContentImportRules.ValueOutOfRange, "challenge_rating must be finite and >= 0.", "/challenge_rating");
         if (import.HitDieSides <= 0)
             Add(diagnostics, context, EnemyContentImportRules.ValueOutOfRange, "hit_die_sides must be >= 1.", "/hit_die_sides");
         if (import.GeneratedCoreSkillCount < 0)

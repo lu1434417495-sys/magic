@@ -40,7 +40,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         TestDemoWorldGenerationIncludesMetropolisInstances();
         TestProceduralWildSpawnDensityCanBeConfigured();
         TestProceduralWildSpawnVerticalBandsIgnoreRuleOrder();
-        TestStartingWildEncounterVerticalBandIgnoresRuleOrder();
+        TestStartingWildEncounterUsesConfiguredRule();
+        TestNearbyRegionalEncountersUseStartingRule();
         TestWildRegionTagsRetainCanyonBattleTerrain();
         TestSmallWorldGenerationAssignsUniqueDisplayNames();
 
@@ -120,8 +121,10 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
 
     private void TestWorldGenerationInjectsSharedMainWorldContent()
     {
+        // The 200 x 200 test map is covered by the starting area; use a larger
+        // world so this shared north/south distribution check has outside cells.
         GameSession gameSession = CreateWorld(
-            TestWorldConfig,
+            SmallWorldConfig,
             "shared_content_injection",
             "共享内容注入验证",
             "共享内容注入验证世界应能成功创建。"
@@ -551,7 +554,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         );
     }
 
-    private void TestStartingWildEncounterVerticalBandIgnoresRuleOrder()
+    private void TestStartingWildEncounterUsesConfiguredRule()
     {
         WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
         _test.True(source != null, "起始遭遇回归需要 process snapshot 中的测试世界 definition。");
@@ -560,7 +563,7 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         int playerChunkY = source.PlayerStartCoord.Y / source.ChunkSize.Y;
         bool playerStartsInNorth = playerChunkY < source.WorldSizeInChunks.Y / 2;
         WildSpawnRuleDefinition northRule = BuildWildSpawnRuleDefinition(
-            "canyon",
+            "starter_wolves",
             WorldVerticalBandKind.North,
             "北境狼群",
             "wolf_wilds"
@@ -577,7 +580,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
                 ? new[] { southRule, northRule }
                 : new[] { northRule, southRule },
             proceduralGenerationEnabled: false,
-            guaranteeStartingWildEncounter: true
+            guaranteeStartingWildEncounter: true,
+            startingWildSpawnRegionTag: "starter_wolves"
         );
         if (definition == null)
             return;
@@ -610,9 +614,46 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         _test.Eq(singleEncounterCount, 1, "非 procedural 模式应只补一个保证起始遭遇。");
         _test.Eq(
             encounterProfileId.ToString(),
-            playerStartsInNorth ? "wolf_wilds" : "mist_hollow",
-            "起始遭遇必须按玩家所在 vertical_band 选规则，不能取 rules[0]。"
+            "wolf_wilds",
+            "起始遭遇必须使用显式配置的狼群规则，不受出生区域或规则顺序影响。"
         );
+    }
+
+    private void TestNearbyRegionalEncountersUseStartingRule()
+    {
+        WildSpawnRuleDefinition wolves = BuildWildSpawnRuleDefinition(
+            "starter_wolves", WorldVerticalBandKind.North, "荒狼群", "wolf_wilds"
+        );
+        var regional = new WildSpawnRuleDefinition(
+            "regional_mist", WorldVerticalBandKind.South, "雾沼异兽", "mist_hollow", "", "",
+            densityPerChunk: 8, minDistanceToSettlement: 0, visionRange: 1,
+            chunkCoords: new[] { Vector2I.Zero }
+        );
+        WorldGenerationDefinition definition = TestWorldGenerationDefinitionFactory.Create(
+            worldSizeInChunks: Vector2I.One, chunkSize: new Vector2I(16, 16),
+            playerStartCoord: new Vector2I(8, 8),
+            startingWildSpawnMaxDistance: 32,
+            wildMonsterDistribution: new[] { regional, wolves },
+            guaranteeStartingWildEncounter: true, startingWildSpawnRegionTag: "starter_wolves",
+            startingArea: new WorldStartingAreaDefinition(new Vector2I(200, 200), 2)
+        );
+        var grid = new WorldMapGridSystem();
+        grid.Setup(definition.WorldSizeInChunks, definition.ChunkSize);
+        ContentSnapshot snapshot = GameSessionTestFactory.GetProcessSnapshot();
+        var challenges = new EncounterChallengeCatalog(snapshot.BattleEncounters, snapshot.EncounterRosters, snapshot.EnemyTemplates);
+        var build = new WorldMapSpawnSystem().BuildWorldTyped(definition, grid, challenges);
+        _test.True(build.EncounterAnchors.Count > 1, "夹具应先生成多个区域野怪，覆盖已有遭遇占用保底范围的分支。");
+        foreach (EncounterAnchorData encounter in build.EncounterAnchors)
+        {
+            _test.Eq(encounter.encounter_profile_id.ToString(), "wolf_wilds", "出生区域内超过挑战上限的区域怪应换成合法遭遇。");
+            _test.Eq(encounter.display_name, "荒狼群", "保底遭遇名称应与实际怪物规则一致。");
+        }
+        WorldGenerationDefinition invalid = TestWorldGenerationDefinitionFactory.Create(
+            wildMonsterDistribution: new[] { wolves },
+            guaranteeStartingWildEncounter: true, startingWildSpawnRegionTag: "missing_rule"
+        );
+        var errors = new WorldMapContentValidator().ValidateGenerationConfigTyped(invalid, "invalid_starter", new StringName[] { "wolf_wilds" });
+        _test.True(errors.Exists(error => error.Contains("starting_wild_spawn_region_tag")), "无法解析的首战规则应被内容校验拒绝。");
     }
 
     private void TestSmallWorldGenerationAssignsUniqueDisplayNames()
@@ -840,7 +881,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
         StringName generationId,
         IReadOnlyList<WildSpawnRuleDefinition> wildSpawnRules,
         bool proceduralGenerationEnabled = true,
-        bool guaranteeStartingWildEncounter = false
+        bool guaranteeStartingWildEncounter = false,
+        string startingWildSpawnRegionTag = ""
     )
     {
         WorldGenerationDefinition source = GetProcessWorldDefinition(TestWorldConfig);
@@ -872,6 +914,8 @@ public partial class run_world_map_shared_content_injection_regression : Lifecyc
             source.WorldStrongholdSpacingCells,
             source.MetropolisSpacingCells,
             guaranteeStartingWildEncounter,
+            startingWildSpawnRegionTag,
+            WorldStartingAreaDefinition.Disabled,
             source.StartingWildSpawnMinDistance,
             source.StartingWildSpawnMaxDistance,
             source.EffectiveSettlementLibrary,

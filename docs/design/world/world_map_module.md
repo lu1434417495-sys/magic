@@ -70,6 +70,8 @@ LoginScreen / Save
 | `procedural_*_count` | `int` | 各 tier 程序化目标据点数量。村庄数量最少为 1，其余 tier 可为 0。|
 | `*_spacing_cells` | `int` | 各 tier 程序化据点最小曼哈顿间距参考值。|
 | `guarantee_starting_wild_encounter` | `bool` | 是否保证起点附近有野外遭遇。|
+| `starting_wild_spawn_region_tag` | `string` | 保底遭遇使用的野怪规则，引用有效规则的 `region_tag`；开启保底时必须唯一匹配。|
+| `starting_area` | `WorldStartingAreaDefinition` | 以实际出生点为中心的矩形尺寸和单怪挑战等级上限；标准主世界为 200×200、上限 2，0×0 表示不启用。|
 | `starting_wild_spawn_min_distance` / `max_distance` | `int` | 起始野怪距离范围，min 不得大于 max。|
 | `shared_content_id` | `StringName` | 可选共享世界内容 ID；非空时必须命中 `world_shared`。|
 | `settlement_library` | `IReadOnlyList<SettlementDefinition>` | 当前 generation 自有的据点模板。|
@@ -442,7 +444,15 @@ mounted submap entry 必须包含：
 - `encounter_kind = single`。
 - `growth_stage = 0`，`suppressed_until_step = 0`。
 
-起始遭遇保证逻辑只在 `guarantee_starting_wild_encounter=true` 时启用；它应在玩家起点周围 `[min,max]` 曼哈顿距离环内寻找合法 cell，避免落在 settlement blocked cells 或已有 encounter 上；如果该范围内已经有 encounter，则不重复补。
+出生区域由 `WorldStartingAreaDefinition` 定义，中心使用生成完成后的实际 `PlayerStartCoord`（即玩家村庄入口），而不是移动中的玩家坐标。测试、小型、中型、巨型主世界配置 200×200、`max_challenge_rating=2`。整格边界是 `[出生 X-100, 出生 X+100)` × `[出生 Y-100, 出生 Y+100)`，四角同样受限；区域超出地图时只影响地图内的格子。挂载子地图使用各自配置，当前灰烬子地图不启用出生保护区。
+
+`EnemyTemplateDefinition.ChallengeRating` 来自必填 JSON `challenge_rating`，是独立于 `CreatureLevel` 的非负有限数值，支持小数，不参与 HP、命中或技能派生。`EncounterChallengeCatalog` 从 battle encounter → roster 各阶段 → enemy template 投影每个阶段的最高单怪挑战等级；不按敌人数求和，缺失 profile、stage 或 template 不会被当作低挑战配置放行。初始评级及其校准状态见 `docs/content/enemy_challenge_ratings.md`。
+
+`WorldMapSpawnSystem` 在固定/程序化野怪和巢穴生成后，以 `WorldStartingAreaRules` 检查实际落点。区域内已合法的遭遇保留；超限遭遇从同类（single/settlement）的合法野怪规则中重选，保留 ID 与坐标并同步名称/region/vision。没有合法替代项时不在该位置生成怪物；区域外仍使用原区域分布。起始保底只在 `guarantee_starting_wild_encounter=true` 时运行：附近已有合法 single 就保留，否则按 `starting_wild_spawn_region_tag` 在 `[min,max]` 曼哈顿距离环中补一个；该保底也必须满足挑战上限。标准主世界保底仍配置 `north_wilds` / `wolf_wilds`，但出生区不要求所有合法怪物都为狼。
+
+`WildEncounterGrowthSystem` 的步数成长和战后压制都使用同一规则限制阶段。出生区狼巢最多到阶段 2，不能长出挑战超过 2 的狼王/萨满；区域外正常成长。任务接取的候选坐标同样检查该任务实际阶段，超限任务会扩大搜索到出生区外；没有合法落点时接取失败并按既有事务回滚。`WorldMapDataContext.TryAddEncounterAnchor` 再次检查写入，防止绕过候选筛选。
+
+静态内容新增必填字段，不改变存档 schema。新世界生成应用区域过滤；读档不重写已有锚点，后续成长和任务新增按当前区域规则执行。
 
 settlement encounter 也属于当前生成行为：若规则显式声明 `settlement_encounter_profile_id/display_name` 且尚不存在 `encounter_kind=settlement` 的锚点，则生成 `wild_settlement_N`，复制该正式 encounter id/display name，并令 `vision_range=max(rule.vision_range, 2)`。运行时不再按 `wolf_pack` 或其他 roster/template id 硬编码据点内容。
 

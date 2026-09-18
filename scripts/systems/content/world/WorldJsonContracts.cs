@@ -247,6 +247,12 @@ internal sealed class WorldGenerationJsonDto
     [JsonPropertyName("guarantee_starting_wild_encounter"), JsonRequired]
     public bool GuaranteeStartingWildEncounter { get; init; }
 
+    [JsonPropertyName("starting_wild_spawn_region_tag"), JsonRequired]
+    public string StartingWildSpawnRegionTag { get; init; } = "";
+
+    [JsonPropertyName("starting_area"), JsonRequired]
+    public WorldStartingAreaJsonDto StartingArea { get; init; } = new();
+
     [JsonPropertyName("starting_wild_spawn_min_distance"), JsonRequired]
     public int StartingWildSpawnMinDistance { get; init; }
 
@@ -299,6 +305,17 @@ internal sealed class WorldSharedJsonDto
     [JsonPropertyName("settlement_name_pools"), JsonRequired]
     public IReadOnlyList<WorldSettlementNamePoolJsonDto> SettlementNamePools { get; init; } =
         Array.Empty<WorldSettlementNamePoolJsonDto>();
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed class WorldStartingAreaJsonDto
+{
+    [Description("Rectangle centered on the actual player spawn; 0 x 0 disables the starting area.")]
+    [JsonPropertyName("size"), JsonRequired]
+    public WorldVector2IJsonDto Size { get; init; } = new();
+
+    [JsonPropertyName("max_challenge_rating"), JsonRequired]
+    public double MaxChallengeRating { get; init; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -535,6 +552,7 @@ internal sealed class WorldVerticalBandJsonValues : IContentJsonSchemaStableStri
 }
 
 internal sealed record WorldVector2IImportModel(int X, int Y);
+internal sealed record WorldStartingAreaImportModel(WorldVector2IImportModel Size, double MaxChallengeRating);
 internal sealed record WorldPresetImportModel(
     string PresetId,
     string DisplayName,
@@ -564,6 +582,8 @@ internal sealed record WorldGenerationImportModel(
     int WorldStrongholdSpacingCells,
     int MetropolisSpacingCells,
     bool GuaranteeStartingWildEncounter,
+    string StartingWildSpawnRegionTag,
+    WorldStartingAreaImportModel StartingArea,
     int StartingWildSpawnMinDistance,
     int StartingWildSpawnMaxDistance,
     IReadOnlyList<WorldSettlementImportModel> SettlementLibrary,
