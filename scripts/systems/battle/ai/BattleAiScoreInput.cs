@@ -55,6 +55,8 @@ public sealed class BattleAiScoreInput
     public int estimated_control_count { get; set; } = 0;
     public int estimated_control_probability_basis_points { get; set; } = 0;
     public int estimated_taunt_ally_damage_relief { get; set; } = 0;
+    public int estimated_incoming_attack_damage_relief { get; set; } = 0;
+    public int estimated_vulnerability_follow_up_damage { get; set; } = 0;
     public int estimated_terrain_effect_count { get; set; } = 0;
     public int estimated_height_delta { get; set; } = 0;
     public int estimated_ground_control_cell_count { get; set; } = 0;
@@ -307,6 +309,8 @@ public sealed class BattleAiScoreInput
                 estimated_control_probability_basis_points,
             ["estimated_taunt_ally_damage_relief"] =
                 estimated_taunt_ally_damage_relief,
+            ["estimated_incoming_attack_damage_relief"] = estimated_incoming_attack_damage_relief,
+            ["estimated_vulnerability_follow_up_damage"] = estimated_vulnerability_follow_up_damage,
             ["estimated_terrain_effect_count"] = estimated_terrain_effect_count,
             ["estimated_height_delta"] = estimated_height_delta,
             ["estimated_ground_control_cell_count"] = estimated_ground_control_cell_count,
@@ -571,6 +575,8 @@ public sealed class BattleAiScoreInput
             "estimated_taunt_ally_damage_relief",
             estimated_taunt_ally_damage_relief
         );
+        AppendNamedValueFingerprint(builder, "estimated_incoming_attack_damage_relief", estimated_incoming_attack_damage_relief);
+        AppendNamedValueFingerprint(builder, "estimated_vulnerability_follow_up_damage", estimated_vulnerability_follow_up_damage);
         AppendNamedValueFingerprint(
             builder,
             "estimated_terrain_effect_count",

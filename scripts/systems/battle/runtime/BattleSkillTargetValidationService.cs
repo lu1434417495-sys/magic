@@ -1493,6 +1493,17 @@ internal sealed class BattleSkillTargetValidationService
                 continue;
             }
 
+            if (effectDefinition.EffectKind == BattleEffectKind.AdvanceStatusTicks)
+            {
+                sawRelevantRequirement = true;
+                firstFailedRequirement ??= effectDefinition;
+                BattleState state = Runtime?._state;
+                if (state != null && state.TryGetUnitTyped(targetUnit.unit_id, out var tickTarget)
+                    && Runtime.GetDamageResolver().BuildStatusTickAdvancePlanTyped(tickTarget, effectDefinition, state).Count > 0)
+                    return "";
+                continue;
+            }
+
             StringName requiredStatusId = ProgressionDataUtils.to_string_name(
                 effectDefinition.RequiredTargetStatusId
             );
@@ -1549,6 +1560,17 @@ internal sealed class BattleSkillTargetValidationService
                 )
             )
             {
+                continue;
+            }
+
+            if (effectDefinition.EffectKind == BattleEffectKind.AdvanceStatusTicks)
+            {
+                sawRelevantRequirement = true;
+                firstFailedRequirement ??= effectDefinition;
+                BattleState state = Runtime?._state;
+                if (state != null && state.TryGetUnitTyped(targetUnit.UnitId, out var tickTarget)
+                    && Runtime.GetDamageResolver().BuildStatusTickAdvancePlanTyped(tickTarget, effectDefinition, state).Count > 0)
+                    return "";
                 continue;
             }
 
@@ -1642,6 +1664,8 @@ internal sealed class BattleSkillTargetValidationService
         CombatEffectDefinition effectDefinition
     )
     {
+        if (effectDefinition?.EffectKind == BattleEffectKind.AdvanceStatusTicks)
+            return "目标没有符合来源条件、尚可提前结算的持续伤害。";
         StringName requiredStatusId = ProgressionDataUtils.to_string_name(
             effectDefinition?.RequiredTargetStatusId ?? new StringName("")
         );

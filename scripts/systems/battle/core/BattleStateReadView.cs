@@ -421,6 +421,8 @@ internal readonly struct BattleStatusReadView
     internal int ComboAttackBonusStackDivisor =>
         _status?.combo_attack_bonus_stack_divisor ?? 0;
     internal bool AttackRollAdvantage => _status?.attack_roll_advantage ?? false;
+    internal bool IncomingAttackRollDisadvantage => _status?.incoming_attack_roll_disadvantage ?? false;
+    internal int DurationTu => _status?.duration ?? 0;
     internal int SourceBoundAttackRollPenalty =>
         _status?.source_bound_attack_roll_penalty ?? 0;
     internal int SourceBoundAttackRollPenaltyMinStacks =>

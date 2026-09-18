@@ -16,7 +16,8 @@ internal sealed record BattleStatusContributionPreviewData(
     int ResultDurationTu,
     int TickIntervalTu,
     string StatusDisplayName = "",
-    int? HealMultiplierPercent = null
+    int? HealMultiplierPercent = null,
+    MitigationTierKind MitigationTier = MitigationTierKind.None
 )
 {
     internal string SummaryText
@@ -30,9 +31,14 @@ internal sealed record BattleStatusContributionPreviewData(
             string statusLabel = string.IsNullOrWhiteSpace(StatusDisplayName)
                 ? StatusId.ToString()
                 : StatusDisplayName;
+            if (MitigationTier == MitigationTierKind.Double)
+            {
+                return $"{targetLabel}：伤害结算后若仍存活，施加{statusLabel}，持续{ResultDurationTu}TU；对应伤害在豁免后翻倍，相同易伤不叠加。";
+            }
             if (HealMultiplierPercent is int healMultiplierPercent)
             {
-                return $"{targetLabel}：{condition}施加{statusLabel}，获得的生命治疗至多为正常值的{healMultiplierPercent}%，持续{ResultDurationTu}TU。";
+                string stacks = SourceStackLimit > 1 ? $"（{ResultSourceStacks}/{SourceStackLimit}层）" : "";
+                return $"{targetLabel}：{condition}施加{statusLabel}{stacks}，获得的生命治疗至多为正常值的{healMultiplierPercent}%，持续{ResultDurationTu}TU。";
             }
             string sourceAction = AddsNewSource ? "新增独立来源" : "叠加同源层数";
             string stackText = SourceStackLimit > 0

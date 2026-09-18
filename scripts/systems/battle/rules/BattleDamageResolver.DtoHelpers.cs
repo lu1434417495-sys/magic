@@ -874,7 +874,7 @@ public partial class BattleDamageResolver
         }
         AppliedDamageResult damageResult = ApplyDamageToTargetResult(
             targetUnit,
-            damageOutcome,
+            WithPostSaveVulnerability(damageOutcome),
             sourceUnit,
             resolutionContext
         );

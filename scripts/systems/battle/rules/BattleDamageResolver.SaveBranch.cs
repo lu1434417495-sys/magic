@@ -20,12 +20,20 @@ public partial class BattleDamageResolver
             effectDefinition,
             damageOutcome.ResolvedDamage
         );
-        return damageOutcome with
+        return WithPostSaveVulnerability(damageOutcome with
         {
             Event = @event,
             ResolvedDamage = Math.Max(resolvedDamage, 0),
-        };
+        });
     }
+
+    // Vulnerability applies after fixed mitigation and the integer save result,
+    // before shield/HP application. Resistance/immune tier arbitration stays upstream.
+    private static int ApplyPostSaveVulnerability(int damage, MitigationTierKind tier) =>
+        (int)Math.Min((long)Math.Max(damage, 0) * (tier == MitigationTierKind.Double ? 2 : 1), int.MaxValue);
+
+    private static DamageOutcomeResult WithPostSaveVulnerability(DamageOutcomeResult outcome) =>
+        outcome.WithResolvedDamage(ApplyPostSaveVulnerability(outcome.ResolvedDamage, outcome.Event.MitigationTier));
 
     private static int ApplySaveResultToDamageEvent(
         ref DamageEventResult damageEvent,

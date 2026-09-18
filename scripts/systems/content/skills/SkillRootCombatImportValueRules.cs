@@ -83,6 +83,7 @@ internal static class SkillRootCombatImportValueRules
             case "damage_dealt": result = CombatMasteryTriggerImportKind.DamageDealt; return true;
             case "status_applied": result = CombatMasteryTriggerImportKind.StatusApplied; return true;
             case "effect_applied": result = CombatMasteryTriggerImportKind.EffectApplied; return true;
+            case "incoming_attack_disadvantage": result = CombatMasteryTriggerImportKind.IncomingAttackDisadvantage; return true;
             case "incoming_physical_hit": result = CombatMasteryTriggerImportKind.IncomingPhysicalHit; return true;
             case "secondary_hit": result = CombatMasteryTriggerImportKind.SecondaryHit; return true;
             case "source_bound_weapon_bonus_damage": result = CombatMasteryTriggerImportKind.SourceBoundWeaponBonusDamage; return true;
@@ -312,6 +313,7 @@ internal static class SkillRootCombatImportValueRules
         CombatMasteryTriggerImportKind.DamageDealt => "damage_dealt",
         CombatMasteryTriggerImportKind.StatusApplied => "status_applied",
         CombatMasteryTriggerImportKind.EffectApplied => "effect_applied",
+        CombatMasteryTriggerImportKind.IncomingAttackDisadvantage => "incoming_attack_disadvantage",
         CombatMasteryTriggerImportKind.IncomingPhysicalHit => "incoming_physical_hit",
         CombatMasteryTriggerImportKind.SecondaryHit => "secondary_hit",
         CombatMasteryTriggerImportKind.SourceBoundWeaponBonusDamage => "source_bound_weapon_bonus_damage",
@@ -530,7 +532,7 @@ internal sealed class SkillMasteryTriggerSchemaValues : IContentJsonSchemaStable
 {
     public IReadOnlyList<string> Values { get; } = SkillRootCombatSchemaValues.Of(
         "skill_damage_dice_max", "weapon_attack_quality", "damage_dealt", "status_applied",
-        "effect_applied", "incoming_physical_hit", "secondary_hit",
+        "effect_applied", "incoming_attack_disadvantage", "incoming_physical_hit", "secondary_hit",
         "source_bound_weapon_bonus_damage", "terrain_effective_trigger"
     );
 }

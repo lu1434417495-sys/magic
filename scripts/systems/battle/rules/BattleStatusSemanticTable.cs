@@ -5,12 +5,6 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
 
-public enum BattleStatusStackingScope
-{
-    Aggregate = 0,
-    SourceDefinition,
-}
-
 public readonly record struct BattleStatusSemantic(
     bool Defined,
     StringName StackMode,
@@ -53,12 +47,14 @@ public static class BattleStatusSemanticTable
         STATUS_ATTACK_UP = "attack_up",
         STATUS_ATTACK_ROLL_BONUS_UP = "attack_roll_bonus_up",
         STATUS_BONE_CHILL = "bone_chill",
+        STATUS_FREEZE_VULNERABILITY = "freeze_vulnerability",
         STATUS_BURNING = "burning",
         STATUS_BLIND = "blind",
         STATUS_FLASH_WHISTLE_DAZZLED = "flash_whistle_dazzled",
         STATUS_DEATH_WARD = "death_ward",
         STATUS_DAMAGE_REDUCTION_UP = "damage_reduction_up",
         STATUS_DODGE_BONUS_UP = "dodge_bonus_up",
+        STATUS_BLURRED_FORM = "blurred_form",
         STATUS_FROZEN = "frozen",
         STATUS_GUARDING = "guarding",
         STATUS_HEX_OF_FRAILTY = "hex_of_frailty",
@@ -125,6 +121,7 @@ public static class BattleStatusSemanticTable
         [STATUS_ATTACK_ROLL_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
         [STATUS_DAMAGE_REDUCTION_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
         [STATUS_DODGE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
+        [STATUS_BLURRED_FORM] = new() { Semantic = RefreshSemantic(displayLabel: "幻身"), DispellableBeneficial = true, DispelPriority = 80 },
         [STATUS_WILLPOWER_SAVE_BONUS_UP] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 80 },
         [STATUS_DEATH_WARD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
         [STATUS_MAGIC_SHIELD] = new() { Semantic = RefreshSemantic(), DispellableBeneficial = true, DispelPriority = 100 },
@@ -151,7 +148,8 @@ public static class BattleStatusSemanticTable
         [STATUS_CROWN_BREAK_BROKEN_HAND] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_CROWN_BREAK_BLINDED_EYE] = new() { Semantic = RefreshSemantic(), Harmful = true },
         [STATUS_BLIND] = new() { Semantic = RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY), Harmful = true, DispellableHarmful = true, DispelPriority = 90 },
-        [STATUS_BONE_CHILL] = new() { Semantic = RefreshSemantic(displayLabel: "寒蚀"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_BONE_CHILL] = new() { Semantic = BuildSemantic(STACK_ADD, 2, displayLabel: "寒蚀"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
+        [STATUS_FREEZE_VULNERABILITY] = new() { Semantic = RefreshSemantic(displayLabel: "寒冰易伤"), Harmful = true, DispellableHarmful = true, DispelPriority = 70 },
         [STATUS_FLASH_WHISTLE_DAZZLED] = new()
         {
             Semantic = RefreshSemantic(
@@ -177,7 +175,7 @@ public static class BattleStatusSemanticTable
                 STACK_ADD,
                 3,
                 TICK_TIMELINE_DAMAGE,
-                stackingScope: BattleStatusStackingScope.SourceDefinition
+                stackingScope: CombatStatusSourceContentRules.GetStackingScope(STATUS_BURNING)
             ),
             Harmful = true,
             DispellableHarmful = true,
@@ -583,6 +581,7 @@ public static class BattleStatusSemanticTable
         statusEntry.lock_counterattack = effectDefinition.LockCounterattack;
         statusEntry.lock_guard = effectDefinition.LockGuard;
         statusEntry.lock_dodge_bonus = effectDefinition.LockDodgeBonus;
+        statusEntry.incoming_attack_roll_disadvantage = effectDefinition.IncomingAttackRollDisadvantage;
         statusEntry.lock_crit = effectDefinition.LockCrit;
         statusEntry.skip_turn = effectDefinition.SkipTurn;
         statusEntry.break_on_positive_damage = effectDefinition.BreakOnPositiveDamage;

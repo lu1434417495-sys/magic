@@ -66,7 +66,24 @@ internal static partial class SkillDiagnosticFixtureProjection
             return null;
         }
 
-        JsonElement? payload = EffectPayload(context, kind, value.@params, pointer + "/payload", diagnostics);
+        JsonElement? payload;
+        if (kind == CombatEffectImportKind.AdvanceStatusTicks)
+        {
+            if (value.@params?.Count > 0)
+                AddInvalid(context, pointer + "/payload", "advance_status_ticks uses typed fixture fields, not params.", diagnostics);
+            payload = JsonSerializer.SerializeToElement(new AdvanceStatusTicksEffectPayloadJsonDto
+            {
+                MaxTicks = value.status_tick_limit,
+                MaxSources = value.status_source_limit,
+                RequiredSourceTag = Text(value.status_source_tag),
+            }, SkillJsonImportSerializerContext.Default.AdvanceStatusTicksEffectPayloadJsonDto);
+        }
+        else
+        {
+            if (value.status_tick_limit != 0 || value.status_source_limit != 0 || value.status_source_tag != "")
+                AddInvalid(context, pointer, "Status tick advance fields require advance_status_ticks.", diagnostics);
+            payload = EffectPayload(context, kind, value.@params, pointer + "/payload", diagnostics);
+        }
         if (!payload.HasValue)
             return null;
 
@@ -232,6 +249,7 @@ internal static partial class SkillDiagnosticFixtureProjection
             LockCounterattack = value.lock_counterattack,
             LockGuard = value.lock_guard,
             LockDodgeBonus = value.lock_dodge_bonus,
+            IncomingAttackRollDisadvantage = value.incoming_attack_roll_disadvantage,
             LockCrit = value.lock_crit,
             SkipTurn = value.skip_turn,
             BreakOnPositiveDamage = value.break_on_positive_damage,

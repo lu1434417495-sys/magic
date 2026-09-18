@@ -1559,7 +1559,8 @@ public sealed class CombatEffectDefinition
         IReadOnlyList<StringName> onRemovedStatusSaveImmunityTags = null,
         bool onRemovedStatusUndispellable = false,
         bool onRemovedStatusConsumeAfterNormalTurn = false,
-        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null
+        CombatSourceStatusGrantDefinition sourceStatusGrantOnHit = null,
+        bool incomingAttackRollDisadvantage = false
     )
     {
         EffectType = effectType;
@@ -1743,6 +1744,7 @@ public sealed class CombatEffectDefinition
         LockCounterattack = lockCounterattack;
         LockGuard = lockGuard;
         LockDodgeBonus = lockDodgeBonus;
+        IncomingAttackRollDisadvantage = incomingAttackRollDisadvantage;
         LockCrit = lockCrit;
         SkipTurn = skipTurn;
         BreakOnPositiveDamage = breakOnPositiveDamage;
@@ -1961,6 +1963,7 @@ public sealed class CombatEffectDefinition
     public bool LockCounterattack { get; }
     public bool LockGuard { get; }
     public bool LockDodgeBonus { get; }
+    public bool IncomingAttackRollDisadvantage { get; }
     public bool LockCrit { get; }
     public bool SkipTurn { get; }
     public bool BreakOnPositiveDamage { get; }
@@ -2232,7 +2235,8 @@ public sealed class CombatEffectDefinition
             onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
             onRemovedStatusConsumeAfterNormalTurn:
                 OnRemovedStatusConsumeAfterNormalTurn,
-            sourceStatusGrantOnHit: SourceStatusGrantOnHit
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit,
+            incomingAttackRollDisadvantage: IncomingAttackRollDisadvantage
         );
     }
 
@@ -2441,7 +2445,8 @@ public sealed class CombatEffectDefinition
             onRemovedStatusUndispellable: OnRemovedStatusUndispellable,
             onRemovedStatusConsumeAfterNormalTurn:
                 OnRemovedStatusConsumeAfterNormalTurn,
-            sourceStatusGrantOnHit: SourceStatusGrantOnHit
+            sourceStatusGrantOnHit: SourceStatusGrantOnHit,
+            incomingAttackRollDisadvantage: IncomingAttackRollDisadvantage
         );
     }
 

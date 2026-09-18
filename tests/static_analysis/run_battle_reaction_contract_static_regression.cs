@@ -36,6 +36,7 @@ public partial class
             ),
             ["ExecuteAutoCast"] = Paths(
                 "tests/battle_runtime/skills/run_archer_disrupting_arrow_regression.cs",
+                "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs",
                 "tests/battle_runtime/skills/run_warrior_heavy_blow_windup_regression.cs",
                 "tests/battle_runtime/runtime/run_prismatic_sphere_special_entry_regression.cs",
                 "tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs"

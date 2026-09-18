@@ -646,6 +646,7 @@ internal sealed partial class BattleSkillPreviewService
                 preview.AddStatusContributionPreview(statusPreview);
             }
             using BattleAiTraceSpan logLinesTrace = new("preview:unit_skill.log_lines");
+            AppendStatusTickAdvancePreview(preview, active_unit, previewEffectDefinitions, previewTargetUnitIds);
             string skillLabel = _format_skill_variant_label(skillDefinition, castVariantDefinition);
             foreach (string barrierBlockLine in barrierBlockLines)
                 preview.AddLogLine(barrierBlockLine);
@@ -1892,6 +1893,44 @@ internal sealed partial class BattleSkillPreviewService
         );
     }
 
+    private void AppendStatusTickAdvancePreview(BattlePreview preview, BattleUnitReadView actor,
+        IReadOnlyList<CombatEffectDefinition> effects, IReadOnlyList<StringName> targets)
+    {
+        if (!effects.Any(effect => effect.EffectKind == BattleEffectKind.AdvanceStatusTicks))
+            return;
+        BattleState state = RtState();
+        if (state == null || !state.TryGetUnitTyped(actor.UnitId, out var caster))
+            return;
+        if (Runtime == null)
+            return;
+        int minimum = 0;
+        int maximum = 0;
+        bool found = false;
+        foreach (var targetId in targets)
+        {
+            if (!state.TryGetUnitTyped(targetId, out var target))
+                continue;
+            var averageSet = BattleDamagePreviewWorkingSet.CreateDetached(caster, target, state);
+            var minimumSet = BattleDamagePreviewWorkingSet.CreateDetached(caster, target, state);
+            var maximumSet = BattleDamagePreviewWorkingSet.CreateDetached(caster, target, state);
+            foreach (var effect in effects)
+            {
+                if (effect.EffectKind != BattleEffectKind.AdvanceStatusTicks)
+                    continue;
+                found = true;
+                var average = Runtime.PreviewStatusTickAdvance(averageSet, effect, BattleStatusTickAdvancePreviewMode.Average);
+                var low = Runtime.PreviewStatusTickAdvance(minimumSet, effect, BattleStatusTickAdvancePreviewMode.Minimum);
+                var high = Runtime.PreviewStatusTickAdvance(maximumSet, effect, BattleStatusTickAdvancePreviewMode.Maximum);
+                minimum += low.HpDamage;
+                maximum += high.HpDamage;
+                preview.AddLogLine($"预计对 {target.display_name} 提前结算 {average.SourceCount} 个来源的 {average.TickCount} 次持续伤害，造成 {average.HpDamage} 生命伤害、消耗 {average.ShieldAbsorbed} 护盾；施放后将扣除对应的后续结算。");
+            }
+        }
+        if (found)
+            preview.SetDamagePreview(new BattleSkillDamagePreview(
+                true, minimum, maximum, Array.Empty<BattleDamageEffectRange>()));
+    }
+
     private IReadOnlyList<BattleStatusContributionPreviewData>
         BuildStatusContributionPreviewsTyped(
             BattleUnitReadView activeUnit,
@@ -1968,6 +2007,9 @@ internal sealed partial class BattleSkillPreviewService
             }
             foreach (BattleUnitState targetUnit in plannedTargets)
             {
+                if (!BattleDamageResolver.TargetStatusRequirementPasses(
+                    sourceUnit, targetUnit, effectDefinition))
+                    continue;
                 BattleStatusEffectState existing = targetUnit.GetStatusEffect(statusId);
                 BattleStatusSourceContributionState previousContribution =
                     existing?.GetSourceContributionTyped(sourceIdentity);
@@ -1980,7 +2022,8 @@ internal sealed partial class BattleSkillPreviewService
                 );
                 if (
                     semantic.StackingScope != BattleStatusStackingScope.SourceDefinition
-                    && effectDefinition.HealMultiplierPercent < 100
+                    && (effectDefinition.HealMultiplierPercent < 100
+                        || effectDefinition.MitigationTier == new StringName("double"))
                 )
                 {
                     if (merged == null)
@@ -2002,7 +2045,9 @@ internal sealed partial class BattleSkillPreviewService
                             merged.duration,
                             merged.tick_interval_tu,
                             BattleStatusSemanticTable.GetDisplayLabel(statusId),
-                            effectDefinition.HealMultiplierPercent
+                            effectDefinition.HealMultiplierPercent < 100
+                                ? effectDefinition.HealMultiplierPercent : null,
+                            AttackEffectResolutionResultReader.ParseMitigationTier(effectDefinition.MitigationTier)
                         )
                     );
                     continue;
@@ -2065,6 +2110,7 @@ internal sealed partial class BattleSkillPreviewService
         semantic = BattleStatusSemanticTable.GetSemantic(statusId);
         return semantic.StackingScope == BattleStatusStackingScope.SourceDefinition
             || effectDefinition.HealMultiplierPercent < 100
+            || effectDefinition.MitigationTier == new StringName("double")
             ? statusId
             : new StringName("");
     }

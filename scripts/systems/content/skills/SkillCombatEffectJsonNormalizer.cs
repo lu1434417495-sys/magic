@@ -257,6 +257,7 @@ internal static partial class SkillJsonImportParser
             LockCounterattack = dto.LockCounterattack,
             LockGuard = dto.LockGuard,
             LockDodgeBonus = dto.LockDodgeBonus,
+            IncomingAttackRollDisadvantage = dto.IncomingAttackRollDisadvantage,
             LockCrit = dto.LockCrit,
             SkipTurn = dto.SkipTurn,
             BreakOnPositiveDamage = dto.BreakOnPositiveDamage,
@@ -315,6 +316,7 @@ internal static partial class SkillJsonImportParser
         {
             CombatEffectPayloadShape.Empty => ParseEmptyPayload(context, element, pointer, diagnostics),
             CombatEffectPayloadShape.Status => NormalizeStatusPayload(context, element, pointer, diagnostics),
+            CombatEffectPayloadShape.AdvanceStatusTicks => NormalizeAdvanceStatusTicksPayload(context, element, pointer, diagnostics),
             CombatEffectPayloadShape.Heal => NormalizeHealPayload(context, element, pointer, diagnostics),
             CombatEffectPayloadShape.EquipmentDurabilityDamage => NormalizeEquipmentPayload(context, element, pointer, diagnostics),
             CombatEffectPayloadShape.RepeatAttackUntilFail => NormalizeRepeatPayload(context, element, pointer, diagnostics),
@@ -324,6 +326,14 @@ internal static partial class SkillJsonImportParser
             CombatEffectPayloadShape.OnKillGainResources => NormalizeOnKillPayload(context, element, pointer, diagnostics),
             _ => throw new InvalidOperationException("Unregistered combat effect payload shape."),
         };
+    }
+
+    private static AdvanceStatusTicksEffectPayloadImportModel? NormalizeAdvanceStatusTicksPayload(JsonContentEntryContext context, JsonElement element, string pointer, List<ContentJsonDiagnostic> diagnostics)
+    {
+        var value = ParsePayload(context, element, pointer, SkillJsonImportSerializerContext.Default.AdvanceStatusTicksEffectPayloadJsonDto, diagnostics);
+        if (value == null)
+            return null;
+        return new(value.MaxTicks, value.MaxSources, Name(value.RequiredSourceTag, context, $"{pointer}/required_source_tag", diagnostics));
     }
 
     private static EmptyCombatEffectPayloadImportModel? ParseEmptyPayload(JsonContentEntryContext context, JsonElement element, string pointer, List<ContentJsonDiagnostic> diagnostics) =>

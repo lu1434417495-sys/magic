@@ -71,6 +71,11 @@ internal sealed class BattleSkillPreviewBridgeService
     SkillDefinition IBattleSkillPreviewRuntimePort.GetSkillDefinition(StringName skillId) =>
         _runtime?.GetSkillDefinitionTyped(skillId);
 
+    BattleStatusTickAdvancePreview IBattleSkillPreviewRuntimePort.PreviewStatusTickAdvance(
+        BattleDamagePreviewWorkingSet workingSet, CombatEffectDefinition effect, BattleStatusTickAdvancePreviewMode rollMode) =>
+        _runtime?.GetDamageResolver()?.PreviewStatusTickAdvanceOnWorkingSetTyped(workingSet, effect, rollMode)
+            ?? BattleStatusTickAdvancePreview.Empty;
+
     IReadOnlyDictionary<StringName, ItemDefinition> IBattleSkillPreviewRuntimePort.GetItemDefIndex() =>
         _runtime?.GetItemDefIndexTyped();
 

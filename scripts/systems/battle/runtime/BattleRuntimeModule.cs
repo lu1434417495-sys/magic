@@ -1840,6 +1840,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver?.SetFatalInterceptArbiter(null);
         _damage_resolver?.SetRangedWeaponAttackReactionSink(null);
+        _damage_resolver?.SetIncomingAttackDisadvantageSink(null);
         _reactionSinkBoundDamageResolver
             ?.SetAttackResolutionSink(null);
         _reactionSinkBoundDamageResolver = null;
@@ -3112,6 +3113,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver.SetHitResolver(_hit_resolver);
         _damage_resolver.SetDamageApplicationHook(_contingency_system);
         _damage_resolver.SetRangedWeaponAttackReactionSink(_skill_orchestrator);
+        _damage_resolver.SetIncomingAttackDisadvantageSink(_skill_orchestrator);
         EnsureReactionRuntimeReady();
     }
 
@@ -3172,6 +3174,7 @@ public sealed partial class BattleRuntimeModule : IDisposable
         _damage_resolver?.SetEquipmentAbilityPorts(null, null);
         _damage_resolver?.SetFatalInterceptArbiter(null);
         _damage_resolver?.SetRangedWeaponAttackReactionSink(null);
+        _damage_resolver?.SetIncomingAttackDisadvantageSink(null);
     }
 
     internal static bool IsEmpty(StringName value) => value == default || value == (StringName)"";

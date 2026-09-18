@@ -254,7 +254,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
         AssertWireInventory(
             GetObjectSchema(SkillCanonicalJsonSchema.EffectValueSchema),
             typeof(CombatEffectJsonDto),
-            194,
+            195,
             "combat effect"
         );
     }
@@ -353,7 +353,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
             }
         }
         _test.Eq(testedFieldCount, expectedFieldCount, "every nested and payload DTO field must execute a getter/default oracle");
-        _test.Eq(testedFieldCount, 125, "reviewed nested and payload getter/default field inventory should stay at 125");
+        _test.Eq(testedFieldCount, 128, "reviewed nested and payload getter/default field inventory should stay at 128");
         _test.Eq(testedNonZeroDefaultResetCount, 28, "reviewed nested and payload nonzero/true defaults should all execute omission and explicit-reset oracles");
     }
 
@@ -407,6 +407,9 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
 
             PayloadCase("payload_empty", typeof(EmptyCombatEffectPayloadJsonDto), "damage"),
             PayloadCase("payload_status", typeof(StatusEffectPayloadJsonDto), "status"),
+            PayloadCase("payload_advance_ticks", typeof(AdvanceStatusTicksEffectPayloadJsonDto), "advance_status_ticks",
+                Map(("max_ticks", "3"), ("max_sources", "1"), ("required_source_tag", "\"fire\"")),
+                Set("max_ticks", "max_sources", "required_source_tag")),
             PayloadCase("payload_heal", typeof(HealEffectPayloadJsonDto), "heal"),
             PayloadCase("payload_equipment", typeof(EquipmentDurabilityDamageEffectPayloadJsonDto), "equipment_durability_damage",
                 Map(("target_slots", "[\"head\"]")), Set("target_slots"),
@@ -759,6 +762,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
     {
         var expected = new Dictionary<CombatEffectImportKind, CombatEffectPayloadShape>
         {
+            [CombatEffectImportKind.AdvanceStatusTicks] = CombatEffectPayloadShape.AdvanceStatusTicks,
             [CombatEffectImportKind.BodySizeCategoryOverride] = CombatEffectPayloadShape.Empty,
             [CombatEffectImportKind.ChainDamage] = CombatEffectPayloadShape.Empty,
             [CombatEffectImportKind.Charge] = CombatEffectPayloadShape.Empty,
@@ -789,7 +793,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
             [CombatEffectImportKind.VaultBehindTarget] = CombatEffectPayloadShape.Empty,
         };
         CombatEffectImportKind[] kinds = Enum.GetValues<CombatEffectImportKind>();
-        _test.Eq(kinds.Length, 28, "effect kind inventory should stay reviewed at 28");
+        _test.Eq(kinds.Length, 29, "effect kind inventory should stay reviewed at 29");
         _test.Eq(expected.Count, kinds.Length, "every effect kind should have an independent expected payload shape");
         foreach (CombatEffectImportKind kind in kinds)
         {
@@ -1008,6 +1012,9 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
                 case CombatEffectPayloadShape.Empty:
                     AssertWireInventory((ContentCanonicalJsonObjectSchema<EmptyCombatEffectPayloadImportModel>)objectSchema, typeof(EmptyCombatEffectPayloadJsonDto), 0, "empty effect payload");
                     break;
+                case CombatEffectPayloadShape.AdvanceStatusTicks:
+                    AssertWireInventory((ContentCanonicalJsonObjectSchema<AdvanceStatusTicksEffectPayloadImportModel>)objectSchema, typeof(AdvanceStatusTicksEffectPayloadJsonDto), 3, "advance status ticks payload");
+                    break;
                 case CombatEffectPayloadShape.Status:
                     AssertWireInventory((ContentCanonicalJsonObjectSchema<StatusEffectPayloadImportModel>)objectSchema, typeof(StatusEffectPayloadJsonDto), 2, "status effect payload");
                     break;
@@ -1037,7 +1044,7 @@ public partial class run_skill_canonical_json_schema_regression : LifecycleTestS
                     break;
             }
         }
-        _test.Eq(seen.Count, 9, "all nine effect payload object schemas should be inventoried");
+        _test.Eq(seen.Count, 10, "all ten effect payload object schemas should be inventoried");
         foreach (CombatEffectPayloadShape shape in Enum.GetValues<CombatEffectPayloadShape>())
             _test.True(seen.Contains(shape), $"payload object schema {shape} should be present");
     }

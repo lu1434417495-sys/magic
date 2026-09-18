@@ -14,6 +14,7 @@ internal enum CombatEffectPayloadShape
     GradedSaveExecute,
     DispelMagic,
     OnKillGainResources,
+    AdvanceStatusTicks,
 }
 
 internal static class SkillFullCombatEffectClosedSpec
@@ -28,6 +29,7 @@ internal static class SkillFullCombatEffectClosedSpec
     private static readonly IReadOnlyList<Entry> Entries = Array.AsReadOnly(
         new[]
         {
+            Typed("advance_status_ticks", CombatEffectImportKind.AdvanceStatusTicks, CombatEffectPayloadShape.AdvanceStatusTicks, typeof(AdvanceStatusTicksEffectPayloadJsonDto)),
             Empty("body_size_category_override", CombatEffectImportKind.BodySizeCategoryOverride),
             Empty("chain_damage", CombatEffectImportKind.ChainDamage),
             Empty("charge", CombatEffectImportKind.Charge),
@@ -103,6 +105,7 @@ internal static class SkillFullCombatEffectClosedSpec
         {
             CombatEffectPayloadShape.Empty => payload is EmptyCombatEffectPayloadImportModel,
             CombatEffectPayloadShape.Status => payload is StatusEffectPayloadImportModel,
+            CombatEffectPayloadShape.AdvanceStatusTicks => payload is AdvanceStatusTicksEffectPayloadImportModel,
             CombatEffectPayloadShape.Heal => payload is HealEffectPayloadImportModel,
             CombatEffectPayloadShape.EquipmentDurabilityDamage => payload is EquipmentDurabilityDamageEffectPayloadImportModel,
             CombatEffectPayloadShape.RepeatAttackUntilFail => payload is RepeatAttackUntilFailEffectPayloadImportModel,

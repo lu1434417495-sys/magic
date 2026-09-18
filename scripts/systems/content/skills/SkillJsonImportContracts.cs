@@ -114,6 +114,7 @@ internal enum CombatEffectImportKind
     TerrainReplace,
     TerrainReplaceTo,
     VaultBehindTarget,
+    AdvanceStatusTicks,
 }
 
 internal interface ICombatEffectPayloadImportModel { }
@@ -921,6 +922,7 @@ internal sealed class SkillLevelOverrideJsonDto
 [JsonSerializable(typeof(CombatEffectJsonDto))]
 [JsonSerializable(typeof(EmptyCombatEffectPayloadJsonDto))]
 [JsonSerializable(typeof(StatusEffectPayloadJsonDto))]
+[JsonSerializable(typeof(AdvanceStatusTicksEffectPayloadJsonDto))]
 [JsonSerializable(typeof(HealEffectPayloadJsonDto))]
 [JsonSerializable(typeof(EquipmentDurabilityDamageEffectPayloadJsonDto))]
 [JsonSerializable(typeof(RepeatAttackUntilFailEffectPayloadJsonDto))]

@@ -559,11 +559,15 @@ public partial class run_content_json_schema_export_regression : LifecycleTestSc
                 .GetProperty("effect_defs")
                 .GetProperty("items")
         );
-        _test.Eq(
-            effect.GetProperty("oneOf").GetArrayLength(),
-            28,
-            "skill schema should expose the complete registered combat-effect closed set"
-        );
+        string[] exportedKinds = effect.GetProperty("oneOf").EnumerateArray()
+            .Select(branch => ReferencedDefinition(root, branch)
+                .GetProperty("properties").GetProperty("effect_type").GetProperty("const").GetString()
+                ?? throw new InvalidOperationException("Effect schema discriminator must be a string."))
+            .OrderBy(kind => kind, StringComparer.Ordinal).ToArray();
+        string[] registeredKinds = SkillFullCombatEffectClosedSpec.SchemaBranches
+            .Select(branch => branch.Kind).OrderBy(kind => kind, StringComparer.Ordinal).ToArray();
+        _test.True(exportedKinds.SequenceEqual(registeredKinds),
+            "skill schema should expose exactly the registered combat-effect kinds");
         JsonElement layeredBranch = ReferencedDefinition(
             root,
             effect.GetProperty("oneOf").EnumerateArray().Single(branch =>

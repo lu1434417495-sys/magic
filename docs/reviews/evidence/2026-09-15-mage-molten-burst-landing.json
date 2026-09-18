@@ -1,0 +1,223 @@
+{
+  "date": "2026-09-15",
+  "skill_id": "mage_molten_burst",
+  "revision": "advance existing source ticks",
+  "workspace": "E:/game/magic",
+  "scope": "current shared dirty checkout; no clean delivery or CI claim",
+  "head": "49c80870c9a8d8e0f415544b25ed00be2ebb29f8",
+  "content_entry_diff_from_head": [
+    "mage_molten_burst"
+  ],
+  "build": {
+    "command": "dotnet build magic.csproj",
+    "exit_code": 0,
+    "warnings": 0,
+    "errors": 0,
+    "seconds": 11.75
+  },
+  "focused_checks": [
+    {
+      "name": "run_skill_canonical_json_schema_regression",
+      "exit_code": 0,
+      "seconds": 19.81,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_skill_canonical_json_schema_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "earlier_attempt": {
+        "exit_code": 1,
+        "reason": "schema inventory required the new payload/kind and earlier incoming-disadvantage field"
+      },
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_skill_canonical_json_schema_regression.log",
+      "log_sha256": "601e6b106608e654676ad908051450b775e4b1b66e6029fefb7bf866f4b6f4e7"
+    },
+    {
+      "name": "run_skill_json_import_contract_regression",
+      "exit_code": 0,
+      "seconds": 19.71,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_skill_json_import_contract_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_skill_json_import_contract_regression.log",
+      "log_sha256": "26d220d059b874c00a2c757e59640616f68ec649dcee53f73c51c6508fb9302b"
+    },
+    {
+      "name": "run_skill_json_directory_round_trip_regression",
+      "exit_code": 0,
+      "seconds": 20.21,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_skill_json_directory_round_trip_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_skill_json_directory_round_trip_regression.log",
+      "log_sha256": "8e900da40768c6aea55a1a880e6dcfdd80a87b653e3137441b3aef21ddf7dc26"
+    },
+    {
+      "name": "run_skill_definition_projector_parity_regression",
+      "exit_code": 0,
+      "seconds": 22.63,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_skill_definition_projector_parity_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_skill_definition_projector_parity_regression.log",
+      "log_sha256": "ca84b13f08673dcbc047557f7a420c96775b9390d2b3002f447cfce438f3fe29"
+    },
+    {
+      "name": "run_mage_burning_hands_regression",
+      "exit_code": 0,
+      "seconds": 20.74,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_mage_burning_hands_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_mage_burning_hands_regression.log",
+      "log_sha256": "d3373fd01c9a3c6505d6b99e9e1ce9ea45261523283603781e90ecb2792f1537"
+    },
+    {
+      "name": "run_battle_status_source_contribution_regression",
+      "exit_code": 0,
+      "seconds": 19.86,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_battle_status_source_contribution_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_battle_status_source_contribution_regression.log",
+      "log_sha256": "630a6e96c94155839f2a875962d21043e22ce6c17e1fd855c40897a532f3337f"
+    },
+    {
+      "name": "run_post_save_vulnerability_regression",
+      "exit_code": 0,
+      "seconds": 20.07,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_post_save_vulnerability_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_post_save_vulnerability_regression.log",
+      "log_sha256": "e0d596314206c8100ae6b1dc3bf599449d92cfb243bfa1f6b0936a3c08729826"
+    },
+    {
+      "name": "run_battle_ai_skill_affordance_classifier_regression",
+      "exit_code": 0,
+      "seconds": 19.88,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_battle_ai_skill_affordance_classifier_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_battle_ai_skill_affordance_classifier_regression.log",
+      "log_sha256": "a9a146a7b0990ff0320aef67982c237939cacd9ed7b18505b2ade27d1aced4e3"
+    },
+    {
+      "name": "run_battle_ai_score_input_metrics_regression",
+      "exit_code": 0,
+      "seconds": 21.11,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_battle_ai_score_input_metrics_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_battle_ai_score_input_metrics_regression.log",
+      "log_sha256": "98ad5531b214258df6540df5636d2947f5387ed09894b000783c75be19ba1b16"
+    },
+    {
+      "name": "run_battle_ai_score_selection_regression",
+      "exit_code": 0,
+      "seconds": 20.16,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_battle_ai_score_selection_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_battle_ai_score_selection_regression.log",
+      "log_sha256": "e9803a523456761e314245771abc58ab7b4746f6aa0ead29baa4a5a36273b110"
+    },
+    {
+      "name": "run_mage_molten_burst_regression",
+      "exit_code": 0,
+      "seconds": 21.49,
+      "command": [
+        "tests/run_regression_suite.py",
+        "--pattern",
+        "run_mage_molten_burst_regression",
+        "--fail-on-output-error",
+        "--jobs",
+        "2"
+      ],
+      "log": "docs/reviews/evidence/2026-09-15-mage-molten-burst-landing/run_mage_molten_burst_regression.log",
+      "log_sha256": "b5fa288ebb47b8e09f3e05fbcfa9ca31bfc57726976458394d6aab19a0cdeebe"
+    }
+  ],
+  "arithmetic": {
+    "status": "arithmetic_only",
+    "case_count": 20,
+    "runtime_probes": 7,
+    "result": "docs/proposals/battle/skills/mage_molten_burst_assessment/result_v3.json"
+  },
+  "definition_golden": "26051FEA8F53B92BAFD5BD68B1B482B06331FA9357773E7E48871B4123D62E85",
+  "source_sha256": {
+    "data/configs/json/skills/mage_04.json": "54deff006d31ea0c02f848e03a50f295fd72de43a063c60fefbca5aaa2c03352",
+    "scripts/systems/battle/rules/BattleStatusTickAdvanceRules.cs": "92cbd933df77e664a0d1d1ab6036cce78d01d9690b966970afcd4da7a7427860",
+    "scripts/systems/battle/rules/BattleDamageResolver.StatusTickAdvance.cs": "004f42af1edbe6b7f11ac0fe6bd27d0e22ceed18e711c6d315ed3df762878896",
+    "scripts/systems/battle/rules/BattleDamageResolver.cs": "9f8c286d4a9e43d465b368bc59f03680893584b28e2a15d46acf268bcd5824d4",
+    "scripts/systems/battle/rules/BattleStatusSemanticTable.cs": "b5abc8c1473122771e831d0d079f669653e08039482135e2d1b89d7caca919b1",
+    "scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs": "8ff887edb95419c57f1005e68d5aa56fe5238af8383d716bd33fe1ad2fcf94cf",
+    "scripts/systems/battle/runtime/BattleSkillMasteryService.cs": "9754a8418d12f3f1a488cd3f60ac8cb47fe9b7a9e4d8ac7a925b923847288b8a",
+    "scripts/systems/progression/ProgressionService.cs": "76e9cd073bae8c49b96835f4b552c0f41c0e01a9dd08ac6ccb331c02d72b340e",
+    "tests/battle_runtime/skills/run_mage_molten_burst_regression.cs": "3d093b901f6b27c0df5ac78f4eeae77283014732759631ceb575f15ebd1e81fd",
+    "docs/proposals/battle/skills/mage_molten_burst_assessment/build_revision3.py": "dce5027027bdfa1cd63afa699c787fff2d33dd3c34a78e6a6fc12c66c0b75423",
+    "scripts/player/progression/CombatStatusSourceContentRules.cs": "488d2421a091cc9de4b30435c182f8948d74dd8ee820bccf0b1a42a6937e01f3",
+    "scripts/player/progression/definitions/CombatEffectPayloadDefinition.cs": "9be65a194df68d41e38ce14fb05c6a69e18cec164da7709a8a22c52ca5b3c635",
+    "scripts/systems/battle/ai/BattleAiScoreService.Effects.cs": "27c38ab211e968bdbf81e8ff63853a719773f683399d6f1d2bfdcc3cd07b16df",
+    "scripts/systems/battle/runtime/BattleSkillPreviewService.cs": "286519a19e5272af8fa214adbf3da1f54d87580ea6a84876eb287be728a0a611",
+    "scripts/systems/battle/runtime/BattleSkillTargetValidationService.cs": "e17e6a4fd924c58516ec02306117af5c88891c458d623fd2b8ef21a87b98cde8",
+    "scripts/systems/content/skills/SkillDefinitionCombatProfileValidator.cs": "f1d371381c30204bbcbb532e4a0ccc1820f0b8cbeba8240538a6f8fb17e00b17",
+    "tests/runtime/validation/run_skill_canonical_json_schema_regression.cs": "a82b2e5551f0359f619263ab769737de623494bd37ca44ac85e5a0c0a3e7a4ef",
+    "tests/runtime/validation/run_skill_definition_projector_parity_regression.cs": "cf564e85f34a77a21ec8f4e86f19246dff3e646720be936e26e435fed60daf0d"
+  },
+  "not_run": [
+    "full regression suite",
+    "CI",
+    "numeric BattleSim",
+    "native visual inspection",
+    "clean checkout delivery"
+  ]
+}

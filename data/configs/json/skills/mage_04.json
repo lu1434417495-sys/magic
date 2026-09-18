@@ -1125,246 +1125,170 @@
       "skill_id": "mage_molten_burst",
       "icon_id": "mage_molten_burst",
       "display_name": "熔爆术",
-      "description": "对已带灼烧的敌人追加一次50%火焰余震，适合作为火系中段爆发点。",
+      "description": "对一个已有火系燃烧来源的敌人，提前结算有限次数的后续燃烧伤害。已提前结算的次数从原来源扣除，不追加基础伤害、不重新豁免；原状态层数和到期时间保持不变。优先取即将到期的来源，再按结算先后取用。",
       "max_level": 7,
       "tags": [
         "mage",
         "magic",
         "fire",
-        "output",
-        "control"
+        "output"
       ],
-      "level_description_template": "造成{dmg}火焰伤害，范围{area}。消耗{ap}AP/{mp}法力，冷却{cooldown}TU",
+      "level_description_template": "单个敌人，最多从{sources}个火系燃烧来源提前结算合计{ticks}次，扣除对应后续结算；射程{range}，消耗1AP/{mp}法力，冷却{cooldown}TU。无可结算燃烧时不能施放。",
       "level_description_configs": {
         "0": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "10",
-          "dmg": "4D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "3",
+          "sources": "1",
+          "mp": "20",
+          "cooldown": "80",
           "range": "4"
         },
         "1": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "10",
-          "dmg": "5D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "3",
+          "sources": "1",
+          "mp": "18",
+          "cooldown": "80",
           "range": "4"
         },
         "2": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "10",
-          "dmg": "5D6",
-          "duration": "60",
-          "hit": "+0",
-          "mp": "80",
-          "range": "4"
+          "ticks": "3",
+          "sources": "1",
+          "mp": "18",
+          "cooldown": "80",
+          "range": "5"
         },
         "3": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "10",
-          "dmg": "6D6",
-          "duration": "80",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "4",
+          "sources": "1",
+          "mp": "18",
+          "cooldown": "80",
           "range": "5"
         },
         "4": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "10",
-          "dmg": "6D6",
-          "duration": "80",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "4",
+          "sources": "1",
+          "mp": "18",
+          "cooldown": "40",
           "range": "5"
         },
         "5": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "5",
-          "dmg": "7D6",
-          "duration": "100",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "6",
+          "sources": "2",
+          "mp": "18",
+          "cooldown": "40",
           "range": "5"
         },
         "6": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "5",
-          "dmg": "7D6",
-          "duration": "100",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "6",
+          "sources": "2",
+          "mp": "16",
+          "cooldown": "40",
           "range": "5"
         },
         "7": {
-          "ap": "2",
-          "area": "半径1格",
-          "cooldown": "5",
-          "dmg": "8D6",
-          "duration": "120",
-          "hit": "+0",
-          "mp": "80",
+          "ticks": "8",
+          "sources": "2",
+          "mp": "16",
+          "cooldown": "40",
           "range": "5"
         }
       },
       "combat_profile": {
         "skill_id": "mage_molten_burst",
-        "target_mode": "ground",
+        "target_mode": "unit",
+        "target_team_filter": "enemy",
+        "area_pattern": "single",
         "range_value": 4,
-        "area_pattern": "radius",
-        "ap_cost": 2,
-        "mp_cost": 80,
-        "cooldown_tu": 10,
-        "effect_defs": [
-          {
-            "effect_type": "damage",
-            "max_skill_level": 0,
-            "payload": {},
-            "damage_tag": "fire",
-            "dice_count": 4,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
-            "min_skill_level": 1,
-            "max_skill_level": 2,
-            "payload": {},
-            "damage_tag": "fire",
-            "dice_count": 5,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
-            "min_skill_level": 3,
-            "max_skill_level": 4,
-            "payload": {},
-            "damage_tag": "fire",
-            "dice_count": 6,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
-            "min_skill_level": 5,
-            "max_skill_level": 6,
-            "payload": {},
-            "damage_tag": "fire",
-            "dice_count": 7,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "damage",
-            "min_skill_level": 7,
-            "payload": {},
-            "damage_tag": "fire",
-            "dice_count": 8,
-            "dice_sides": 6,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_partial_on_success": true,
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 3,
-            "max_skill_level": 4,
-            "power": 2,
-            "duration_tu": 80,
-            "payload": {},
-            "effect_target_team_filter": "enemy",
-            "status_id": "burning",
-            "tick_interval_tu": 10,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 5,
-            "max_skill_level": 6,
-            "power": 2,
-            "duration_tu": 100,
-            "payload": {},
-            "effect_target_team_filter": "enemy",
-            "status_id": "burning",
-            "tick_interval_tu": 10,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_tag": "magic"
-          },
-          {
-            "effect_type": "status",
-            "min_skill_level": 7,
-            "power": 3,
-            "duration_tu": 120,
-            "payload": {},
-            "effect_target_team_filter": "enemy",
-            "status_id": "burning",
-            "tick_interval_tu": 10,
-            "save_dc_mode": "caster_spell",
-            "save_dc_source_ability": "intelligence",
-            "save_ability": "agility",
-            "save_tag": "magic"
-          }
-        ],
-        "level_overrides": {
-          "3": {
-            "range_value": 5
-          },
-          "5": {
-            "cooldown_tu": 5,
-            "range_value": 5
-          },
-          "7": {
-            "area_value": 2
-          }
-        },
-        "area_value": 1,
+        "ap_cost": 1,
+        "mp_cost": 20,
+        "cooldown_tu": 80,
+        "attack_resolution_mode": "direct_effect",
+        "mastery_trigger_mode": "damage_dealt",
+        "mastery_amount_mode": "per_target_rank",
+        "mastery_base_amount": 1,
         "delivery_categories": [
           "spell"
+        ],
+        "level_overrides": {
+          "1": {
+            "mp_cost": 18
+          },
+          "2": {
+            "range_value": 5
+          },
+          "4": {
+            "cooldown_tu": 40
+          },
+          "6": {
+            "mp_cost": 16
+          }
+        },
+        "effect_defs": [
+          {
+            "effect_type": "advance_status_ticks",
+            "min_skill_level": 0,
+            "status_id": "burning",
+            "required_target_status_id": "burning",
+            "required_target_status_min_stacks": 1,
+            "effect_target_team_filter": "enemy",
+            "payload": {
+              "max_ticks": 3,
+              "max_sources": 1,
+              "required_source_tag": "fire"
+            },
+            "max_skill_level": 2
+          },
+          {
+            "effect_type": "advance_status_ticks",
+            "min_skill_level": 3,
+            "status_id": "burning",
+            "required_target_status_id": "burning",
+            "required_target_status_min_stacks": 1,
+            "effect_target_team_filter": "enemy",
+            "payload": {
+              "max_ticks": 4,
+              "max_sources": 1,
+              "required_source_tag": "fire"
+            },
+            "max_skill_level": 4
+          },
+          {
+            "effect_type": "advance_status_ticks",
+            "min_skill_level": 5,
+            "status_id": "burning",
+            "required_target_status_id": "burning",
+            "required_target_status_min_stacks": 1,
+            "effect_target_team_filter": "enemy",
+            "payload": {
+              "max_ticks": 6,
+              "max_sources": 2,
+              "required_source_tag": "fire"
+            },
+            "max_skill_level": 6
+          },
+          {
+            "effect_type": "advance_status_ticks",
+            "min_skill_level": 7,
+            "status_id": "burning",
+            "required_target_status_id": "burning",
+            "required_target_status_min_stacks": 1,
+            "effect_target_team_filter": "enemy",
+            "payload": {
+              "max_ticks": 8,
+              "max_sources": 2,
+              "required_source_tag": "fire"
+            }
+          }
         ]
       },
       "non_core_max_level": 5,
       "mastery_curve": [
-        400,
-        1000,
-        2200,
-        4000,
-        6500,
-        9500,
-        13000
+        60,
+        80,
+        110,
+        150,
+        200,
+        270,
+        350
       ],
       "growth_tier": "advanced",
       "attribute_growth_progress": {

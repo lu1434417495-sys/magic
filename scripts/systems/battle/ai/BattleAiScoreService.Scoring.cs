@@ -922,6 +922,13 @@ public partial class BattleAiScoreService
         int targetShieldBefore
     )
     {
+        // Canonical preview has already resolved vulnerability, shields and fatal
+        // interception per save branch. Pure save amounts cannot reconstruct that.
+        if (normalized.HasTypedLethalPreview)
+        {
+            ApplyLethalEstimateToFirstBreakdown(normalized);
+            return;
+        }
         if (saveEstimate == null)
         {
             if (!normalized.HasTypedLethalPreview)

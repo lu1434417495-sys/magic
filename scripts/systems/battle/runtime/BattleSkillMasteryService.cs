@@ -126,6 +126,27 @@ internal sealed class BattleSkillMasteryService : IDisposable
         SkillDefinition skillDefinition
     ) => _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDefinition);
 
+    internal BattleSkillMasteryGrant BuildIncomingAttackDisadvantageGrant(
+        BattleUnitState owner, BattleUnitState attacker, BattleStatusEffectState status,
+        IReadOnlyDictionary<StringName, SkillDefinition> definitions)
+    {
+        if (owner?.IsAlive() != true || attacker?.IsAlive() != true
+            || owner.source_member_id == "" || !_AreOpposingFactions(owner, attacker)
+            || status?.incoming_attack_roll_disadvantage != true || status.duration == 0
+            || status.source_unit_id != owner.unit_id
+            || !UnitHasLearnedActiveSkill(owner, status.source_skill_id)
+            || !TryGetSkillDefinition(definitions, status.source_skill_id, out SkillDefinition skill)
+            || _GetSkillMasteryTriggerMode(skill) != CombatSkillMasteryTriggerMode.IncomingAttackDisadvantage)
+            return null;
+        int amount = _ResolveSkillMasteryTargetAmount(owner, attacker, skill);
+        return amount <= 0 ? null : new BattleSkillMasteryGrant
+        {
+            MemberId = owner.source_member_id, SkillId = skill.SkillId, Amount = amount,
+            SourceType = "battle", SourceLabel = "战斗",
+            ReasonText = "防护干扰敌方攻击检定", AllowUnlocks = true,
+        };
+    }
+
     public void RecordMasteryAmount(StringName skillId, int amount)
     {
         if (skillId == "" || amount <= 0)
@@ -498,6 +519,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 return result.HasStatusApplied;
             case CombatSkillMasteryTriggerMode.EffectApplied:
                 return result.Applied;
+            case CombatSkillMasteryTriggerMode.IncomingAttackDisadvantage:
             case CombatSkillMasteryTriggerMode.IncomingPhysicalHit:
                 return false;
             case CombatSkillMasteryTriggerMode.SecondaryHit:
@@ -533,6 +555,7 @@ internal sealed class BattleSkillMasteryService : IDisposable
                 return _ResultHasStatusApplied(result);
             case CombatSkillMasteryTriggerMode.EffectApplied:
                 return result.Applied || additionalEffectApplied;
+            case CombatSkillMasteryTriggerMode.IncomingAttackDisadvantage:
             case CombatSkillMasteryTriggerMode.IncomingPhysicalHit:
                 return false;
             case CombatSkillMasteryTriggerMode.SecondaryHit:

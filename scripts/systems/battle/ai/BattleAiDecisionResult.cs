@@ -228,6 +228,8 @@ internal sealed class BattleAiDecisionResult
                 source.estimated_control_probability_basis_points,
             estimated_taunt_ally_damage_relief =
                 source.estimated_taunt_ally_damage_relief,
+            estimated_incoming_attack_damage_relief = source.estimated_incoming_attack_damage_relief,
+            estimated_vulnerability_follow_up_damage = source.estimated_vulnerability_follow_up_damage,
             estimated_terrain_effect_count = source.estimated_terrain_effect_count,
             estimated_height_delta = source.estimated_height_delta,
             estimated_ground_control_cell_count = source.estimated_ground_control_cell_count,

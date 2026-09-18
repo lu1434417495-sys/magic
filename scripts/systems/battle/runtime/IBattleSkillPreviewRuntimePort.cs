@@ -42,6 +42,9 @@ internal interface IBattleSkillPreviewRuntimePort
 
     SkillDefinition GetSkillDefinition(StringName skillId);
 
+    BattleStatusTickAdvancePreview PreviewStatusTickAdvance(
+        BattleDamagePreviewWorkingSet workingSet, CombatEffectDefinition effect, BattleStatusTickAdvancePreviewMode rollMode);
+
     IReadOnlyDictionary<StringName, ItemDefinition> GetItemDefIndex();
 
     BattleSpecialProfileGateResult PreviewSpecialProfileSkill(

@@ -53,6 +53,7 @@ internal enum CombatMasteryTriggerImportKind
     IncomingPhysicalHit,
     SecondaryHit,
     SourceBoundWeaponBonusDamage,
+    IncomingAttackDisadvantage,
     TerrainEffectiveTrigger,
 }
 internal enum CombatMasteryAmountImportKind { PerTargetRank, PerCastHpRatio }

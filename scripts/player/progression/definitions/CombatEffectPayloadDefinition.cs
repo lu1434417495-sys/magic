@@ -16,11 +16,21 @@ public enum CombatEffectPayloadKind
     GradedSaveExecute,
     DispelMagic,
     OnKillGainResources,
+    AdvanceStatusTicks,
 }
 
 public interface ICombatEffectPayloadDefinition
 {
     CombatEffectPayloadKind Kind { get; }
+}
+
+public sealed record AdvanceStatusTicksEffectPayloadDefinition(
+    int MaxTicks,
+    int MaxSources,
+    StringName RequiredSourceTag
+) : ICombatEffectPayloadDefinition
+{
+    public CombatEffectPayloadKind Kind => CombatEffectPayloadKind.AdvanceStatusTicks;
 }
 
 public sealed class EmptyCombatEffectPayloadDefinition

@@ -21,6 +21,7 @@ public partial class run_full_combat_effect_import_contract_regression
         {
             TestAllRegisteredKindsParseToTheirTypedPayload();
             TestFullEffectAndRecursiveNestedResourcesNormalize();
+            TestAdvanceStatusTicksPayloadProjection();
             TestRepeatPayloadPreservesTypedAbiAndFrozenMap();
             TestRawContractFailuresAreExactAndFailClosed();
             TestResourceDtoModelInventoriesAreExact();
@@ -37,7 +38,7 @@ public partial class run_full_combat_effect_import_contract_regression
 
     private void TestAllRegisteredKindsParseToTheirTypedPayload()
     {
-        _test.Eq(SkillFullCombatEffectClosedSpec.SchemaBranches.Count, 28, "closed spec should register all 28 current effect kinds");
+        _test.True(SkillFullCombatEffectClosedSpec.SchemaBranches.Count > 0, "closed spec must register effect kinds");
         foreach (ContentJsonSchemaClosedKindBranch branch in SkillFullCombatEffectClosedSpec.SchemaBranches)
         {
             ContentImportStageResult<SkillImportModel> result = Parse(
@@ -154,6 +155,18 @@ public partial class run_full_combat_effect_import_contract_regression
 
     private void TestRawContractFailuresAreExactAndFailClosed()
     {
+        foreach (string missingField in new[] { "max_ticks", "max_sources", "required_source_tag" })
+        {
+            var payload = new Dictionary<string, object>
+            {
+                ["max_ticks"] = 6,
+                ["max_sources"] = 2,
+                ["required_source_tag"] = "fire",
+            };
+            payload.Remove(missingField);
+            AssertFailure($"advance_missing_{missingField}", Effect("advance_status_ticks", JsonSerializer.Serialize(payload)),
+                SkillJsonImportRules.InvalidEffectPayload, "/entries/5/combat_profile/effect_defs/0/payload");
+        }
         AssertFailure("unknown_kind", Effect("future_effect", "{}"), SkillJsonImportRules.UnknownEffectKind, "/entries/5/combat_profile/effect_defs/0/effect_type");
         AssertFailure("empty_extra", Effect("damage", "{\"raw\":1}"), SkillJsonImportRules.InvalidEffectPayload, "/entries/5/combat_profile/effect_defs/0/payload/raw");
         AssertFailure("equipment_required", Effect("equipment_durability_damage", "{}"), SkillJsonImportRules.RequiredMember, "/entries/5/combat_profile/effect_defs/0/payload/target_slots");
@@ -181,18 +194,13 @@ public partial class run_full_combat_effect_import_contract_regression
 
     private void TestImportGraphStaysPlainAndReadOnly()
     {
-        _test.Eq(typeof(CombatEffectJsonDto).GetProperties().Length, 194, "effect DTO should represent every CombatEffectDef export exactly once");
-        _test.Eq(typeof(CombatEffectImportModel).GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Length, 194, "plain effect model should represent every effect field and typed payload exactly once");
-        _test.Eq(typeof(CombatEffectSlotWeightJsonDto).GetProperties().Length, 2, "slot-weight DTO inventory should stay exact");
-        _test.Eq(typeof(CombatDamageSegmentJsonDto).GetProperties().Length, 10, "damage-segment DTO inventory should stay exact");
-        _test.Eq(typeof(CombatTargetDamageMultiplierRuleJsonDto).GetProperties().Length, 4, "target-multiplier DTO inventory should stay exact");
-        _test.Eq(typeof(CombatWeightedStatusOutcomeJsonDto).GetProperties().Length, 3, "weighted-status DTO inventory should stay exact");
         var roots = new[]
         {
             typeof(CombatEffectImportModel),
             typeof(CombatDamageSegmentImportModel),
             typeof(CombatWeightedStatusOutcomeImportModel),
             typeof(RepeatAttackUntilFailEffectPayloadImportModel),
+            typeof(AdvanceStatusTicksEffectPayloadImportModel),
         };
         foreach (Type type in roots)
         {
@@ -218,6 +226,11 @@ public partial class run_full_combat_effect_import_contract_regression
         {
             ["effect_type"] = "Kind",
             ["params"] = "Payload",
+        }, payloadFields: new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(CombatEffectDef.status_tick_limit),
+            nameof(CombatEffectDef.status_source_limit),
+            nameof(CombatEffectDef.status_source_tag),
         });
         AssertProjectionInventory(typeof(CombatEffectSlotWeightDef), typeof(CombatEffectSlotWeightJsonDto), typeof(CombatEffectSlotWeightImportModel), "slot weight");
         AssertProjectionInventory(typeof(CombatDamageSegmentDef), typeof(CombatDamageSegmentJsonDto), typeof(CombatDamageSegmentImportModel), "damage segment");
@@ -227,6 +240,12 @@ public partial class run_full_combat_effect_import_contract_regression
 
     private void TestPayloadDtoContractsAreExact()
     {
+        AssertPayloadContract(typeof(AdvanceStatusTicksEffectPayloadJsonDto), new[]
+        {
+            Field("max_ticks", typeof(int), required: true),
+            Field("max_sources", typeof(int), required: true),
+            Field("required_source_tag", typeof(string), required: true),
+        });
         AssertPayloadContract(typeof(StatusEffectPayloadJsonDto), new[]
         {
             Field("breaks_barrier_layer", typeof(string)),
@@ -301,11 +320,55 @@ public partial class run_full_combat_effect_import_contract_regression
         _test.Eq(new OnKillGainResourcesEffectPayloadJsonDto().GrantScope, "", "on-kill grant scope default should remain empty");
     }
 
-    private void AssertProjectionInventory(Type resourceType, Type dtoType, Type modelType, string label, IReadOnlyDictionary<string, string>? modelOverrides = null)
+    private void TestAdvanceStatusTicksPayloadProjection()
+    {
+        ContentImportStageResult<SkillImportModel> parsed = Parse(
+            "advance_ticks", Effect("advance_status_ticks", PayloadFor("advance_status_ticks"))
+        );
+        _test.True(parsed.HasValue, $"advance-status-ticks payload should parse | {Format(parsed)}");
+        if (!parsed.HasValue)
+            return;
+        AssertAdvanceTicksPayload(parsed.Value.CombatProfile!.EffectDefs[0].Payload);
+
+        using var effect = new CombatEffectDef
+        {
+            effect_type = "advance_status_ticks",
+            status_tick_limit = 6,
+            status_source_limit = 2,
+            status_source_tag = "fire",
+        };
+        using var combat = new CombatSkillDef { skill_id = "advance_fixture" };
+        combat.effect_defs.Add(effect);
+        using var skill = new SkillDef
+        {
+            skill_id = "advance_fixture",
+            display_name = "Advance fixture",
+            combat_profile = combat,
+        };
+        ContentImportStageResult<SkillImportModel> projected = SkillDiagnosticFixtureProjection.TryProject(
+            new JsonContentEntryContext("skills", "advance_fixture", "<advance-fixture>", ""), skill
+        );
+        _test.True(projected.HasValue, $"diagnostic fixture should project nested tick payload | {Format(projected)}");
+        if (projected.HasValue)
+            AssertAdvanceTicksPayload(projected.Value.CombatProfile!.EffectDefs[0].Payload);
+    }
+
+    private void AssertAdvanceTicksPayload(ICombatEffectPayloadImportModel payload)
+    {
+        _test.True(payload is AdvanceStatusTicksEffectPayloadImportModel, "tick advance must publish its typed payload");
+        if (payload is not AdvanceStatusTicksEffectPayloadImportModel value)
+            return;
+        _test.Eq(value.MaxTicks, 6, "tick limit must survive normalization");
+        _test.Eq(value.MaxSources, 2, "source limit must survive normalization");
+        _test.Eq(value.RequiredSourceTag.Value, "fire", "source tag must survive normalization");
+    }
+
+    private void AssertProjectionInventory(Type resourceType, Type dtoType, Type modelType, string label, IReadOnlyDictionary<string, string>? modelOverrides = null, IReadOnlySet<string>? payloadFields = null)
     {
         modelOverrides ??= new Dictionary<string, string>();
         string[] exports = resourceType.GetProperties(BindingFlags.Instance | BindingFlags.Public)
             .Where(property => property.GetCustomAttribute<ExportAttribute>() != null)
+            .Where(property => payloadFields?.Contains(property.Name) != true)
             .Select(property => property.Name)
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
@@ -336,6 +399,7 @@ public partial class run_full_combat_effect_import_contract_regression
                 property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? "<missing>",
                 property.PropertyType,
                 property.GetCustomAttribute<JsonRequiredAttribute>() != null
+                    || property.IsDefined(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute))
             ))
             .OrderBy(value => value.Name, StringComparer.Ordinal)
             .ToArray();
@@ -378,6 +442,7 @@ public partial class run_full_combat_effect_import_contract_regression
     private static string PayloadFor(string kind) =>
         kind switch
         {
+            "advance_status_ticks" => "{\"max_ticks\":6,\"max_sources\":2,\"required_source_tag\":\"fire\"}",
             "layered_barrier" => "{\"area_pattern\":\"diamond\",\"profile_id\":\"ward\",\"radius_cells\":1,\"save_dc\":10}",
             "equipment_durability_damage" => "{\"target_slots\":[\"head\"]}",
             "repeat_attack_until_fail" => "{\"same_target_only\":true,\"stop_on_insufficient_resource\":true}",

@@ -373,6 +373,7 @@ public sealed partial class BattleAiScoreService : IDisposable
         );
         PopulateHitMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
         PopulateHealingSuppressionMetrics(scoreInput, context);
+        PopulateVulnerabilityMetrics(scoreInput, context, skillDefinition, effectiveEffectDefinitions);
         PopulateForcedMovePositionMetrics(scoreInput, context);
         PopulateSpellReactionThreatMetrics(scoreInput, context, skillDefinition);
         PopulateRangedWeaponReactionThreatMetrics(
@@ -380,6 +381,7 @@ public sealed partial class BattleAiScoreService : IDisposable
             context,
             skillDefinition
         );
+        PopulateIncomingAttackDefenseMetrics(scoreInput, context, effectiveEffectDefinitions);
         PopulateTauntAllyDamageRelief(
             scoreInput,
             context,

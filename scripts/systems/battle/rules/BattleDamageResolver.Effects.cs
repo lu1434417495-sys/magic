@@ -474,10 +474,6 @@ public partial class BattleDamageResolver
         {
             tierAdjustedDamage /= 2;
         }
-        else if (mitigationTier == MitigationTierDouble)
-        {
-            tierAdjustedDamage *= 2;
-        }
 
         FixedMitigationResult mitigation = BuildFixedMitigation(
             sourceUnit,

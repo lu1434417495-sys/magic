@@ -18,6 +18,12 @@ internal sealed record StatusEffectPayloadImportModel(
 internal sealed record HealEffectPayloadImportModel(bool ConModHeal)
     : ICombatEffectPayloadImportModel;
 
+internal sealed record AdvanceStatusTicksEffectPayloadImportModel(
+    int MaxTicks,
+    int MaxSources,
+    SkillImportStringName RequiredSourceTag
+) : ICombatEffectPayloadImportModel;
+
 internal sealed record EquipmentDurabilityDamageEffectPayloadImportModel
     : ICombatEffectPayloadImportModel
 {
@@ -349,6 +355,7 @@ internal sealed partial class CombatEffectImportModel
     internal bool LockCounterattack { get; init; }
     internal bool LockGuard { get; init; }
     internal bool LockDodgeBonus { get; init; }
+    internal bool IncomingAttackRollDisadvantage { get; init; }
     internal bool LockCrit { get; init; }
     internal bool SkipTurn { get; init; }
     internal bool BreakOnPositiveDamage { get; init; }

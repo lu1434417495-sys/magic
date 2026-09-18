@@ -206,7 +206,7 @@ public partial class BattleDamageResolver
             preSaveDamage,
             resolvedSaveMode
         );
-        damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
+        damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate, resolvedSaveMode);
         DamagePreviewBranchLethalEstimate branchLethalEstimate =
             saveEstimate.HasSave
                 ? BuildSaveBranchLethalEstimate(
@@ -622,8 +622,8 @@ public partial class BattleDamageResolver
 
         BattleUnitState failureTarget = targetPreview.clone();
         BattleUnitState successTarget = targetPreview.clone();
-        DamageOutcomeResult failureOutcome = damageOutcome.WithResolvedDamage(failureDamage);
-        DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
+        DamageOutcomeResult failureOutcome = WithPostSaveVulnerability(damageOutcome.WithResolvedDamage(failureDamage));
+        DamageOutcomeResult successOutcome = WithPostSaveVulnerability(damageOutcome.WithResolvedDamage(successDamage));
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
             failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
@@ -699,8 +699,8 @@ public partial class BattleDamageResolver
             );
         BattleUnitState failureTarget = failureWorkingSet?.TargetPreview;
         BattleUnitState successTarget = successWorkingSet?.TargetPreview;
-        DamageOutcomeResult failureOutcome = damageOutcome.WithResolvedDamage(failureDamage);
-        DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
+        DamageOutcomeResult failureOutcome = WithPostSaveVulnerability(damageOutcome.WithResolvedDamage(failureDamage));
+        DamageOutcomeResult successOutcome = WithPostSaveVulnerability(damageOutcome.WithResolvedDamage(successDamage));
         AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
             failureOutcome.ToDamageApplicationInput(suppressDamageApplicationHook: true),
@@ -1460,7 +1460,8 @@ public partial class BattleDamageResolver
 
     private static DamageOutcomeResult WithDamagePreviewSaveEstimate(
         DamageOutcomeResult damageOutcome,
-        DamagePreviewSaveEstimate saveEstimate
+        DamagePreviewSaveEstimate saveEstimate,
+        BattleDamagePreviewSaveMode saveMode = BattleDamagePreviewSaveMode.Expected
     )
     {
         DamageEventResult @event = damageOutcome.Event;
@@ -1477,10 +1478,15 @@ public partial class BattleDamageResolver
             saveEstimate.HasSave
             && saveEstimate.DamageBeforeSave > 0
             && saveEstimate.DamageAfterSave <= 0;
-        if (saveEstimate.HasSave)
-        {
-            @event.ResolvedDamage = Math.Max(saveEstimate.DamageAfterSave, 0);
-        }
+        // Round each save branch before applying vulnerability, then weight the final
+        // branch damage. Doubling a rounded expectation loses odd-damage parity.
+        @event.ResolvedDamage = saveEstimate.HasSave && saveMode != BattleDamagePreviewSaveMode.Worst
+            ? RoundToInt((
+                (double)ApplyPostSaveVulnerability(saveEstimate.DamageOnSaveFailure, @event.MitigationTier)
+                    * saveEstimate.SaveFailureProbabilityBasisPoints
+                + (double)ApplyPostSaveVulnerability(saveEstimate.DamageOnSaveSuccess, @event.MitigationTier)
+                    * saveEstimate.SaveSuccessProbabilityBasisPoints) / 10000.0)
+            : ApplyPostSaveVulnerability(saveEstimate.DamageAfterSave, @event.MitigationTier);
         return damageOutcome with
         {
             Event = @event,
