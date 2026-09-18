@@ -18,6 +18,7 @@ public partial class run_battle_presentation_delta_regression : LifecycleTestSce
             TestUnitDeltaSkipsFullRuntimeLogScan();
             TestMergeFromPreservesCombinedFacts();
             TestCommandDeltaCaptureResetsBetweenCommands();
+            TestMovementPathsAreDetachedAndKeepBatchOrder();
         }
         catch (Exception exception)
         {
@@ -42,6 +43,31 @@ public partial class run_battle_presentation_delta_regression : LifecycleTestSce
             BattleRefreshMode.Overlay,
             "旧 projection 仍应把 log-only 表示为非 full refresh。"
         );
+    }
+
+    private void TestMovementPathsAreDetachedAndKeepBatchOrder()
+    {
+        var path = new[] { new Vector2I(1, 1), new Vector2I(1, 2), new Vector2I(2, 2) };
+        using var batch = new BattleEventBatch();
+        batch.AddMovement("first", path);
+        path[1] = new(99, 99);
+        using var next = new BattleEventBatch();
+        next.AddMovement("second", new[] { new Vector2I(5, 5), new Vector2I(4, 5) });
+        batch.MergeFrom(next);
+        BattlePresentationDelta delta = BattlePresentationDeltaFactory.Create(batch);
+        batch.AddMovement("later", path);
+        _test.Eq(delta.Movements.Count, 2, "已发布 delta 不得随源 batch 增长。");
+        _test.Eq(delta.Movements[0].UnitId, new StringName("first"), "合并保留命令顺序。");
+        _test.Eq(delta.Movements[1].UnitId, new StringName("second"), "后续移动应依次播放。");
+        _test.Eq(delta.Movements[0].Path[1], new Vector2I(1, 2), "路径必须复制，保留实际转弯格。");
+        using var stationary = new BattleEventBatch();
+        stationary.AddMovement("blocked", new[] { Vector2I.Zero });
+        _test.Eq(stationary.Movements.Count, 0, "起步即被拦下时不应生成动画。");
+        using var runtime = new GameRuntimeFacade();
+        runtime.CaptureLastCommandBattlePresentationDelta(batch);
+        runtime.ResetLastCommandBattlePresentationDelta();
+        _test.Eq(runtime.GetLastCommandBattlePresentationDelta().Movements.Count, 0,
+            "下一条命令不得重播旧路径。");
     }
 
     private void TestLogOnlyRefreshTextUsesCurrentBattleTail()

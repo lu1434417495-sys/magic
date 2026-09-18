@@ -240,6 +240,7 @@ public sealed partial class BattleBoardController : IDisposable
     )
     {
         ThrowIfDisposed();
+        CancelMovement();
         if (_unit_layer == null || snapshot == null || requested_unit_ids == null)
             return;
 
@@ -302,6 +303,7 @@ public sealed partial class BattleBoardController : IDisposable
 
     private void ClearCore()
     {
+        CancelMovement();
         NativeLeaseScope renderLease = _renderLease;
         _renderLease = null;
         var failures = new List<Exception>();
@@ -455,6 +457,7 @@ public sealed partial class BattleBoardController : IDisposable
 
     private void _redraw()
     {
+        CancelMovement();
         _clear_tile_layers();
         _clear_dynamic_nodes();
         if (

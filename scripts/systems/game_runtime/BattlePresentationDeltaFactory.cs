@@ -62,7 +62,8 @@ internal static class BattlePresentationDeltaFactory
         return new BattlePresentationDelta(
             dirtyFlags,
             CopyUnitIds(batch.ChangedUnitIdsTyped),
-            CopyCoords(batch.ChangedCoordsTyped)
+            CopyCoords(batch.ChangedCoordsTyped),
+            CopyMovements(batch.Movements)
         );
     }
 
@@ -73,6 +74,17 @@ internal static class BattlePresentationDeltaFactory
             BattleRefreshMode.Overlay => BattlePresentationDelta.Overlay,
             _ => BattlePresentationDelta.None,
         };
+
+    private static BattleMovementPresentation[] CopyMovements(
+        System.Collections.Generic.IReadOnlyList<BattleMovementPresentation> source)
+    {
+        if (source.Count == 0)
+            return Array.Empty<BattleMovementPresentation>();
+        var result = new BattleMovementPresentation[source.Count];
+        for (int index = 0; index < result.Length; index++)
+            result[index] = source[index];
+        return result;
+    }
 
     private static StringName[] CopyUnitIds(System.Collections.Generic.IReadOnlyList<StringName> source)
     {

@@ -187,7 +187,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
                 DisconnectSignals();
             }
             if (battle_map_panel != null)
+            {
+                battle_map_panel.CancelMovementPlayback();
                 battle_map_panel.SetupRuntimeContext(null, null);
+            }
         }
         finally
         {
@@ -295,8 +298,16 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         BattlePresentationDelta battle_presentation_delta
     )
     {
+        if (!IsBattleMovementPlaying && battle_map_panel != null
+            && battle_presentation_delta?.Movements.Count > 0
+            && battle_map_panel.PlayMovements(battle_presentation_delta.Movements))
+            return;
         RenderFromRuntimeCore(refresh_world, null, battle_presentation_delta);
     }
+
+    internal bool IsBattleMovementPlaying => battle_map_panel?.IsMovementPlaying == true;
+
+    private void OnBattleMovementPlaybackFinished() => RenderFromRuntime(true);
 
     private void RenderFromRuntimeCore(
         bool refresh_world,
@@ -305,6 +316,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     )
     {
         if (_runtime == null)
+            return;
+        // Coalesce refreshes until playback finishes; no live runtime state is
+        // retained by the visual player. The completion event refreshes all facts.
+        if (IsBattleMovementPlaying)
             return;
         // nearbyLimit:0 — RenderFromRuntime only reads status/coords/modal from the
         // view model, never NearbyEncounters/NearbyWorldEvents (those feed the text
@@ -481,17 +496,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         bool changed = _runtime_proxy.Advance((float)delta);
         if (changed)
         {
-            if (_runtime_proxy.IsBattleActive())
-            {
-                RenderFromRuntime(
-                    true,
-                    _runtime_proxy.GetLastAdvanceBattlePresentationDelta()
-                );
-            }
-            else
-            {
-                RenderFromRuntime(true);
-            }
+            RenderFromRuntime(true, _runtime_proxy.GetLastAdvanceBattlePresentationDelta());
         }
         if (_runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen())
         {
@@ -826,7 +831,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
 
     public void _on_battle_cell_hovered(Vector2I coord)
     {
-        if (_runtime == null || !_runtime_proxy.IsBattleActive())
+        if (_runtime == null || IsBattleMovementPlaying || !_runtime_proxy.IsBattleActive())
             return;
         if (battle_map_panel.IsLoadingBattle())
             return;
@@ -1475,6 +1480,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         battle_map_panel.battle_resolve_pressed += _on_battle_resolve_pressed;
         battle_map_panel.battle_cycle_variant_pressed += _on_battle_cycle_variant_pressed;
         battle_map_panel.battle_clear_skill_pressed += _on_battle_clear_skill_pressed;
+        battle_map_panel.MovementPlaybackFinished += OnBattleMovementPlaybackFinished;
     }
 
     private void DisconnectSignals()
@@ -1579,6 +1585,7 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             battle_map_panel.battle_resolve_pressed -= _on_battle_resolve_pressed;
             battle_map_panel.battle_cycle_variant_pressed -= _on_battle_cycle_variant_pressed;
             battle_map_panel.battle_clear_skill_pressed -= _on_battle_clear_skill_pressed;
+            battle_map_panel.MovementPlaybackFinished -= OnBattleMovementPlaybackFinished;
         }
     }
 

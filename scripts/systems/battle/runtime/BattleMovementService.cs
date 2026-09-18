@@ -738,6 +738,7 @@ internal class BattleMovementService
         );
         BattleValidatedMoveExecutionResult executionResult =
             MoveUnitAlongValidatedPathTyped(active_unit, anchorPath, targetCoord, batch);
+        batch?.AddMovement(active_unit.unit_id, executionResult.ExecutedPath);
         if (executionResult.Executed || executionResult.MovementAttemptCommitted)
         {
             moveCost = executionResult.StoppedByTerrainContact

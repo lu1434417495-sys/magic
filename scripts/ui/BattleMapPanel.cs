@@ -241,6 +241,8 @@ public partial class BattleMapPanel : Control
 
     public override void _ExitTree()
     {
+        CancelMovementPlayback();
+        MovementPlaybackFinished = null;
         var skillScroll = GetNodeOrNull<ScrollContainer>("%SkillScroll");
         if (skillScroll != null)
             skillScroll.Resized -= _update_skill_grid_columns;
@@ -1033,6 +1035,7 @@ public partial class BattleMapPanel : Control
 
     public override void _Process(double delta)
     {
+        ProcessMovementPlayback(delta);
         if (hover_overlay == null || !hover_overlay.Visible)
             return;
         if (_hover_preview_coord == InvalidHoverCoord)
@@ -1100,6 +1103,11 @@ public partial class BattleMapPanel : Control
 
     private void _on_map_viewport_container_gui_input(InputEvent @event)
     {
+        if (IsMovementPlaying)
+        {
+            AcceptEvent();
+            return;
+        }
         if (_battle_board == null)
             return;
         if (@event is InputEventMouseMotion motionEvent)

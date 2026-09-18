@@ -8,6 +8,7 @@ public class BattleEventBatch : IDisposable
 {
     private readonly List<StringName> _changedUnitIds = new();
     private readonly List<Vector2I> _changedCoords = new();
+    private readonly List<BattleMovementPresentation> _movements = new();
     private readonly List<string> _logLines = new();
     private readonly List<IReadOnlyDictionary<string, object>> _reportEntries = new();
     private readonly List<CharacterProgressionDelta> _progressionDeltas = new();
@@ -62,6 +63,7 @@ public class BattleEventBatch : IDisposable
 
     internal IReadOnlyList<StringName> ChangedUnitIdsTyped => _changedUnitIds;
     internal IReadOnlyList<Vector2I> ChangedCoordsTyped => _changedCoords;
+    internal IReadOnlyList<BattleMovementPresentation> Movements => _movements;
     internal IReadOnlyList<string> LogLinesTyped => _logLines;
     internal IReadOnlyList<IReadOnlyDictionary<string, object>> ReportEntriesTyped =>
         BuildReportEntrySnapshots();
@@ -112,6 +114,7 @@ public class BattleEventBatch : IDisposable
             AddChangedUnitId(unitId);
         foreach (Vector2I coord in source._changedCoords)
             AddChangedCoord(coord);
+        _movements.AddRange(source._movements);
         foreach (string logLine in source._logLines)
             AddLogLine(logLine);
         foreach (IReadOnlyDictionary<string, object> reportEntry in source._reportEntries)
@@ -153,6 +156,14 @@ public class BattleEventBatch : IDisposable
         }
         _changedUnitIds.Add(unitId);
         MarkChanged(BattleChangeFlags.UnitState);
+    }
+
+    internal void AddMovement(StringName unitId, IReadOnlyList<Vector2I> executedPath)
+    {
+        if (executedPath == null || executedPath.Count < 2)
+            return;
+        _movements.Add(new BattleMovementPresentation(unitId, executedPath));
+        AddChangedUnitId(unitId);
     }
 
     internal bool ContainsChangedUnitId(StringName unitId)
