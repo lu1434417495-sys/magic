@@ -1,0 +1,115 @@
+{
+  "head": "49c80870c9a8d8e0f415544b25ed00be2ebb29f8",
+  "native_entry_assertions_passed": true,
+  "screenshot_dimensions": {
+    "first-blood-available-720p": [
+      1280,
+      720
+    ],
+    "quest-selector-720p": [
+      1280,
+      720
+    ],
+    "locked-reason-720p": [
+      1280,
+      720
+    ],
+    "first-blood-accepted-720p": [
+      1280,
+      720
+    ],
+    "reopened-active-720p": [
+      1280,
+      720
+    ],
+    "loaded-active-4k": [
+      3840,
+      2160
+    ],
+    "quest-selector-4k": [
+      3840,
+      2160
+    ],
+    "locked-reason-4k": [
+      3840,
+      2160
+    ]
+  },
+  "native_log_summary": {
+    "observer.log": {
+      "lifecycle_ok": true,
+      "engine_error_count": 0,
+      "engine_errors": []
+    },
+    "4k-observer.log": {
+      "lifecycle_ok": true,
+      "engine_error_count": 22,
+      "engine_errors": [
+        "ERROR: Unable to create shader cache directory SceneForwardClusteredShaderRD/1d8f9fd61c770da8fbf2a971b3e81a1e4b82130a464dd2919dd0df65d3f4d4a6 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2DepthClipPassShaderRD/8139e61f52a7d4b68775c71117a41c46a3fc191dc962101f9cd42a92525d094b at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2ReconstructPreviousDepthPassShaderRD/07d073aac807c722a93491904901ac47bbe1595ebfecc3096b9089a709166054 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2AccumulatePassShaderRD/c889e6fa9a4d7a667554e7d8c17ea756be78877961764099214e958069f95f6a at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2ComputeLuminancePyramidPassShaderRD/3a9e1f0a36bb2d58fc147e20667d91adca84a6d2518c6dc482cad018467ff3c4 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2AutogenReactivePassShaderRD/f2cae4e3c0e2cc8fd38de9a4988949f8372a0791c88fed4e0a248812a9db7c85 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2TcrAutogenPassShaderRD/184b023c298c4462a1697d35240b8a6e617f673fcedfd97c3a4c1da3657fef2c at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsEffectsDownsampleShaderRD/00b905de0ce61aa71e1203c86aadb464c5254c0f70c5df1c4a16ae369a011fd8 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsilImportanceMapShaderRD/f06c8f5624e6170877d397deebb400e940cb4d625d05260d6a24d24e6682da98 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsaoImportanceMapShaderRD/8dea32f8f998a2826251eaa6f2e79afd0d32fe7c8f5cbfa07ffaa7e6dd065adb at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionDownsampleShaderRD/efffc9e5a7c66f8a0f9ff93c2de0f3ae0f0204238caf8bd81b886c65eab90fd4 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionHizShaderRD/997ce3e6161596f9996f5616548734cb1b6ae9ba53707e753153b0855fe4e6ab at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionShaderRD/435a8cc42eafc61cd0a165605df5c12a844b2638060a76140c926e7ae3f17370 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionFilterShaderRD/df57b17e0d3f8e6a2117eddae7b20ed4374b305ba8ca4574e4de35047a65e359 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionResolveShaderRD/33380c22729b8429fde29e1f93f85b5208c85e4ede0aa997a4929891c2c29ac3 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SubsurfaceScatteringShaderRD/1b13b43aab403edf1776669251ef4c9219eb57ea9b8e86483f0c0b44cfbe566e at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SdfgiDirectLightShaderRD/2fb0b4bb5244e2878ed914d5c7091b8a29a281b7ef61c89bd41cb1af4833f6f1 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SdfgiDebugProbesShaderRD/c686dc153eb1e1b4ce9aa61259db41552f6a3d85a07bca8c284700c4e738a962 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory VolumetricFogProcessShaderRD/dcafe7b4c3b1dd119e2840e2923481e9787edb3c613e438931d44b3fde5b8dd1 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory OctmapDownsamplerShaderRD/b5d716a2f281f18de3f8145675905257c71ed306b08187f196135b4d6b900d18 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SmaaEdgeDetectionShaderRD/a6c5c7327054acd529d0181b07bf068fccf6773b47e3bc26742813607b59ba24 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SmaaWeightCalculationShaderRD/3893abaf810bdff4408209bba813141b7ed437601200519b8aee0a69f0349d05 at user://shader_cache."
+      ]
+    },
+    "4k-settings-observer.log": {
+      "lifecycle_ok": true,
+      "engine_error_count": 22,
+      "engine_errors": [
+        "ERROR: Unable to create shader cache directory SceneForwardClusteredShaderRD/1d8f9fd61c770da8fbf2a971b3e81a1e4b82130a464dd2919dd0df65d3f4d4a6 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2DepthClipPassShaderRD/8139e61f52a7d4b68775c71117a41c46a3fc191dc962101f9cd42a92525d094b at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2ReconstructPreviousDepthPassShaderRD/07d073aac807c722a93491904901ac47bbe1595ebfecc3096b9089a709166054 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2AccumulatePassShaderRD/c889e6fa9a4d7a667554e7d8c17ea756be78877961764099214e958069f95f6a at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2ComputeLuminancePyramidPassShaderRD/3a9e1f0a36bb2d58fc147e20667d91adca84a6d2518c6dc482cad018467ff3c4 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2AutogenReactivePassShaderRD/f2cae4e3c0e2cc8fd38de9a4988949f8372a0791c88fed4e0a248812a9db7c85 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory Fsr2TcrAutogenPassShaderRD/184b023c298c4462a1697d35240b8a6e617f673fcedfd97c3a4c1da3657fef2c at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsEffectsDownsampleShaderRD/00b905de0ce61aa71e1203c86aadb464c5254c0f70c5df1c4a16ae369a011fd8 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsilImportanceMapShaderRD/f06c8f5624e6170877d397deebb400e940cb4d625d05260d6a24d24e6682da98 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SsaoImportanceMapShaderRD/8dea32f8f998a2826251eaa6f2e79afd0d32fe7c8f5cbfa07ffaa7e6dd065adb at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionDownsampleShaderRD/efffc9e5a7c66f8a0f9ff93c2de0f3ae0f0204238caf8bd81b886c65eab90fd4 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionHizShaderRD/997ce3e6161596f9996f5616548734cb1b6ae9ba53707e753153b0855fe4e6ab at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionShaderRD/435a8cc42eafc61cd0a165605df5c12a844b2638060a76140c926e7ae3f17370 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionFilterShaderRD/df57b17e0d3f8e6a2117eddae7b20ed4374b305ba8ca4574e4de35047a65e359 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory ScreenSpaceReflectionResolveShaderRD/33380c22729b8429fde29e1f93f85b5208c85e4ede0aa997a4929891c2c29ac3 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SubsurfaceScatteringShaderRD/1b13b43aab403edf1776669251ef4c9219eb57ea9b8e86483f0c0b44cfbe566e at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SdfgiDirectLightShaderRD/2fb0b4bb5244e2878ed914d5c7091b8a29a281b7ef61c89bd41cb1af4833f6f1 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SdfgiDebugProbesShaderRD/c686dc153eb1e1b4ce9aa61259db41552f6a3d85a07bca8c284700c4e738a962 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory VolumetricFogProcessShaderRD/dcafe7b4c3b1dd119e2840e2923481e9787edb3c613e438931d44b3fde5b8dd1 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory OctmapDownsamplerShaderRD/b5d716a2f281f18de3f8145675905257c71ed306b08187f196135b4d6b900d18 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SmaaEdgeDetectionShaderRD/a6c5c7327054acd529d0181b07bf068fccf6773b47e3bc26742813607b59ba24 at user://shader_cache.",
+        "ERROR: Unable to create shader cache directory SmaaWeightCalculationShaderRD/3893abaf810bdff4408209bba813141b7ed437601200519b8aee0a69f0349d05 at user://shader_cache."
+      ]
+    }
+  },
+  "focused_runners_passed": 2,
+  "focused_runners_failed": 0,
+  "build_exit_code_after_observer_removal": 0,
+  "temporary_observer_removed": true,
+  "source_sha256": {
+    "scripts/systems/game_runtime/GameRuntimeNpcQuestOfferCommandHandler.cs": "349be4ddd18ad8bc1256a3911e62988dc362018538f7c51ddfe0aa17bce5fd1d",
+    "scripts/ui/NpcQuestOfferDialog.cs": "41c561ec23430bae7325081eb5e17cecc029a700aca3bd2463d8131f8814c760",
+    "scenes/ui/npc_quest_offer_dialog.tscn": "ef1eaafcf0fdfe5b38880245b3ea57cfc92aa43732de74c8bb5553d512077581",
+    "tests/world_map/runtime/run_npc_quest_offer_regression.cs": "c4875b4c96b939eb9d60d51c3d0a1adef2ab51f07e8f16ffba13da5d3d365136",
+    "tests/world_map/ui/run_npc_quest_offer_dialog_action_regression.cs": "18439a21f14728f62d23c1dd6d7cadfa039e49b0cc3caa7720c6ec3e092847f0"
+  },
+  "full_suite_run": false,
+  "ci_run": false,
+  "combat_growth_flow_verified": false
+}

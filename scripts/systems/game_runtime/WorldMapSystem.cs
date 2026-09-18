@@ -53,6 +53,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
     public ShopWindow stagecoach_service_modal;
     // Dedicated modal for NPC quest offers; driven by RuntimeModalKind.NpcQuestOffer.
     public NpcQuestOfferDialog npc_quest_offer_dialog;
+    public QuestJournalWindow quest_journal_window;
+    public Button quest_button;
     public BountyBoardWindow bounty_board_window;
     public CharacterInfoWindow character_info_window;
     public PartyManagementWindow party_management_window;
@@ -326,6 +328,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (party_button != null)
             party_button.Disabled =
                 _runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen();
+        if (quest_button != null)
+            quest_button.Disabled = _runtime_proxy.IsBattleActive() || _runtime_proxy.IsModalWindowOpen();
 
         if (_runtime_proxy.IsBattleActive())
         {
@@ -548,6 +552,12 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         if (key_event.Keycode == Key.P)
         {
             _runtime_proxy.CommandOpenParty();
+            return true;
+        }
+        if (key_event.Keycode == Key.J)
+        {
+            _clear_world_move_hold();
+            _runtime_proxy.CommandOpenQuestJournal();
             return true;
         }
         if (_is_world_settlement_confirm_key(key_event.Keycode))
@@ -998,6 +1008,18 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             _runtime_proxy.CommandCloseActiveModal();
     }
 
+    private void OnQuestJournalPressed()
+    {
+        if (_runtime == null) return;
+        _clear_world_move_hold();
+        _runtime_proxy.CommandOpenQuestJournal();
+    }
+
+    private void OnQuestJournalClosed()
+    {
+        if (_runtime != null) _runtime_proxy.CommandCloseActiveModal();
+    }
+
     public void _on_bounty_board_window_action_requested(
         string settlement_id,
         string action_id,
@@ -1365,6 +1387,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = GetNode<ShopWindow>("ForgeServiceModal");
         stagecoach_service_modal = GetNode<ShopWindow>("StagecoachServiceModal");
         npc_quest_offer_dialog = GetNode<NpcQuestOfferDialog>("NpcQuestOfferDialog");
+        quest_journal_window = GetNode<QuestJournalWindow>("QuestJournalWindow");
+        quest_button = GetNode<Button>("%QuestButton");
         bounty_board_window = GetNode<BountyBoardWindow>("BountyBoardWindow");
         character_info_window = GetNode<CharacterInfoWindow>("CharacterInfoWindow");
         party_management_window = GetNode<PartyManagementWindow>("PartyManagementWindow");
@@ -1411,6 +1435,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         stagecoach_service_modal.closed += _on_stagecoach_service_modal_closed;
         npc_quest_offer_dialog.action_requested += _on_npc_quest_offer_dialog_action_requested;
         npc_quest_offer_dialog.closed += _on_npc_quest_offer_dialog_closed;
+        quest_journal_window.closed += OnQuestJournalClosed;
+        quest_button.Pressed += OnQuestJournalPressed;
         bounty_board_window.action_requested += _on_bounty_board_window_action_requested;
         bounty_board_window.closed += _on_bounty_board_window_closed;
         character_info_window.closed += _on_character_info_window_closed;
@@ -1489,6 +1515,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.action_requested -= _on_npc_quest_offer_dialog_action_requested;
             npc_quest_offer_dialog.closed -= _on_npc_quest_offer_dialog_closed;
         }
+        if (quest_journal_window != null) quest_journal_window.closed -= OnQuestJournalClosed;
+        if (quest_button != null) quest_button.Pressed -= OnQuestJournalPressed;
         if (bounty_board_window != null)
         {
             bounty_board_window.action_requested -= _on_bounty_board_window_action_requested;
@@ -1567,6 +1595,8 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
         forge_service_modal = null;
         stagecoach_service_modal = null;
         npc_quest_offer_dialog = null;
+        quest_journal_window = null;
+        quest_button = null;
         bounty_board_window = null;
         character_info_window = null;
         party_management_window = null;
@@ -1623,6 +1653,10 @@ public partial class WorldMapSystem : Control, IApplicationShutdownParticipant
             npc_quest_offer_dialog.ShowDialog(_runtime_proxy.GetNpcQuestOfferWindowDataTyped());
         else
             npc_quest_offer_dialog.HideDialog();
+        if (modalId == "quest_journal")
+            quest_journal_window.ShowWindow(_runtime_proxy.GetQuestJournalWindowDataTyped());
+        else
+            quest_journal_window.HideWindow();
         if (modalId == "bounty_board")
             bounty_board_window.ShowBoard(_runtime_proxy.GetBountyBoardWindowDataTyped());
         else

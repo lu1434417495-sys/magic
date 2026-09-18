@@ -18,6 +18,7 @@ public enum RuntimeModalKind
     GameOver,
     BattleLoading,
     ResourceHarvestConfirm,
+    QuestJournal,
 }
 
 internal static class RuntimeModalKinds
@@ -42,6 +43,7 @@ internal static class RuntimeModalKinds
             RuntimeModalKind.GameOver => "game_over",
             RuntimeModalKind.BattleLoading => "battle_loading",
             RuntimeModalKind.ResourceHarvestConfirm => "resource_harvest_confirm",
+            RuntimeModalKind.QuestJournal => "quest_journal",
             _ => "",
         };
 

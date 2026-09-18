@@ -90,6 +90,18 @@ WorldMapSystem / SettlementWindow / ShopWindow
 - active modal kind 由 runtime 持有；打开服务 modal 时应关闭 settlement action feedback 的冲突状态。
 - 窗口关闭只清空 active modal/context，不回滚已提交服务。
 
+## NPC 对话与任务日志（2026-09-15 核对）
+
+`GameRuntimeNpcQuestOfferCommandHandler` 按 NPC/provider/channel 构建全部委托条目，使用现有接取条件评估器投影 `IsEnabled`、`DisabledReason` 和状态文字。新打开窗口的默认顺序为待领奖、可操作、进行中、剩余首项；不依赖具体任务 ID，也不解除锁定任务的条件。
+
+`NpcQuestOfferDialog` 只展示 NPC 名称、对白和玩家回应，不展示目标计数、奖励清单或任务下拉框。初次交谈使用内容中的 `AcceptDialogueText`；接受后的反馈、提交物资和领取报酬仍在对话中完成。有多项可操作或进行中的委托时，使用“关于……”回应切换话题，不泄露尚未解锁的后续任务。话题选择保存在窗口本地，刷新时保留，关闭后清空。
+
+动作信号携带当前话题的 `quest_id`，运行时重新校验 NPC 和接取条件，并将通过归属校验的提交目标写入 modal context 的 `SelectedQuestId`，供反馈和确认使用。提交另一项任务时清除先前任务的待确认状态。NPC 显示名从据点服务的 `npc_name` 取得并在刷新中保留。
+
+大地图的“任务 · J”打开独立全屏 `QuestJournalWindow`。任务说明、提供者、目标进度、奖励和下一步提示统一在日志内阅读；它只读取已接取、待交付、已完成和已失败的 canonical journal，不提供接取、领奖动作。详见 [任务日志呈现](../ui/quest_journal_presentation.md)。
+
+这部分只涉及窗口与临时 modal 状态，不增加存档字段。聚焦回归为 `tests/world_map/runtime/run_npc_quest_offer_regression.cs` 和 `tests/world_map/ui/run_npc_quest_offer_dialog_action_regression.cs`。
+
 ## 服务执行事务
 
 服务命令应遵循：

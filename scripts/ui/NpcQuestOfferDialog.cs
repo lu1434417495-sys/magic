@@ -2,185 +2,126 @@ using System.Linq;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-/// <summary>
-/// Player-facing modal for NPC quest offers. Consumes the typed <see cref="NpcQuestOfferWindowData"/>
-/// built by <see cref="GameRuntimeSettlementCommandHandler"/> and emits action/close signals that
-/// <see cref="WorldMapSystem"/> forwards to the runtime command handler.
-///
-/// Action button logic:
-/// - The runtime-provided action label identifies accept, submit-item, or claim behavior.
-/// - If the selected quest is already in pending confirmation state, the payload carries
-///   <c>confirm_accept=true</c>.
-/// - Otherwise it carries <c>confirm_accept=false</c>; the runtime may set pending confirmation
-///   and return a re-prompt when <c>accept_confirmation_text</c> is configured.
-///
-/// Emitted payload keys: <c>submission_source="npc_quest_offer"</c>, <c>quest_id</c>,
-/// <c>confirm_accept</c>.
-/// </summary>
+// Conversation only; detailed quest information belongs to QuestJournalWindow.
 [GlobalClass]
 public partial class NpcQuestOfferDialog : ModalWindowShell
 {
     [Signal]
-    public delegate void action_requestedEventHandler(
-        string settlement_id,
-        string action_id,
-        GDictionary payload
-    );
-
+    public delegate void action_requestedEventHandler(string settlement_id, string action_id, GDictionary payload);
     [Signal]
     public delegate void closedEventHandler();
 
-    public ColorRect shade;
     public Label title_label;
     public Label dialogue_label;
-    public Label summary_label;
-    public Label reward_label;
-    public Label feedback_label;
+    public VBoxContainer topic_choices;
     public Button accept_button;
     public Button return_button;
     public Button close_button;
-
-    private string _settlementId = "";
-    private string _actionId = "";
+    private NpcQuestOfferWindowData _data;
     private string _selectedQuestId = "";
-    private string _pendingConfirmationQuestId = "";
+
+    protected override bool AnimateEntrance => false;
 
     public override void _Ready()
     {
-        shade = GetNodeOrNull<ColorRect>("%Shade");
-        title_label = GetNodeOrNull<Label>("%TitleLabel");
-        dialogue_label = GetNodeOrNull<Label>("%DialogueLabel");
-        summary_label = GetNodeOrNull<Label>("%SummaryLabel");
-        reward_label = GetNodeOrNull<Label>("%RewardLabel");
-        feedback_label = GetNodeOrNull<Label>("%FeedbackLabel");
-        accept_button = GetNodeOrNull<Button>("%AcceptButton");
-        return_button = GetNodeOrNull<Button>("%ReturnButton");
-        close_button = GetNodeOrNull<Button>("%CloseButton");
-
+        title_label = GetNode<Label>("%TitleLabel");
+        dialogue_label = GetNode<Label>("%DialogueLabel");
+        topic_choices = GetNode<VBoxContainer>("%TopicChoices");
+        accept_button = GetNode<Button>("%AcceptButton");
+        return_button = GetNode<Button>("%ReturnButton");
+        close_button = GetNode<Button>("%CloseButton");
+        accept_button.Pressed += OnReply;
+        return_button.Pressed += OnLeave;
+        close_button.Pressed += OnLeave;
         HideDialog();
-
-        if (accept_button != null)
-            accept_button.Pressed += _on_accept_pressed;
-        if (return_button != null)
-            return_button.Pressed += _on_return_pressed;
-        if (close_button != null)
-            close_button.Pressed += _on_return_pressed;
         base._Ready();
     }
 
-    protected override void _on_modal_close_requested() => _on_return_pressed();
+    protected override void _on_modal_close_requested() => OnLeave();
 
-    internal void ShowDialog(NpcQuestOfferWindowData windowData)
+    internal void ShowDialog(NpcQuestOfferWindowData data)
     {
-        if (windowData == null || windowData.Entries.Count == 0)
+        if (data == null || data.Entries.Count == 0) { HideDialog(); return; }
+        bool keep = Visible && _data?.SettlementId == data.SettlementId && _data.ActionId == data.ActionId
+            && data.Entries.Any(entry => entry.QuestId == _selectedQuestId);
+        _data = data;
+        if (!keep) _selectedQuestId = data.SelectedQuestId;
+        ClearTopics();
+        var topics = data.Entries.Where(entry => entry.IsEnabled || entry.StateId == "active").ToArray();
+        if (topics.Length > 1)
         {
-            HideDialog();
-            return;
+            foreach (var entry in topics)
+            {
+                var button = new Button
+                {
+                    Text = $"关于「{entry.DisplayName}」……", ThemeTypeVariation = "ChronicleQuiet",
+                    Alignment = HorizontalAlignment.Left, CustomMinimumSize = new Vector2(0, 40),
+                };
+                button.Pressed += () => { _selectedQuestId = entry.QuestId; RefreshConversation(); };
+                topic_choices.AddChild(button);
+            }
         }
-
-        _settlementId = windowData.SettlementId ?? "";
-        _actionId = windowData.ActionId ?? "";
-        _selectedQuestId = windowData.SelectedQuestId ?? "";
-        _pendingConfirmationQuestId = windowData.PendingConfirmationQuestId ?? "";
-
-        NpcQuestOfferEntryData selectedEntry = _resolve_selected_entry(windowData);
-        bool isEnabled = selectedEntry?.IsEnabled ?? false;
-        string npcName = windowData.NpcName ?? "";
-        string dialogueText = selectedEntry?.AcceptDialogueText ?? "";
-        if (string.IsNullOrEmpty(dialogueText))
-            dialogueText = selectedEntry?.Description ?? "";
-
-        if (title_label != null)
-            title_label.Text = string.IsNullOrEmpty(npcName) ? "NPC 委托" : $"{npcName} 的委托";
-        if (dialogue_label != null)
-            dialogue_label.Text = dialogueText;
-        if (summary_label != null)
-            summary_label.Text = selectedEntry?.SummaryText ?? "";
-        if (reward_label != null)
-            reward_label.Text = selectedEntry?.CostLabel ?? "";
-        if (feedback_label != null)
-            feedback_label.Text = windowData.FeedbackText ?? "";
-
-        if (accept_button != null)
-        {
-            bool isConfirming = _pendingConfirmationQuestId == _selectedQuestId
-                && !string.IsNullOrEmpty(_pendingConfirmationQuestId);
-            string actionLabel = selectedEntry?.ActionLabel ?? "";
-            accept_button.Text = isConfirming
-                ? "确认接受"
-                : string.IsNullOrEmpty(actionLabel)
-                    ? "接受委托"
-                    : actionLabel;
-            accept_button.Disabled = !isEnabled;
-        }
-
-        if (return_button != null)
-            return_button.Text = "返回";
-        if (close_button != null)
-            close_button.Text = "关闭";
-
+        RefreshConversation();
         Visible = true;
+    }
+
+    private void RefreshConversation()
+    {
+        var entry = _data.Entries.FirstOrDefault(e => e.QuestId == _selectedQuestId) ?? _data.Entries[0];
+        _selectedQuestId = entry.QuestId;
+        bool confirming = !string.IsNullOrEmpty(_data.PendingConfirmationQuestId)
+            && _data.PendingConfirmationQuestId == _selectedQuestId;
+        title_label.Text = string.IsNullOrEmpty(_data.NpcName) ? "交谈" : _data.NpcName;
+        dialogue_label.Text = confirming ? _data.PendingConfirmationText
+            : _selectedQuestId == _data.SelectedQuestId && !string.IsNullOrEmpty(_data.FeedbackText)
+                ? _data.FeedbackText : entry.StateId switch
+                {
+                    "active" => entry.IsEnabled ? "东西带来了吗？交给我就好。" : "这件事还没有办完。准备好了再来找我吧。",
+                    "claimable" => "你把事情办妥了。这是说好的谢礼，收下吧。",
+                    "completed" => "多谢你的帮助。愿你一路平安。",
+                    _ => !entry.IsEnabled ? "眼下没有需要你帮忙的事。路上小心。"
+                        : string.IsNullOrEmpty(entry.AcceptDialogueText) ? entry.Description : entry.AcceptDialogueText,
+                };
+        accept_button.Text = confirming ? "我确定。" : entry.StateId switch
+        {
+            "active" => "东西带来了。", "claimable" => "谢谢。",
+            "restartable_failed" => "让我再试一次。", _ => "交给我吧。",
+        };
+        accept_button.Visible = entry.IsEnabled;
+        accept_button.Disabled = !entry.IsEnabled;
     }
 
     public void HideDialog()
     {
         Visible = false;
-        _settlementId = "";
-        _actionId = "";
+        _data = null;
         _selectedQuestId = "";
-        _pendingConfirmationQuestId = "";
+        if (title_label != null) title_label.Text = "";
+        if (dialogue_label != null) dialogue_label.Text = "";
+        if (accept_button != null) { accept_button.Disabled = true; accept_button.Visible = false; }
+        ClearTopics();
+    }
 
-        if (title_label != null)
-            title_label.Text = "";
-        if (dialogue_label != null)
-            dialogue_label.Text = "";
-        if (summary_label != null)
-            summary_label.Text = "";
-        if (reward_label != null)
-            reward_label.Text = "";
-        if (feedback_label != null)
-            feedback_label.Text = "";
-        if (accept_button != null)
+    private void ClearTopics()
+    {
+        if (topic_choices == null) return;
+        foreach (Node child in topic_choices.GetChildren())
         {
-            accept_button.Text = "接受委托";
-            accept_button.Disabled = true;
+            topic_choices.RemoveChild(child);
+            child.QueueFree();
         }
-        if (return_button != null)
-            return_button.Text = "返回";
-        if (close_button != null)
-            close_button.Text = "关闭";
     }
 
-    private void _on_accept_pressed()
+    private void OnReply()
     {
-        if (string.IsNullOrEmpty(_selectedQuestId))
-            return;
-
-        bool isConfirming = _pendingConfirmationQuestId == _selectedQuestId
-            && !string.IsNullOrEmpty(_pendingConfirmationQuestId);
-
-        var payload = new GDictionary
+        if (_data == null || accept_button.Disabled) return;
+        using var payload = new GDictionary
         {
-            ["submission_source"] = "npc_quest_offer",
-            ["quest_id"] = _selectedQuestId,
-            ["confirm_accept"] = isConfirming,
+            ["submission_source"] = "npc_quest_offer", ["quest_id"] = _selectedQuestId,
+            ["confirm_accept"] = _data.PendingConfirmationQuestId == _selectedQuestId,
         };
-        EmitSignal(SignalName.action_requested, _settlementId, _actionId, payload);
+        EmitSignal(SignalName.action_requested, _data.SettlementId, _data.ActionId, payload);
     }
 
-    private void _on_return_pressed()
-    {
-        EmitSignal(SignalName.closed);
-    }
-
-    private NpcQuestOfferEntryData _resolve_selected_entry(NpcQuestOfferWindowData windowData)
-    {
-        if (windowData?.Entries == null || windowData.Entries.Count == 0)
-            return null;
-
-        NpcQuestOfferEntryData selected = windowData.Entries.FirstOrDefault(
-            e => e.QuestId == _selectedQuestId
-        );
-        return selected ?? windowData.Entries[0];
-    }
+    private void OnLeave() => EmitSignal(SignalName.closed);
 }

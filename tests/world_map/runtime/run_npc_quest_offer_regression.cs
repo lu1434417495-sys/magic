@@ -33,6 +33,7 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             await TestNpcQuestOfferRejectsWrongAction();
             await TestNpcQuestOfferFallsBackWhenNoMatchingQuests();
             await TestNpcQuestOfferMultipleQuests();
+            await TestProductionChiefSelectsFirstBloodBeforeLockedFollowup();
             await TestNpcQuestOfferRejectsMissingQuestId();
             await TestNpcQuestOfferRejectsWrongNpcQuest();
             await TestNpcQuestOfferRejectsWrongListingChannel();
@@ -129,8 +130,8 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
             );
             _test.Eq(
                 windowData.NpcName,
-                "blacksmith hrothgar",
-                "NPC offer 窗口应将下划线转换为可读名称。"
+                "霍斯加尔",
+                "NPC offer 窗口应使用据点提供的 NPC 显示名。"
             );
             _test.Eq(
                 windowData.SelectedQuestId,
@@ -1041,6 +1042,18 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 "默认应选中首个任务。"
             );
 
+            RuntimeCommandResult pendingResult = handler.CommandExecuteSettlementActionRuntimeTyped(
+                "npc_blacksmith_hrothgar",
+                new GDictionary
+                {
+                    ["submission_source"] = "npc_quest_offer",
+                    ["quest_id"] = "npc_blacksmith_hrothgar_cave_beasts",
+                }
+            );
+            _test.True(pendingResult.Ok, "第一个任务应进入待确认状态。");
+            _test.Eq(runtime.GetActiveNpcQuestOfferData().PendingConfirmationQuestId,
+                "npc_blacksmith_hrothgar_cave_beasts", "应先记录第一个任务的待确认状态。");
+
             RuntimeCommandResult submitResult =
                 handler.CommandExecuteSettlementActionRuntimeTyped(
                     "npc_blacksmith_hrothgar",
@@ -1058,11 +1071,56 @@ public partial class run_npc_quest_offer_regression : LifecycleTestSceneTree
                 runtime.GetPartyState().HasActiveQuest("npc_blacksmith_hrothgar_iron_delivery"),
                 "第二个任务应进入 active_quests。"
             );
+            _test.Eq(runtime.GetActiveNpcQuestOfferData().SelectedQuestId,
+                "npc_blacksmith_hrothgar_iron_delivery", "提交第二项后应保持该任务，避免反馈跳回默认条目。");
+            _test.Eq(runtime.GetActiveNpcQuestOfferData().PendingConfirmationQuestId, "",
+                "提交另一项任务后应清除前一个任务的待确认状态。");
+            _test.False(runtime.GetPartyState().HasActiveQuest("npc_blacksmith_hrothgar_cave_beasts"),
+                "接受第二项不能顺带接受仍未确认的第一项。");
         }
         finally
         {
             await DisposeFixture(fixture);
         }
+    }
+
+    private async Task TestProductionChiefSelectsFirstBloodBeforeLockedFollowup()
+    {
+        IReadOnlyDictionary<StringName, QuestDefinition> productionQuests =
+            Root.GetNode<GameSession>("GameSession").GetQuestDefsTyped();
+        var quests = new Dictionary<StringName, QuestDefinition>
+        {
+            ["folk_farmers_plea"] = productionQuests["folk_farmers_plea"],
+        };
+        foreach (var entry in productionQuests)
+            quests.TryAdd(entry.Key, entry.Value);
+        RuntimeFixture fixture = await BuildRuntimeFixture("chief_first_quest", BuildPartyState(12, 180),
+            new[] { BuildSettlementRecord("spring_village_01", "春泉村", Vector2I.Zero,
+                new GArray { BuildNpcServiceEntry("npc_village_chief", "npc_village_chief", "篝烟灶", "村长") }) }, quests);
+        try
+        {
+            RuntimeCommandResult opened = fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                "npc_village_chief", new GDictionary { ["interaction_script_id"] = "npc_village_chief" });
+            _test.True(opened.Ok, "生产村长入口应打开。");
+            NpcQuestOfferWindowData data = fixture.Runtime.GetActiveNpcQuestOfferData();
+            _test.Eq(data.SelectedQuestId, "tutorial_first_blood", "锁定后续任务排在前面时，新档仍应选中可接的初阵。");
+            _test.False(data.Entries.Single(entry => entry.QuestId == "folk_farmers_plea").IsEnabled,
+                "修复默认选择不能解除后续任务前置条件。");
+            _test.Eq(data.Entries.Single(entry => entry.QuestId == "folk_farmers_plea").StateLabel,
+                "未解锁", "未满足接取前置条件的任务不能标成可接取。");
+
+            RuntimeCommandResult accepted = fixture.Handler.CommandExecuteSettlementActionRuntimeTyped(
+                "npc_village_chief", new GDictionary { ["submission_source"] = "npc_quest_offer", ["quest_id"] = data.SelectedQuestId });
+            _test.True(accepted.Ok, $"初阵应通过正式入口接取：{accepted.Message}");
+            _test.True(fixture.Runtime.GetPartyState().HasActiveQuest("tutorial_first_blood"), "初阵应进入正式任务日志。");
+
+            fixture.Runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            fixture.Handler.CommandExecuteSettlementActionRuntimeTyped("npc_village_chief",
+                new GDictionary { ["interaction_script_id"] = "npc_village_chief" });
+            _test.Eq(fixture.Runtime.GetActiveNpcQuestOfferData().SelectedQuestId, "tutorial_first_blood",
+                "没有可操作任务时，再次打开应优先显示进行中的初阵。");
+        }
+        finally { await DisposeFixture(fixture); }
     }
 
     private async Task TestNpcQuestOfferRejectsMissingQuestId()

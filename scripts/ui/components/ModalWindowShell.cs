@@ -22,6 +22,8 @@ public partial class ModalWindowShell : Control
 
     protected virtual bool DismissOnEscape => true;
 
+    protected virtual bool AnimateEntrance => true;
+
     public override void _Ready()
     {
         _modal_shade = GetNodeOrNull<ColorRect>("Shade") ?? GetNodeOrNull<ColorRect>("%Shade");
@@ -69,7 +71,7 @@ public partial class ModalWindowShell : Control
         if (_presentation_panel == null)
             return;
         _presentation_panel.Modulate = Colors.White;
-        if (!Visible)
+        if (!Visible || !AnimateEntrance)
             return;
         _presentation_panel.Modulate = new Color(1, 1, 1, 0.35f);
         _entrance_tween = CreateTween();

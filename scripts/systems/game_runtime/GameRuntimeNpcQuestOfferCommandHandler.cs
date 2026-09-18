@@ -89,9 +89,11 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             interactionScriptId,
             npcQuests
         );
+        string npcName = GameRuntimeSettlementCommandHandler.ReadString(payload, "npc_name");
+        if (!string.IsNullOrEmpty(npcName)) windowData.NpcName = npcName;
         _owner.SetActiveNpcQuestOfferContext(windowData);
         _owner.SetActiveModalKind(RuntimeModalKind.NpcQuestOffer);
-        _owner.UpdateStatus($"已打开 {_resolve_npc_display_name(interactionScriptId)} 的委托。");
+        _owner.UpdateStatus($"正在与{windowData.NpcName}交谈。");
         result = _owner.CommandOk($"已打开 {interactionScriptId} 的委托。");
         return true;
     }
@@ -109,7 +111,6 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             ActionId = actionId,
             NpcInteractionId = npcInteractionId,
             NpcName = _resolve_npc_display_name(npcInteractionId),
-            SelectedQuestId = npcQuests[0].QuestId.ToString(),
         };
 
         foreach (QuestDefinition questDefinition in npcQuests)
@@ -169,7 +170,9 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
                         ? _contractBoardHandler._build_contract_board_reward_label(questData.RewardEntries)
                         : "奖励：无",
                     StateId = stateId,
-                    StateLabel = _contractBoardHandler._build_contract_board_state_label(stateId),
+                    StateLabel = !isEnabled && (stateId is "available" or "repeatable" or "restartable_failed")
+                        ? "未解锁"
+                        : _contractBoardHandler._build_contract_board_state_label(stateId),
                     ActionLabel = _build_npc_quest_action_label(
                         stateId,
                         hasSubmitItemObjective
@@ -184,6 +187,11 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             );
         }
 
+        NpcQuestOfferEntryData defaultEntry = windowData.Entries.FirstOrDefault(entry => entry.StateId == "claimable")
+            ?? windowData.Entries.FirstOrDefault(entry => entry.IsEnabled)
+            ?? windowData.Entries.FirstOrDefault(entry => entry.StateId == "active")
+            ?? windowData.Entries.FirstOrDefault();
+        windowData.SelectedQuestId = defaultEntry?.QuestId ?? "";
         return windowData;
     }
 
@@ -268,6 +276,14 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             _owner.UpdateStatus(notOfferMessage);
             return _owner.CommandError(notOfferMessage);
         }
+
+        // The dialog browses entries locally and submits the selected quest ID.
+        // Keep refresh and confirmation tied to that validated entry, not the opening default.
+        npcContext.SelectedQuestId = questId.ToString();
+        _owner.SetActiveNpcQuestOfferContext(npcContext);
+        if (!string.IsNullOrEmpty(npcContext.PendingConfirmationQuestId)
+            && npcContext.PendingConfirmationQuestId != questId.ToString())
+            _clear_npc_quest_offer_confirmation_context();
 
         string stateId = _contractBoardHandler._resolve_contract_board_quest_state_id(
             questDefinition.QuestId,
@@ -430,9 +446,9 @@ internal sealed class GameRuntimeNpcQuestOfferCommandHandler
             npcQuests
         );
         refreshed.FeedbackText = feedback_text;
-        refreshed.SelectedQuestId = context.SelectedQuestId;
-        if (!npcQuests.Exists(q => q.QuestId.ToString() == refreshed.SelectedQuestId))
-            refreshed.SelectedQuestId = npcQuests[0].QuestId.ToString();
+        refreshed.NpcName = context.NpcName;
+        if (npcQuests.Exists(q => q.QuestId.ToString() == context.SelectedQuestId))
+            refreshed.SelectedQuestId = context.SelectedQuestId;
         refreshed.PendingConfirmationQuestId = context.PendingConfirmationQuestId;
         refreshed.PendingConfirmationText = context.PendingConfirmationText;
         refreshed.PendingConfirmationSource = context.PendingConfirmationSource;

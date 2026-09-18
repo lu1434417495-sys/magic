@@ -372,6 +372,12 @@ internal sealed class WorldMapRuntimeProxy
         return RunRuntimeCommand(() => _runtime.CommandOpenPartyTyped());
     }
 
+    internal RuntimeCommandResult CommandOpenQuestJournal() =>
+        RunRuntimeCommand(() => _runtime.CommandOpenQuestJournalTyped());
+
+    internal QuestJournalWindowData GetQuestJournalWindowDataTyped() =>
+        _runtime?.GetQuestJournalWindowDataTyped() ?? QuestJournalWindowData.Empty;
+
     internal RuntimeCommandResult CommandAcceptQuest(StringName questId, bool allowReaccept = false)
     {
         return RunRuntimeCommand(() => _runtime.CommandAcceptQuestTyped(questId, allowReaccept));

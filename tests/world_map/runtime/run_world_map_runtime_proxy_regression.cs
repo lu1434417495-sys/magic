@@ -37,6 +37,7 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
         TestGettersForwardToRuntime();
         TestSnapshotMethodsForwardToRuntime();
         TestPartyCommandsDelegateToRuntime();
+        TestQuestJournalModalBlocksWorldAndCloses();
         TestWarehouseMutationsStageWithoutImmediateFlush();
         TestMissingRuntimeReturnsError();
 
@@ -106,6 +107,27 @@ public partial class run_world_map_runtime_proxy_regression : LifecycleTestScene
             proxy.Dispose();
             fixture.Dispose();
         }
+    }
+
+    private void TestQuestJournalModalBlocksWorldAndCloses()
+    {
+        using RuntimeFixture fixture = BuildRuntime(BuildPartyState());
+        WorldMapRuntimeProxy proxy = new();
+        proxy.Setup(fixture.Runtime);
+        try
+        {
+            _test.True(proxy.CommandOpenQuestJournal().Ok, "大地图应能打开任务日志。");
+            _test.Eq(proxy.GetActiveModalId(), "quest_journal", "日志必须由正式 modal owner 持有。");
+            Vector2I before = proxy.GetPlayerCoord();
+            _test.False(proxy.CommandWorldMove(Vector2I.Right, 1).Ok, "全屏日志开启时不能移动世界角色。");
+            _test.Eq(proxy.GetPlayerCoord(), before, "查看日志不能推进角色位置。");
+            _test.False(proxy.CommandOpenParty().Ok, "日志开启时不能打开另一个世界面板。");
+            _test.True(proxy.CommandCloseActiveModal().Ok, "日志必须能由正式关闭命令返回世界。");
+            _test.Eq(proxy.GetActiveModalId(), "", "关闭后不能残留 modal 状态。");
+            fixture.Runtime.SetRuntimeActiveModalKind(RuntimeModalKind.Settlement);
+            _test.False(proxy.CommandOpenQuestJournal().Ok, "NPC 所在据点模态中不能覆盖打开日志。");
+        }
+        finally { proxy.Dispose(); }
     }
 
     private void TestSnapshotMethodsForwardToRuntime()

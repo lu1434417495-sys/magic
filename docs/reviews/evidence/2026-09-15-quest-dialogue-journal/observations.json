@@ -1,0 +1,1240 @@
+{
+  "input_only": true,
+  "rendered": true,
+  "isolated_user_data": true,
+  "observations": [
+    {
+      "id": "009",
+      "utc": "2026-09-15T03:54:42.6190724Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 986,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1030,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/EmptyLabel",
+          "type": "Label",
+          "text": "旅途尚未留下委托。\n与据点中的人物交谈，接下你的第一份任务。",
+          "x": 420,
+          "y": 175,
+          "width": 820,
+          "height": 236,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "0 份旅途记录",
+          "x": 40,
+          "y": 671,
+          "width": 1040,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1084,
+          "y": 671,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "empty-journal-720p.png"
+    },
+    {
+      "id": "012",
+      "utc": "2026-09-15T03:55:00.0899702Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "npc_quest_offer",
+      "status": "正在与村长交谈。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/TitleLabel",
+          "type": "Label",
+          "text": "村长",
+          "x": 307,
+          "y": 184,
+          "width": 602,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "关闭",
+          "x": 921,
+          "y": 165,
+          "width": 52,
+          "height": 72,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Body/ConversationScroll/Conversation/DialogueLabel",
+          "type": "Label",
+          "text": "村外的荒狼已经逼近农田。先清理三只，证明你能保护自己。",
+          "x": 307,
+          "y": 251,
+          "width": 666,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Footer/ReturnButton",
+          "type": "Button",
+          "text": "先告辞了。",
+          "x": 701,
+          "y": 511,
+          "width": 120,
+          "height": 44,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Footer/AcceptButton",
+          "type": "Button",
+          "text": "交给我吧。",
+          "x": 833,
+          "y": 511,
+          "width": 140,
+          "height": 44,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "chief-dialogue-720p.png"
+    },
+    {
+      "id": "013",
+      "utc": "2026-09-15T03:55:08.9197236Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "npc_quest_offer",
+      "status": "村长把清理荒狼的任务交给了你。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/TitleLabel",
+          "type": "Label",
+          "text": "村长",
+          "x": 307,
+          "y": 184,
+          "width": 602,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "关闭",
+          "x": 921,
+          "y": 165,
+          "width": 52,
+          "height": 72,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Body/ConversationScroll/Conversation/DialogueLabel",
+          "type": "Label",
+          "text": "村长把清理荒狼的任务交给了你。",
+          "x": 307,
+          "y": 251,
+          "width": 666,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Footer/ReturnButton",
+          "type": "Button",
+          "text": "先告辞了。",
+          "x": 853,
+          "y": 511,
+          "width": 120,
+          "height": 44,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "quest-accepted-720p.png"
+    },
+    {
+      "id": "016",
+      "utc": "2026-09-15T03:55:20.9776937Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 986,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1030,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/StateLabel",
+          "type": "Label",
+          "text": "进行中",
+          "x": 420,
+          "y": 175,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/QuestTitle",
+          "type": "Label",
+          "text": "初阵",
+          "x": 420,
+          "y": 221,
+          "width": 814,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ProviderLabel",
+          "type": "Label",
+          "text": "委托来源　村长",
+          "x": 420,
+          "y": 274,
+          "width": 814,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/DescriptionLabel",
+          "type": "Label",
+          "text": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+          "x": 420,
+          "y": 317,
+          "width": 814,
+          "height": 62,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesTitle",
+          "type": "Label",
+          "text": "目标",
+          "x": 420,
+          "y": 399,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesLabel",
+          "type": "Label",
+          "text": "○  击败荒狼群　0 / 3",
+          "x": 420,
+          "y": 450,
+          "width": 814,
+          "height": 28,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsTitle",
+          "type": "Label",
+          "text": "报酬",
+          "x": 420,
+          "y": 498,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsLabel",
+          "type": "Label",
+          "text": "50 金\nDialogue0915 · 重击熟练度 +80",
+          "x": 420,
+          "y": 549,
+          "width": 814,
+          "height": 58,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/NextStepLabel",
+          "type": "Label",
+          "text": "完成下列目标后，回到村长处交谈。",
+          "x": 420,
+          "y": 627,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "1 份旅途记录",
+          "x": 40,
+          "y": 671,
+          "width": 1040,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1084,
+          "y": 671,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "quest-journal-720p.png"
+    },
+    {
+      "id": "017",
+      "utc": "2026-09-15T03:55:27.4805365Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 986,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1030,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/StateLabel",
+          "type": "Label",
+          "text": "进行中",
+          "x": 420,
+          "y": 175,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/QuestTitle",
+          "type": "Label",
+          "text": "初阵",
+          "x": 420,
+          "y": 221,
+          "width": 814,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ProviderLabel",
+          "type": "Label",
+          "text": "委托来源　村长",
+          "x": 420,
+          "y": 274,
+          "width": 814,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/DescriptionLabel",
+          "type": "Label",
+          "text": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+          "x": 420,
+          "y": 317,
+          "width": 814,
+          "height": 62,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesTitle",
+          "type": "Label",
+          "text": "目标",
+          "x": 420,
+          "y": 399,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesLabel",
+          "type": "Label",
+          "text": "○  击败荒狼群　0 / 3",
+          "x": 420,
+          "y": 450,
+          "width": 814,
+          "height": 28,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsTitle",
+          "type": "Label",
+          "text": "报酬",
+          "x": 420,
+          "y": 498,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsLabel",
+          "type": "Label",
+          "text": "50 金\nDialogue0915 · 重击熟练度 +80",
+          "x": 420,
+          "y": 549,
+          "width": 814,
+          "height": 58,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/NextStepLabel",
+          "type": "Label",
+          "text": "完成下列目标后，回到村长处交谈。",
+          "x": 420,
+          "y": 627,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "1 份旅途记录",
+          "x": 40,
+          "y": 671,
+          "width": 1040,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1084,
+          "y": 671,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ]
+    },
+    {
+      "id": "018",
+      "utc": "2026-09-15T03:55:28.0304447Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 986,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1030,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/EmptyLabel",
+          "type": "Label",
+          "text": "这里还没有任务记录。",
+          "x": 420,
+          "y": 175,
+          "width": 820,
+          "height": 236,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "1 份旅途记录",
+          "x": 40,
+          "y": 671,
+          "width": 1040,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1084,
+          "y": 671,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "completed-filter-empty-720p.png"
+    },
+    {
+      "id": "019",
+      "utc": "2026-09-15T03:55:35.9473235Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "",
+      "status": "已收起任务日志，返回大地图。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": []
+    },
+    {
+      "id": "020",
+      "utc": "2026-09-15T03:55:36.4621774Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 986,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1030,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/StateLabel",
+          "type": "Label",
+          "text": "进行中",
+          "x": 420,
+          "y": 175,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/QuestTitle",
+          "type": "Label",
+          "text": "初阵",
+          "x": 420,
+          "y": 221,
+          "width": 814,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ProviderLabel",
+          "type": "Label",
+          "text": "委托来源　村长",
+          "x": 420,
+          "y": 274,
+          "width": 814,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/DescriptionLabel",
+          "type": "Label",
+          "text": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+          "x": 420,
+          "y": 317,
+          "width": 814,
+          "height": 62,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesTitle",
+          "type": "Label",
+          "text": "目标",
+          "x": 420,
+          "y": 399,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesLabel",
+          "type": "Label",
+          "text": "○  击败荒狼群　0 / 3",
+          "x": 420,
+          "y": 450,
+          "width": 814,
+          "height": 28,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsTitle",
+          "type": "Label",
+          "text": "报酬",
+          "x": 420,
+          "y": 498,
+          "width": 814,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsLabel",
+          "type": "Label",
+          "text": "50 金\nDialogue0915 · 重击熟练度 +80",
+          "x": 420,
+          "y": 549,
+          "width": 814,
+          "height": 58,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/NextStepLabel",
+          "type": "Label",
+          "text": "完成下列目标后，回到村长处交谈。",
+          "x": 420,
+          "y": 627,
+          "width": 814,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "1 份旅途记录",
+          "x": 40,
+          "y": 671,
+          "width": 1040,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1084,
+          "y": 671,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ]
+    },
+    {
+      "id": "021",
+      "utc": "2026-09-15T03:55:37.0388338Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 499)",
+      "modal": "",
+      "status": "已收起任务日志，返回大地图。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": []
+    },
+    {
+      "id": "022",
+      "utc": "2026-09-15T03:55:37.5700263Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 498)",
+      "modal": "",
+      "status": "玩家移动到 (499, 498)，视野与世界时间已刷新。",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": []
+    },
+    {
+      "id": "030",
+      "utc": "2026-09-15T03:58:43.4408100Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 498)",
+      "modal": "",
+      "status": "大地图已载入，初始村庄为 白鹿旧道村。方向键/WASD 可按住持续移动，点击可见据点或按 Enter 打开据点窗口，按 P 打开队伍管理，右键人物可查看信息。",
+      "dimensions": [
+        3840,
+        2160
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": []
+    },
+    {
+      "id": "032",
+      "utc": "2026-09-15T03:58:54.2082732Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 498)",
+      "modal": "quest_journal",
+      "status": "已打开任务日志。",
+      "dimensions": [
+        3840,
+        2160
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/Title",
+          "type": "Label",
+          "text": "任务日志",
+          "x": 40,
+          "y": 43,
+          "width": 1626,
+          "height": 37,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "返回大地图  ·  Esc",
+          "x": 1670,
+          "y": 30,
+          "width": 210,
+          "height": 64,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/StateLabel",
+          "type": "Label",
+          "text": "进行中",
+          "x": 420,
+          "y": 175,
+          "width": 1460,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/QuestTitle",
+          "type": "Label",
+          "text": "初阵",
+          "x": 420,
+          "y": 221,
+          "width": 1460,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ProviderLabel",
+          "type": "Label",
+          "text": "委托来源　村长",
+          "x": 420,
+          "y": 274,
+          "width": 1460,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/DescriptionLabel",
+          "type": "Label",
+          "text": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+          "x": 420,
+          "y": 317,
+          "width": 1460,
+          "height": 28,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesTitle",
+          "type": "Label",
+          "text": "目标",
+          "x": 420,
+          "y": 365,
+          "width": 1460,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/ObjectivesLabel",
+          "type": "Label",
+          "text": "○  击败荒狼群　0 / 3",
+          "x": 420,
+          "y": 416,
+          "width": 1460,
+          "height": 28,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsTitle",
+          "type": "Label",
+          "text": "报酬",
+          "x": 420,
+          "y": 464,
+          "width": 1460,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/RewardsLabel",
+          "type": "Label",
+          "text": "50 金\nDialogue0915 · 重击熟练度 +80",
+          "x": 420,
+          "y": 515,
+          "width": 1460,
+          "height": 58,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Body/Reading/DetailScroll/Details/NextStepLabel",
+          "type": "Label",
+          "text": "完成下列目标后，回到村长处交谈。",
+          "x": 420,
+          "y": 593,
+          "width": 1460,
+          "height": 26,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/CountLabel",
+          "type": "Label",
+          "text": "1 份旅途记录",
+          "x": 40,
+          "y": 1031,
+          "width": 1680,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/QuestJournalWindow/FullPanel/Margin/Content/Footer/Hint",
+          "type": "Label",
+          "text": "J  查看 / 收起任务日志",
+          "x": 1724,
+          "y": 1031,
+          "width": 156,
+          "height": 23,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "quest-journal-4k.png"
+    },
+    {
+      "id": "035",
+      "utc": "2026-09-15T03:59:07.4357290Z",
+      "scene": "res://scenes/main/world_map.tscn",
+      "error": null,
+      "coord": "(499, 498)",
+      "modal": "npc_quest_offer",
+      "status": "正在与村长交谈。",
+      "dimensions": [
+        3840,
+        2160
+      ],
+      "quest_state": {
+        "active_quests": [
+          {
+            "quest_id": "tutorial_first_blood",
+            "status_id": "active",
+            "objective_progress": {},
+            "accepted_at_world_step": 0,
+            "completed_at_world_step": -1,
+            "reward_claimed_at_world_step": -1,
+            "failed_at_world_step": -1,
+            "failure_reason_id": "",
+            "last_progress_context": {}
+          }
+        ],
+        "claimable_quests": [],
+        "failed_quests": [],
+        "completed_quest_ids": []
+      },
+      "controls": [
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/TitleLabel",
+          "type": "Label",
+          "text": "村长",
+          "x": 627,
+          "y": 364,
+          "width": 602,
+          "height": 33,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Header/CloseButton",
+          "type": "Button",
+          "text": "关闭",
+          "x": 1241,
+          "y": 345,
+          "width": 52,
+          "height": 72,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Body/ConversationScroll/Conversation/DialogueLabel",
+          "type": "Label",
+          "text": "这件事还没有办完。准备好了再来找我吧。",
+          "x": 627,
+          "y": 431,
+          "width": 666,
+          "height": 31,
+          "disabled": false,
+          "tooltip": ""
+        },
+        {
+          "path": "/root/WorldMap/NpcQuestOfferDialog/CenterContainer/Panel/MarginContainer/Content/Footer/ReturnButton",
+          "type": "Button",
+          "text": "先告辞了。",
+          "x": 1173,
+          "y": 691,
+          "width": 120,
+          "height": 44,
+          "disabled": false,
+          "tooltip": ""
+        }
+      ],
+      "screenshot": "chief-active-dialogue-4k.png"
+    }
+  ]
+}
