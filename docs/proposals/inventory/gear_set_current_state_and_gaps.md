@@ -147,7 +147,7 @@ source_id   = gear_set::<gear_set_id>::<threshold_id>
 关键代码：
 
 - `scripts/systems/battle/core/BattleEquipmentAbilitySourceState.cs:13-22`
-- `scripts/systems/battle/runtime/BattleEquipmentAbilityProjectionService.cs:87-135`
+- `scripts/systems/battle/rules/BattleEquipmentAbilityProjectionService.cs:87-135`
 - `scripts/systems/battle/runtime/BattleUnitFactory.cs:394-460`
 
 ### 4.5 UI 与展示
@@ -502,7 +502,7 @@ godot --headless -s res://tests/runtime/validation/run_resource_validation_regre
 7. `scripts/systems/progression/CharacterManagementModule.cs`
 8. `scripts/systems/progression/CharacterTraitService.cs`
 9. `scripts/systems/battle/runtime/BattleUnitFactory.cs`
-10. `scripts/systems/battle/runtime/BattleEquipmentAbilityProjectionService.cs`
+10. `scripts/systems/battle/rules/BattleEquipmentAbilityProjectionService.cs`
 11. `scripts/player/progression/equipment_abilities/EquipmentAbilityRuntimeDefinitions.cs`
 12. `docs/design/battle/equipment_ability_runtime.md`
 13. `tests/equipment/run_gear_set_evaluation_regression.cs`

@@ -9,6 +9,8 @@
 
 ## 当前所有权
 
+2026-09-15 新增的承受攻击劣势防护、贡献来源与直接熟练度事件，见[承受攻击防护实现](incoming_attack_defense.md)。它复用通用状态与命中入口，并通过可释放的 sink 将真实攻击事件交给成长服务。
+
 | 层 | 当前 owner | 职责 |
 |---|---|---|
 | Authoring | `data/configs/json/skills/*.json`、family documents、file-local templates 与完整 typed payload contract | 声明技能、图标 ID、目标、消耗、typed effects、反应、位移和地形参数 |
@@ -101,6 +103,13 @@ skill JSON -> SkillContentJsonAuthoringDomain -> SkillJsonImportParser -> SkillI
 - AI 快速评估可以使用专用 typed evaluator，但遇到会改变合法目标集合的 canonical 规则时必须委托正式 preview，而不是近似复制。
 
 ## 代表性回归
+
+来源状态的提前结算通过通用 `advance_status_ticks` payload、逐来源 next-tick 消费和既有 timeline damage application 执行；目标门禁、HUD 与 AI 共用计划，详见[来源状态提前结算](status_tick_advance.md)及 `run_mage_molten_burst_regression.cs`。
+
+状态层数条件、寒蚀叠层与寒冰易伤由统一状态语义及damage/save/preview链实现；double档位在固定减伤与豁免后翻倍，再由护盾吸收。条件预览和AI均复用目标状态门禁，详细所有权与字段含义见[状态条件与豁免后易伤](status_vulnerability.md)。
+
+- `tests/battle_runtime/rules/run_post_save_vulnerability_regression.cs`
+- `tests/battle_runtime/skills/run_mage_cold_snap_regression.cs`
 
 - `tests/runtime/validation/run_barrier_skill_content_validation_regression.cs`
 - `tests/runtime/validation/run_skill_definition_projector_parity_regression.cs`

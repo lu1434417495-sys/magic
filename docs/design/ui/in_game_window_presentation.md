@@ -1,10 +1,12 @@
 # 游戏功能弹窗呈现
 
-更新日期：2026-09-12
+更新日期：2026-09-15
 
 ## 范围与显示边界
 
-游戏功能窗口继续以居中弹窗覆盖当前场景。世界地图、战斗棋盘或登录场景保留在后方，窗口只通过半透明 Shade 降低背景亮度。插画限于面板右上角，最大 320 × 96 逻辑像素，不承担全屏背景职责。
+普通游戏功能窗口以居中弹窗覆盖当前场景。世界地图、战斗棋盘或登录场景保留在后方，窗口只通过半透明 Shade 降低背景亮度。插画限于面板右上角，最大 320 × 96 逻辑像素，不承担全屏背景职责。
+
+任务日志是明确的全屏阅读页面：`quest_journal_window.tscn` 使用铺满视口的 `FullPanel` 与不透明背景，覆盖地图和 HUD，不使用居中面板或标题插画。大地图按钮 / J 打开，Esc / J / 返回按钮关闭。NPC 交谈继续使用居中对白窗口；任务详情转入日志。见 [任务日志呈现](quest_journal_presentation.md)。
 
 以下 14 个场景根引用 `scenes/ui/styles/chronicle_theme.tres`：
 
@@ -28,6 +30,8 @@
 | `scripts/ui/components/SelectionCardBuilder.cs` | 转职等选择卡片的薄底线、选中侧线、低对比正文底色 |
 
 场景仍保留根 `Shade` 和 `CenterContainer/Panel` 路径。`HeaderArtwork` 是脚本导出属性，在 `.tscn` 中写于 `script` 绑定之后。装饰作为 PanelContainer 的首个子节点参与填充，实际内容在其后绘制。淡入仅改变面板透明度，不延迟按钮输入；隐藏与离树时取消 tween。
+
+`NpcQuestOfferDialog` 覆写 `AnimateEntrance=false`，场景使用独立不透明面板样式，因此对白从出现的第一帧起不透出地图。普通窗口仍默认淡入。
 
 `ChronicleTitle` 使用衬线标题，`ChronicleSection` 用于区块标题，`ChroniclePrimary` 表示提交动作，`ChronicleQuiet` 用于关闭等次要动作。主题绑定在窗口，不修改项目全局 Theme。
 

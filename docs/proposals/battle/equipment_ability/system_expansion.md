@@ -251,7 +251,7 @@ flowchart LR
 | 3. SourceLifecycle | `scripts/systems/battle/runtime/EquipmentAbilitySourceLifecycleService.cs` | source key diff、缺失 charge/cooldown seed、失效 source cleanup | previous/current ability projection、`BattleUnitState` charge maps、`BattleState` typed mark/state API | handler condition/action 执行、耐久扣减、UI 展示 | 跟随 `BattleUnitFactory.RefreshEquipmentProjection(...)`；使用类似 `TraitTriggerHooks.ReconcileChargesAfterEffectiveTraitProjection(...)` 的 previous/current diff |
 | 4. BattleAbilityState | 新增 `scripts/systems/battle/core/BattleEquipmentAbilityMarkStore.cs`、`BattleEquipmentAbilityStateStore.cs`、state DTO | target mark、battle-level once/stack/counter 等非 source-local runtime facts | `BattleState` typed API、payload project/replace、AI mutation guard snapshot/restore | `BattleStatusEffectCollection`、`BattleUnitState` source-local charge/cooldown、handler 语义判断 | `BattleState.Project...` / `Replace...`；headless/runtime snapshot；`BattleAiMutationGuard` stable/capture/restore |
 | 5. RuntimeDispatch | `scripts/systems/battle/runtime/BattleEquipmentAbilityDispatcher.cs`、condition/action/fact/selector/dice services | trigger evaluation、condition result、mutation plan、trace | projection cache、handler metadata、fact providers、target selector service、`BattleUnitState` fact projection、existing resolver public/internal API | 直接改 `EquipmentInstanceState.current_durability`、直接写 weapon projection、直接拥有 mark store internals、执行期回查 enemy template tag | thin service 挂到真实 hook：`BattleHitResolver`、`BattleDamageResolver`、`BattleTimelineDriver`、`BattleChangeEquipmentResolver`、技能 turn resolver |
-| 6. WeaponProfileOverlay | `scripts/systems/battle/runtime/EquipmentWeaponProfileOverlayService.cs`、`scripts/systems/battle/core/WeaponProjection` 扩展 DTO | 当前 `WeaponProjection` 字段的 projection-only overlay 合成结果：range、dice、damage tag、grip、two-handed/versatile | base `WeaponProjection`、ability projection、static overlay definition | dispatcher action commit、status/mark owner、耐久 owner、未扩展 DTO 的 crit/attack mode 旁路 | `BattleUnitFactory.RefreshWeaponProjection(...)` 应先算 base weapon projection，再应用 overlay，最后写回 `BattleUnitState.ApplyWeaponProjectionTyped(...)` |
+| 6. WeaponProfileOverlay | `scripts/systems/battle/rules/EquipmentWeaponProfileOverlayService.cs`、`scripts/systems/battle/core/WeaponProjection` 扩展 DTO | 当前 `WeaponProjection` 字段的 projection-only overlay 合成结果：range、dice、damage tag、grip、two-handed/versatile | base `WeaponProjection`、ability projection、static overlay definition | dispatcher action commit、status/mark owner、耐久 owner、未扩展 DTO 的 crit/attack mode 旁路 | `BattleUnitFactory.RefreshWeaponProjection(...)` 应先算 base weapon projection，再应用 overlay，最后写回 `BattleUnitState.ApplyWeaponProjectionTyped(...)` |
 | 6b. AttackDefenseModifier | `scripts/systems/battle/runtime/EquipmentAttackDefenseModifierService.cs`、`scripts/systems/battle/core/EquipmentAttackDefenseAdjustment.cs` / `EquipmentDefenseComponentSnapshot.cs` | 单次 attack check 的目标 AC 组件快照、组件忽略/倍率、dodge lock、cover / projectile obstacle policy、trace | `BattleAttackCheckPolicyService`、`BattleHitResolver`、`AttributeService.AC_COMPONENT_ATTRIBUTE_IDS`、`BattleUnitState.equipment_view`、ItemDef tags/type、ability projection | 直接改 `armor_class` attribute、把破甲做成永久 status、把穿盾塞进 weapon overlay、绕过 preview/AI | `BattleAttackCheckPolicyService.BuildAttackCheck(...)` 在调用 `BattleHitResolver` 前收集 modifier；`BattleHitResolver` 用 adjustment 生成同一个 `AttackCheckInput` |
 | 6c. BattleEnvironmentFacts | `scripts/systems/battle/core/BattleEnvironmentSnapshot.cs`、`scripts/systems/battle/runtime/BattleEnvironmentContextProvider.cs`、`BattleEnvironmentTagContentRules` | 当前战斗的全局环境 tag/scalar、格子/路径环境派生规则、环境 fact trace | `BattleState.terrain_profile_id`、`BattleCellState.base_terrain/current_height/terrain_effect_ids/timed_terrain_effects`、battle setup context、test override | 世界地图天气系统、world runtime 当前时间/天气、装备 ability pack 自己声明环境 tag、执行/AI/preview 各自硬编码环境判断 | `BattleRuntimeModule.StartBattle(...)` 建立 snapshot；condition/fact provider、preview、AI scoring、execution 只读 provider |
 | 7a. EquipmentTargetSelector | `scripts/systems/battle/runtime/EquipmentAbilityEquipmentTargetSelector.cs` | `EquipmentAbilityEquipmentTargetRef` 只读选择结果、weighted random 候选和 trace | `EquipmentState`、`EquipmentEntryState`、`EquipmentInstanceState` snapshot、`ItemDef.IsWeapon/IsArmor/tags/slots`、正式 battle RNG | 修改装备实例、扣耐久、清装备槽 | target selector resolver 的 equipment result kind；供 action handler 和 fact provider 读取 |
@@ -4023,7 +4023,7 @@ ProjectionSource / SourceLifecycle：
 - `scripts/systems/battle/runtime/BattleUnitFactory.cs`，在 battle setup 时从 party identity 派生 `creature_type_tags`，并在 `RefreshEquipmentProjection(...)` / battle setup/load 后重建 ability projection。
 - `scripts/enemies/EnemyTemplateDef.cs`，保留 `attack_equipment_item_id` schema 校验和基础 weapon projection helper；不创建 runtime equipment instance。
 - `scripts/systems/world/EncounterRosterBuilder.cs`，敌方单位创建时把模板/roster 的生物分类 materialize 到 `BattleUnitState.creature_type_tags`，并把 `attack_equipment_item_id` materialize 为 battle-only enemy `EquipmentState`；运行时 fact provider 不回查模板。
-- `scripts/systems/battle/runtime/EnemyBattleEquipmentProjectionService.cs` 或等价 helper，集中创建 enemy battle-only `EquipmentInstanceState` / `EquipmentEntryState` / `EquipmentState`，生成稳定 `enemy_attack_equipment:{unit_id}:{item_id}` instance id。
+- `scripts/systems/battle/rules/EnemyBattleEquipmentProjectionService.cs` 或等价 helper，集中创建 enemy battle-only `EquipmentInstanceState` / `EquipmentEntryState` / `EquipmentState`，生成稳定 `enemy_attack_equipment:{unit_id}:{item_id}` instance id。
 - `scripts/systems/battle/runtime/EquipmentAbilityProjectionService.cs`。
 - `scripts/systems/battle/runtime/EquipmentAbilitySourceResolver.cs`。
 - `scripts/systems/battle/runtime/EquipmentAbilityRuntimeKey.cs`。
@@ -4032,7 +4032,7 @@ ProjectionSource / SourceLifecycle：
 - `scripts/systems/battle/runtime/EquipmentAbilitySourceLifecyclePlan.cs`。
 - `scripts/systems/battle/runtime/EquipmentAbilitySourceCleanupPlan.cs`。
 - `scripts/systems/battle/runtime/EquipmentAbilitySourceLifecycleResult.cs`。
-- `scripts/systems/battle/runtime/TraitTriggerHooks.cs`，只作为现有 charge diff 模式参考或窄复用点，不把 dispatcher 塞回旧 trait hook。
+- `scripts/systems/battle/rules/TraitTriggerHooks.cs`，只作为现有 charge diff 模式参考或窄复用点，不把 dispatcher 塞回旧 trait hook。
 
 BattleAbilityState：
 
@@ -4070,7 +4070,7 @@ WeaponProfileOverlay：
 - `scripts/systems/battle/runtime/BattleWeaponProfileOverlayResult.cs`。
 - `scripts/systems/battle/runtime/BattleWeaponProfileOverlayTrace.cs`。
 - `scripts/systems/battle/runtime/EquipmentWeaponOverlayFactView.cs`。
-- `scripts/systems/battle/runtime/EquipmentWeaponProfileOverlayService.cs`。
+- `scripts/systems/battle/rules/EquipmentWeaponProfileOverlayService.cs`。
 - `scripts/systems/battle/runtime/BattleUnitFactory.cs`，`RefreshWeaponProjection(...)` 改成 base projection -> overlay service -> single `ApplyWeaponProjectionTyped(...)`。
 - `scripts/systems/battle/rules/BattleRangeService.cs`，验证 overlay 后的 `BattleUnitState.weapon_*` 被 range/preview 读取。
 

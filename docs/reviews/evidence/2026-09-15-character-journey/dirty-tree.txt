@@ -1,0 +1,63 @@
+ M .codex/skills/design-godot-skill/SKILL.md
+ M .codex/skills/design-godot-skill/references/existing-skill-quality-audit.md
+ M data/configs/json/skills/mage_01.json
+ M docs/design/battle/ai_score_parameters.md
+ M docs/design/battle/skill_runtime.md
+ M docs/design/project_context_units.md
+ M docs/design/ui/character_info_presentation.md
+ M scenes/ui/party_management_window.tscn
+ M scripts/player/progression/CombatEffectDef.cs
+ M scripts/player/progression/SkillDefinition.cs
+ M scripts/systems/battle/_interop/BattleTypedEnums.cs
+ M scripts/systems/battle/ai/BattleAiDecisionResult.cs
+ M scripts/systems/battle/ai/BattleAiGroundSkillActionEvaluator.cs
+ M scripts/systems/battle/ai/BattleAiScoreInput.cs
+ M scripts/systems/battle/ai/BattleAiScoreService.Effects.cs
+ M scripts/systems/battle/ai/BattleAiScoreService.cs
+ M scripts/systems/battle/core/AttackResolutionMetadata.cs
+ M scripts/systems/battle/core/BattleStateReadView.cs
+ M scripts/systems/battle/core/BattleStatusEffectState.cs
+ M scripts/systems/battle/rules/BattleDamageResolver.cs
+ M scripts/systems/battle/rules/BattleHitResolver.cs
+ M scripts/systems/battle/rules/BattleStatusSemanticTable.cs
+ M scripts/systems/battle/runtime/BattleRuntimeModule.cs
+ M scripts/systems/battle/runtime/BattleSkillMasteryService.cs
+ M scripts/systems/battle/runtime/IBattleRatingCharacterGateway.cs
+ M scripts/systems/content/skills/SkillCanonicalJsonSchema.Effects.cs
+ M scripts/systems/content/skills/SkillCombatEffectImportModels.cs
+ M scripts/systems/content/skills/SkillCombatEffectJsonDtos.cs
+ M scripts/systems/content/skills/SkillCombatEffectJsonNormalizer.cs
+ M scripts/systems/content/skills/SkillDefinitionCombatProfileValidator.cs
+ M scripts/systems/content/skills/SkillDefinitionProjector.cs
+ M scripts/systems/content/skills/SkillDiagnosticFixtureProjection.Effects.cs
+ M scripts/systems/content/skills/SkillRootCombatImportModels.cs
+ M scripts/systems/content/skills/SkillRootCombatImportValueRules.cs
+ M scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.Details.cs
+ M scripts/systems/game_runtime/WorldMapSystem.cs
+ M scripts/ui/PartyManagementWindow.cs
+?? .codex/skills/design-godot-skill/assets/
+?? .codex/skills/design-godot-skill/scripts/assess_skill_power.py
+?? docs/content/skills/
+?? docs/design/battle/incoming_attack_defense.md
+?? docs/proposals/battle/skills/mage_blur.md
+?? docs/proposals/battle/skills/mage_blur_assessment/
+?? docs/proposals/battle/skills/mage_cold_snap.md
+?? docs/proposals/battle/skills/mage_cold_snap_assessment/
+?? docs/proposals/progression/character_player_journey.md
+?? docs/reviews/2026-09-14-party-character-details.md
+?? docs/reviews/2026-09-15-mage-blur-landing.md
+?? docs/reviews/2026-09-15-skill-power-assessment.md
+?? docs/reviews/evidence/2026-09-14-party-character-details/
+?? docs/reviews/evidence/2026-09-15-character-journey/
+?? docs/reviews/evidence/2026-09-15-mage-blur-landing.json
+?? docs/reviews/evidence/2026-09-15-skill-power-assessment.json
+?? scripts/systems/battle/ai/BattleAiScoreService.IncomingDefense.cs
+?? scripts/systems/battle/rules/BattleIncomingAttackDisadvantageRules.cs
+?? scripts/systems/battle/rules/IBattleIncomingAttackDisadvantageSink.cs
+?? scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.IncomingDefense.cs
+?? scripts/systems/game_runtime/CharacterTraitDisplayText.cs
+?? scripts/ui/PartyManagementWindow.Details.cs
+?? tests/battle_runtime/skills/run_mage_blur_regression.cs
+?? tests/e2e/run_character_journey_observer.cs
+?? tests/tooling/test_skill_power_assessment.py
+?? tests/world_map/ui/run_party_character_details_regression.cs
